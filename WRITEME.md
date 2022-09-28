@@ -1,3 +1,6 @@
+Some thing are (already) no longer up to date, see end of
+'Assembling Pipe Fittings'.
+
 Yet an other `awk`-ish command line tool, with a
 (point-free\*) functional approach (and written in Rust
 or whatever -- if I don't give up on it).
@@ -63,6 +66,12 @@ Note the following for implicit coercion:
 <!-- 'characters': or full-on graphems? -->
 <!-- 'printing': probly just base 10, idk -->
 
+Type coersion is a bad thing and should only be used
+carefuly and when you know exactly what you are doing
+(ie. most of the time).  Here it is mainly useful because
+the first fit of the line gets for input the current line,
+which is a string.
+
 To make documentation and references easier to understand,
 the following types may be used:
  - `bool` usually when describing a condition
@@ -92,7 +101,8 @@ These are binary operators used with infix syntax:
  `/`   | `num -> num -> num`  | division
  `%`\* | `num -> num -> num`  | mod or rem
  `:`   | `num -> num -> @num` | range constructor (see [ranges]())
- `#`   | `fit -> fit -> fit`  | application operator (similar to Haskell's `$`, see [when use it]())
+ `#`   | `fit -> fit -> fit`  | application operator (similar to Haskell's `($)`, see [when use it]())
+ ` `   | `fit -> fit -> fit`  | composition operator (similar to Haskell's `flip (.)`)
  `^`\* | `str -> str -> @str` | string splitting
  `,`\* | `@str -> str -> str` | array joining (first arg could change to `@any`...)
  `_`\* | `@any -> @any -> @any` | array indexing, also exist with a scalar first argument (fwaa, but this means overload? or is it coersion from scalar to array? both are not great.. but having to write eg. `_{0}` is not great either...)
@@ -187,6 +197,13 @@ really shorter nor more readable):
 $ printenv PATH | sel split{:} map readdir filter basename len =2]] join{\\n}
 ```
 
+Syntax update:
+```console
+$ printenv PATH | sel split{:}, map [readdir, filter [basename, len =2]] join{\\n}
+```
+`[` has been assumed safe enough: as long as the content
+contains a space, glob expansion cannot interfere.
+
 ### Literal Strings and Arrays
 
 <!--
@@ -214,7 +231,7 @@ and be valid if it had a matching `{` before it:
 ----------------------|------
  {hello {some} world} | valid
  {bla } bla}          | invalid (or rather, the string stops on the first `}`
- {bla { bla}          | valid (but maybe I don't like it, in which case invalid)
+ {bla { bla}          | invalid (because it is looking for a closing `}`)
 
 Having matching paris `{}` in literals allow for nested array definition
 -->
@@ -224,6 +241,8 @@ Having matching paris `{}` in literals allow for nested array definition
 > idk, just hope and next thing you know the whole api is _noise_
 
 ### (probably) Complete Grammar
+
+No longer up to date, see end of 'Assembling Pipe Fittings'.
 
 ```bnf
 script ::= {fitting}
