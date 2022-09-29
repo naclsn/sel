@@ -106,6 +106,7 @@ These are binary operators used with infix syntax:
  `^`\* | `str -> str -> @str` | string splitting
  `,`\* | `@str -> str -> str` | array joining (first arg could change to `@any`...)
  `_`\* | `@any -> @any -> @any` | array indexing, also exist with a scalar first argument (fwaa, but this means overload? or is it coersion from scalar to array? both are not great.. but having to write eg. `_{0}` is not great either...)
+ `=`\* | -> bool | when comparing `num` and `str`, tries converting the `str` to `num` first; arrays are compared by comparing each element
 
 > \* Still being discussed.
 
