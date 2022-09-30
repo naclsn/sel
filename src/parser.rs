@@ -1,8 +1,8 @@
 use std::{str::Chars, iter::Peekable};
-use crate::engine::Value;
+use crate::engine::{Value, Apply, Fit};
 
-#[derive(Debug, Clone)]
-pub(crate) enum Binop {
+#[derive(Debug, Clone, PartialEq)]
+enum Binop {
     Composition,
     Addition,
     Substraction,
@@ -11,29 +11,28 @@ pub(crate) enum Binop {
     Range,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) enum Unop {
+#[derive(Debug, Clone, PartialEq)]
+enum Unop {
     Array,
     Flip,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) enum Operator {
+#[derive(Debug, Clone, PartialEq)]
+enum Operator {
     Binary(Binop),
     Unary(Unop),
 }
 
-#[derive(Debug, Clone)]
-pub(crate) enum Token {
+#[derive(Debug, Clone, PartialEq)]
+enum Token {
     Name(String),
     Literal(Value),
     Operator(Operator),
     Grouping(Vec<Token>),
 }
 
-pub(crate) struct Lexer<'a> {
-    source: Peekable<Chars<'a>>,
-}
+struct Lexer<'a> { source: Peekable<Chars<'a>> }
+fn lex_string<'a>(script: &'a String) -> Lexer<'a> { Lexer { source: script.chars().peekable() } }
 
 impl<'a> Iterator for Lexer<'a> {
     type Item = Token;
@@ -132,7 +131,39 @@ impl<'a> Iterator for Lexer<'a> {
     } // fn next
 } // impl Iterator for Lexer
 
-// can I make it take an abstract iterator yielding chars?
-pub(crate) fn lex_string<'a>(script: &'a String) -> Lexer<'a> {
-    Lexer { source: script.chars().peekable(), }
-}
+pub(crate) struct Parser<'a> { lexer: Peekable<Lexer<'a>> }
+pub(crate) fn parse_string<'a>(script: &'a String) -> Parser<'a> { Parser { lexer: lex_string(script).peekable() } }
+
+impl Parser<'_> {
+    fn parse_application(&mut self) -> Apply {
+        let base = self.parse_base();
+        let args: Vec<Value> = vec![];
+
+        loop {
+            match self.lexer.peek() {
+                None | Some(Token::Operator(Operator::Binary(Binop::Composition))) => { break; },
+                _ => { args.push(self.parse_argument()); },
+            }
+        }
+
+        Apply { base, args }
+    }
+
+    fn parse_expression(&mut self) -> Atom {}
+
+    fn parse_base(&mut self) -> Fit {
+        todo!()
+    }
+
+    fn parse_argument(&mut self) -> Value {
+        todo!()
+    }
+} // impl Parser
+
+impl<'a> Iterator for Parser<'a> {
+    type Item = Apply;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.lexer.peek().map(|_| self.parse_application())
+    } // fn next
+} // impl Iterator for Parser

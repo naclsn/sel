@@ -12,14 +12,29 @@
 //     }
 // }
 
+// pub enum Type<'a> {
+//     Num,
+//     Str,
+//     Arr(&'a Type<'a>),
+//     Any,
+// }
+
+#[derive(Clone)]
+pub enum Type {
+    Num,
+    Str,
+    Arr(Box<Type>),
+    Any,
+}
+
 #[derive(Clone)]
 pub struct Fit {
     pub name: &'static str,
-    pub arity: u8, // YYY: + type hints?
+    pub args: Vec<Type>,
     pub func: fn(Vec<Value>) -> Value,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Num(i32),
     Str(String),
@@ -27,7 +42,7 @@ pub enum Value {
 }
 
 pub struct Apply {
-    pub fit: Fit,
+    pub base: Fit,
     pub args: Vec<Value>,
 }
 

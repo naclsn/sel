@@ -17,17 +17,26 @@ module.exports = grammar({
     fitting: $ => $._expression,
 
     _expression: $ => choice(
-      $.name,
-      $.unop,
-      $.binop,
-      $.literal,
-      $.grouping,
+      $._atom,
       $.application,
     ),
 
+    _atom: $ => prec.right(choice(
+      $.name,
+      $.unop,
+      $.binop,
+      $.unary,
+      $.binary,
+      $.literal,
+      $.grouping,
+    )),
+
+    unary: $ => seq($.unop, alias($._atom, $.argument)),
+    binary: $ => seq($.binop, alias($._atom, $.argument)),
+
     application: $ => prec.left(seq(
       alias($._expression, $.base),
-      alias($._expression, $.argument),
+      alias($._atom, $.argument),
     )),
 
     name: _ => /[a-z]+/,

@@ -1,33 +1,56 @@
-use std::env;
-
 mod parser;
 mod prelude;
 mod engine;
 
-use crate::parser::lex_string;
+use std::{env, io::{self, BufRead}};
+use parser::parse_string;
 
-fn main() {
-    let mut args = env::args().skip(1).inspect(|it| println!("here with {it}")).peekable();
+struct Arguments {
+    script: String,
+}
+
+fn command_args() -> Arguments {
+    let mut args = env::args().skip(1).peekable();
+
     loop {
         match args.next_if(|arg| arg.starts_with("--")) {
             Some(arg) => {
                 match arg.as_str() {
+
                     "--help" => todo!("Usage: {} script...",
                         env::current_exe() .unwrap()
                         .file_name() .unwrap()
                         .to_str() .unwrap()
                     ),
+
                     _ => todo!("Unknown argument '{arg}'"),
                 }
             }
             None => { break; }
         }
     }
-    let script_args = env::args().skip(1);
-    let script = script_args.collect::<Vec<String>>().join(" ");
-    println!("-> _{script}_");
-    let lexer = lex_string(&script);
-    for it in lexer {
-        println!("{it:?}");
+
+    Arguments {
+        script: args
+            .collect::<Vec<String>>()
+            .join(" ")
     }
+}
+
+fn input() -> impl Iterator<Item=String> {
+    io::stdin()
+        .lock()
+        .lines()
+        .map(|it| it.unwrap())
+}
+
+fn main() {
+    let args = command_args();
+    let parser = parse_string(&args.script);
+
+    let lines = input();
+    for line in lines {
+        println!("apply({line:?})");
+    }
+
 }
