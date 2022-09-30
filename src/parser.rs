@@ -1,5 +1,5 @@
 use std::{str::Chars, iter::Peekable};
-use crate::engine::{Value, Apply, Fit};
+use crate::{engine::Value, prelude::lookup_prelude};
 
 #[derive(Debug, Clone, PartialEq)]
 enum Binop {
@@ -133,37 +133,53 @@ impl<'a> Iterator for Lexer<'a> {
 
 pub(crate) struct Parser<'a> { lexer: Peekable<Lexer<'a>> }
 pub(crate) fn parse_string<'a>(script: &'a String) -> Parser<'a> { Parser { lexer: lex_string(script).peekable() } }
+fn parse_vec<'a>(_tokens: &'a Vec<Token>) -> Parser<'a> { todo!() }
 
 impl Parser<'_> {
-    fn parse_application(&mut self) -> Apply {
-        let base = self.parse_base();
-        let args: Vec<Value> = vec![];
+    fn next_atom(&mut self) -> Option<Value> {
+        match self.lexer.next() {
+            None | Some(Token::Operator(Operator::Binary(Binop::Composition))) => None,
 
-        loop {
-            match self.lexer.peek() {
-                None | Some(Token::Operator(Operator::Binary(Binop::Composition))) => { break; },
-                _ => { args.push(self.parse_argument()); },
-            }
+            Some(Token::Name(name)) => lookup_prelude(name).map(|f| Value::Fun(f)),
+
+            Some(Token::Operator(Operator::Unary(_un))) =>
+                lookup_prelude("".to_string()).map(|mut f| Value::Fun(f.apply(self.next_atom().expect("Missing argument for unary")))),
+            Some(Token::Operator(Operator::Binary(_bin))) =>
+                lookup_prelude("".to_string()).map(|mut f| Value::Fun(f.apply(self.next_atom().expect("Missing argument for binary")))),
+
+            Some(Token::Literal(value)) => Some(value),
+
+            Some(Token::Grouping(tokens)) => parse_vec(&tokens).next_application(),
         }
+    } // next_atom
 
-        Apply { base, args }
-    }
+    fn next_application(&mut self) -> Option<Value> {
+        match self.next_atom() {
+            None => None,
 
-    fn parse_expression(&mut self) -> Atom {}
+            Some(Value::Fun(mut base)) => {
+                loop {
+                    match self.next_atom() {
+                        None  => { break; },
+                        Some(a) => { base.apply(a); },
+                    }
+                }
 
-    fn parse_base(&mut self) -> Fit {
-        todo!()
-    }
+                Some(Value::Fun(base))
+            },
 
-    fn parse_argument(&mut self) -> Value {
-        todo!()
-    }
+            Some(value) => Some(value), // YYY: 0 arity
+        }
+    } // next_application
 } // impl Parser
 
 impl<'a> Iterator for Parser<'a> {
-    type Item = Apply;
+    type Item = Value;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.lexer.peek().map(|_| self.parse_application())
-    } // fn next
-} // impl Iterator for Parser
+        match self.lexer.peek() {
+            None => None,
+            Some(_) => self.next_application(),
+        }
+    }
+}

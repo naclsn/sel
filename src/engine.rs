@@ -1,37 +1,39 @@
-// impl Fit {
-//     pub(crate) fn new(name: &'static str, func: fn(Item) -> Item) -> Self { Self { name, func } }
-// }
+use std::fmt;
 
-// impl Default for Fit {
-//     fn default() -> Fit { Fit { name: "undefined", arry: 0, args: [].to_vec(), func: |_| Token::Num(0) } }
-// }
-
-// impl fmt::Debug for Fit {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         write!(f, "Fit({})", self.name)
-//     }
-// }
-
-// pub enum Type<'a> {
-//     Num,
-//     Str,
-//     Arr(&'a Type<'a>),
-//     Any,
-// }
-
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Type {
     Num,
     Str,
     Arr(Box<Type>),
     Any,
+    Fun,
 }
 
 #[derive(Clone)]
-pub struct Fit {
+pub struct Fun {
     pub name: &'static str,
-    pub args: Vec<Type>,
+    pub params: Vec<Type>,
     pub func: fn(Vec<Value>) -> Value,
+    pub args: Vec<Value>,
+}
+
+impl Fun {
+    pub(crate) fn apply(&mut self, arg: Value) -> Self {
+        self.args.push(arg);
+        self // YYY: bring the Apply structure back..? (more rust-ish)
+    }
+}
+
+impl fmt::Debug for Fun {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Fun({} :: {:?})", self.name, self.args)
+    }
+}
+
+impl PartialEq for Fun {
+    fn eq(&self, mate: &Fun) -> bool {
+        self.name == mate.name
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,10 +41,5 @@ pub enum Value {
     Num(i32),
     Str(String),
     Arr(Vec<Value>),
+    Fun(Fun),
 }
-
-pub struct Apply {
-    pub base: Fit,
-    pub args: Vec<Value>,
-}
-
