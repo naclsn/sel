@@ -1,9 +1,14 @@
 use std::{str::Chars, iter::Peekable};
-use crate::{engine::Value, prelude::lookup_prelude};
+use crate::{engine::{Value, Apply, Function}, prelude::{lookup_name, lookup_unary, lookup_binary}};
 
-#[derive(Debug, Clone, PartialEq)]
-enum Binop {
-    Composition,
+#[derive(Debug, Clone)]
+pub enum Unop {
+    Array,
+    Flip,
+}
+
+#[derive(Debug, Clone)]
+pub enum Binop {
     Addition,
     Substraction,
     Multiplication,
@@ -11,24 +16,19 @@ enum Binop {
     Range,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-enum Unop {
-    Array,
-    Flip,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-enum Operator {
-    Binary(Binop),
+#[derive(Debug, Clone)]
+pub enum Operator {
     Unary(Unop),
+    Binary(Binop),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 enum Token {
     Name(String),
     Literal(Value),
     Operator(Operator),
-    Grouping(Vec<Token>),
+    SubScript(Vec<Token>),
+    Composition,
 }
 
 struct Lexer<'a> { source: Peekable<Chars<'a>> }
@@ -108,12 +108,12 @@ impl<'a> Iterator for Lexer<'a> {
                         .collect()
                     )
                     .collect();
-                Some(Token::Grouping(vec))
+                Some(Token::SubScript(vec))
             },
 
             Some(c) => {
                 let r = match c {
-                    ',' => Some(Token::Operator(Operator::Binary(Binop::Composition))),
+                    ',' => Some(Token::Composition),
                     '+' => Some(Token::Operator(Operator::Binary(Binop::Addition))),
                     '-' => Some(Token::Operator(Operator::Binary(Binop::Substraction))),
                     '.' => Some(Token::Operator(Operator::Binary(Binop::Multiplication))),
@@ -127,33 +127,92 @@ impl<'a> Iterator for Lexer<'a> {
                 r
             },
 
-        } // match hold
+        } // match peek
     } // fn next
 } // impl Iterator for Lexer
 
 pub(crate) struct Parser<'a> { lexer: Peekable<Lexer<'a>> }
 pub(crate) fn parse_string<'a>(script: &'a String) -> Parser<'a> { Parser { lexer: lex_string(script).peekable() } }
-fn parse_vec<'a>(_tokens: &'a Vec<Token>) -> Parser<'a> { todo!() }
+fn parse_vec<'a>(_tokens: &'a Vec<Token>) -> Parser<'a> { todo!("parser on vec (used for groupings)") }
+
+// YYY: remove (no, you don't need it...)
+trait Ensure {
+    fn ensure(self, msg: &str) -> Self;
+}
+impl<T> Ensure for Option<T> {
+    fn ensure(self, msg: &str) -> Self {
+        Some(self.expect(msg))
+    }
+}
 
 impl Parser<'_> {
+    /// Build each functions and return a single
+    /// function that will apply its input to each
+    /// in order.
+    pub fn result(&mut self) -> Value {
+        Value::Fun(Box::new(Function {
+            arity: 1,
+            args: self.collect(),
+            func: |args| {
+                let arg = args
+                    .last()
+                    .unwrap()
+                    .clone();
+                args[..args.len()-1]
+                    .iter()
+                    .fold(arg, |r, f| f
+                        .clone()
+                        .apply(r))
+            },
+        }))
+    }
+
+    /// atom ::= literal
+    ///        | name
+    ///        | unop (binop | atom)
+    ///        | binop atom
+    ///        | subscript
+    /// subscript ::= '[' _elements1 ']'
     fn next_atom(&mut self) -> Option<Value> {
         match self.lexer.next() {
-            None | Some(Token::Operator(Operator::Binary(Binop::Composition))) => None,
-
-            Some(Token::Name(name)) => lookup_prelude(name).map(|f| Value::Fun(f)),
-
-            // Some(Token::Operator(Operator::Unary(_un))) =>
-            //     lookup_prelude("".to_string()).map(|mut f| { f.apply(self.next_atom().expect("Missing argument for unary")); Value::Fun(f) }),
-            // Some(Token::Operator(Operator::Binary(_bin))) =>
-            //     lookup_prelude("".to_string()).map(|mut f| { f.apply(self.next_atom().expect("Missing argument for binary")); Value::Fun(f) }),
-
+            None | Some(Token::Composition) => None,
             Some(Token::Literal(value)) => Some(value),
 
-            Some(Token::Grouping(tokens)) => parse_vec(&tokens).next(), // YYY: Some(.unwrap)
-        }
-    } // next_atom
+            Some(Token::Name(name)) =>
+                lookup_name(name)
+                    .ensure("Unknown name"),
 
-    fn next_application(&mut self) -> Option<Value> {
+            Some(Token::Operator(Operator::Unary(un))) => {
+                Some(lookup_unary(un)
+                    .apply(self
+                        .next_atom()
+                        .expect("Missing argument for unary")
+                    )
+                )
+            },
+
+            Some(Token::Operator(Operator::Binary(bin))) =>
+                Some(lookup_binary(bin)
+                    .apply(self
+                        .next_atom()
+                        .expect("Missing argument for binary")
+                    )
+                ),
+
+            Some(Token::SubScript(tokens)) =>
+                Some(parse_vec(&tokens).result()),
+
+        } // match lexer next
+    } // next_atom
+} // impl Parser
+
+impl<'a> Iterator for Parser<'a> { // TODO: refactoring in progress
+    type Item = Value;
+
+    /// script ::= _elements1
+    /// _elements1 ::= element {',' element} [',']
+    /// element ::= atom {atom}
+    fn next(&mut self) -> Option<Self::Item> {
         match self.next_atom() {
             None => None,
 
@@ -166,18 +225,6 @@ impl Parser<'_> {
                 }
                 Some(base)
             },
-
-        }
-    } // next_application
-} // impl Parser
-
-impl<'a> Iterator for Parser<'a> {
-    type Item = Value;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.lexer.peek() {
-            None => None,
-            Some(_) => self.next_application(),
-        }
+        } // match next_atom
     }
 }

@@ -1,8 +1,4 @@
 /// <reference path="node_modules/tree-sitter-cli/dsl.d.ts" />
-// grammar is simplified; could not get it to correct precedence for:
-// - `map -1` should be (app (base "map") (arg (app (base "-") (arg "1")))
-// - `%-1` should be (app (base (app (base "%") (arg "-"))) (arg "1"))
-// that is unop binds tighter with the following expression than binop than name
 module.exports = grammar({
 
   name: 'nasm',
@@ -11,41 +7,28 @@ module.exports = grammar({
 
   rules: {
 
-    script: $ => seq($.fitting, repeat(seq(',', $.fitting)), optional(',')),
+    script: $ => $._elements1,
     comment: _ => /#[^\n]*\r?\n/,
 
-    fitting: $ => $._expression,
+    // YYY: this might end up allowing empty
+    _elements1: $ => seq($.element, repeat(seq(',', $.element)), optional(',')),
+    element: $ => seq($.atom, repeat($.atom)),
 
-    _expression: $ => choice(
-      $._atom,
-      $.application,
+    atom: $ => choice(
+      $.literal,
+      $.name,
+      $.subscript,
+      seq($.unop, choice(prec(1, $.binop), $.atom)),
+      seq($.binop, $.atom),
     ),
 
-    _atom: $ => prec.right(choice(
-      $.name,
-      $.unop,
-      $.binop,
-      $.unary,
-      $.binary,
-      $.literal,
-      $.grouping,
-    )),
-
-    unary: $ => seq($.unop, alias($._atom, $.argument)),
-    binary: $ => seq($.binop, alias($._atom, $.argument)),
-
-    application: $ => prec.left(seq(
-      alias($._expression, $.base),
-      alias($._atom, $.argument),
-    )),
+    literal: $ => choice($.number, $.string),
 
     name: _ => /[a-z]+/,
     unop: _ => choice(...'%@'.split('')),
     binop: _ => choice(...'+-./:=_~'.split('')),
 
-    literal: $ => choice($.number, $.string),
-
-    grouping: $ => seq('[', $._expression, ']'),
+    subscript: $ => seq('[', $._elements1, ']'),
 
     number: _ => /[0-9]+(\.[0-9]+)?|0x[0-9A-F]+|0b[01]+|0o[0-7]/,
     string: $ => $._string,
