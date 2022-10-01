@@ -1,45 +1,56 @@
 use std::fmt;
 
 #[derive(Debug, Clone)]
-pub enum Type {
-    Num,
-    Str,
-    Arr(Box<Type>),
-    Any,
-    Fun,
+pub enum Value {
+    Num(f32),
+    Str(String),
+    Arr(Vec<Value>),
+    Fun(Box<Function>),
+}
+
+pub trait Apply {
+    fn apply(self, arg: Value) -> Value;
+}
+
+impl Apply for Value {
+    fn apply(self, arg: Value) -> Value {
+        match self {
+            Value::Fun(mut boxed) => {
+
+                if 1 == boxed.arity {
+                    // impl Eval for Box<Function>
+                    // fn eval(self) -> Value
+                    boxed.args.push(arg);
+                    return (boxed.func)(boxed.args);
+                }
+
+                let niw = format!("[{} {:?}]", boxed.name, arg);
+                boxed.args.push(arg);
+                Value::Fun(Box::new(
+                    Function {
+                        name: niw,
+                        arity: boxed.arity-1,
+                        args: boxed.args,
+                        func: boxed.func,
+                    }
+                ))
+
+            },
+            _ => panic!("value is not a function"),
+        }
+    }
 }
 
 #[derive(Clone)]
-pub struct Fun {
-    pub name: &'static str,
-    pub params: Vec<Type>,
-    pub func: fn(Vec<Value>) -> Value,
+pub struct Function {
+    pub name: String,
+    pub arity: usize,
     pub args: Vec<Value>,
+    pub func: fn(Vec<Value>) -> Value,
 }
 
-impl Fun {
-    pub(crate) fn apply(&mut self, arg: Value) -> Self {
-        self.args.push(arg);
-        self // YYY: bring the Apply structure back..? (more rust-ish)
-    }
-}
-
-impl fmt::Debug for Fun {
+impl fmt::Debug for Function {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Fun({} :: {:?})", self.name, self.args)
+        write!(f, "Function({:?}, {:?})", self.name, self.args)
     }
-}
-
-impl PartialEq for Fun {
-    fn eq(&self, mate: &Fun) -> bool {
-        self.name == mate.name
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Value {
-    Num(i32),
-    Str(String),
-    Arr(Vec<Value>),
-    Fun(Fun),
 }

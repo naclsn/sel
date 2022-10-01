@@ -142,14 +142,14 @@ impl Parser<'_> {
 
             Some(Token::Name(name)) => lookup_prelude(name).map(|f| Value::Fun(f)),
 
-            Some(Token::Operator(Operator::Unary(_un))) =>
-                lookup_prelude("".to_string()).map(|mut f| Value::Fun(f.apply(self.next_atom().expect("Missing argument for unary")))),
-            Some(Token::Operator(Operator::Binary(_bin))) =>
-                lookup_prelude("".to_string()).map(|mut f| Value::Fun(f.apply(self.next_atom().expect("Missing argument for binary")))),
+            // Some(Token::Operator(Operator::Unary(_un))) =>
+            //     lookup_prelude("".to_string()).map(|mut f| { f.apply(self.next_atom().expect("Missing argument for unary")); Value::Fun(f) }),
+            // Some(Token::Operator(Operator::Binary(_bin))) =>
+            //     lookup_prelude("".to_string()).map(|mut f| { f.apply(self.next_atom().expect("Missing argument for binary")); Value::Fun(f) }),
 
             Some(Token::Literal(value)) => Some(value),
 
-            Some(Token::Grouping(tokens)) => parse_vec(&tokens).next_application(),
+            Some(Token::Grouping(tokens)) => parse_vec(&tokens).next(), // YYY: Some(.unwrap)
         }
     } // next_atom
 
@@ -157,18 +157,16 @@ impl Parser<'_> {
         match self.next_atom() {
             None => None,
 
-            Some(Value::Fun(mut base)) => {
+            Some(mut base) => {
                 loop {
                     match self.next_atom() {
                         None  => { break; },
-                        Some(a) => { base.apply(a); },
+                        Some(arg) => { base = base.apply(arg); },
                     }
                 }
-
-                Some(Value::Fun(base))
+                Some(base)
             },
 
-            Some(value) => Some(value), // YYY: 0 arity
         }
     } // next_application
 } // impl Parser

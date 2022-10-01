@@ -5,35 +5,52 @@ macro_rules! count {
     ($h:expr, $($t:expr,)*) => { 1usize + count!($($t,)*) };
 }
 
-// idk why, everything started crapping the bed :-(
+macro_rules! ty_for {
+    ($simple:ident) => { Type::$simple }
+}
+
+macro_rules! val_for {
+    ($simple:ident) => { Value::$simple }
+}
+
+macro_rules! match_for {
+    ($simple:ident, $v:expr) => {
+        match $v {
+            Value::$simple(v) => v,
+            other => panic!("match_ex_val: type mismatch (expected a {:?} got {other:?}", Type::$simple),
+        }
+    }
+}
+
 macro_rules! fun {
-    ($name:ident :: $($ty:ident)->* => $re:ident, $fn:expr) => {
+    ($name:ident :: [$($ty:ident),*] => $re:ident, $fn:expr) => {
         Fun {
             name: stringify!($name),
-            params: vec![$(Type::$ty),*], // alloc
+            params: &[$(ty_for!($ty)),*],
+            ret: ty_for!($re),
             func: |args| {
                 assert!(count!($($ty,)*) == args.len());
                 let mut k: usize = 0;
-                Value::$re($fn($(
-                    match args[{ k+= 1; k-1 }] {
-                        Value::$ty(v) => v,
-                        other => panic!("Type mismatch (argument {k}): expected a {:?} got {other:?}", Type::$ty),
-                    }
+                val_for!($re)($fn($(
+                    match_for!($ty, &args[{ k+= 1; k-1 }])
+                    // match &args[{ k+= 1; k-1 }] {
+                    //     Value::$ty(v) => v,
+                    //     other => panic!("Type mismatch: expected a {:?} got {other:?}", Type::$ty),
+                    // }
                 ),*))
             },
-            args: vec![], // alloc
+            args: vec![], // alloc..?
         }
     };
 } // fun!
 
-const ADD: Fun = fun!(add :: Num -> Num => Num, |a, b| a + b);
-
 // TODO: have doc inline
 // FIXME: cannot use in const or static (because of allocations)
-const LU: [Fun; 2] = [
-    fun!(add :: Num -> Num => Num, |a, b| a + b),
-    // fun!(crap :: => Num, || 0), // FIXME: cannot do 0 arity
-    fun!(reverse :: Str => Str, |a: String| a.chars().rev().collect()), // FIXME: cannot use nested types (ie. Arr<_>)
+const LU: &'static [Fun] = &[
+    fun!(add :: [Num, Num] => Num, |a, b| a + b),
+    // fun!(crap :: [] => Num, || 0), // FIXME: cannot do 0 arity
+    fun!(reverse :: [Str] => Str, |a: &String| a.chars().rev().collect()), // FIXME: cannot use nested types (ie. Arr<_>)
+    // fun!(map :: [Fun<a,b>, Arr<a>] => Arr<b>, |a| todo!()),
 ];
 
 pub fn lookup_prelude<'a>(name: String) -> Option<Fun> {
