@@ -1,13 +1,13 @@
 use std::{str::Chars, iter::Peekable};
-use crate::{engine::{Value, Apply, Function}, prelude::{lookup_name, lookup_unary, lookup_binary}};
+use crate::{engine::{Value, Apply, Function, Typed}, prelude::{lookup_name, lookup_unary, lookup_binary}};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Unop {
     Array,
     Flip,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Binop {
     Addition,
     Substraction,
@@ -16,7 +16,7 @@ pub enum Binop {
     Range,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Operator {
     Unary(Unop),
     Binary(Binop),
@@ -150,12 +150,25 @@ impl Parser<'_> {
     /// function that will apply its input to each
     /// in order.
     pub fn result(&mut self) -> Value {
-        let fs: Vec<Value> = self.collect();
+        // TODO: do the refactoring where Parser is no impl Iterator
+        let fs: Vec<Value> = self
+            .filter(|f| {
+                match f {
+                    Value::Fun(_) => true,
+                    other => {
+                        println!("non-function value in script:");
+                        println!("  found value of type: {:?}", other.typed());
+                        panic!("type error")
+                    },
+                }
+            })
+            .collect();
+
         let firstin = fs
             .first()
             .map(|f| {
                 match f {
-                    Value::Fun(f) => f.types.0,
+                    Value::Fun(f) => f.maps.0.clone(),
                     _ => unreachable!(),
                 }
             })
@@ -164,17 +177,17 @@ impl Parser<'_> {
             .last()
             .map(|f| {
                 match f {
-                    Value::Fun(f) => f.types.1,
+                    Value::Fun(f) => f.maps.1.clone(),
                     _ => unreachable!(),
                 }
             })
             .unwrap();
+
         Value::Fun(
             Function {
-                arity: 1,
-                types: (firstin, lastout),
+                maps: (firstin, lastout),
                 args: fs,
-                func: |args| {
+                func: |_, args| {
                     let arg = args
                         .last()
                         .unwrap()
@@ -185,8 +198,9 @@ impl Parser<'_> {
                             .clone()
                             .apply(r))
                 },
-            } // Function
-        ) // Value::Fun
+            }
+        )
+
     } // fn result
 
     /// atom ::= literal
@@ -207,7 +221,7 @@ impl Parser<'_> {
             Some(Token::Operator(Operator::Unary(un))) =>
                 Some(lookup_unary(un).apply(
                     if let Some(Token::Operator(Operator::Binary(bin))) = self.lexer.peek() {
-                        lookup_binary(*bin)
+                        lookup_binary(*bin) // copy
                     } else {
                         self.next_atom()
                             .expect("Missing argument for unary")
@@ -229,7 +243,7 @@ impl Parser<'_> {
     } // next_atom
 } // impl Parser
 
-impl<'a> Iterator for Parser<'a> { // TODO: refactoring in progress
+impl<'a> Iterator for Parser<'a> { // TODO: refactoring (was) in progress (at some point...)
     type Item = Value;
 
     /// script ::= _elements1

@@ -8,26 +8,47 @@ pub enum Value {
     Fun(Function),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Type {
     Num,
     Str,
     Arr(Box<Type>),
     Fun(Box<Type>, Box<Type>),
+    Unk(String),
+}
+
+impl PartialEq for Type {
+    /// Two types are equal iif:
+    /// - exact same simple type (Num, Str)
+    /// - recursively same type (Arr, Fun)
+    /// - same type name (Unk)
+    /// - only one is unknown
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Type::Num, Type::Num) => true,
+            (Type::Str, Type::Str) => true,
+            (Type::Arr(a), Type::Arr(b)) => a == b,
+            (Type::Fun(a, c), Type::Fun(b, d)) => a == b && c == d,
+            (Type::Unk(a), Type::Unk(b)) => a == b, // YYY: ~
+            (Type::Unk(_), _) => true,
+            (_, Type::Unk(_)) => true,
+            _ => false,
+        }
+    }
 }
 
 pub trait Typed {
-    fn typed(self) -> Type;
+    fn typed(&self) -> Type;
     fn coerse(self, to: Type) -> Option<Value>;
 }
 
 impl Typed for Value {
-    fn typed(self) -> Type {
+    fn typed(&self) -> Type {
         match self {
             Value::Num(_) => Type::Num,
             Value::Str(_) => Type::Str,
-            Value::Arr(a) => Type::Arr(Box::new(a.types)),
-            Value::Fun(f) => Type::Fun(Box::new(f.types.0), Box::new(f.types.1)),
+            Value::Arr(a) => Type::Arr(Box::new(a.has.clone())),
+            Value::Fun(f) => Type::Fun(Box::new(f.maps.0.clone()), Box::new(f.maps.1.clone())),
         }
     }
 
@@ -46,50 +67,46 @@ impl Typed for Value {
                     // Value::Arr(v) => Some(Value::Str(v.to_string())),
                     _ => None,
                 },
-            Type::Arr(t) if Type::Num == *t =>
+            Type::Arr(ref t) if Type::Num == **t =>
                 match self {
-                    Value::Str(v) => Some(Value::Arr(
-                        Array {
-                            types: to,
-                            items: v
-                                .chars()
-                                .map(|c| Value::Num((c as u32) as f32))
-                                .collect(),
+                    Value::Str(v) => Some(Value::Arr(Array {
+                        has: to,
+                        items: v
+                            .chars()
+                            .map(|c| Value::Num((c as u32) as f32))
+                            .collect(),
+                    })),
+                    Value::Arr(v) => {
+                        let may = v.items
+                            .into_iter()
+                            .map(|i| i.coerse(Type::Num))
+                            .collect::<Option<Vec<Value>>>();
+                        match may {
+                            Some(items) => Some(Value::Arr(Array { has: to, items })),
+                            None => None,
                         }
-                    )),
-                    Value::Arr(v) => v.items
-                        .into_iter()
-                        .map(|i| i.coerse(Type::Num))
-                        .collect::<Option<Vec<Value>>>()
-                        .map(|r| Value::Arr(
-                            Array {
-                                types: to,
-                                items: r,
-                            }
-                        )),
+                    },
                     _ => None,
                 },
-            Type::Arr(t) if Type::Str == *t =>
+            Type::Arr(ref t) if Type::Str == **t =>
                 match self {
-                    Value::Str(v) => Some(Value::Arr(
-                        Array {
-                            types: to,
-                            items: v
-                                .chars()
-                                .map(|c| Value::Str(c.to_string()))
-                                .collect(),
+                    Value::Str(v) => Some(Value::Arr(Array {
+                        has: to,
+                        items: v
+                            .chars()
+                            .map(|c| Value::Str(c.to_string()))
+                            .collect(),
+                    })),
+                    Value::Arr(v) => {
+                        let may = v.items
+                            .into_iter()
+                            .map(|i| i.coerse(Type::Str))
+                            .collect::<Option<Vec<Value>>>();
+                        match may {
+                            Some(items) => Some(Value::Arr(Array { has: to, items })),
+                            None => None,
                         }
-                    )),
-                    Value::Arr(v) => v.items
-                        .into_iter()
-                        .map(|i| i.coerse(Type::Str))
-                        .collect::<Option<Vec<Value>>>()
-                        .map(|r| Value::Arr(
-                            Array {
-                                types: to,
-                                items: r,
-                            }
-                        )),
+                    },
                     _ => None,
                 },
             _ => None,
@@ -105,90 +122,51 @@ impl Apply for Value {
     fn apply(self, arg: Value) -> Value {
         match self {
 
-            Value::Fun(mut boxed) => {
-                boxed.args.push(arg);
-
-                if 1 == boxed.arity {
-                    return (boxed.func)(boxed.args);
+            Value::Fun(mut fun) => {
+                if fun.maps.0 != arg.typed() {
+                    println!("wrong type of argument for function:");
+                    println!("    applying argument: {:?}", arg.typed());
+                    println!("  to function mapping: {:?} to {:?}", fun.maps.0, fun.maps.1);
+                    panic!("type error");
                 }
 
-                let (oldin, oldout) = boxed.types;
-                let argt = arg.typed();
-                // TODO: update type with new given argument
-                /*
-                    // YYY: example with `map`
-
-                    if let Value::Fun(f) = arg {           // kind check
-                        let (subin, subout) = f.types;     // sub-types extraction
-
-                        // now we know that:               // associate with variables
-                        //    a <- subin
-                        //    b <- subout
-                        // hence the new type
-
-                        let (newin, newout) =              // construct result type
-                            ( Type::Arr(subin)
-                            , Type::Arr(subout)
-                        );
-
-                    } else { panic!("type error"); }
-                */
-                let (newin, newout) = boxed.types;
-
-                Value::Fun(
-                    Function {
-                        arity: boxed.arity-1,
-                        types: (newin, newout),
-                        args: boxed.args,
-                        func: boxed.func,
-                    }
-                )
-
+                fun.args.push(arg);
+                (fun.func)(fun.maps, fun.args)
             },
 
-            _ => panic!("value is not a function"),
+            other => {
+                println!("value is not a function:");
+                println!("  applying argument: {:?}", arg.typed());
+                println!("           to value: {:?}", other.typed());
+                panic!("type error");
+            },
+
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Array {
-    pub types: Type,
+    pub has: Type,
     pub items: Vec<Value>,
 }
-
-// impl Array {
-//     pub fn new(types: Type, items: Vec<Value>) -> Self { Self { types, items } }
-// }
 
 impl<'a> IntoIterator for &'a Array {
     type Item = &'a Value;
     type IntoIter = slice::Iter<'a, Value>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.items.iter()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.items.iter() }
 }
-
-// impl FromIterator<Value> for Array {
-//     fn from_iter<T: IntoIterator<Item = Value>>(iter: T) -> Self {
-//         Array {
-//             types: Type::Str, // XXX
-//             items: <Vec<Value>>::from_iter(iter),
-//         }
-//     }
-// }
 
 #[derive(Clone)]
 pub struct Function {
-    pub arity: usize,
-    pub types: (Type, Type),
+    pub maps: (Type, Type),
     pub args: Vec<Value>,
-    pub func: fn(Vec<Value>) -> Value,
+    pub func: fn((Type, Type), Vec<Value>) -> Value,
 }
 
 impl fmt::Debug for Function {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Function({:?}, {:?})", "self.name", self.args) // TODO: association with Token
+        write!(f, "Function({:?}, {:?}, {:?})", self.maps, self.args, self.func) // TODO: association with Token
     }
 }

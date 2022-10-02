@@ -1,5 +1,17 @@
 use crate::{engine::{Function, Value, Apply, Array, Type, Typed}, parser::{Binop, Unop}};
 
+macro_rules! let_sure {
+    ($pat:pat = $ex:expr; $bl:block) => {
+        match $ex {
+            $pat => $bl,
+            _ => unreachable!(),
+        }
+    };
+    ($pat:pat = $ex:expr; $bl:expr) => {
+        let_sure!($pat = $ex; { $bl })
+    };
+}
+
 // macro_rules! count {
 //     ($_:expr,) => { 1usize };
 //     ($h:expr, $($t:expr,)*) => { 1usize + count!($($t,)*) };
@@ -57,149 +69,179 @@ use crate::{engine::{Function, Value, Apply, Array, Type, Typed}, parser::{Binop
 // };
 
 // TODO: re-do macro (with doc inline!)
-const LU: &'static [(&'static str, Function)] = &[
-    ("add", Function {
-        arity: 2usize,
+// const LU: &'static [(&'static str, Function)] = &[..]
+fn get_lu() -> Vec<(String, Function)> {
+    vec![
+
+    ("add".to_string(), Function { // Num -> Num -> Num
+        maps: (
+            Type::Num,
+            Type::Fun(Box::new(Type::Num), Box::new(Type::Num))
+        ),
         args: vec![],
-        func: |args| {
-            match (&args[0], &args[1]) {
-                (Value::Num(a), Value::Num(b)) => Value::Num(a+b),
-                _ => panic!("type error"),
-            }
+        func: |_, args| {
+            Value::Fun(Function { // Num -> Num
+                maps: (
+                    Type::Num,
+                    Type::Num
+                ),
+                args,
+                func: |_, args| {
+                    let_sure!{ [Value::Num(a), Value::Num(b)] = args[..2];
+                    Value::Num(a+b) }
+                }
+            })
         },
     }),
-    ("id", Function { // YYY: remove (or disallow [])
-        arity: 1usize,
+
+    ("id".to_string(), Function {
+        maps: (Type::Unk("a".to_string()), Type::Unk("a".to_string())),
         args: vec![],
-        func: |args| args[0].clone(),
+        func: |_, args| args[0].clone(),
     }),
-    ("join", Function {
-        arity: 2usize,
+
+    // ("join".to_string(), Function {
+    //     arity: 2usize,
+    //     args: vec![],
+    //     func: |args| {
+    //         match (&args[0], &args[1]) {
+    //             (Value::Str(c), Value::Arr(a)) =>
+    //                 Value::Str(a
+    //                     .into_iter()
+    //                     .map(|i| {
+    //                         match i {
+    //                             Value::Str(s) => s.clone(),
+    //                             _ => panic!("type error"),
+    //                         }
+    //                     })
+    //                     .collect::<Vec<String>>()
+    //                     .join(c)
+    //                 ),
+    //             _ => panic!("type error"),
+    //         }
+    //     }
+    // }),
+
+    ("map".to_string(), Function { // (a -> b) -> [a] -> [b]
+        maps: (
+            Type::Fun(
+                Box::new(Type::Unk("a".to_string())),
+                Box::new(Type::Unk("b".to_string()))
+            ),
+            Type::Fun(
+                Box::new(Type::Arr(Box::new(Type::Unk("a".to_string())))),
+                Box::new(Type::Arr(Box::new(Type::Unk("b".to_string()))))
+            )
+        ),
         args: vec![],
-        func: |args| {
-            match (&args[0], &args[1]) {
-                (Value::Str(c), Value::Arr(a)) =>
-                    Value::Str(a
-                        .into_iter()
-                        .map(|i| {
-                            match i {
-                                Value::Str(s) => s.clone(),
-                                _ => panic!("type error"),
-                            }
-                        })
-                        .collect::<Vec<String>>()
-                        .join(c)
-                    ),
-                _ => panic!("type error"),
-            }
-        }
-    }),
-    ("map", Function { // (a -> b) -> [a] -> [b]
-        arity: 2usize,
-        args: vec![],
-        func: |args| {
-            match (&args[0], &args[1]) {
-                (/*Value::Fun(f)*/f, Value::Arr(a)) => {
-                    match f.typed() {
-                        Type::Fun(ins, outs) => {
-                            Value::Arr(
-                                Array {
-                                    types: *outs,
-                                    items: a
-                                        .into_iter()
-                                        .map(|i| {
-                                            if i.typed() != *ins { panic!("type error"); } // wrong type on array element
-                                            f
-                                                .clone()
-                                                .apply(i.clone())
-                                        })
-                                        .collect()
-                                }
-                            )
-                        },
-                        _ => panic!("type error"), // not function typed
-                    }
-                },
-                _ => panic!("type error"), // not array argument
-            }
-        },
-    }),
-    ("repeat", Function {
-        arity: 2usize,
-        args: vec![],
-        func: |args| {
-            match &args[0] {
-                Value::Num(n) =>
-                    Value::Arr(Array::new(
-                        Type::Num, // YYY: &args[0].typed() -- to infer
-                        vec![args[1].clone(); *n as usize])),
-                _ => panic!("type error"),
-            }
-        },
-    }),
-    ("reverse", Function {
-        arity: 1usize,
-        args: vec![],
-        func: |args| {
-            match &args[0] {
-                Value::Arr(v) =>
-                    Value::Arr(Array::new(
-                        v.types,
-                        v
+        func: |_, args| {
+            let_sure!{ Type::Fun(typea, typeb) = args[0].clone().typed();
+            Value::Fun(Function { // [a] -> [b]
+                maps: (
+                    Type::Arr(typea),
+                    Type::Arr(typeb)
+                ),
+                args,
+                func: |types, args| {
+                    let_sure!{ (Type::Arr(typeb), [f, Value::Arr(a)]) = (types.1, &args[..2]);
+                    Value::Arr(Array { // [b]
+                        has: *typeb,
+                        items: a
                             .into_iter()
-                            .map(|it| it.clone())
-                            .rev()
-                            .collect())),
-                _ => panic!("type error"),
-            }
+                            // and here could typec every i to be of typea (but redundant)
+                            .map(|i| f.clone().apply(i.clone()))
+                            .collect()
+                    }) }
+                }
+            }) }
         },
     }),
-    ("singleton", Function {
-        arity: 1usize,
-        args: vec![],
-        func: |args| Value::Arr(Array::new(args[0].typed(), args)),
-    }),
-    ("split", Function {
-        arity: 2usize,
-        args: vec![],
-        func: |args| {
-            match (&args[0], &args[1]) {
-                (Value::Str(c), Value::Str(s)) =>
-                    Value::Arr(Array::new(
-                        Type::Str,
-                        s
-                            .split(c)
-                            .map(|u| Value::Str(u.to_string()))
-                            .collect())),
-                _ => panic!("type error"),
-            }
-        },
-    }),
-    ("tonum", Function {
-        arity: 1usize,
-        args: vec![],
-        func: |args| {
-            match &args[0] {
-                Value::Str(c) => Value::Num(c.parse().unwrap_or(0.0)),
-                _ => panic!("type error"),
-            }
-        },
-    }),
-    ("tostr", Function {
-        arity: 1usize,
-        args: vec![],
-        func: |args| {
-            match &args[0] {
-                Value::Num(a) => Value::Str(a.to_string()),
-                _ => panic!("type error"),
-            }
-        },
-    }),
-];
+
+    // ("repeat".to_string(), Function {
+    //     arity: 2usize,
+    //     args: vec![],
+    //     func: |args| {
+    //         match &args[0] {
+    //             Value::Num(n) =>
+    //                 Value::Arr(Array::new(
+    //                     Type::Num, // YYY: &args[0].typed() -- to infer
+    //                     vec![args[1].clone(); *n as usize])),
+    //             _ => panic!("type error"),
+    //         }
+    //     },
+    // }),
+
+    // ("reverse".to_string(), Function {
+    //     arity: 1usize,
+    //     args: vec![],
+    //     func: |args| {
+    //         match &args[0] {
+    //             Value::Arr(v) =>
+    //                 Value::Arr(Array::new(
+    //                     v.types,
+    //                     v
+    //                         .into_iter()
+    //                         .map(|it| it.clone())
+    //                         .rev()
+    //                         .collect())),
+    //             _ => panic!("type error"),
+    //         }
+    //     },
+    // }),
+
+    // ("singleton".to_string(), Function {
+    //     arity: 1usize,
+    //     args: vec![],
+    //     func: |args| Value::Arr(Array::new(args[0].typed(), args)),
+    // }),
+
+    // ("split".to_string(), Function {
+    //     arity: 2usize,
+    //     args: vec![],
+    //     func: |args| {
+    //         match (&args[0], &args[1]) {
+    //             (Value::Str(c), Value::Str(s)) =>
+    //                 Value::Arr(Array::new(
+    //                     Type::Str,
+    //                     s
+    //                         .split(c)
+    //                         .map(|u| Value::Str(u.to_string()))
+    //                         .collect())),
+    //             _ => panic!("type error"),
+    //         }
+    //     },
+    // }),
+
+    // ("tonum".to_string(), Function {
+    //     arity: 1usize,
+    //     args: vec![],
+    //     func: |args| {
+    //         match &args[0] {
+    //             Value::Str(c) => Value::Num(c.parse().unwrap_or(0.0)),
+    //             _ => panic!("type error"),
+    //         }
+    //     },
+    // }),
+
+    // ("tostr".to_string(), Function {
+    //     arity: 1usize,
+    //     args: vec![],
+    //     func: |args| {
+    //         match &args[0] {
+    //             Value::Num(a) => Value::Str(a.to_string()),
+    //             _ => panic!("type error"),
+    //         }
+    //     },
+    // }),
+
+]
+}
 
 pub fn lookup_name<'a>(name: String) -> Option<Value> {
+    // XXX/TODO: move back to const asap
+    let LU = get_lu();
     LU
-        .binary_search_by_key(&name.as_str(), |t| t.0)
+        .binary_search_by_key(&name, |t| t.0.clone())
         .map(|k| LU[k].1.clone())
         .map(|f| Value::Fun(f))
         .ok()
