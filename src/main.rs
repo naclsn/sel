@@ -7,7 +7,11 @@ mod engine;
 mod prelude;
 
 fn main() {
-    let app = parse_string(&env::args().skip(1).collect()).result();
+    let app = parse_string(&env::args()
+            .skip(1)
+            .collect::<Vec<String>>()
+            .join(" "))
+        .result();
 
     for line in stdin().lines() {
         match line {

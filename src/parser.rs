@@ -150,22 +150,44 @@ impl Parser<'_> {
     /// function that will apply its input to each
     /// in order.
     pub fn result(&mut self) -> Value {
-        Value::Fun(Box::new(Function {
-            arity: 1,
-            args: self.collect(),
-            func: |args| {
-                let arg = args
-                    .last()
-                    .unwrap()
-                    .clone();
-                args[..args.len()-1]
-                    .iter()
-                    .fold(arg, |r, f| f
-                        .clone()
-                        .apply(r))
-            },
-        }))
-    }
+        let fs: Vec<Value> = self.collect();
+        let firstin = fs
+            .first()
+            .map(|f| {
+                match f {
+                    Value::Fun(f) => f.types.0,
+                    _ => unreachable!(),
+                }
+            })
+            .unwrap();
+        let lastout = fs
+            .last()
+            .map(|f| {
+                match f {
+                    Value::Fun(f) => f.types.1,
+                    _ => unreachable!(),
+                }
+            })
+            .unwrap();
+        Value::Fun(
+            Function {
+                arity: 1,
+                types: (firstin, lastout),
+                args: fs,
+                func: |args| {
+                    let arg = args
+                        .last()
+                        .unwrap()
+                        .clone();
+                    args[..args.len()-1]
+                        .iter()
+                        .fold(arg, |r, f| f
+                            .clone()
+                            .apply(r))
+                },
+            } // Function
+        ) // Value::Fun
+    } // fn result
 
     /// atom ::= literal
     ///        | name
@@ -182,14 +204,15 @@ impl Parser<'_> {
                 lookup_name(name)
                     .ensure("Unknown name"),
 
-            Some(Token::Operator(Operator::Unary(un))) => {
-                Some(lookup_unary(un)
-                    .apply(self
-                        .next_atom()
-                        .expect("Missing argument for unary")
-                    )
-                )
-            },
+            Some(Token::Operator(Operator::Unary(un))) =>
+                Some(lookup_unary(un).apply(
+                    if let Some(Token::Operator(Operator::Binary(bin))) = self.lexer.peek() {
+                        lookup_binary(*bin)
+                    } else {
+                        self.next_atom()
+                            .expect("Missing argument for unary")
+                    }
+                )),
 
             Some(Token::Operator(Operator::Binary(bin))) =>
                 Some(lookup_binary(bin)

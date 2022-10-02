@@ -1,4 +1,4 @@
-use crate::{engine::{Function, Value}, parser::{Binop, Unop}};
+use crate::{engine::{Function, Value, Apply, Array, Type, Typed}, parser::{Binop, Unop}};
 
 // macro_rules! count {
 //     ($_:expr,) => { 1usize };
@@ -73,12 +73,66 @@ const LU: &'static [(&'static str, Function)] = &[
         args: vec![],
         func: |args| args[0].clone(),
     }),
+    ("join", Function {
+        arity: 2usize,
+        args: vec![],
+        func: |args| {
+            match (&args[0], &args[1]) {
+                (Value::Str(c), Value::Arr(a)) =>
+                    Value::Str(a
+                        .into_iter()
+                        .map(|i| {
+                            match i {
+                                Value::Str(s) => s.clone(),
+                                _ => panic!("type error"),
+                            }
+                        })
+                        .collect::<Vec<String>>()
+                        .join(c)
+                    ),
+                _ => panic!("type error"),
+            }
+        }
+    }),
+    ("map", Function { // (a -> b) -> [a] -> [b]
+        arity: 2usize,
+        args: vec![],
+        func: |args| {
+            match (&args[0], &args[1]) {
+                (/*Value::Fun(f)*/f, Value::Arr(a)) => {
+                    match f.typed() {
+                        Type::Fun(ins, outs) => {
+                            Value::Arr(
+                                Array {
+                                    types: *outs,
+                                    items: a
+                                        .into_iter()
+                                        .map(|i| {
+                                            if i.typed() != *ins { panic!("type error"); } // wrong type on array element
+                                            f
+                                                .clone()
+                                                .apply(i.clone())
+                                        })
+                                        .collect()
+                                }
+                            )
+                        },
+                        _ => panic!("type error"), // not function typed
+                    }
+                },
+                _ => panic!("type error"), // not array argument
+            }
+        },
+    }),
     ("repeat", Function {
         arity: 2usize,
         args: vec![],
         func: |args| {
             match &args[0] {
-                Value::Num(n) => Value::Arr(vec![args[1].clone(); *n as usize]),
+                Value::Num(n) =>
+                    Value::Arr(Array::new(
+                        Type::Num, // YYY: &args[0].typed() -- to infer
+                        vec![args[1].clone(); *n as usize])),
                 _ => panic!("type error"),
             }
         },
@@ -88,12 +142,14 @@ const LU: &'static [(&'static str, Function)] = &[
         args: vec![],
         func: |args| {
             match &args[0] {
-                Value::Arr(v) => Value::Arr(v
-                    .iter()
-                    .map(|it| it.clone())
-                    .rev()
-                    .collect()
-                ),
+                Value::Arr(v) =>
+                    Value::Arr(Array::new(
+                        v.types,
+                        v
+                            .into_iter()
+                            .map(|it| it.clone())
+                            .rev()
+                            .collect())),
                 _ => panic!("type error"),
             }
         },
@@ -101,7 +157,23 @@ const LU: &'static [(&'static str, Function)] = &[
     ("singleton", Function {
         arity: 1usize,
         args: vec![],
-        func: |args| Value::Arr(args),
+        func: |args| Value::Arr(Array::new(args[0].typed(), args)),
+    }),
+    ("split", Function {
+        arity: 2usize,
+        args: vec![],
+        func: |args| {
+            match (&args[0], &args[1]) {
+                (Value::Str(c), Value::Str(s)) =>
+                    Value::Arr(Array::new(
+                        Type::Str,
+                        s
+                            .split(c)
+                            .map(|u| Value::Str(u.to_string()))
+                            .collect())),
+                _ => panic!("type error"),
+            }
+        },
     }),
     ("tonum", Function {
         arity: 1usize,
@@ -129,7 +201,7 @@ pub fn lookup_name<'a>(name: String) -> Option<Value> {
     LU
         .binary_search_by_key(&name.as_str(), |t| t.0)
         .map(|k| LU[k].1.clone())
-        .map(|f| Value::Fun(Box::new(f)))
+        .map(|f| Value::Fun(f))
         .ok()
 }
 
