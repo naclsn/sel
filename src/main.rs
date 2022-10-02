@@ -5,6 +5,7 @@ use crate::{parser::parse_string, engine::{Value, Apply}};
 mod parser;
 mod engine;
 mod prelude;
+mod dsl_playground;
 
 fn main() {
     let app = parse_string(&env::args()

@@ -29,10 +29,25 @@ impl PartialEq for Type {
             (Type::Str, Type::Str) => true,
             (Type::Arr(a), Type::Arr(b)) => a == b,
             (Type::Fun(a, c), Type::Fun(b, d)) => a == b && c == d,
-            (Type::Unk(a), Type::Unk(b)) => a == b, // YYY: ~
+            (Type::Unk(a), Type::Unk(b)) => a == b, // YYY: ?
             (Type::Unk(_), _) => true,
             (_, Type::Unk(_)) => true,
             _ => false,
+        }
+    }
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Type::Num => write!(f, "Num"),
+            Type::Str => write!(f, "Str"),
+            Type::Arr(a) => write!(f, "[{a}]"),
+            Type::Fun(a, b) => match **a {
+                Type::Fun(_, _) => write!(f, "({a}) -> {b}"),
+                _ => write!(f, "{a} -> {b}"),
+            },
+            Type::Unk(n) => write!(f, "{n}"),
         }
     }
 }
@@ -120,13 +135,15 @@ pub trait Apply {
 
 impl Apply for Value {
     fn apply(self, arg: Value) -> Value {
+        let crap = self.clone().typed();
         match self {
 
             Value::Fun(mut fun) => {
                 if fun.maps.0 != arg.typed() {
+                    // TODO: attempt implicit type conversion here with arg.coerse().expect(..)
                     println!("wrong type of argument for function:");
-                    println!("    applying argument: {:?}", arg.typed());
-                    println!("  to function mapping: {:?} to {:?}", fun.maps.0, fun.maps.1);
+                    println!("  applying argument: {}", arg.typed());
+                    println!("        to function: {}", crap);
                     panic!("type error");
                 }
 
@@ -136,8 +153,8 @@ impl Apply for Value {
 
             other => {
                 println!("value is not a function:");
-                println!("  applying argument: {:?}", arg.typed());
-                println!("           to value: {:?}", other.typed());
+                println!("  applying argument: {}", arg.typed());
+                println!("         to a value: {}", other.typed());
                 panic!("type error");
             },
 

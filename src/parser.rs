@@ -150,18 +150,18 @@ impl Parser<'_> {
     /// function that will apply its input to each
     /// in order.
     pub fn result(&mut self) -> Value {
-        // TODO: do the refactoring where Parser is no impl Iterator
         let fs: Vec<Value> = self
             .filter(|f| {
                 match f {
                     Value::Fun(_) => true,
                     other => {
                         println!("non-function value in script:");
-                        println!("  found value of type: {:?}", other.typed());
+                        println!("  found value of type: {}", other.typed());
                         panic!("type error")
                     },
                 }
             })
+            // .map(|f| { println!("got {}", f.typed()); f })
             .collect();
 
         let firstin = fs
@@ -243,7 +243,7 @@ impl Parser<'_> {
     } // next_atom
 } // impl Parser
 
-impl<'a> Iterator for Parser<'a> { // TODO: refactoring (was) in progress (at some point...)
+impl<'a> Iterator for Parser<'a> {
     type Item = Value;
 
     /// script ::= _elements1

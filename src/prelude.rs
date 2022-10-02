@@ -80,7 +80,7 @@ fn get_lu() -> Vec<(String, Function)> {
         ),
         args: vec![],
         func: |_, args| {
-            Value::Fun(Function { // Num -> Num
+            Value::Fun(Function {
                 maps: (
                     Type::Num,
                     Type::Num
@@ -94,33 +94,43 @@ fn get_lu() -> Vec<(String, Function)> {
         },
     }),
 
-    ("id".to_string(), Function {
+    ("id".to_string(), Function { // a -> a
         maps: (Type::Unk("a".to_string()), Type::Unk("a".to_string())),
         args: vec![],
         func: |_, args| args[0].clone(),
     }),
 
-    // ("join".to_string(), Function {
-    //     arity: 2usize,
-    //     args: vec![],
-    //     func: |args| {
-    //         match (&args[0], &args[1]) {
-    //             (Value::Str(c), Value::Arr(a)) =>
-    //                 Value::Str(a
-    //                     .into_iter()
-    //                     .map(|i| {
-    //                         match i {
-    //                             Value::Str(s) => s.clone(),
-    //                             _ => panic!("type error"),
-    //                         }
-    //                     })
-    //                     .collect::<Vec<String>>()
-    //                     .join(c)
-    //                 ),
-    //             _ => panic!("type error"),
-    //         }
-    //     }
-    // }),
+    ("join".to_string(), Function { // Str -> [Str] -> Str
+        maps: (
+            Type::Str,
+            Type::Fun(
+                Box::new(Type::Arr(Box::new(Type::Str))),
+                Box::new(Type::Str)
+            )
+        ),
+        args: vec![],
+        func: |_, args| {
+            Value::Fun(Function {
+                maps: (
+                    Type::Arr(Box::new(Type::Str)),
+                    Type::Str
+                ),
+                args,
+                func: |_, args| {
+                    let_sure!{ [Value::Str(c), Value::Arr(a)] = &args[..2];
+                    Value::Str(a
+                        .into_iter()
+                        .map(|i| {
+                            let_sure!{ Value::Str(s) = i;
+                            s.clone() }
+                        })
+                        .collect::<Vec<String>>()
+                        .join(c.as_str())
+                    ) }
+                }
+            })
+        }
+    }),
 
     ("map".to_string(), Function { // (a -> b) -> [a] -> [b]
         maps: (
@@ -148,7 +158,6 @@ fn get_lu() -> Vec<(String, Function)> {
                         has: *typeb,
                         items: a
                             .into_iter()
-                            // and here could typec every i to be of typea (but redundant)
                             .map(|i| f.clone().apply(i.clone()))
                             .collect()
                     }) }
@@ -157,84 +166,116 @@ fn get_lu() -> Vec<(String, Function)> {
         },
     }),
 
-    // ("repeat".to_string(), Function {
-    //     arity: 2usize,
-    //     args: vec![],
-    //     func: |args| {
-    //         match &args[0] {
-    //             Value::Num(n) =>
-    //                 Value::Arr(Array::new(
-    //                     Type::Num, // YYY: &args[0].typed() -- to infer
-    //                     vec![args[1].clone(); *n as usize])),
-    //             _ => panic!("type error"),
-    //         }
-    //     },
-    // }),
+    ("repeat".to_string(), Function { // Num -> a -> Str // ok, was 'replicate'
+        maps: (
+            Type::Num,
+            Type::Fun(
+                Box::new(Type::Unk("a".to_string())),
+                Box::new(Type::Arr(Box::new(Type::Unk("a".to_string()))))
+            )
+        ),
+        args: vec![],
+        func: |_, args| {
+            Value::Fun(Function {
+                maps: (
+                    Type::Unk("a".to_string()),
+                    Type::Arr(Box::new(Type::Unk("a".to_string())))
+                ),
+                args,
+                func: |types, args| {
+                    let_sure!{ Value::Num(n) = &args[0];
+                    Value::Arr(Array {
+                        has: types.0,
+                        items: vec![args[1].clone(); *n as usize]
+                    }) }
+                },
+            })
+        },
+    }),
 
-    // ("reverse".to_string(), Function {
-    //     arity: 1usize,
-    //     args: vec![],
-    //     func: |args| {
-    //         match &args[0] {
-    //             Value::Arr(v) =>
-    //                 Value::Arr(Array::new(
-    //                     v.types,
-    //                     v
-    //                         .into_iter()
-    //                         .map(|it| it.clone())
-    //                         .rev()
-    //                         .collect())),
-    //             _ => panic!("type error"),
-    //         }
-    //     },
-    // }),
+    ("reverse".to_string(), Function { // [a] -> [a]
+        maps: (
+            Type::Arr(Box::new(Type::Unk("a".to_string()))),
+            Type::Arr(Box::new(Type::Unk("a".to_string())))
+        ),
+        args: vec![],
+        func: |_, args| {
+            match &args[0] {
+                Value::Arr(v) =>
+                    Value::Arr(Array {
+                        has: v.has.clone(),
+                        items: v
+                            .into_iter()
+                            .map(|it| it.clone())
+                            .rev()
+                            .collect()
+                    }),
+                _ => panic!("type error"),
+            }
+        },
+    }),
 
-    // ("singleton".to_string(), Function {
-    //     arity: 1usize,
-    //     args: vec![],
-    //     func: |args| Value::Arr(Array::new(args[0].typed(), args)),
-    // }),
+    ("singleton".to_string(), Function { // a -> [a]
+        maps: (
+            Type::Unk("a".to_string()),
+            Type::Arr(Box::new(Type::Unk("a".to_string())))
+        ),
+        args: vec![],
+        func: |_, args| Value::Arr(Array { has: args[0].typed(), items: args }),
+    }),
 
-    // ("split".to_string(), Function {
-    //     arity: 2usize,
-    //     args: vec![],
-    //     func: |args| {
-    //         match (&args[0], &args[1]) {
-    //             (Value::Str(c), Value::Str(s)) =>
-    //                 Value::Arr(Array::new(
-    //                     Type::Str,
-    //                     s
-    //                         .split(c)
-    //                         .map(|u| Value::Str(u.to_string()))
-    //                         .collect())),
-    //             _ => panic!("type error"),
-    //         }
-    //     },
-    // }),
+    ("split".to_string(), Function { // Str -> Str -> [Str]
+        maps: (
+            Type::Str,
+            Type::Fun(
+                Box::new(Type::Str),
+                Box::new(Type::Arr(Box::new(Type::Str)))
+            )
+        ),
+        args: vec![],
+        func: |_, args| {
+            Value::Fun(Function {
+                maps: (
+                    Type::Str,
+                    Type::Arr(Box::new(Type::Str))
+                ),
+                args,
+                func: |_, args| {
+                    match (&args[0], &args[1]) {
+                        (Value::Str(c), Value::Str(s)) =>
+                            Value::Arr(Array {
+                                has: Type::Str,
+                                items: s
+                                    .split(c)
+                                    .map(|u| Value::Str(u.to_string()))
+                                    .collect()
+                            }),
+                        _ => panic!("type error"),
+                    }
+                }
+            })
+        },
+    }),
 
-    // ("tonum".to_string(), Function {
-    //     arity: 1usize,
-    //     args: vec![],
-    //     func: |args| {
-    //         match &args[0] {
-    //             Value::Str(c) => Value::Num(c.parse().unwrap_or(0.0)),
-    //             _ => panic!("type error"),
-    //         }
-    //     },
-    // }),
+    ("tonum".to_string(), Function { // Str -> Num
+        maps: (Type::Str, Type::Num),
+        args: vec![],
+        func: |_, args| {
+            let_sure!{ Value::Str(c) = &args[0];
+            Value::Num(c.parse().unwrap_or(0.0)) }
+        },
+    }),
 
-    // ("tostr".to_string(), Function {
-    //     arity: 1usize,
-    //     args: vec![],
-    //     func: |args| {
-    //         match &args[0] {
-    //             Value::Num(a) => Value::Str(a.to_string()),
-    //             _ => panic!("type error"),
-    //         }
-    //     },
-    // }),
+    ("tostr".to_string(), Function { // Num -> Str // should probably be a -> Str
+        maps: (Type::Num, Type::Str),
+        args: vec![],
+        func: |_, args| {
+            let_sure!{ Value::Num(a) = &args[0];
+            Value::Str(a.to_string()) }
+        },
+    }),
 
-]
+    ]
 }
 
 pub fn lookup_name<'a>(name: String) -> Option<Value> {
