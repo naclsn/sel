@@ -71,7 +71,7 @@ macro_rules! let_sure {
 
 // TODO: re-do macro (with doc inline!)
 // const LU: &'static [(&'static str, Function)] = &[..]
-lazy_static!{ static ref LU: [(&'static str, Function); 10] = [
+lazy_static!{ static ref LU: [(&'static str, Function); 11] = [
 
     ("add", Function { // Num -> Num -> Num
         name: "add".to_string(),
@@ -92,6 +92,29 @@ lazy_static!{ static ref LU: [(&'static str, Function); 10] = [
                     let_sure!{ [Value::Num(a), Value::Num(b)] = this.args[..2];
                     Value::Num(a+b) }
                 }
+            })
+        },
+    }),
+
+    ("const", Function { // a -> b -> a
+        name: "const".to_string(),
+        maps: (
+            Type::Unk("a".to_string()),
+            Type::Fun(
+                Box::new(Type::Unk("b".to_string())),
+                Box::new(Type::Unk("a".to_string()))
+            )
+        ),
+        args: vec![],
+        func: |this| {
+            Value::Fun(Function {
+                name: this.name,
+                maps: (
+                    Type::Unk("b".to_string()),
+                    this.args[0].typed()
+                ),
+                args: this.args,
+                func: |this| this.args[0].clone(),
             })
         },
     }),

@@ -27,7 +27,9 @@ pub enum Token {
     Name(String),
     Literal(Value),
     Operator(Operator),
-    SubScript(Vec<Token>),
+    // SubScript(Vec<Token>),
+    SubscriptBegin,
+    SubscriptEnd,
     Composition,
 }
 
@@ -87,33 +89,29 @@ impl<'a> Iterator for Lexer<'a> {
                 let acc = self.0
                     .by_ref()
                     .take_while(|cc| {
-                        if '{' == *cc {
-                            lvl+= 1;
+                        match cc {
+                            '{' => {
+                                lvl+= 1;
+                                true
+                            },
+                            '}' => {
+                                assert!(0 < lvl, "Unbalanced string literal: missing opening '{{'");
+                                lvl-= 1;
+                                0 < lvl
+                            },
+                            _ => true,
                         }
-                        if '}' == *cc {
-                            assert!(0 < lvl, "Unbalanced string literal: missing closing '}}'");
-                            lvl-= 1;
-                        }
-                        return '}' != *cc;
                     })
                     .skip(1)
                     .collect();
-                assert!(0 == lvl, "Unbalanced string literal: missing openning '{{'");
+                assert!(0 == lvl, "Unbalanced string literal: missing closing '}}'");
                 Some(Token::Literal(Value::Str(acc)))
-            },
-
-            Some('[') => {
-                let vec = lex_string(&self.0
-                        .by_ref()
-                        .skip(1)
-                        .take_while(|cc| ']' != *cc) // YYY: crap, does not catch missing closing ']'
-                        .collect())
-                    .collect();
-                Some(Token::SubScript(vec))
             },
 
             Some(c) => {
                 let r = match c {
+                    '[' => Some(Token::SubscriptBegin),
+                    ']' => Some(Token::SubscriptEnd),
                     ',' => Some(Token::Composition),
                     '+' => Some(Token::Operator(Operator::Binary(Binop::Addition))),
                     '-' => Some(Token::Operator(Operator::Binary(Binop::Substraction))),
@@ -122,6 +120,7 @@ impl<'a> Iterator for Lexer<'a> {
                     // ':' => Some(Token::Operator(Operator::Binary(Binop::Range))),
                     '@' => Some(Token::Operator(Operator::Unary(Unop::Array))),
                     '%' => Some(Token::Operator(Operator::Unary(Unop::Flip))),
+                    '}' => panic!("Unbalanced string literal: missing opening '{{'"),
                     c => todo!("Unhandled character '{c}'"),
                 };
                 self.0.next();
@@ -163,25 +162,19 @@ impl<T> Parser<T> where T: Lex {
     /// the underlying iterator.
     pub fn result(self) -> Value {
         let fs: Vec<Value> = self
-            .filter(|f| {
-                match f {
-                    Value::Fun(_) => true,
-                    other => {
-                        println!("non-function value in script:");
-                        println!("  found value of type: {}", other.typed());
-                        panic!("type error")
-                    },
-                }
-            })
             .map(|f| { println!("got {} :: {}", f, f.typed()); f })
             .collect();
+
+        if 1 == fs.len() {
+            return fs.into_iter().next().unwrap();
+        }
 
         let firstin = fs
             .first()
             .map(|f| {
                 match f {
                     Value::Fun(f) => f.maps.0.clone(),
-                    _ => unreachable!(),
+                    _ => panic!("type error"),
                 }
             })
             .unwrap();
@@ -190,7 +183,7 @@ impl<T> Parser<T> where T: Lex {
             .map(|f| {
                 match f {
                     Value::Fun(f) => f.maps.1.clone(),
-                    _ => unreachable!(),
+                    _ => panic!("type error"),
                 }
             })
             .unwrap();
@@ -225,6 +218,7 @@ impl<T> Parser<T> where T: Lex {
     fn next_atom(&mut self) -> Option<Value> {
         match self.0.next() {
             None | Some(Token::Composition) => None,
+
             Some(Token::Literal(value)) => Some(value.clone()),
 
             Some(Token::Name(name)) =>
@@ -247,8 +241,30 @@ impl<T> Parser<T> where T: Lex {
                         .next_atom()
                         .expect("Missing argument for binary"))),
 
-            Some(Token::SubScript(tokens)) =>
-                Some(parse_vec(tokens).result()),
+            // TODO: properly recursive
+            Some(Token::SubscriptBegin) => {
+                let mut lvl: u32 = 1;
+                let tokens = self.0
+                    .by_ref()
+                    .take_while(|tt| {
+                        match tt {
+                            Token::SubscriptBegin => {
+                                lvl+= 1;
+                                true
+                            },
+                            Token::SubscriptEnd => {
+                                assert!(0 < lvl, "Unbalanced subscript expression: missing opening '['");
+                                lvl-= 1;
+                                0 < lvl
+                            },
+                            _ => true,
+                        }
+                    })
+                    .collect();
+                assert!(0 == lvl, "Unbalanced subscript expression: missing closing ']'");
+                Some(parse_vec(tokens).result())
+            },
+            Some(Token::SubscriptEnd) => panic!("Unbalanced subscript expression: missing opening '['"),
 
         } // match lexer next
     } // next_atom

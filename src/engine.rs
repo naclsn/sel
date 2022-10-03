@@ -20,18 +20,22 @@ impl fmt::Display for Value {
                     .collect::<Vec<String>>()
                     .join(", ")),
             Value::Fun(g) =>
-                write!(f, "{} {}",
-                    g.name,
-                    g.args
-                        .iter()
-                        .map(|v| {
-                            match v {
-                                Value::Fun(h) if 0 < h.args.len() => format!("[{v}]"),
-                                _ => format!("{v}"),
-                            }
-                        })
-                        .collect::<Vec<String>>()
-                        .join(" ")),
+                if 0 == g.args.len() {
+                    write!(f, "{}", g.name)
+                } else {
+                    write!(f, "{} {}",
+                        g.name,
+                        g.args
+                            .iter()
+                            .map(|v| {
+                                match v {
+                                    Value::Fun(h) if 0 < h.args.len() => format!("[{v}]"),
+                                    _ => format!("{v}"),
+                                }
+                            })
+                            .collect::<Vec<String>>()
+                            .join(" "))
+                },
         }
     }
 }
