@@ -23,6 +23,17 @@ macro_rules! ty_ty {
     ($n:ident) => { Type::Unk(stringify!($n).to_string()) };
 }
 
+/// goes from type representation to actual Type instance
+macro_rules! ty_val {
+    (($t:tt), $def:expr) => { ty_ty!($t) };
+    (($a:tt -> $b:tt), $def:expr) => { Value::Fun(Box::new(ty_ty!($a)), Box::new(ty_ty!($b))) };
+    (Num, $def:expr) => { Value::Num($def) };
+    (Str, $def:expr) => { Value::Str($def) };
+    ([$t:tt], $def:expr) => { Value::Arr(Box::new(ty_ty!($t))) };
+    ($a:tt -> $b:tt, $def:expr) => { Value::Fun(Box::new(ty_ty!($a)), Box::new(ty_ty!($b))) };
+    ($n:ident, $def:expr) => { Value::Unk(stringify!($n).to_string()) };
+}
+
 /// goes from function type to the Function::maps tuple
 /// YYY: maybe could change said tuple to be a Type..
 macro_rules! fun_ty {
@@ -36,16 +47,20 @@ macro_rules! fun_ty {
 
 /// goes from function definition to actual Function struct
 macro_rules! fun_fn {
-    ($($t:tt)->* = $def:expr) => {
+    ($t:tt = $def:expr) => {
+        ty_val!($t, $def)
+    };
+    ($($t:tt)->+ = $def:expr) => {
         fun_fn!(@ vec![] ; $($t)->* = $def)
     };
-    (@ $args:expr ; $h:tt -> $m:tt -> $($t:tt)->* = $def:expr) => {
+    (@ $args:expr ; $h:tt -> $m:tt -> $($t:tt)->+ = $def:expr) => {
         Function {
-            maps: fun_ty!($h -> $m -> $($t)->*),
+            maps: fun_ty!($h -> $m -> $($t)->+),
             args: $args,
             func: |types, args| {
+                {let _ = types;}
                 // TODO: args is type checked, extract and fill `Unk`s
-                Value::Fun(fun_fn!(@ args ; $m -> $($t)->* = $def))
+                Value::Fun(fun_fn!(@ args ; $m -> $($t)->+ = $def))
             }
         }
     };
@@ -54,6 +69,7 @@ macro_rules! fun_fn {
             maps: fun_ty!($a -> $b),
             args: $args,
             func: |types, args| {
+                {let _ = (types, args);}
                 // TODO: args is type checked, curry and pass to $def
                 Value::Num(42.0)
             }
@@ -155,6 +171,8 @@ fn _crap() -> Vec<(String, Function)> {
     */
 
     fun!(tostr :: Num -> Str = |n| n.to_string()),
+
+    fun!(pi :: Num = 3.14),
 
     ]
 

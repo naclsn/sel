@@ -10,7 +10,6 @@ module.exports = grammar({
     script: $ => $._elements1,
     comment: _ => /#[^\n]*\r?\n/,
 
-    // YYY: this might end up allowing empty
     _elements1: $ => seq($.element, repeat(seq(',', $.element)), optional(',')),
     element: $ => seq($.atom, repeat($.atom)),
 
@@ -28,15 +27,16 @@ module.exports = grammar({
     unop: _ => choice(...'%@'.split('')),
     binop: _ => choice(...'+-./:=_~'.split('')),
 
-    subscript: $ => seq('[', $._elements1, ']'),
+    subscript: $ => prec(1, seq('[', optional(choice(
+      seq($.atom, $.binop, $.atom),
+      $._elements1,
+    )), ']')),
 
     number: _ => /[0-9]+(\.[0-9]+)?|0x[0-9A-F]+|0b[01]+|0o[0-7]/,
-    string: $ => $._string,
-    _string: $ => seq('{', repeat(choice(/[^}]/, $._string)), '}'),
+    string: $ => $._string, _string: $ => seq('{', repeat(choice(/[^}]/, $._string)), '}'),
 
     reserved: _ => /[\^]/,
 
   },
 
 });
-

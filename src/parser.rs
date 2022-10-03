@@ -161,7 +161,7 @@ impl Parser<'_> {
                     },
                 }
             })
-            // .map(|f| { println!("got {}", f.typed()); f })
+            .map(|f| { println!("got {} :: {}", f, f.typed()); f })
             .collect();
 
         let firstin = fs
@@ -183,23 +183,22 @@ impl Parser<'_> {
             })
             .unwrap();
 
-        Value::Fun(
-            Function {
-                maps: (firstin, lastout),
-                args: fs,
-                func: |_, args| {
-                    let arg = args
-                        .last()
-                        .unwrap()
-                        .clone();
-                    args[..args.len()-1]
-                        .iter()
-                        .fold(arg, |r, f| f
-                            .clone()
-                            .apply(r))
-                },
-            }
-        )
+        Value::Fun(Function {
+            name: "(script)".to_string(),
+            maps: (firstin, lastout),
+            args: fs,
+            func: |this| {
+                let arg = this.args
+                    .last()
+                    .unwrap()
+                    .clone();
+                this.args[..this.args.len()-1]
+                    .iter()
+                    .fold(arg, |r, f| f
+                        .clone()
+                        .apply(r))
+            },
+        })
 
     } // fn result
 
@@ -236,8 +235,10 @@ impl Parser<'_> {
                     )
                 ),
 
-            Some(Token::SubScript(tokens)) =>
-                Some(parse_vec(&tokens).result()),
+            Some(Token::SubScript(tokens)) => {
+                // TODO: seq($.atom, $.binop, $.atom)
+                Some(parse_vec(&tokens).result())
+            },
 
         } // match lexer next
     } // next_atom

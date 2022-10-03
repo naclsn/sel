@@ -8,6 +8,34 @@ pub enum Value {
     Fun(Function),
 }
 
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Value::Num(n) => write!(f, "{n}"),
+            Value::Str(s) => write!(f, "{{{s}}}"),
+            Value::Arr(a) =>
+                write!(f, "@{{{}}}", a.items
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", ")),
+            Value::Fun(g) =>
+                write!(f, "{} {}",
+                    g.name,
+                    g.args
+                        .iter()
+                        .map(|v| {
+                            match v {
+                                Value::Fun(h) if 0 < h.args.len() => format!("[{v}]"),
+                                _ => format!("{v}"),
+                            }
+                        })
+                        .collect::<Vec<String>>()
+                        .join(" ")),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Type {
     Num,
@@ -148,7 +176,7 @@ impl Apply for Value {
                 }
 
                 fun.args.push(arg);
-                (fun.func)(fun.maps, fun.args)
+                (fun.func)(fun)
             },
 
             other => {
@@ -177,13 +205,14 @@ impl<'a> IntoIterator for &'a Array {
 
 #[derive(Clone)]
 pub struct Function {
+    pub name: String,
     pub maps: (Type, Type),
     pub args: Vec<Value>,
-    pub func: fn((Type, Type), Vec<Value>) -> Value,
+    pub func: fn(Function) -> Value,
 }
 
 impl fmt::Debug for Function {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Function({:?}, {:?}, {:?})", self.maps, self.args, self.func) // TODO: association with Token
+        write!(f, "Function({:?}, {:?}, {:?}, {:?})", self.name, self.maps, self.args, self.func)
     }
 }

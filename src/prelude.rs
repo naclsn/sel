@@ -1,4 +1,4 @@
-use crate::{engine::{Function, Value, Apply, Array, Type, Typed}, parser::{Binop, Unop}};
+use crate::{engine::{Function, Value, Array, Type, Typed, Apply}, parser::{Binop, Unop}};
 
 macro_rules! let_sure {
     ($pat:pat = $ex:expr; $bl:block) => {
@@ -74,20 +74,22 @@ fn get_lu() -> Vec<(String, Function)> {
     vec![
 
     ("add".to_string(), Function { // Num -> Num -> Num
+        name: "add".to_string(),
         maps: (
             Type::Num,
             Type::Fun(Box::new(Type::Num), Box::new(Type::Num))
         ),
         args: vec![],
-        func: |_, args| {
+        func: |this| {
             Value::Fun(Function {
+                name: this.name,
                 maps: (
                     Type::Num,
                     Type::Num
                 ),
-                args,
-                func: |_, args| {
-                    let_sure!{ [Value::Num(a), Value::Num(b)] = args[..2];
+                args: this.args,
+                func: |this| {
+                    let_sure!{ [Value::Num(a), Value::Num(b)] = this.args[..2];
                     Value::Num(a+b) }
                 }
             })
@@ -95,12 +97,14 @@ fn get_lu() -> Vec<(String, Function)> {
     }),
 
     ("id".to_string(), Function { // a -> a
+        name: "id".to_string(),
         maps: (Type::Unk("a".to_string()), Type::Unk("a".to_string())),
         args: vec![],
-        func: |_, args| args[0].clone(),
+        func: |this| this.args[0].clone(),
     }),
 
     ("join".to_string(), Function { // Str -> [Str] -> Str
+        name: "join".to_string(),
         maps: (
             Type::Str,
             Type::Fun(
@@ -109,15 +113,16 @@ fn get_lu() -> Vec<(String, Function)> {
             )
         ),
         args: vec![],
-        func: |_, args| {
+        func: |this| {
             Value::Fun(Function {
+                name: this.name,
                 maps: (
                     Type::Arr(Box::new(Type::Str)),
                     Type::Str
                 ),
-                args,
-                func: |_, args| {
-                    let_sure!{ [Value::Str(c), Value::Arr(a)] = &args[..2];
+                args: this.args,
+                func: |this| {
+                    let_sure!{ [Value::Str(c), Value::Arr(a)] = &this.args[..2];
                     Value::Str(a
                         .into_iter()
                         .map(|i| {
@@ -133,6 +138,7 @@ fn get_lu() -> Vec<(String, Function)> {
     }),
 
     ("map".to_string(), Function { // (a -> b) -> [a] -> [b]
+        name: "map".to_string(),
         maps: (
             Type::Fun(
                 Box::new(Type::Unk("a".to_string())),
@@ -144,16 +150,17 @@ fn get_lu() -> Vec<(String, Function)> {
             )
         ),
         args: vec![],
-        func: |_, args| {
-            let_sure!{ Type::Fun(typea, typeb) = args[0].clone().typed();
+        func: |this| {
+            let_sure!{ Type::Fun(typea, typeb) = this.args[0].clone().typed();
             Value::Fun(Function { // [a] -> [b]
+                    name: this.name,
                 maps: (
                     Type::Arr(typea),
                     Type::Arr(typeb)
                 ),
-                args,
-                func: |types, args| {
-                    let_sure!{ (Type::Arr(typeb), [f, Value::Arr(a)]) = (types.1, &args[..2]);
+                args: this.args,
+                func: |this| {
+                    let_sure!{ (Type::Arr(typeb), [f, Value::Arr(a)]) = (this.maps.1, &this.args[..2]);
                     Value::Arr(Array { // [b]
                         has: *typeb,
                         items: a
@@ -167,6 +174,7 @@ fn get_lu() -> Vec<(String, Function)> {
     }),
 
     ("repeat".to_string(), Function { // Num -> a -> Str // ok, was 'replicate'
+        name: "repeat".to_string(),
         maps: (
             Type::Num,
             Type::Fun(
@@ -175,18 +183,19 @@ fn get_lu() -> Vec<(String, Function)> {
             )
         ),
         args: vec![],
-        func: |_, args| {
+        func: |this| {
             Value::Fun(Function {
+                name: this.name,
                 maps: (
                     Type::Unk("a".to_string()),
                     Type::Arr(Box::new(Type::Unk("a".to_string())))
                 ),
-                args,
-                func: |types, args| {
-                    let_sure!{ Value::Num(n) = &args[0];
+                args: this.args,
+                func: |this| {
+                    let_sure!{ Value::Num(n) = &this.args[0];
                     Value::Arr(Array {
-                        has: types.0,
-                        items: vec![args[1].clone(); *n as usize]
+                        has: this.maps.0,
+                        items: vec![this.args[1].clone(); *n as usize]
                     }) }
                 },
             })
@@ -194,13 +203,14 @@ fn get_lu() -> Vec<(String, Function)> {
     }),
 
     ("reverse".to_string(), Function { // [a] -> [a]
+        name: "reverse".to_string(),
         maps: (
             Type::Arr(Box::new(Type::Unk("a".to_string()))),
             Type::Arr(Box::new(Type::Unk("a".to_string())))
         ),
         args: vec![],
-        func: |_, args| {
-            match &args[0] {
+        func: |this| {
+            match &this.args[0] {
                 Value::Arr(v) =>
                     Value::Arr(Array {
                         has: v.has.clone(),
@@ -216,15 +226,17 @@ fn get_lu() -> Vec<(String, Function)> {
     }),
 
     ("singleton".to_string(), Function { // a -> [a]
+        name: "singleton".to_string(),
         maps: (
             Type::Unk("a".to_string()),
             Type::Arr(Box::new(Type::Unk("a".to_string())))
         ),
         args: vec![],
-        func: |_, args| Value::Arr(Array { has: args[0].typed(), items: args }),
+        func: |this| Value::Arr(Array { has: this.args[0].typed(), items: this.args }),
     }),
 
     ("split".to_string(), Function { // Str -> Str -> [Str]
+        name: "split".to_string(),
         maps: (
             Type::Str,
             Type::Fun(
@@ -233,15 +245,16 @@ fn get_lu() -> Vec<(String, Function)> {
             )
         ),
         args: vec![],
-        func: |_, args| {
+        func: |this| {
             Value::Fun(Function {
+                name: this.name,
                 maps: (
                     Type::Str,
                     Type::Arr(Box::new(Type::Str))
                 ),
-                args,
-                func: |_, args| {
-                    match (&args[0], &args[1]) {
+                args: this.args,
+                func: |this| {
+                    match (&this.args[0], &this.args[1]) {
                         (Value::Str(c), Value::Str(s)) =>
                             Value::Arr(Array {
                                 has: Type::Str,
@@ -258,19 +271,21 @@ fn get_lu() -> Vec<(String, Function)> {
     }),
 
     ("tonum".to_string(), Function { // Str -> Num
+        name: "tonum".to_string(),
         maps: (Type::Str, Type::Num),
         args: vec![],
-        func: |_, args| {
-            let_sure!{ Value::Str(c) = &args[0];
+        func: |this| {
+            let_sure!{ Value::Str(c) = &this.args[0];
             Value::Num(c.parse().unwrap_or(0.0)) }
         },
     }),
 
     ("tostr".to_string(), Function { // Num -> Str // should probably be a -> Str
+        name: "tostr".to_string(),
         maps: (Type::Num, Type::Str),
         args: vec![],
-        func: |_, args| {
-            let_sure!{ Value::Num(a) = &args[0];
+        func: |this| {
+            let_sure!{ Value::Num(a) = &this.args[0];
             Value::Str(a.to_string()) }
         },
     }),
@@ -296,6 +311,7 @@ pub fn lookup_unary(un: Unop) -> Value {
 }
 
 pub fn lookup_binary(bin: Binop) -> Value {
+    // XXX: they are all flipped
     match bin {
         Binop::Addition       => lookup_name("add".to_string()).unwrap(),
         Binop::Substraction   => lookup_name("sub".to_string()).unwrap(),
