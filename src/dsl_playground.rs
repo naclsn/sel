@@ -1,14 +1,11 @@
 use crate::engine::{Function, Type, Value, Array, Typed, Apply};
 
 macro_rules! let_sure {
-    ($pat:pat = $ex:expr; $bl:block) => {
+    ($pat:pat = $ex:expr; $bl:expr) => {
         match $ex {
             $pat => $bl,
             _ => unreachable!(),
         }
-    };
-    ($pat:pat = $ex:expr; $bl:expr) => {
-        let_sure!($pat = $ex; { $bl })
     };
 }
 
@@ -23,16 +20,16 @@ macro_rules! ty_ty {
     ($n:ident) => { Type::Unk(stringify!($n).to_string()) };
 }
 
-/// goes from type representation to actual Type instance
-macro_rules! ty_val {
-    (($t:tt), $def:expr) => { ty_ty!($t) };
-    (($a:tt -> $b:tt), $def:expr) => { Value::Fun(Box::new(ty_ty!($a)), Box::new(ty_ty!($b))) };
-    (Num, $def:expr) => { Value::Num($def) };
-    (Str, $def:expr) => { Value::Str($def) };
-    ([$t:tt], $def:expr) => { Value::Arr(Box::new(ty_ty!($t))) };
-    ($a:tt -> $b:tt, $def:expr) => { Value::Fun(Box::new(ty_ty!($a)), Box::new(ty_ty!($b))) };
-    ($n:ident, $def:expr) => { Value::Unk(stringify!($n).to_string()) };
-}
+// /// goes from type representation to actual Type instance
+// macro_rules! ty_val {
+//     (($t:tt), $def:expr) => { ty_ty!($t) };
+//     (($a:tt -> $b:tt), $def:expr) => { Value::Fun(Box::new(ty_ty!($a)), Box::new(ty_ty!($b))) };
+//     (Num, $def:expr) => { Value::Num($def) };
+//     (Str, $def:expr) => { Value::Str($def) };
+//     ([$t:tt], $def:expr) => { Value::Arr(Box::new(ty_ty!($t))) };
+//     ($a:tt -> $b:tt, $def:expr) => { Value::Fun(Box::new(ty_ty!($a)), Box::new(ty_ty!($b))) };
+//     ($n:ident, $def:expr) => { Value::Unk(stringify!($n).to_string()) };
+// }
 
 /// goes from function type to the Function::maps tuple
 /// YYY: maybe could change said tuple to be a Type..
@@ -47,9 +44,9 @@ macro_rules! fun_ty {
 
 /// goes from function definition to actual Function struct
 macro_rules! fun_fn {
-    ($t:tt = $def:expr) => {
-        ty_val!($t, $def)
-    };
+    // ($t:tt = $def:expr) => {
+    //     ty_val!($t, $def)
+    // };
     ($($t:tt)->+ = $def:expr) => {
         fun_fn!(@ vec![] ; $($t)->* = $def)
     };
@@ -172,7 +169,7 @@ fn _crap() -> Vec<(String, Function)> {
 
     fun!(tostr :: Num -> Str = |n| n.to_string()),
 
-    fun!(pi :: Num = 3.14),
+    // fun!(pi :: Num = 3.14),
 
     ]
 

@@ -1,3 +1,4 @@
+use lazy_static::lazy_static;
 use crate::{engine::{Function, Value, Array, Type, Typed, Apply}, parser::{Binop, Unop}};
 
 macro_rules! let_sure {
@@ -70,10 +71,9 @@ macro_rules! let_sure {
 
 // TODO: re-do macro (with doc inline!)
 // const LU: &'static [(&'static str, Function)] = &[..]
-fn get_lu() -> Vec<(String, Function)> {
-    vec![
+lazy_static!{ static ref LU: [(&'static str, Function); 10] = [
 
-    ("add".to_string(), Function { // Num -> Num -> Num
+    ("add", Function { // Num -> Num -> Num
         name: "add".to_string(),
         maps: (
             Type::Num,
@@ -96,14 +96,14 @@ fn get_lu() -> Vec<(String, Function)> {
         },
     }),
 
-    ("id".to_string(), Function { // a -> a
+    ("id", Function { // a -> a
         name: "id".to_string(),
         maps: (Type::Unk("a".to_string()), Type::Unk("a".to_string())),
         args: vec![],
         func: |this| this.args[0].clone(),
     }),
 
-    ("join".to_string(), Function { // Str -> [Str] -> Str
+    ("join", Function { // Str -> [Str] -> Str
         name: "join".to_string(),
         maps: (
             Type::Str,
@@ -137,7 +137,7 @@ fn get_lu() -> Vec<(String, Function)> {
         }
     }),
 
-    ("map".to_string(), Function { // (a -> b) -> [a] -> [b]
+    ("map", Function { // (a -> b) -> [a] -> [b]
         name: "map".to_string(),
         maps: (
             Type::Fun(
@@ -173,7 +173,7 @@ fn get_lu() -> Vec<(String, Function)> {
         },
     }),
 
-    ("repeat".to_string(), Function { // Num -> a -> Str // ok, was 'replicate'
+    ("repeat", Function { // Num -> a -> Str // ok, was 'replicate'
         name: "repeat".to_string(),
         maps: (
             Type::Num,
@@ -202,7 +202,7 @@ fn get_lu() -> Vec<(String, Function)> {
         },
     }),
 
-    ("reverse".to_string(), Function { // [a] -> [a]
+    ("reverse", Function { // [a] -> [a]
         name: "reverse".to_string(),
         maps: (
             Type::Arr(Box::new(Type::Unk("a".to_string()))),
@@ -226,7 +226,7 @@ fn get_lu() -> Vec<(String, Function)> {
         },
     }),
 
-    ("singleton".to_string(), Function { // a -> [a]
+    ("singleton", Function { // a -> [a]
         name: "singleton".to_string(),
         maps: (
             Type::Unk("a".to_string()),
@@ -236,7 +236,7 @@ fn get_lu() -> Vec<(String, Function)> {
         func: |this| Value::Arr(Array { has: this.args[0].typed(), items: this.args }),
     }),
 
-    ("split".to_string(), Function { // Str -> Str -> [Str]
+    ("split", Function { // Str -> Str -> [Str]
         name: "split".to_string(),
         maps: (
             Type::Str,
@@ -271,7 +271,7 @@ fn get_lu() -> Vec<(String, Function)> {
         },
     }),
 
-    ("tonum".to_string(), Function { // Str -> Num
+    ("tonum", Function { // Str -> Num
         name: "tonum".to_string(),
         maps: (Type::Str, Type::Num),
         args: vec![],
@@ -281,7 +281,7 @@ fn get_lu() -> Vec<(String, Function)> {
         },
     }),
 
-    ("tostr".to_string(), Function { // Num -> Str // should probably be a -> Str
+    ("tostr", Function { // Num -> Str // should probably be a -> Str
         name: "tostr".to_string(),
         maps: (Type::Num, Type::Str),
         args: vec![],
@@ -291,14 +291,11 @@ fn get_lu() -> Vec<(String, Function)> {
         },
     }),
 
-    ]
-}
+]; }
 
 pub fn lookup_name<'a>(name: String) -> Option<Value> {
-    // XXX/TODO: move back to const asap
-    let LU = get_lu();
     LU
-        .binary_search_by_key(&name, |t| t.0.clone())
+        .binary_search_by_key(&name.as_str(), |t| t.0)
         .map(|k| LU[k].1.clone())
         .map(|f| Value::Fun(f))
         .ok()
