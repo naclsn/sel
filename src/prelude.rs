@@ -318,6 +318,6 @@ pub fn lookup_binary(bin: Binop) -> Value {
         Binop::Substraction   => lookup_name("sub".to_string()).unwrap(),
         Binop::Multiplication => lookup_name("mul".to_string()).unwrap(),
         Binop::Division       => lookup_name("div".to_string()).unwrap(),
-        Binop::Range          => lookup_name("range".to_string()).unwrap(),
+        // Binop::Range          => lookup_name("range".to_string()).unwrap(),
     }
 }

@@ -25,12 +25,9 @@ module.exports = grammar({
 
     name: _ => /[a-z]+/,
     unop: _ => choice(...'%@'.split('')),
-    binop: _ => choice(...'+-./:=_~'.split('')),
+    binop: _ => choice(...'+-./:=_~'.split('')), // YYY: may take the `:` out into its own 'range literal'
 
-    subscript: $ => prec(1, seq('[', optional(choice(
-      seq($.atom, $.binop, $.atom),
-      $._elements1,
-    )), ']')),
+    subscript: $ => seq('[', optional($._elements1), ']'),
 
     number: _ => /[0-9]+(\.[0-9]+)?|0x[0-9A-F]+|0b[01]+|0o[0-7]/,
     string: $ => $._string, _string: $ => seq('{', repeat(choice(/[^}]/, $._string)), '}'),

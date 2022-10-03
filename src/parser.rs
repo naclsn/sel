@@ -13,7 +13,7 @@ pub enum Binop {
     Substraction,
     Multiplication,
     Division,
-    Range,
+    // Range,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -119,7 +119,7 @@ impl<'a> Iterator for Lexer<'a> {
                     '-' => Some(Token::Operator(Operator::Binary(Binop::Substraction))),
                     '.' => Some(Token::Operator(Operator::Binary(Binop::Multiplication))),
                     '/' => Some(Token::Operator(Operator::Binary(Binop::Division))),
-                    ':' => Some(Token::Operator(Operator::Binary(Binop::Range))),
+                    // ':' => Some(Token::Operator(Operator::Binary(Binop::Range))),
                     '@' => Some(Token::Operator(Operator::Unary(Unop::Array))),
                     '%' => Some(Token::Operator(Operator::Unary(Unop::Flip))),
                     c => todo!("Unhandled character '{c}'"),
@@ -159,8 +159,9 @@ fn parse_vec(tokens: Vec<Token>) -> Parser<Vec<Token>> {
 impl<T> Parser<T> where T: Lex {
     /// Build each functions and return a single
     /// function that will apply its input to each
-    /// in order.
-    pub fn result(&mut self) -> Value {
+    /// in order. Consumes it because it advances
+    /// the underlying iterator.
+    pub fn result(self) -> Value {
         let fs: Vec<Value> = self
             .filter(|f| {
                 match f {
@@ -194,6 +195,8 @@ impl<T> Parser<T> where T: Lex {
             })
             .unwrap();
 
+        // XXX: this will get its own structure
+        //      (here the env for recursive scrips?)
         Value::Fun(Function {
             name: "(script)".to_string(),
             maps: (firstin, lastout),
@@ -242,28 +245,13 @@ impl<T> Parser<T> where T: Lex {
                 Some(lookup_binary(bin)
                     .apply(self
                         .next_atom()
-                        .expect("Missing argument for binary"))
-                ),
+                        .expect("Missing argument for binary"))),
 
-            Some(Token::SubScript(tokens)) => {
-                let mut subparser = parse_vec(tokens);
-                subparser
-                    .clone()
-                    .try_parse_binexpr()
-                    .or_else(|| Some(subparser.result()))
-            },
+            Some(Token::SubScript(tokens)) =>
+                Some(parse_vec(tokens).result()),
 
         } // match lexer next
     } // next_atom
-
-    /// Tries to parse a (recursive) expression
-    /// of the form: "atom binop atom". Consumes
-    /// the undelying iterator (a `Lexer`).
-    /// First version may not have precedence.
-    fn try_parse_binexpr(self) -> Option<Value> {
-        // TODO: seq($.atom, $.binop, $.atom)
-        todo!("you know, /the usual/ (what that even mean)")
-    }
 } // impl Parser
 
 impl<T> Iterator for Parser<T> where T: Lex {
