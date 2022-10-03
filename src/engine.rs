@@ -1,4 +1,4 @@
-use std::{fmt, slice};
+use std::fmt;
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -96,18 +96,16 @@ impl Typed for Value {
     }
 
     fn coerse(self, to: Type) -> Option<Value> {
+        if to == self.typed() { return Some(self.clone()); }
         match to {
             Type::Num =>
                 match self {
-                    Value::Num(v) => Some(Value::Num(v)),
                     Value::Str(v) => v.parse().ok().map(|r| Value::Num(r)),
                     _ => None,
                 },
             Type::Str =>
                 match self {
                     Value::Num(v) => Some(Value::Str(v.to_string())),
-                    Value::Str(v) => Some(Value::Str(v)),
-                    // Value::Arr(v) => Some(Value::Str(v.to_string())),
                     _ => None,
                 },
             Type::Arr(ref t) if Type::Num == **t =>
@@ -163,20 +161,25 @@ pub trait Apply {
 
 impl Apply for Value {
     fn apply(self, arg: Value) -> Value {
-        let crap = self.clone().typed();
+        let self_type = self.typed();
+        let arg_type = arg.typed();
         match self {
 
             Value::Fun(mut fun) => {
-                if fun.maps.0 != arg.typed() {
-                    // TODO: attempt implicit type conversion here with arg.coerse().expect(..)
-                    println!("wrong type of argument for function:");
-                    println!("  applying argument: {}", arg.typed());
-                    println!("        to function: {}", crap);
-                    panic!("type error");
-                }
+                match arg.coerse(fun.maps.0.clone()) {
+                    None => {
+                        println!("wrong type of argument for function:");
+                        println!("  applying argument: {}", arg_type);
+                        println!("        to function: {}", self_type);
+                        println!("no valid implicit conversion between the two types");
+                        panic!("type error");
+                    },
 
-                fun.args.push(arg);
-                (fun.func)(fun)
+                    Some(correct) => {
+                        fun.args.push(correct);
+                        (fun.func)(fun)
+                    },
+                }
             },
 
             other => {
@@ -196,13 +199,6 @@ pub struct Array {
     pub items: Vec<Value>,
 }
 
-impl<'a> IntoIterator for &'a Array {
-    type Item = &'a Value;
-    type IntoIter = slice::Iter<'a, Value>;
-
-    fn into_iter(self) -> Self::IntoIter { self.items.iter() }
-}
-
 #[derive(Clone)]
 pub struct Function {
     pub name: String,
@@ -213,6 +209,7 @@ pub struct Function {
 
 impl fmt::Debug for Function {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Function({:?}, {:?}, {:?}, {:?})", self.name, self.maps, self.args, self.func)
+        write!(f, "Function({:?}, {:?}, {:?}, {:?})",
+            self.name, self.maps, self.args, self.func)
     }
 }

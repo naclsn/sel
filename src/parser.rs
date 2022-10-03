@@ -1,4 +1,4 @@
-use std::{str::Chars, iter::Peekable};
+use std::{str::Chars, iter::Peekable, vec};
 use crate::{engine::{Value, Apply, Function, Typed}, prelude::{lookup_name, lookup_unary, lookup_binary}};
 
 #[derive(Debug, Clone, Copy)]
@@ -23,7 +23,7 @@ pub enum Operator {
 }
 
 #[derive(Debug, Clone)]
-enum Token {
+pub enum Token {
     Name(String),
     Literal(Value),
     Operator(Operator),
@@ -31,19 +31,21 @@ enum Token {
     Composition,
 }
 
-struct Lexer<'a> { source: Peekable<Chars<'a>> }
-fn lex_string<'a>(script: &'a String) -> Lexer<'a> { Lexer { source: script.chars().peekable() } }
+pub struct Lexer<'a>(Peekable<Chars<'a>>);
+fn lex_string<'a>(script: &'a String) -> Lexer<'a> {
+    Lexer(script.chars().peekable())
+}
 
 impl<'a> Iterator for Lexer<'a> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.source.peek() {
+        match self.0.peek() {
             None => None,
 
             Some(c) if c.is_ascii_whitespace() => {
-                // self.source.next();
-                while !self.source
+                // self.0.next();
+                while !self.0
                     .next_if(|cc| cc.is_ascii_whitespace())
                     .is_none()
                 {}
@@ -51,7 +53,7 @@ impl<'a> Iterator for Lexer<'a> {
             },
 
             Some('#') => {
-                self.source
+                self.0
                     .by_ref()
                     .skip_while(|cc| '\n' != *cc)
                     .next();
@@ -61,7 +63,7 @@ impl<'a> Iterator for Lexer<'a> {
             Some(c) if c.is_ascii_digit() => {
                 let mut acc: String = "".to_string();
                 loop {
-                    match self.source.next_if(|cc| cc.is_ascii_digit()) {
+                    match self.0.next_if(|cc| cc.is_ascii_digit()) {
                         Some(cc) => { acc.push(cc); }
                         None => { break; }
                     }
@@ -72,7 +74,7 @@ impl<'a> Iterator for Lexer<'a> {
             Some(c) if c.is_ascii_lowercase() => {
                 let mut acc: String = "".to_string();
                 loop {
-                    match self.source.next_if(|cc| cc.is_ascii_lowercase()) {
+                    match self.0.next_if(|cc| cc.is_ascii_lowercase()) {
                         Some(cc) => { acc.push(cc); }
                         None => { break; }
                     }
@@ -82,7 +84,7 @@ impl<'a> Iterator for Lexer<'a> {
 
             Some('{') => {
                 let mut lvl: u32 = 0;
-                let acc = self.source
+                let acc = self.0
                     .by_ref()
                     .take_while(|cc| {
                         if '{' == *cc {
@@ -101,12 +103,11 @@ impl<'a> Iterator for Lexer<'a> {
             },
 
             Some('[') => {
-                let vec = lex_string(&self.source
+                let vec = lex_string(&self.0
                         .by_ref()
                         .skip(1)
                         .take_while(|cc| ']' != *cc) // YYY: crap, does not catch missing closing ']'
-                        .collect()
-                    )
+                        .collect())
                     .collect();
                 Some(Token::SubScript(vec))
             },
@@ -123,7 +124,7 @@ impl<'a> Iterator for Lexer<'a> {
                     '%' => Some(Token::Operator(Operator::Unary(Unop::Flip))),
                     c => todo!("Unhandled character '{c}'"),
                 };
-                self.source.next();
+                self.0.next();
                 r
             },
 
@@ -131,21 +132,31 @@ impl<'a> Iterator for Lexer<'a> {
     } // fn next
 } // impl Iterator for Lexer
 
-pub(crate) struct Parser<'a> { lexer: Peekable<Lexer<'a>> }
-pub(crate) fn parse_string<'a>(script: &'a String) -> Parser<'a> { Parser { lexer: lex_string(script).peekable() } }
-fn parse_vec<'a>(_tokens: &'a Vec<Token>) -> Parser<'a> { todo!("parser on vec (used for groupings)") }
-
-// YYY: remove (no, you don't need it...)
-trait Ensure {
-    fn ensure(self, msg: &str) -> Self;
-}
-impl<T> Ensure for Option<T> {
-    fn ensure(self, msg: &str) -> Self {
-        Some(self.expect(msg))
-    }
+pub trait Lex { // YYY: may seal it, as well as the Lexer struct
+    type TokenIter: Iterator<Item=Token>;
+    fn lex(self) -> Self::TokenIter;
 }
 
-impl Parser<'_> {
+impl<'a> Lex for &'a String {
+    type TokenIter = Lexer<'a>;
+    fn lex(self) -> Self::TokenIter { lex_string(self) }
+}
+impl Lex for Vec<Token> {
+    type TokenIter = vec::IntoIter<Token>;
+    fn lex(self) -> Self::TokenIter { self.into_iter() }
+}
+
+#[derive(Clone)]
+pub struct Parser<T>(Peekable<T::TokenIter>) where T: Lex;
+
+pub fn parse_string<'a>(script: &'a String) -> Parser<&'a String> {
+    Parser(script.lex().peekable())
+}
+fn parse_vec(tokens: Vec<Token>) -> Parser<Vec<Token>> {
+    Parser(tokens.lex().peekable())
+}
+
+impl<T> Parser<T> where T: Lex {
     /// Build each functions and return a single
     /// function that will apply its input to each
     /// in order.
@@ -207,20 +218,20 @@ impl Parser<'_> {
     ///        | unop (binop | atom)
     ///        | binop atom
     ///        | subscript
-    /// subscript ::= '[' _elements1 ']'
+    /// subscript ::= '[' [atom binop atom | _elements1] ']'
     fn next_atom(&mut self) -> Option<Value> {
-        match self.lexer.next() {
+        match self.0.next() {
             None | Some(Token::Composition) => None,
-            Some(Token::Literal(value)) => Some(value),
+            Some(Token::Literal(value)) => Some(value.clone()),
 
             Some(Token::Name(name)) =>
-                lookup_name(name)
-                    .ensure("Unknown name"),
+                Some(lookup_name(name.to_string())
+                    .expect("Unknown name")),
 
             Some(Token::Operator(Operator::Unary(un))) =>
                 Some(lookup_unary(un).apply(
-                    if let Some(Token::Operator(Operator::Binary(bin))) = self.lexer.peek() {
-                        lookup_binary(*bin) // copy
+                    if let Some(Token::Operator(Operator::Binary(bin))) = self.0.peek() {
+                        lookup_binary(*bin)
                     } else {
                         self.next_atom()
                             .expect("Missing argument for unary")
@@ -231,20 +242,31 @@ impl Parser<'_> {
                 Some(lookup_binary(bin)
                     .apply(self
                         .next_atom()
-                        .expect("Missing argument for binary")
-                    )
+                        .expect("Missing argument for binary"))
                 ),
 
             Some(Token::SubScript(tokens)) => {
-                // TODO: seq($.atom, $.binop, $.atom)
-                Some(parse_vec(&tokens).result())
+                let mut subparser = parse_vec(tokens);
+                subparser
+                    .clone()
+                    .try_parse_binexpr()
+                    .or_else(|| Some(subparser.result()))
             },
 
         } // match lexer next
     } // next_atom
+
+    /// Tries to parse a (recursive) expression
+    /// of the form: "atom binop atom". Consumes
+    /// the undelying iterator (a `Lexer`).
+    /// First version may not have precedence.
+    fn try_parse_binexpr(self) -> Option<Value> {
+        // TODO: seq($.atom, $.binop, $.atom)
+        todo!("you know, /the usual/ (what that even mean)")
+    }
 } // impl Parser
 
-impl<'a> Iterator for Parser<'a> {
+impl<T> Iterator for Parser<T> where T: Lex {
     type Item = Value;
 
     /// script ::= _elements1

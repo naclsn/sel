@@ -123,8 +123,8 @@ fn get_lu() -> Vec<(String, Function)> {
                 args: this.args,
                 func: |this| {
                     let_sure!{ [Value::Str(c), Value::Arr(a)] = &this.args[..2];
-                    Value::Str(a
-                        .into_iter()
+                    Value::Str(a.items
+                        .iter()
                         .map(|i| {
                             let_sure!{ Value::Str(s) = i;
                             s.clone() }
@@ -163,8 +163,8 @@ fn get_lu() -> Vec<(String, Function)> {
                     let_sure!{ (Type::Arr(typeb), [f, Value::Arr(a)]) = (this.maps.1, &this.args[..2]);
                     Value::Arr(Array { // [b]
                         has: *typeb,
-                        items: a
-                            .into_iter()
+                        items: a.items
+                            .iter()
                             .map(|i| f.clone().apply(i.clone()))
                             .collect()
                     }) }
@@ -210,16 +210,17 @@ fn get_lu() -> Vec<(String, Function)> {
         ),
         args: vec![],
         func: |this| {
-            match &this.args[0] {
-                Value::Arr(v) =>
+            let crap = this.args.into_iter().next(); // YYY: interesting
+            match crap {
+                Some(Value::Arr(v)) => {
                     Value::Arr(Array {
                         has: v.has.clone(),
-                        items: v
+                        items: v.items
                             .into_iter()
-                            .map(|it| it.clone())
                             .rev()
                             .collect()
-                    }),
+                    })
+                },
                 _ => panic!("type error"),
             }
         },
