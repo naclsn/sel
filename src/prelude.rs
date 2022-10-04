@@ -340,7 +340,7 @@ lazy_static! { static ref LU: [(&'static str, Function); 11] = [
 pub fn lookup_name<'a>(name: String) -> Option<Value> {
     LU.binary_search_by_key(&name.as_str(), |t| t.0)
         .map(|k| LU[k].1.clone()) // could without clone if LU is list of 'factories'
-        .map(|f| Value::Fun(f))
+        .map(|f| Value::Fun(f)) // make LU a lookup of Value (not Function) for eg. `pi` and such
         .ok()
 }
 
