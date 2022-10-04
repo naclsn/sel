@@ -1,5 +1,8 @@
+use crate::{
+    engine::{Apply, Array, Function, Type, Typed, Value},
+    parser::{Binop, Unop},
+};
 use lazy_static::lazy_static;
-use crate::{engine::{Function, Value, Array, Type, Typed, Apply}, parser::{Binop, Unop}};
 
 macro_rules! let_sure {
     ($pat:pat = $ex:expr; $bl:block) => {
@@ -71,7 +74,7 @@ macro_rules! let_sure {
 
 // TODO: re-do macro (with doc inline!)
 // const LU: &'static [(&'static str, Function)] = &[..]
-lazy_static!{ static ref LU: [(&'static str, Function); 11] = [
+lazy_static! { static ref LU: [(&'static str, Function); 11] = [
 
     ("add", Function { // Num -> Num -> Num
         name: "add".to_string(),
@@ -317,8 +320,7 @@ lazy_static!{ static ref LU: [(&'static str, Function); 11] = [
 ]; }
 
 pub fn lookup_name<'a>(name: String) -> Option<Value> {
-    LU
-        .binary_search_by_key(&name.as_str(), |t| t.0)
+    LU.binary_search_by_key(&name.as_str(), |t| t.0)
         .map(|k| LU[k].1.clone())
         .map(|f| Value::Fun(f))
         .ok()
@@ -327,17 +329,17 @@ pub fn lookup_name<'a>(name: String) -> Option<Value> {
 pub fn lookup_unary(un: Unop) -> Value {
     match un {
         Unop::Array => lookup_name("array".to_string()).unwrap(),
-        Unop::Flip  => lookup_name("flip".to_string()).unwrap(),
+        Unop::Flip => lookup_name("flip".to_string()).unwrap(),
     }
 }
 
 pub fn lookup_binary(bin: Binop) -> Value {
     // XXX: they are all flipped
     match bin {
-        Binop::Addition       => lookup_name("add".to_string()).unwrap(),
-        Binop::Substraction   => lookup_name("sub".to_string()).unwrap(),
+        Binop::Addition => lookup_name("add".to_string()).unwrap(),
+        Binop::Substraction => lookup_name("sub".to_string()).unwrap(),
         Binop::Multiplication => lookup_name("mul".to_string()).unwrap(),
-        Binop::Division       => lookup_name("div".to_string()).unwrap(),
+        Binop::Division => lookup_name("div".to_string()).unwrap(),
         // Binop::Range          => lookup_name("range".to_string()).unwrap(),
     }
 }

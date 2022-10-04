@@ -1,5 +1,8 @@
-use std::{str::Chars, iter::Peekable, vec};
-use crate::{engine::{Value, Apply, Function, Typed}, prelude::{lookup_name, lookup_unary, lookup_binary}};
+use crate::{
+    engine::{Apply, Function, Typed, Value},
+    prelude::{lookup_binary, lookup_name, lookup_unary},
+};
+use std::{iter::Peekable, str::Chars, vec};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Unop {
@@ -47,66 +50,67 @@ impl<'a> Iterator for Lexer<'a> {
 
             Some(c) if c.is_ascii_whitespace() => {
                 // self.0.next();
-                while !self.0
-                    .next_if(|cc| cc.is_ascii_whitespace())
-                    .is_none()
-                {}
+                while !self.0.next_if(|cc| cc.is_ascii_whitespace()).is_none() {}
                 self.next()
-            },
+            }
 
             Some('#') => {
-                self.0
-                    .by_ref()
-                    .skip_while(|cc| '\n' != *cc)
-                    .next();
+                self.0.by_ref().skip_while(|cc| '\n' != *cc).next();
                 self.next()
-            },
+            }
 
             Some(c) if c.is_ascii_digit() => {
                 let mut acc: String = "".to_string();
                 loop {
                     match self.0.next_if(|cc| cc.is_ascii_digit()) {
-                        Some(cc) => { acc.push(cc); }
-                        None => { break; }
+                        Some(cc) => {
+                            acc.push(cc);
+                        }
+                        None => {
+                            break;
+                        }
                     }
                 }
                 Some(Token::Literal(Value::Num(acc.parse().unwrap())))
-            },
+            }
 
             Some(c) if c.is_ascii_lowercase() => {
                 let mut acc: String = "".to_string();
                 loop {
                     match self.0.next_if(|cc| cc.is_ascii_lowercase()) {
-                        Some(cc) => { acc.push(cc); }
-                        None => { break; }
+                        Some(cc) => {
+                            acc.push(cc);
+                        }
+                        None => {
+                            break;
+                        }
                     }
                 }
                 Some(Token::Name(acc))
-            },
+            }
 
             Some('{') => {
                 let mut lvl: u32 = 0;
-                let acc = self.0
+                let acc = self
+                    .0
                     .by_ref()
-                    .take_while(|cc| {
-                        match cc {
-                            '{' => {
-                                lvl+= 1;
-                                true
-                            },
-                            '}' => {
-                                assert!(0 < lvl, "Unbalanced string literal: missing opening '{{'");
-                                lvl-= 1;
-                                0 < lvl
-                            },
-                            _ => true,
+                    .take_while(|cc| match cc {
+                        '{' => {
+                            lvl += 1;
+                            true
                         }
+                        '}' => {
+                            assert!(0 < lvl, "Unbalanced string literal: missing opening '{{'");
+                            lvl -= 1;
+                            0 < lvl
+                        }
+                        _ => true,
                     })
                     .skip(1)
                     .collect();
                 assert!(0 == lvl, "Unbalanced string literal: missing closing '}}'");
                 Some(Token::Literal(Value::Str(acc)))
-            },
+            }
 
             Some(c) => {
                 let r = match c {
@@ -125,28 +129,34 @@ impl<'a> Iterator for Lexer<'a> {
                 };
                 self.0.next();
                 r
-            },
-
+            }
         } // match peek
     } // fn next
 } // impl Iterator for Lexer
 
-pub trait Lex { // YYY: may seal it, as well as the Lexer struct
-    type TokenIter: Iterator<Item=Token>;
+pub trait Lex {
+    // YYY: may seal it, as well as the Lexer struct
+    type TokenIter: Iterator<Item = Token>;
     fn lex(self) -> Self::TokenIter;
 }
 
 impl<'a> Lex for &'a String {
     type TokenIter = Lexer<'a>;
-    fn lex(self) -> Self::TokenIter { lex_string(self) }
+    fn lex(self) -> Self::TokenIter {
+        lex_string(self)
+    }
 }
 impl Lex for Vec<Token> {
     type TokenIter = vec::IntoIter<Token>;
-    fn lex(self) -> Self::TokenIter { self.into_iter() }
+    fn lex(self) -> Self::TokenIter {
+        self.into_iter()
+    }
 }
 
 #[derive(Clone)]
-pub struct Parser<T>(Peekable<T::TokenIter>) where T: Lex;
+pub struct Parser<T>(Peekable<T::TokenIter>)
+where
+    T: Lex;
 
 pub fn parse_string<'a>(script: &'a String) -> Parser<&'a String> {
     Parser(script.lex().peekable())
@@ -155,14 +165,20 @@ fn parse_vec(tokens: Vec<Token>) -> Parser<Vec<Token>> {
     Parser(tokens.lex().peekable())
 }
 
-impl<T> Parser<T> where T: Lex {
+impl<T> Parser<T>
+where
+    T: Lex,
+{
     /// Build each functions and return a single
     /// function that will apply its input to each
     /// in order. Consumes it because it advances
     /// the underlying iterator.
     pub fn result(self) -> Value {
         let fs: Vec<Value> = self
-            .map(|f| { println!("got {} :: {}", f, f.typed()); f })
+            .map(|f| {
+                println!("got {} :: {}", f, f.typed());
+                f
+            })
             .collect();
 
         if 1 == fs.len() {
@@ -171,20 +187,16 @@ impl<T> Parser<T> where T: Lex {
 
         let firstin = fs
             .first()
-            .map(|f| {
-                match f {
-                    Value::Fun(f) => f.maps.0.clone(),
-                    _ => panic!("type error"),
-                }
+            .map(|f| match f {
+                Value::Fun(f) => f.maps.0.clone(),
+                _ => panic!("type error"),
             })
             .unwrap();
         let lastout = fs
             .last()
-            .map(|f| {
-                match f {
-                    Value::Fun(f) => f.maps.1.clone(),
-                    _ => panic!("type error"),
-                }
+            .map(|f| match f {
+                Value::Fun(f) => f.maps.1.clone(),
+                _ => panic!("type error"),
             })
             .unwrap();
 
@@ -195,18 +207,12 @@ impl<T> Parser<T> where T: Lex {
             maps: (firstin, lastout),
             args: fs,
             func: |this| {
-                let arg = this.args
-                    .last()
-                    .unwrap()
-                    .clone();
-                this.args[..this.args.len()-1]
+                let arg = this.args.last().unwrap().clone();
+                this.args[..this.args.len() - 1]
                     .iter()
-                    .fold(arg, |r, f| f
-                        .clone()
-                        .apply(r))
+                    .fold(arg, |r, f| f.clone().apply(r))
             },
         })
-
     } // fn result
 
     /// atom ::= literal
@@ -221,56 +227,59 @@ impl<T> Parser<T> where T: Lex {
 
             Some(Token::Literal(value)) => Some(value.clone()),
 
-            Some(Token::Name(name)) =>
-                Some(lookup_name(name.to_string())
-                    .expect("Unknown name")),
+            Some(Token::Name(name)) => Some(lookup_name(name.to_string()).expect("Unknown name")),
 
-            Some(Token::Operator(Operator::Unary(un))) =>
-                Some(lookup_unary(un).apply(
-                    if let Some(Token::Operator(Operator::Binary(bin))) = self.0.peek() {
-                        lookup_binary(*bin)
-                    } else {
-                        self.next_atom()
-                            .expect("Missing argument for unary")
-                    }
-                )),
+            Some(Token::Operator(Operator::Unary(un))) => Some(lookup_unary(un).apply(
+                if let Some(Token::Operator(Operator::Binary(bin))) = self.0.peek() {
+                    lookup_binary(*bin)
+                } else {
+                    self.next_atom().expect("Missing argument for unary")
+                },
+            )),
 
-            Some(Token::Operator(Operator::Binary(bin))) =>
-                Some(lookup_binary(bin)
-                    .apply(self
-                        .next_atom()
-                        .expect("Missing argument for binary"))),
+            Some(Token::Operator(Operator::Binary(bin))) => Some(
+                lookup_binary(bin).apply(self.next_atom().expect("Missing argument for binary")),
+            ),
 
             // TODO: properly recursive
             Some(Token::SubscriptBegin) => {
                 let mut lvl: u32 = 1;
-                let tokens = self.0
+                let tokens = self
+                    .0
                     .by_ref()
-                    .take_while(|tt| {
-                        match tt {
-                            Token::SubscriptBegin => {
-                                lvl+= 1;
-                                true
-                            },
-                            Token::SubscriptEnd => {
-                                assert!(0 < lvl, "Unbalanced subscript expression: missing opening '['");
-                                lvl-= 1;
-                                0 < lvl
-                            },
-                            _ => true,
+                    .take_while(|tt| match tt {
+                        Token::SubscriptBegin => {
+                            lvl += 1;
+                            true
                         }
+                        Token::SubscriptEnd => {
+                            assert!(
+                                0 < lvl,
+                                "Unbalanced subscript expression: missing opening '['"
+                            );
+                            lvl -= 1;
+                            0 < lvl
+                        }
+                        _ => true,
                     })
                     .collect();
-                assert!(0 == lvl, "Unbalanced subscript expression: missing closing ']'");
+                assert!(
+                    0 == lvl,
+                    "Unbalanced subscript expression: missing closing ']'"
+                );
                 Some(parse_vec(tokens).result())
-            },
-            Some(Token::SubscriptEnd) => panic!("Unbalanced subscript expression: missing opening '['"),
-
+            }
+            Some(Token::SubscriptEnd) => {
+                panic!("Unbalanced subscript expression: missing opening '['")
+            }
         } // match lexer next
     } // next_atom
 } // impl Parser
 
-impl<T> Iterator for Parser<T> where T: Lex {
+impl<T> Iterator for Parser<T>
+where
+    T: Lex,
+{
     type Item = Value;
 
     /// script ::= _elements1
@@ -283,12 +292,16 @@ impl<T> Iterator for Parser<T> where T: Lex {
             Some(mut base) => {
                 loop {
                     match self.next_atom() {
-                        None  => { break; },
-                        Some(arg) => { base = base.apply(arg); },
+                        None => {
+                            break;
+                        }
+                        Some(arg) => {
+                            base = base.apply(arg);
+                        }
                     }
                 }
                 Some(base)
-            },
+            }
         } // match next_atom
     }
 }

@@ -1,4 +1,4 @@
-use crate::engine::{Function, Type, Value, Array, Typed, Apply};
+use crate::engine::{Apply, Array, Function, Type, Typed, Value};
 
 macro_rules! let_sure {
     ($pat:pat = $ex:expr; $bl:expr) => {

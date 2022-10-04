@@ -13,17 +13,22 @@ impl fmt::Display for Value {
         match self {
             Value::Num(n) => write!(f, "{n}"),
             Value::Str(s) => write!(f, "{{{s}}}"),
-            Value::Arr(a) =>
-                write!(f, "@{{{}}}", a.items
+            Value::Arr(a) => write!(
+                f,
+                "@{{{}}}",
+                a.items
                     .iter()
                     .map(|v| v.to_string())
                     .collect::<Vec<String>>()
-                    .join(", ")),
-            Value::Fun(g) =>
+                    .join(", ")
+            ),
+            Value::Fun(g) => {
                 if 0 == g.args.len() {
                     write!(f, "{}", g.name)
                 } else {
-                    write!(f, "{} {}",
+                    write!(
+                        f,
+                        "{} {}",
                         g.name,
                         g.args
                             .iter()
@@ -34,8 +39,10 @@ impl fmt::Display for Value {
                                 }
                             })
                             .collect::<Vec<String>>()
-                            .join(" "))
-                },
+                            .join(" ")
+                    )
+                }
+            }
         }
     }
 }
@@ -100,60 +107,54 @@ impl Typed for Value {
     }
 
     fn coerse(self, to: Type) -> Option<Value> {
-        if to == self.typed() { return Some(self.clone()); }
+        if to == self.typed() {
+            return Some(self.clone());
+        }
         match to {
-            Type::Num =>
-                match self {
-                    Value::Str(v) => v.parse().ok().map(|r| Value::Num(r)),
-                    _ => None,
-                },
-            Type::Str =>
-                match self {
-                    Value::Num(v) => Some(Value::Str(v.to_string())),
-                    _ => None,
-                },
-            Type::Arr(ref t) if Type::Num == **t =>
-                match self {
-                    Value::Str(v) => Some(Value::Arr(Array {
-                        has: to,
-                        items: v
-                            .chars()
-                            .map(|c| Value::Num((c as u32) as f32))
-                            .collect(),
-                    })),
-                    Value::Arr(v) => {
-                        let may = v.items
-                            .into_iter()
-                            .map(|i| i.coerse(Type::Num))
-                            .collect::<Option<Vec<Value>>>();
-                        match may {
-                            Some(items) => Some(Value::Arr(Array { has: to, items })),
-                            None => None,
-                        }
-                    },
-                    _ => None,
-                },
-            Type::Arr(ref t) if Type::Str == **t =>
-                match self {
-                    Value::Str(v) => Some(Value::Arr(Array {
-                        has: to,
-                        items: v
-                            .chars()
-                            .map(|c| Value::Str(c.to_string()))
-                            .collect(),
-                    })),
-                    Value::Arr(v) => {
-                        let may = v.items
-                            .into_iter()
-                            .map(|i| i.coerse(Type::Str))
-                            .collect::<Option<Vec<Value>>>();
-                        match may {
-                            Some(items) => Some(Value::Arr(Array { has: to, items })),
-                            None => None,
-                        }
-                    },
-                    _ => None,
-                },
+            Type::Num => match self {
+                Value::Str(v) => v.parse().ok().map(|r| Value::Num(r)),
+                _ => None,
+            },
+            Type::Str => match self {
+                Value::Num(v) => Some(Value::Str(v.to_string())),
+                _ => None,
+            },
+            Type::Arr(ref t) if Type::Num == **t => match self {
+                Value::Str(v) => Some(Value::Arr(Array {
+                    has: to,
+                    items: v.chars().map(|c| Value::Num((c as u32) as f32)).collect(),
+                })),
+                Value::Arr(v) => {
+                    let may = v
+                        .items
+                        .into_iter()
+                        .map(|i| i.coerse(Type::Num))
+                        .collect::<Option<Vec<Value>>>();
+                    match may {
+                        Some(items) => Some(Value::Arr(Array { has: to, items })),
+                        None => None,
+                    }
+                }
+                _ => None,
+            },
+            Type::Arr(ref t) if Type::Str == **t => match self {
+                Value::Str(v) => Some(Value::Arr(Array {
+                    has: to,
+                    items: v.chars().map(|c| Value::Str(c.to_string())).collect(),
+                })),
+                Value::Arr(v) => {
+                    let may = v
+                        .items
+                        .into_iter()
+                        .map(|i| i.coerse(Type::Str))
+                        .collect::<Option<Vec<Value>>>();
+                    match may {
+                        Some(items) => Some(Value::Arr(Array { has: to, items })),
+                        None => None,
+                    }
+                }
+                _ => None,
+            },
             _ => None,
         }
     }
@@ -168,21 +169,18 @@ impl Apply for Value {
         let self_type = self.typed();
         let arg_type = arg.typed();
         match self {
+            Value::Fun(mut fun) => match arg.coerse(fun.maps.0.clone()) {
+                None => {
+                    println!("wrong type of argument for function:");
+                    println!("  applying argument: {}", arg_type);
+                    println!("        to function: {}", self_type);
+                    println!("no valid implicit conversion between the two types");
+                    panic!("type error");
+                }
 
-            Value::Fun(mut fun) => {
-                match arg.coerse(fun.maps.0.clone()) {
-                    None => {
-                        println!("wrong type of argument for function:");
-                        println!("  applying argument: {}", arg_type);
-                        println!("        to function: {}", self_type);
-                        println!("no valid implicit conversion between the two types");
-                        panic!("type error");
-                    },
-
-                    Some(correct) => {
-                        fun.args.push(correct);
-                        (fun.func)(fun)
-                    },
+                Some(correct) => {
+                    fun.args.push(correct);
+                    (fun.func)(fun)
                 }
             },
 
@@ -191,8 +189,7 @@ impl Apply for Value {
                 println!("  applying argument: {}", arg.typed());
                 println!("         to a value: {}", other.typed());
                 panic!("type error");
-            },
-
+            }
         }
     }
 }
@@ -213,7 +210,10 @@ pub struct Function {
 
 impl fmt::Debug for Function {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Function({:?}, {:?}, {:?}, {:?})",
-            self.name, self.maps, self.args, self.func)
+        write!(
+            f,
+            "Function({:?}, {:?}, {:?}, {:?})",
+            self.name, self.maps, self.args, self.func
+        )
     }
 }
