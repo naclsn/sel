@@ -1,3 +1,5 @@
+use std::ops::Index;
+
 use crate::{
     engine::{Apply, Array, Function, Type, Typed, Value},
     parser::{Binop, Unop},
@@ -177,30 +179,45 @@ lazy_static! { static ref LU: [(&'static str, Function); 11] = [
         ),
         args: vec![],
         func: |this| {
-            let_sure!{ Type::Fun(typea, typeb) = this.args[0].clone().typed();
+            let_sure!{ Type::Fun(typea, typeb) = this.args.index(0).typed();
             Value::Fun(Function { // [a] -> [b]
-                    name: this.name,
+                name: this.name,
                 maps: (
                     Type::Arr(typea),
                     Type::Arr(typeb)
                 ),
                 args: this.args,
                 func: |this| {
-                    let_sure!{ (Type::Arr(typeb), [f, Value::Arr(a)]) = (this.maps.1, &this.args[..2]);
-                    Value::Arr(Array { // [b]
-                        has: *typeb,
-                        items: a.items
-                            .iter()
-                            .map(|i| f.clone().apply(i.clone()))
-                            .collect()
-                    }) }
+                    // let_sure!{ (Type::Arr(typeb), [f, Value::Arr(a)]) = (this.maps.1, &this.args[..2]);
+                    // let_sure!{ (Type::Arr(typeb), [f, Value::Arr(a)]) = (this.maps.1, this.args.index(..2));
+                    // Value::Arr(Array { // [b]
+                    //     has: *typeb,
+                    //     items: a.items
+                    //         .into_iter()
+                    //         .map(|i| f.clone().apply(i.clone()))
+                    //         .collect()
+                    // }) }
+                    // let crap = this.args.into_iter();
+                    // match (this.maps.1, &crap.as_slice()[..2]) {
+                    let mut arg_iter = this.args.into_iter();
+                    match (this.maps, (arg_iter.next(), arg_iter.next())) {
+                        ((_, Type::Arr(typeb)), (Some(f), Some(Value::Arr(a)))) =>
+                            Value::Arr(Array { // [b]
+                                has: *typeb,
+                                items: a.items
+                                    .into_iter()
+                                    .map(|i| f.clone().apply(i))
+                                    .collect()
+                            }),
+                        _ => unreachable!(),
+                    }
                 }
             }) }
         },
     }),
 
-    ("repeat", Function { // Num -> a -> Str // ok, was 'replicate'
-        name: "repeat".to_string(),
+    ("replicate", Function { // Num -> a -> Str // ok, was 'replicate'
+        name: "replicate".to_string(),
         maps: (
             Type::Num,
             Type::Fun(
@@ -218,10 +235,11 @@ lazy_static! { static ref LU: [(&'static str, Function); 11] = [
                 ),
                 args: this.args,
                 func: |this| {
-                    let_sure!{ Value::Num(n) = &this.args[0];
+                    let mut args_iter = this.args.into_iter();
+                    let_sure!{ (Some(Value::Num(n)), Some(o)) = (args_iter.next(), args_iter.next());
                     Value::Arr(Array {
-                        has: this.maps.0,
-                        items: vec![this.args[1].clone(); *n as usize]
+                        has: o.typed(),
+                        items: vec![o; n as usize]
                     }) }
                 },
             })
@@ -240,7 +258,7 @@ lazy_static! { static ref LU: [(&'static str, Function); 11] = [
             match crap {
                 Some(Value::Arr(v)) => {
                     Value::Arr(Array {
-                        has: v.has.clone(),
+                        has: v.has,
                         items: v.items
                             .into_iter()
                             .rev()
@@ -321,7 +339,7 @@ lazy_static! { static ref LU: [(&'static str, Function); 11] = [
 
 pub fn lookup_name<'a>(name: String) -> Option<Value> {
     LU.binary_search_by_key(&name.as_str(), |t| t.0)
-        .map(|k| LU[k].1.clone())
+        .map(|k| LU[k].1.clone()) // could without clone if LU is list of 'factories'
         .map(|f| Value::Fun(f))
         .ok()
 }

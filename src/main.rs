@@ -16,7 +16,8 @@ fn main() {
         match line {
             Ok(it) => {
                 let res = app.clone().apply(Value::Str(it));
-                println!("{}", res.clone().coerse(Type::Str).unwrap_or(res))
+                let ty = res.typed();
+                println!("{} :: {}", res.clone().coerse(Type::Str).unwrap_or(res), ty)
             }
             Err(e) => panic!("{}", e),
         }

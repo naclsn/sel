@@ -169,7 +169,7 @@ impl Apply for Value {
         let self_type = self.typed();
         let arg_type = arg.typed();
         match self {
-            Value::Fun(mut fun) => match arg.coerse(fun.maps.0.clone()) {
+            Value::Fun(mut fun) => match arg.coerse(fun.maps.0.clone()) { // YYY: may have a 'no auto coerse' flag for functions like `tonum` and `tostr`
                 None => {
                     println!("wrong type of argument for function:");
                     println!("  applying argument: {}", arg_type);
