@@ -1,0 +1,13 @@
+[package]
+name = "dsl_macro_lib"
+version = "0.0.6"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib] # YYY: out of curiosity, what is realy needed? sane defauls?
+name = "dsl_macro_lib"
+path = "src/lib.rs"
+proc-macro = true
+
+[dependencies]
