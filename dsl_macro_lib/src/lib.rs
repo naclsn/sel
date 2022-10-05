@@ -1,40 +1,23 @@
-/// XXX: everything is pain, but can't be bothered; this will do for now (and maybe more)
-
 extern crate proc_macro;
-use proc_macro::{TokenStream, TokenTree, Ident, Span, Punct, Spacing, Group, Delimiter};
+use proc_macro::{TokenStream, TokenTree, Ident, Spacing, Group, Delimiter};
 
 type Toks = Vec<TokenTree>;
 
 /// `quote!`, but more less better at everything
 macro_rules! tts {
     ($h:expr, $($t:expr),+) => { tts!($h)$(.chain(tts!($t)))+ };
-    ($h:expr, $($t:expr),+,) => { tts!($h)$(.chain(tts!($t)))+ };
     ($text:literal) => { $text.parse::<TokenStream>().unwrap().into_iter() };
     ($expr:expr) => { $expr.into_iter() };
+
+    ($h:expr, $($t:expr),+,) => { tts!($h, $($t),+) };
     ($text:literal,) => { tts!($text) };
     ($expr:expr,) => { tts!($expr) };
-    () => { tts!(vec![]) }
+
+    () => { tts!([]) };
 }
 
 fn parse(rs: &str) -> Toks {
     rs.parse::<TokenStream>().unwrap().into_iter().collect()
-}
-fn ident(name: &str) -> Toks {
-    vec![TokenTree::Ident(Ident::new(name, Span::call_site()))]
-}
-// fn lit(v: Literal) -> Toks {
-//     vec![TokenTree::Literal(v)]
-// }
-fn punct(s: &str) -> Toks {
-    let len = s.len();
-    let mut iter = s.chars();
-    let mut crap: Toks = iter
-        .by_ref()
-        .take(len-1)
-        .map(|c| TokenTree::Punct(Punct::new(c, Spacing::Joint)))
-        .collect();
-    crap.push(TokenTree::Punct(Punct::new(iter.next().unwrap(), Spacing::Alone)));
-    crap
 }
 fn group<T>(content: T) -> Toks where T: Iterator<Item=TokenTree> {
     vec![TokenTree::Group(Group::new(Delimiter::None, content.collect()))]
@@ -49,9 +32,77 @@ fn braces<T>(content: T) -> Toks where T: Iterator<Item=TokenTree> {
 //     vec![TokenTree::Group(Group::new(Delimiter::Bracket, content.collect()))]
 // }
 
+// YYY: cannot use the one from main crate (circular deps, I guess..?)
+// TODO: from_token_stream or something
+#[derive(Debug, Clone)]
+enum Type {
+    Num,
+    Str,
+    Arr(Box<Type>),
+    Fun(Box<Type>, Box<Type>),
+    Unk(String),
+}
+
+// XXX: can (will) probly drop the wrapping and use the enum directly
+#[derive(Clone)]
 struct Param {
-    // source: Toks,
-    as_value: String, // TODO: this a hack, construct and destruct properly (eg. `Array`s)
+    _source: Toks,
+    plain_name: String,
+    ty: Type,
+}
+
+impl Param {
+    fn new(source: Toks) -> Self {
+        // TODO: proper, this quick hack (eg. parenthesized types)
+        let plain_name = match &source[0] {
+            TokenTree::Ident(i) => {
+                if i.to_string().chars().next().unwrap().is_ascii_uppercase() { format!("Value::{i}") }
+                else { "Value::Garbo".to_string() }
+            },
+            TokenTree::Group(p) if Delimiter::Bracket == p.delimiter() => {
+                "Value::Arr".to_string()
+            },
+            other => panic!("incorrect type representation near {other}"),
+        };
+
+        Self {
+            _source: source,
+            plain_name,
+            ty: (),
+        }
+    }
+
+    fn _repr(&self) -> String {
+        self._source
+            .iter()
+            .map(|t| t.to_string())
+            .collect::<Vec<String>>()
+            .join("+")
+    }
+
+    // TODO
+    /// (will) Create the appropriate Type value, eg.:
+    ///     Type::Arr(Type::Num)
+    ///     Type::Unk("a".to_string())
+    ///     a // when it's a now known type (TODO: info will have to come from somewhere - add needed param)
+    fn as_type<T>(&self) -> Toks where T: Iterator<Item=TokenTree> {
+        parse("Type::Num")
+    }
+
+    // TODO
+    /// (will) Wraps the result of expr into the appropriate Value, eg.:
+    ///     Value::Arr({ has: Type::Num, items: expr })
+    fn as_value<T>(&self, expr: T) -> Toks where T: Iterator<Item=TokenTree> {
+        tts!(
+            parse(&self.plain_name), parents(expr)
+        ).collect()
+    }
+
+    /// (will) Match (pattern before the '=>'), storing the result into the ident, eg.:
+    ///     Value::Arr(ident)
+    fn as_match(&self, ident: &str) -> String {
+        format!("Some({}({ident})),", self.plain_name)
+    }
 }
 
 fn from_dsl_ty(tts: Toks) -> Vec<Param> {
@@ -64,7 +115,7 @@ fn from_dsl_ty(tts: Toks) -> Vec<Param> {
             .by_ref()
             .take_while(|t| {
                 if let TokenTree::Punct(p) = t {
-                    if Spacing::Alone == p.spacing() { panic!("expected token ->"); }
+                    if Spacing::Alone == p.spacing() { panic!("expected token '->'"); }
                     false
                 } else { true }
             })
@@ -73,43 +124,24 @@ fn from_dsl_ty(tts: Toks) -> Vec<Param> {
         match iter.next() {
             Some(TokenTree::Punct(p))
                 if ':' == p.as_char()
-                && Spacing::Alone == p.spacing() => panic!("expected token ->"),
+                && Spacing::Alone == p.spacing() => panic!("expected token '->'"),
             _ => (),
         }
 
         let tail: Toks = iter.collect();
 
-        // TODO: proper, this quick hack
-        let as_value = match &head[0] {
-            TokenTree::Ident(i) => {
-                if i.to_string().chars().next().unwrap().is_ascii_uppercase() { format!("Value::{i}") }
-                else { "Value::Garbo".to_string() }
-            },
-            TokenTree::Group(p) if Delimiter::Bracket == p.delimiter() => {
-                "Value::Arr".to_string()
-            },
-            other => panic!("incorrect type representation near {other}"),
-        };
-
-        vec![Param {
-            // source: head,
-            as_value,
-        }]
+        [Param::new(head)]
             .into_iter()
             .chain(from_dsl_ty(tail))
             .collect()
     }
 }
 
-fn wrap_fn_this(bla: Toks) -> Toks {
-    group(tts!(
-        punct("|"), ident("this"), punct("|"),
-        bla
-    ))
-}
-
 // wrap fn_tail around the match that extracts args (as well as the call)
-fn wrap_extract_call<T>(params: Vec<Param>, ret_last: Param, fn_tail: T) -> Toks where T: Iterator<Item=TokenTree> {
+fn wrap_extract_call<T>(params_and_ret: Vec<Param>, fn_tail: T) -> Toks where T: Iterator<Item=TokenTree> {
+    let mut params = params_and_ret;
+    let ret_last = params.pop().unwrap();
+
     let nexts = params
         .iter()
         .map(|_| parse("args_iter.next(),"))
@@ -119,28 +151,25 @@ fn wrap_extract_call<T>(params: Vec<Param>, ret_last: Param, fn_tail: T) -> Toks
         .enumerate()
         .map(|(k, _)| parse(&format!("args{k},")))
         .flatten();
-
     let match_pat = parents(params
         .iter()
         .enumerate()
-        .map(|(k, p)| parse(&format!("Some({}(args{k})),", p.as_value))) // TODO
+        .map(|(k, p)| parse(&format!("Some({}),", p.as_match(&format!("args{k}")))))
         .flatten());
 
     // TODO: wrap result in a Value::[..]
-    tts!(
-        parse(&ret_last.as_value), parents(tts!(
-            braces(tts!(
-                parse("let mut args_iter = this.args.into_iter();"),
-                ident("match"), parents(nexts), braces(tts!(
-                    match_pat, punct("=>"), parents(fn_tail), parents(arg_n),
-                    parse(", _ => unreachable!()"),
-                ))
+    ret_last.as_value(tts!(
+        braces(tts!(
+            parse("let mut args_iter = this.args.into_iter();"),
+            parse("match"), parents(nexts), braces(tts!(
+                match_pat, parse("=>"), parents(fn_tail), parents(arg_n),
+                parse(", _ => unreachable!()"),
             ))
         ))
-    ).collect()
+    ))
 }
 
-fn function<T>(name_ident: Ident, params: Vec<Param>, ret_last: Param, fn_tail: T, iter_n: usize) -> Toks where T: Iterator<Item=TokenTree>, {
+fn function<T>(name_ident: Ident, params_and_ret: Vec<Param>, fn_tail: T, iter_n: usize) -> Toks where T: Iterator<Item=TokenTree> {
     let (name, args) = if 0 == iter_n {
         ( tts!(parse(&format!("\"{name_ident}\".to_string()")))
         , tts!(parse("vec![]"))
@@ -151,19 +180,20 @@ fn function<T>(name_ident: Ident, params: Vec<Param>, ret_last: Param, fn_tail: 
         )
     };
 
-    let (_maps, func) = if params.len()-1 == iter_n {
+    // TODO: build the new type (maps) by keeping as ident whichever should
+    let (_maps, func) = if params_and_ret.len()-1 == iter_n {
         ( ()
-        , wrap_fn_this(wrap_extract_call(params, ret_last, fn_tail))
+        , group(tts!(parse("|this|"), wrap_extract_call(params_and_ret, fn_tail)))
         )
     } else {
-        ( ()
-        , wrap_fn_this(function(name_ident, params, ret_last, fn_tail, iter_n+1))
+        ( ()                                      // TODO: v- will be receiving an updated version
+        , group(tts!(parse("|this|"), function(name_ident, params_and_ret, fn_tail, iter_n+1)))
         )
     };
 
     tts!(
         parse("Value::Fun"), parents(tts!(
-            ident("Function"), braces(tts!(
+            parse("Function"), braces(tts!(
                 parse("  name:"), name,
                 parse(", maps:"), parents(tts!()),
                 parse(", args:"), args,
@@ -173,13 +203,8 @@ fn function<T>(name_ident: Ident, params: Vec<Param>, ret_last: Param, fn_tail: 
     ).collect()
 }
 
-fn value<T>(_name_ident: Ident, ret_last: Param, val_tail: T) -> Toks where T: Iterator<Item=TokenTree>, {
-    // TODO: wrap result in a Value::[..]
-    // (this is the same as in `wrap_extract_call` and, to some extent, in `function`)
-    tts!(
-        parse(&ret_last.as_value),
-        parents(val_tail)
-    ).collect()
+fn value<T>(_name_ident: Ident, ret_last: Param, val_tail: T) -> Toks where T: Iterator<Item=TokenTree> {
+    ret_last.as_value(val_tail)
 }
 
 #[proc_macro]
@@ -196,7 +221,7 @@ pub fn val(stream: TokenStream) -> TokenStream {
             if ':' != a.as_char()
             || ':' != b.as_char()
             || a.spacing() == b.spacing()
-            => panic!("expected token ::"),
+            => panic!("expected token '::'"),
         _ => (),
     }
 
@@ -204,16 +229,17 @@ pub fn val(stream: TokenStream) -> TokenStream {
         .by_ref()
         .take_while(|t| "=" != t.to_string())
         .collect();
+    if 0 == ty.len() { panic!("expected type expression (type)"); }
 
     let val: Toks = it.collect();
-    if 0 == val.len() { panic!("expected = followed by an expression") }
+    if 0 == val.len() { panic!("expected token '=' then expression (value)"); }
 
-    let mut types = from_dsl_ty(ty);
-    let ret = types.pop().unwrap();
+    let types = from_dsl_ty(ty);
+    // let ret = types.pop().unwrap();
 
-    if 0 == types.len() {
-        tts!(value(name, ret, tts!(val))).collect()
+    if 1 == types.len() {
+        tts!(value(name, types.into_iter().next().unwrap(), tts!(val))).collect()
     } else {
-        tts!(function(name, types, ret, tts!(val), 0)).collect()
+        tts!(function(name, types, tts!(val), 0)).collect()
     }
 }
