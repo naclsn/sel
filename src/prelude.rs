@@ -18,64 +18,7 @@ macro_rules! let_sure {
     };
 }
 
-// macro_rules! count {
-//     ($_:expr,) => { 1usize };
-//     ($h:expr, $($t:expr,)*) => { 1usize + count!($($t,)*) };
-// }
-
-// macro_rules! ty_for {
-//     ($simple:ident) => { Type::$simple }
-// }
-
-// macro_rules! val_for {
-//     ($simple:ident) => { Value::$simple }
-// }
-
-// macro_rules! match_for {
-//     ($simple:ident, $v:expr) => {
-//         match $v {
-//             Value::$simple(v) => v,
-//             other => panic!("match_ex_val: type mismatch (expected a {:?} got {other:?}", Type::$simple),
-//         }
-//     }
-// }
-
-// macro_rules! fun {
-//     ($name:ident :: [$($ty:ident),*] => $re:ident, $fn:expr) => {
-//         Fun {
-//             name: stringify!($name),
-//             params: &[$(ty_for!($ty)),*],
-//             ret: ty_for!($re),
-//             func: |args| {
-//                 assert!(count!($($ty,)*) == args.len());
-//                 let mut k: usize = 0;
-//                 val_for!($re)($fn($(
-//                     match_for!($ty, &args[{ k+= 1; k-1 }])
-//                     // match &args[{ k+= 1; k-1 }] {
-//                     //     Value::$ty(v) => v,
-//                     //     other => panic!("Type mismatch: expected a {:?} got {other:?}", Type::$ty),
-//                     // }
-//                 ),*))
-//             },
-//             args: vec![], // alloc..?
-//         }
-//     };
-// } // fun!
-
-// /// then :: (b -> c) -> (a -> b) -> a -> c
-// pub(crate) const THEN: Function = Function {
-//     arity: 3usize,
-//     args: vec![],
-//     func: |args| {
-//         match (&args[0], &args[1], &args[2]) {
-//             (Value::Fun(g), Value::Fun(f), arg) => todo!(),
-//             _ => panic!("type error"),
-//         }
-//     },
-// };
-
-// TODO: re-do macro (with doc inline!)
-// const LU: &'static [(&'static str, Function)] = &[..]
+// TODO: using dsl_macro_lib::val
 lazy_static! { static ref LU: [(&'static str, Function); 11] = [
 
     ("add", Function { // Num -> Num -> Num
@@ -188,17 +131,6 @@ lazy_static! { static ref LU: [(&'static str, Function); 11] = [
                 ),
                 args: this.args,
                 func: |this| {
-                    // let_sure!{ (Type::Arr(typeb), [f, Value::Arr(a)]) = (this.maps.1, &this.args[..2]);
-                    // let_sure!{ (Type::Arr(typeb), [f, Value::Arr(a)]) = (this.maps.1, this.args.index(..2));
-                    // Value::Arr(Array { // [b]
-                    //     has: *typeb,
-                    //     items: a.items
-                    //         .into_iter()
-                    //         .map(|i| f.clone().apply(i.clone()))
-                    //         .collect()
-                    // }) }
-                    // let crap = this.args.into_iter();
-                    // match (this.maps.1, &crap.as_slice()[..2]) {
                     let mut arg_iter = this.args.into_iter();
                     match (this.maps, (arg_iter.next(), arg_iter.next())) {
                         ((_, Type::Arr(typeb)), (Some(f), Some(Value::Arr(a)))) =>
@@ -339,8 +271,8 @@ lazy_static! { static ref LU: [(&'static str, Function); 11] = [
 
 pub fn lookup_name<'a>(name: String) -> Option<Value> {
     LU.binary_search_by_key(&name.as_str(), |t| t.0)
-        .map(|k| LU[k].1.clone()) // could without clone if LU is list of 'factories'
-        .map(|f| Value::Fun(f)) // make LU a lookup of Value (not Function) for eg. `pi` and such
+        .map(|k| LU[k].1.clone())
+        .map(|f| Value::Fun(f)) // YYY: remove when using `val!`
         .ok()
 }
 
