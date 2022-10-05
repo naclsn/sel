@@ -208,6 +208,10 @@ pub struct Function {
     pub func: fn(Function) -> Value,
 }
 
+impl Apply for Function {
+    fn apply(self, arg: Value) -> Value { todo!("not sure") }
+}
+
 impl fmt::Debug for Function {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(

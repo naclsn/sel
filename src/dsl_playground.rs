@@ -1,6 +1,7 @@
+use std::ops::Index;
 use crate::engine::{Apply, Array, Function, Type, Typed, Value};
 
-/// Goes from type representation to actual Type instance.
+/// Goes from DSL type representation to actual Type instance.
 macro_rules! ty_ty {
     (($t:tt)) => { ty_ty!($t) };
     // (($a:tt -> $b:tt)) => { Type::Fun(Box::new(ty_ty!($a)), Box::new(ty_ty!($b))) };
@@ -12,32 +13,55 @@ macro_rules! ty_ty {
     ($n:ident) => { Type::Unk(stringify!($n).to_string()) };
 }
 
-/// Goes from type representation to matches for a Value.
-macro_rules! match_ty_val {
-    (Num, $v:ident) => { Value::Num(v) };
-    (Str, $v:ident) => { Value::Str(v) };
-    // ($t:tt, $into:ident) => { $t(v) };
-}
-
-/// Goes from function type to the Function::maps tuple.
+/// Goes from function DSL type to the Function::maps tuple.
 macro_rules! fun_ty {
-    ($a:tt -> $b:tt) => {
-        (ty_ty!($a), ty_ty!($b))
-    };
     ($h:tt -> $($t:tt)->+) => {
         (ty_ty!($h), ty_ty!($($t)->+))
     };
 }
 
-/// Makes the match that extracts the value from the iterator
-/// (iterator must be given otherwise 'not found in scope').
-macro_rules! make_arg {
-    ($args_iter:ident, $ty:tt) => {
-        match $args_iter.next() {
-            Some(match_ty_val!($ty, v)) => v, // XXX: still 'not found in scope', so no ways to use `match_ty_val`?
+/// Makes the match that extracts the value from the
+/// given Option<Value>. $ty is still DSL.
+/// XXX: when $ty is Unk (if it can?) will let it to the underlying function.
+macro_rules! cast_option {
+    ((Num)$val:expr) => {
+        match $val {
+            Some(Value::Num(v)) => v,
             _ => unreachable!(),
         }
     };
+    ((Str)$val:expr) => {
+        match $val {
+            Some(Value::Str(v)) => v,
+            _ => unreachable!(),
+        }
+    };
+    (([$_t:tt])$val:expr) => {
+        match $val {
+            Some(Value::Arr(v)) => v,
+            _ => unreachable!(),
+        }
+    };
+    ((($_h:tt -> $($_t:tt)->+))$val:expr) => {
+        match $val {
+            Some(Value::Fun(v)) => v,
+            _ => unreachable!(),
+        }
+    };
+    (($_unk:ident)$val:expr) => { $val.unwrap() };
+}
+
+/// idk. $ty is still DSL.
+macro_rules! make_ret {
+    ($ty_out:expr, (Num)$val:expr) => { Value::Num($val) };
+    ($ty_out:expr, (Str)$val:expr) => { Value::Str($val) };
+    ($ty_out:expr, ([$_t:tt])$val:expr) => {
+        Value::Arr(Array {
+            has: $ty_out,
+            items: $val,
+        })
+    };
+    ($ty_out:expr, ($_unk:ident)$val:expr) => { $val };
 }
 
 /// Goes from function definition to actual Function struct.
@@ -56,7 +80,11 @@ macro_rules! fun_fn {
             maps: fun_ty!($h -> $m -> $($t)->+),
             args: $args,
             func: |this| {
-                // TODO: args is type checked, extract and fill `Unk`s
+                let _ty_in = this.maps.0;
+                let _arg_type = this.args.index(0).typed();
+                // TODO: (using ty_in and arg_type) args is type checked, extract and fill `Unk`s
+                //       match _arg_type { something!($h) => idk, => unreachable!(), }
+                //       + $m and the rest are to be made into computed from idk
                 Value::Fun(fun_fn!(@ this.name, this.args ; $m -> $($t)->+ = $def => $($x->)* $h))
             }
         }
@@ -68,13 +96,12 @@ macro_rules! fun_fn {
             args: $args,
             func: |this| {
                 let mut args_iter = this.args.into_iter();
-                let (ty_in, ty_out) = this.maps;
-                // YYY: every args could be unwrapped in single match (which might be more better)
-                //      for this, needs a macro 'identify!($a:tt)'
-                {let _ = (ty_in, ty_out);} // YYY: prevents warnings about unused
-                ($def)(
-                    $(make_arg!(args_iter, $x),)*
-                    make_arg!(args_iter, $a)
+                make_ret!(
+                    this.maps.1,
+                    ($b)(($def)(
+                        $(cast_option!(($x)args_iter.next()),)*
+                        cast_option!(($a)args_iter.next())
+                    ))
                 )
             }
         }
@@ -90,23 +117,30 @@ macro_rules! fun {
 }
 
 fn _crap() -> Vec<(String, Function)> {
+    fun!(idk :: (a -> b -> c) -> Num = |f| 42.0);
+
+    // fun_ty!((a -> b) -> Num);
+
+    // fun_fn!(@ stringify!(idk).to_string(), vec![] ; (a -> b) -> Num = |f| 42.0 => );
+
+    // fun_ty!((a -> b) -> Num);
+
+    // cast_option!(($a)args_iter.next())
+
+
     vec![
 
     fun!(add :: Num -> Num -> Num = |a, b| a + b),
-    // fun!(add :: Num -> Num -> Num = |a, b| match (a, b) {
-    //     (Value::Num(aa), Value::Num(bb)) => Value::Num(aa+bb),
-    //     _ => unreachable!(),
-    // }),
-    // fun!(id :: a -> a = |a| a),
 
+    fun!(id :: a -> a = |a| a),
 
+    fun!(map :: (a -> b) -> [a] -> [b] = |f: Function, a: Array|
+        a.items
+            .into_iter()
+            .map(|i| f.clone().apply(i))
+            .collect()
+    ),
 
-    //     a   .into_iter()
-    //         .map(|i| f
-    //             .clone()
-    //             .apply(i.clone()))
-    //         .collect()
-    // ),
     // ("map".to_string(), Function { // (a -> b) -> [a] -> [b]
     //     maps: (
     //         Type::Fun(
