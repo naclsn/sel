@@ -1,7 +1,7 @@
 /// XXX: everything is pain, but can't be bothered; this will do for now (and maybe more)
 
 extern crate proc_macro;
-use proc_macro::{TokenStream, TokenTree, Ident, Span, Punct, Spacing, Group, Delimiter, Literal};
+use proc_macro::{TokenStream, TokenTree, Ident, Span, Punct, Spacing, Group, Delimiter};
 
 type Toks = Vec<TokenTree>;
 
@@ -22,9 +22,9 @@ fn parse(rs: &str) -> Toks {
 fn ident(name: &str) -> Toks {
     vec![TokenTree::Ident(Ident::new(name, Span::call_site()))]
 }
-fn lit(v: Literal) -> Toks {
-    vec![TokenTree::Literal(v)]
-}
+// fn lit(v: Literal) -> Toks {
+//     vec![TokenTree::Literal(v)]
+// }
 fn punct(s: &str) -> Toks {
     let len = s.len();
     let mut iter = s.chars();
@@ -45,14 +45,15 @@ fn parents<T>(content: T) -> Toks where T: Iterator<Item=TokenTree> {
 fn braces<T>(content: T) -> Toks where T: Iterator<Item=TokenTree> {
     vec![TokenTree::Group(Group::new(Delimiter::Brace, content.collect()))]
 }
-fn bracks<T>(content: T) -> Toks where T: Iterator<Item=TokenTree> {
-    vec![TokenTree::Group(Group::new(Delimiter::Bracket, content.collect()))]
+// fn bracks<T>(content: T) -> Toks where T: Iterator<Item=TokenTree> {
+//     vec![TokenTree::Group(Group::new(Delimiter::Bracket, content.collect()))]
+// }
+
+struct Param {
+    // source: Toks,
+    as_value: String, // TODO: this a hack, construct and destruct properly (eg. `Array`s)
 }
 
-#[derive(Debug)]
-struct Param {
-    source: Toks,
-}
 fn from_dsl_ty(tts: Toks) -> Vec<Param> {
     if 0 == tts.len() {
         vec![]
@@ -78,7 +79,22 @@ fn from_dsl_ty(tts: Toks) -> Vec<Param> {
 
         let tail: Toks = iter.collect();
 
-        vec![Param { source: head }]
+        // TODO: proper, this quick hack
+        let as_value = match &head[0] {
+            TokenTree::Ident(i) => {
+                if i.to_string().chars().next().unwrap().is_ascii_uppercase() { format!("Value::{i}") }
+                else { "Value::Garbo".to_string() }
+            },
+            TokenTree::Group(p) if Delimiter::Bracket == p.delimiter() => {
+                "Value::Arr".to_string()
+            },
+            other => panic!("incorrect type representation near {other}"),
+        };
+
+        vec![Param {
+            // source: head,
+            as_value,
+        }]
             .into_iter()
             .chain(from_dsl_ty(tail))
             .collect()
@@ -93,16 +109,35 @@ fn wrap_fn_this(bla: Toks) -> Toks {
 }
 
 // wrap fn_tail around the match that extracts args (as well as the call)
-fn wrap_extract_args<T>(params: Vec<Param>, fn_tail: T) -> Toks where T: Iterator<Item=TokenTree> {
-    braces(tts!(
-        parse("let mut args_iter = this.args.into_iter();"),
-        ident("match"), parents(tts!(/*args_iter.next()*/)),
-        braces(tts!(
-            tts!(/*(Some(Value::...), ...)*/ident("Something"), group(tts!())),
-                punct("=>"), parents(fn_tail), parents(tts!(/* arg0, arg1, ... */)),
-            punct(","), ident("_"), punct("=>"), parse("unreachable!()"),
+fn wrap_extract_call<T>(params: Vec<Param>, ret_last: Param, fn_tail: T) -> Toks where T: Iterator<Item=TokenTree> {
+    let nexts = params
+        .iter()
+        .map(|_| parse("args_iter.next(),"))
+        .flatten();
+    let arg_n = params
+        .iter()
+        .enumerate()
+        .map(|(k, _)| parse(&format!("args{k},")))
+        .flatten();
+
+    let match_pat = parents(params
+        .iter()
+        .enumerate()
+        .map(|(k, p)| parse(&format!("Some({}(args{k})),", p.as_value))) // TODO
+        .flatten());
+
+    // TODO: wrap result in a Value::[..]
+    tts!(
+        parse(&ret_last.as_value), parents(tts!(
+            braces(tts!(
+                parse("let mut args_iter = this.args.into_iter();"),
+                ident("match"), parents(nexts), braces(tts!(
+                    match_pat, punct("=>"), parents(fn_tail), parents(arg_n),
+                    parse(", _ => unreachable!()"),
+                ))
+            ))
         ))
-    ))
+    ).collect()
 }
 
 fn function<T>(name_ident: Ident, params: Vec<Param>, ret_last: Param, fn_tail: T, iter_n: usize) -> Toks where T: Iterator<Item=TokenTree>, {
@@ -118,7 +153,7 @@ fn function<T>(name_ident: Ident, params: Vec<Param>, ret_last: Param, fn_tail: 
 
     let (_maps, func) = if params.len()-1 == iter_n {
         ( ()
-        , wrap_fn_this(wrap_extract_args(params, fn_tail))
+        , wrap_fn_this(wrap_extract_call(params, ret_last, fn_tail))
         )
     } else {
         ( ()
@@ -127,22 +162,28 @@ fn function<T>(name_ident: Ident, params: Vec<Param>, ret_last: Param, fn_tail: 
     };
 
     tts!(
-        ident("Value"), punct("::"), ident("Fun"), parents(tts!(
+        parse("Value::Fun"), parents(tts!(
             ident("Function"), braces(tts!(
-                ident("name"), punct(":"), name, punct(","),
-                ident("maps"), punct(":"), parents(tts!()), punct(","),
-                ident("args"), punct(":"), args, punct(","),
-                ident("func"), punct(":"), func, punct(","),
+                parse("  name:"), name,
+                parse(", maps:"), parents(tts!()),
+                parse(", args:"), args,
+                parse(", func:"), func,
             ))
         ))
     ).collect()
 }
 
+fn value<T>(_name_ident: Ident, ret_last: Param, val_tail: T) -> Toks where T: Iterator<Item=TokenTree>, {
+    // TODO: wrap result in a Value::[..]
+    // (this is the same as in `wrap_extract_call` and, to some extent, in `function`)
+    tts!(
+        parse(&ret_last.as_value),
+        parents(val_tail)
+    ).collect()
+}
+
 #[proc_macro]
 pub fn val(stream: TokenStream) -> TokenStream {
-    // dbg!("match a+b { Patern::One(var) => something, _ => unreachable!() }".parse::<TokenStream>().unwrap());
-    // panic!("stop");
-
     let mut it = stream.into_iter();
 
     let name = match it.next() {
@@ -170,11 +211,9 @@ pub fn val(stream: TokenStream) -> TokenStream {
     let mut types = from_dsl_ty(ty);
     let ret = types.pop().unwrap();
 
-    tts!(function(
-        name,
-        types,
-        ret,
-        tts!(val),
-        0,
-    )).collect()
+    if 0 == types.len() {
+        tts!(value(name, ret, tts!(val))).collect()
+    } else {
+        tts!(function(name, types, ret, tts!(val), 0)).collect()
+    }
 }
