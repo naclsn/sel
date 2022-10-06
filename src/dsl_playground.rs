@@ -1,6 +1,6 @@
 use std::ops::Index;
 
-use crate::engine::{Apply, Array, Function, Type, Typed, Value};
+use crate::engine::{Apply, Array, Function, Type, Typed, Value, Number};
 
 use dsl_macro_lib::val;
 
@@ -33,25 +33,39 @@ impl From<f32> for Value {
         todo!()
     }
 }
-
 impl From<Value> for f32 {
     fn from(_: Value) -> Self {
         todo!()
     }
 }
 
+impl From<Vec<f32>> for Value {
+    fn from(_: Vec<f32>) -> Self {
+        todo!()
+    }
+}
+impl From<Value> for Vec<f32> {
+    fn from(v: Value) -> Self {
+        match v {
+            Value::Arr(a) => a.items.into_iter().map(|it| it.into()).collect(),
+            _ => unreachable!(),
+        }
+    }
+}
+
 fn _crap() -> Vec<(String, String, Value)> {
-    let r: f32 = 0.0;
+    let r: Vec<f32> = vec![1.0, 1.0, 2.0, 3.0, 5.0, 8.0];
     let v: Value = Value::from(r);
     let w: f32 = v.into();
+    let z: Value = Value::from(Value::Num(42.0));
 
     vec![
 
     named_val!(add :: Num -> Num -> Num = |a, b| a + b),
-    named_val!(sum :: [Num] -> Num = |a: Array| {
+    named_val!(sum :: [Num] -> Num = |a: Vec<Number>| {
         a.items
             .iter()
-            .fold(0.0, |acc, cur| acc + sure!((Num)cur))
+            .fold(0.0, |acc, cur| acc + cur)
     }),
 
     // named_val!(id :: a -> a = |a| a),
@@ -67,7 +81,7 @@ fn _crap() -> Vec<(String, String, Value)> {
     // named_val!(tostr :: Num -> Str = |n| n.to_string()),
 
     named_val!(pi :: Num = 3.14),
-    named_val!(idk :: [Num] = vec![Value::Num(1.0), Value::Num(1.0), Value::Num(2.0), Value::Num(3.0), Value::Num(5.0), Value::Num(8.0)]),
+    named_val!(idk :: [Num] = [1, 1, 2, 3, 5, 8]),
 
     ]
 }

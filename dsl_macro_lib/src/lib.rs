@@ -253,33 +253,19 @@ fn to_fun_ty(crap: Vec<Type>) -> Type {
 // (will) Call fn_tail with and after extracting the (correctly typed) args
 fn wrap_extract_call<T>(params_and_ret: Vec<Type>, fn_tail: T) -> Toks where T: Iterator<Item=TokenTree> {
     let mut params = params_and_ret;
-    let ret_last = params.pop().unwrap();
+    params.pop();
 
-    let nexts = params
+    let fn_args = params
         .iter()
-        .map(|_| parse("args_iter.next(),"))
+        .map(|_| parse("args_iter.next().into(),"))
         .flatten();
-    let arg_n = params
-        .iter()
-        .enumerate()
-        .map(|(k, _)| parse(&format!("args{k},")))
-        .flatten();
-    let match_pat = parents(params
-        .iter()
-        .enumerate()
-        .map(|(k, p)| parse(&format!("Some({}),", p.as_match(&format!("args{k}")))))
-        .flatten());
 
-    // XXX: hos that works exactly with eg. `id`?
-    ret_last.as_value(tts!(
-        braces(tts!(
-            parse("let mut args_iter = this.args.into_iter();"),
-            parse("match"), parents(nexts), braces(tts!(
-                match_pat, parse("=>"), parents(fn_tail), parents(arg_n),
-                parse(", _ => unreachable!()"),
-            ))
+    // XXX: how that works exactly with eg. `id`?
+    tts!(
+        parse("Value::from"), parents(tts!(
+            parents(fn_tail), parents(fn_args)
         ))
-    ))
+    ).collect()
 }
 
 fn function<T>(name_ident: Ident, params_and_ret: Vec<Type>, fn_tail: T, iter_n: usize) -> Toks where T: Iterator<Item=TokenTree> {
@@ -337,8 +323,8 @@ fn function<T>(name_ident: Ident, params_and_ret: Vec<Type>, fn_tail: T, iter_n:
     ).collect()
 }
 
-fn value<T>(_name_ident: Ident, ret_last: Type, val_tail: T) -> Toks where T: Iterator<Item=TokenTree> {
-    ret_last.as_value(val_tail)
+fn value<T>(_name_ident: Ident, _ret_last: Type, val_tail: T) -> Toks where T: Iterator<Item=TokenTree> {
+    tts!(parse("Value::from"), parents(val_tail)).collect()
 }
 
 #[proc_macro]

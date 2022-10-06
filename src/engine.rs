@@ -1,8 +1,10 @@
 use std::fmt;
 
+pub type Number = f32;
+
 #[derive(Debug, Clone)]
 pub enum Value {
-    Num(f32),
+    Num(Number),
     Str(String),
     Arr(Array),
     Fun(Function),
