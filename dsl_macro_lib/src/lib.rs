@@ -76,16 +76,16 @@ impl Type {
         }
     }
 
-    fn plain_name(&self) -> &str {
-        match self {
-            Type::Num => "Num",
-            Type::Str => "Str",
-            Type::Arr(_) => "Arr",
-            Type::Fun(_, _) => "Fun",
-            Type::Unk(_) => unreachable!("[internal] this is probably not supposed to get here, but not sure (plain_name for 'Unk')"),
-            Type::Now(_) => unreachable!("[internal] this is probably not supposed to get here, but not sure (plain_name for 'Now')"),
-        }
-    }
+    // fn plain_name(&self) -> &str {
+    //     match self {
+    //         Type::Num => "Num",
+    //         Type::Str => "Str",
+    //         Type::Arr(_) => "Arr",
+    //         Type::Fun(_, _) => "Fun",
+    //         Type::Unk(_) => unreachable!("[internal] this is probably not supposed to get here, but not sure (plain_name for 'Unk')"),
+    //         Type::Now(_) => unreachable!("[internal] this is probably not supposed to get here, but not sure (plain_name for 'Now')"),
+    //     }
+    // }
 
     // List the names of not yet known type variables
     // (ie. every `Unk`)
@@ -156,37 +156,37 @@ impl Type {
         }
     }
 
-    /// (will) Wraps the result of expr into the appropriate Value, eg.:
-    ///     Value::Arr({ has: Type::Num, items: expr })
-    fn as_value<T>(&self, expr: T) -> Toks where T: Iterator<Item=TokenTree> {
-        match self {
+    // /// (will) Wraps the result of expr into the appropriate Value, eg.:
+    // ///     Value::Arr({ has: Type::Num, items: expr })
+    // fn as_value<T>(&self, expr: T) -> Toks where T: Iterator<Item=TokenTree> {
+    //     match self {
 
-            Type::Num | Type::Str =>
-                tts!(
-                    parse(&format!("Value::{}", self.plain_name())), parents(expr)
-                ).collect(),
+    //         Type::Num | Type::Str =>
+    //             tts!(
+    //                 parse(&format!("Value::{}", self.plain_name())), parents(expr)
+    //             ).collect(),
 
-            Type::Arr(a) =>
-                tts!(
-                    parse("Value::Arr"), parents(tts!(
-                        parse("Array"), braces(tts!(
-                            parse("  has:"), a.as_type(),
-                            parse(", items:"), expr
-                        ))
-                    ))
-                ).collect(),
+    //         Type::Arr(a) =>
+    //             tts!(
+    //                 parse("Value::Arr"), parents(tts!(
+    //                     parse("Array"), braces(tts!(
+    //                         parse("  has:"), a.as_type(),
+    //                         parse(", items:"), expr
+    //                     ))
+    //                 ))
+    //             ).collect(),
 
-            Type::Fun(_, _) => unreachable!("[internal] trying to produce a value of function type in an unexpecte maner"),
-            Type::Unk(name) => unreachable!("[internal] trying to produce a value of unknown type '{name}'"),
-            Type::Now(name) => todo!("[internal] trying to produce a value of now-known type '{name}'"), // how that works for eg. `id`
-        }
-    }
+    //         Type::Fun(_, _) => unreachable!("[internal] trying to produce a value of function type in an unexpecte maner"),
+    //         Type::Unk(name) => unreachable!("[internal] trying to produce a value of unknown type '{name}'"),
+    //         Type::Now(name) => todo!("[internal] trying to produce a value of now-known type '{name}'"), // how that works for eg. `id`
+    //     }
+    // }
 
-    /// (will) Match (pattern before the '=>'), storing the result into the ident, eg.:
-    ///     Value::Arr(ident)
-    fn as_match(&self, ident: &str) -> String {
-        format!("Value::{}({ident}),", self.plain_name())
-    }
+    // /// (will) Match (pattern before the '=>'), storing the result into the ident, eg.:
+    // ///     Value::Arr(ident)
+    // fn as_match(&self, ident: &str) -> String {
+    //     format!("Value::{}({ident}),", self.plain_name())
+    // }
 }
 
 /// Parses the atoms in a function type declaration
@@ -257,14 +257,14 @@ fn wrap_extract_call<T>(params_and_ret: Vec<Type>, fn_tail: T) -> Toks where T: 
 
     let fn_args = params
         .iter()
-        .map(|_| parse("args_iter.next().into(),"))
+        .map(|_| parse("args_iter.next().unwrap().into(),"))
         .flatten();
 
-    // XXX: how that works exactly with eg. `id`?
     tts!(
-        parse("Value::from"), parents(tts!(
+        parse("Value::from"), parents(tts!(braces(tts!(
+            parse("let mut args_iter = this.args.into_iter();"),
             parents(fn_tail), parents(fn_args)
-        ))
+        ))))
     ).collect()
 }
 

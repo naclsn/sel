@@ -1,54 +1,5 @@
 use std::fmt;
 
-pub type Number = f32;
-
-#[derive(Debug, Clone)]
-pub enum Value {
-    Num(Number),
-    Str(String),
-    Arr(Array),
-    Fun(Function),
-}
-
-impl fmt::Display for Value {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Value::Num(n) => write!(f, "{n}"),
-            Value::Str(s) => write!(f, "{{{s}}}"),
-            Value::Arr(a) => write!(
-                f,
-                "@{{{}}}",
-                a.items
-                    .iter()
-                    .map(|v| v.to_string())
-                    .collect::<Vec<String>>()
-                    .join(", ")
-            ),
-            Value::Fun(g) => {
-                if 0 == g.args.len() {
-                    write!(f, "{}", g.name)
-                } else {
-                    write!(
-                        f,
-                        "{} {}",
-                        g.name,
-                        g.args
-                            .iter()
-                            .map(|v| {
-                                match v {
-                                    Value::Fun(h) if 0 < h.args.len() => format!("[{v}]"),
-                                    _ => format!("{v}"),
-                                }
-                            })
-                            .collect::<Vec<String>>()
-                            .join(" ")
-                    )
-                }
-            }
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum Type {
     Num,
@@ -58,44 +9,41 @@ pub enum Type {
     Unk(String),
 }
 
-impl PartialEq for Type {
-    /// Two types are equal iif:
-    /// - exact same simple type (Num, Str)
-    /// - recursively same type (Arr, Fun)
-    /// - same type name (Unk)
-    /// - only one is unknown
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Type::Num, Type::Num) => true,
-            (Type::Str, Type::Str) => true,
-            (Type::Arr(a), Type::Arr(b)) => a == b,
-            (Type::Fun(a, c), Type::Fun(b, d)) => a == b && c == d,
-            (Type::Unk(a), Type::Unk(b)) => a == b, // YYY: ?
-            (Type::Unk(_), _) => true,
-            (_, Type::Unk(_)) => true,
-            _ => false,
-        }
-    }
-}
-
-impl fmt::Display for Type {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Type::Num => write!(f, "Num"),
-            Type::Str => write!(f, "Str"),
-            Type::Arr(a) => write!(f, "[{a}]"),
-            Type::Fun(a, b) => match **a {
-                Type::Fun(_, _) => write!(f, "({a}) -> {b}"),
-                _ => write!(f, "{a} -> {b}"),
-            },
-            Type::Unk(n) => write!(f, "{n}"),
-        }
-    }
-}
-
 pub trait Typed {
     fn typed(&self) -> Type;
     fn coerse(self, to: Type) -> Option<Value>;
+}
+
+#[derive(Debug, Clone)]
+pub enum Value {
+    Num(Number),
+    Str(String),
+    Arr(Array),
+    Fun(Function),
+}
+
+pub type Number = f32;
+
+#[derive(Debug, Clone)]
+pub struct Array {
+    pub has: Type,
+    pub items: Vec<Value>,
+}
+
+#[derive(Clone)]
+pub struct Function {
+    pub name: String,
+    pub maps: (Type, Type),
+    pub args: Vec<Value>,
+    pub func: fn(Function) -> Value,
+}
+
+impl Apply for Function {
+    fn apply(self, arg: Value) -> Value { todo!("not sure") }
+}
+
+pub trait Apply {
+    fn apply(self, arg: Value) -> Value;
 }
 
 impl Typed for Value {
@@ -162,15 +110,13 @@ impl Typed for Value {
     }
 }
 
-pub trait Apply {
-    fn apply(self, arg: Value) -> Value;
-}
-
 impl Apply for Value {
     fn apply(self, arg: Value) -> Value {
         let self_type = self.typed();
         let arg_type = arg.typed();
         match self {
+
+            // move to impl for Function
             Value::Fun(mut fun) => match arg.coerse(fun.maps.0.clone()) { // YYY: may have a 'no auto coerse' flag for functions like `tonum` and `tostr`
                 None => {
                     println!("wrong type of argument for function:");
@@ -192,26 +138,83 @@ impl Apply for Value {
                 println!("         to a value: {}", other.typed());
                 panic!("type error");
             }
+
         }
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Array {
-    pub has: Type,
-    pub items: Vec<Value>,
+impl PartialEq for Type {
+    /// Two types are equal iif:
+    /// - exact same simple type (Num, Str)
+    /// - recursively same type (Arr, Fun)
+    /// - same type name (Unk)
+    /// - only one is unknown
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Type::Num, Type::Num) => true,
+            (Type::Str, Type::Str) => true,
+            (Type::Arr(a), Type::Arr(b)) => a == b,
+            (Type::Fun(a, c), Type::Fun(b, d)) => a == b && c == d,
+            (Type::Unk(a), Type::Unk(b)) => a == b, // YYY: ?
+            (Type::Unk(_), _) => true,
+            (_, Type::Unk(_)) => true,
+            _ => false,
+        }
+    }
 }
 
-#[derive(Clone)]
-pub struct Function {
-    pub name: String,
-    pub maps: (Type, Type),
-    pub args: Vec<Value>,
-    pub func: fn(Function) -> Value,
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Type::Num => write!(f, "Num"),
+            Type::Str => write!(f, "Str"),
+            Type::Arr(a) => write!(f, "[{a}]"),
+            Type::Fun(a, b) => match **a {
+                Type::Fun(_, _) => write!(f, "({a}) -> {b}"),
+                _ => write!(f, "{a} -> {b}"),
+            },
+            Type::Unk(n) => write!(f, "{n}"),
+        }
+    }
 }
 
-impl Apply for Function {
-    fn apply(self, arg: Value) -> Value { todo!("not sure") }
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Value::Num(n) => write!(f, "{n}"),
+            Value::Str(s) => write!(f, "{{{s}}}"),
+            Value::Arr(a) => write!(
+                f,
+                "@{{{}}}",
+                a.items
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            ),
+            Value::Fun(g) => {
+                if 0 == g.args.len() {
+                    write!(f, "{}", g.name)
+                } else {
+                    write!(
+                        f,
+                        "{} {}",
+                        g.name,
+                        g.args
+                            .iter()
+                            .map(|v| {
+                                match v {
+                                    Value::Fun(h) if 0 < h.args.len() => format!("[{v}]"),
+                                    _ => format!("{v}"),
+                                }
+                            })
+                            .collect::<Vec<String>>()
+                            .join(" ")
+                    )
+                }
+            }
+        }
+    }
 }
 
 impl fmt::Debug for Function {
@@ -221,5 +224,69 @@ impl fmt::Debug for Function {
             "Function({:?}, {:?}, {:?}, {:?})",
             self.name, self.maps, self.args, self.func
         )
+    }
+}
+
+// TODO: all of them and a bit more (more macro anyone?)
+
+impl From<Number> for Value {
+    fn from(_: Number) -> Self {
+        todo!()
+    }
+}
+impl From<Value> for Number {
+    fn from(_: Value) -> Self {
+        todo!()
+    }
+}
+
+impl From<String> for Value {
+    fn from(_: String) -> Self {
+        todo!()
+    }
+}
+impl From<Value> for String {
+    fn from(_: Value) -> Self {
+        todo!()
+    }
+}
+
+impl From<Vec<Number>> for Value {
+    fn from(_: Vec<Number>) -> Self {
+        todo!()
+    }
+}
+impl From<Value> for Vec<Number> {
+    fn from(v: Value) -> Self {
+        match v {
+            Value::Arr(a) => a.items.into_iter().map(|it| it.into()).collect(),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl From<Vec<String>> for Value {
+    fn from(_: Vec<String>) -> Self {
+        todo!()
+    }
+}
+impl From<Value> for Vec<String> {
+    fn from(v: Value) -> Self {
+        match v {
+            Value::Arr(a) => a.items.into_iter().map(|it| it.into()).collect(),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl<const L: usize> From<[Number; L]> for Value {
+    fn from(_: [Number; L]) -> Self {
+        todo!()
+    }
+}
+
+impl<const L: usize> From<[String; L]> for Value {
+    fn from(_: [String; L]) -> Self {
+        todo!()
     }
 }
