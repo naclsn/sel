@@ -57,28 +57,21 @@ impl Type {
                 match i.to_string().as_str() {
                     "Num" => Type::Num,
                     "Str" => Type::Str,
-                    name => Type::Unk(name.to_string()),
+                    name if name.chars().next().unwrap().is_ascii_lowercase() => Type::Unk(name.to_string()),
+                    other => panic!("expected type identifier, got '{other}'"),
                 }
             },
 
             Some(TokenTree::Group(p)) if Delimiter::Bracket == p.delimiter() => {
-                Type::Arr(Box::new(Type::new_atom(source))) // TODO: take between brackets
+                Type::Arr(Box::new(Type::new_atom(p.stream().into_iter())))
             },
 
             Some(TokenTree::Group(p)) if Delimiter::Parenthesis == p.delimiter() => {
-                // TODO: take between parenthesis
-                let types = from_dsl_ty(source.collect());
-                let mut iter = types.into_iter().rev();
-                let first = iter.next().unwrap();
-                iter.fold(first, |acc, cur|
-                        Type::Fun(
-                            Box::new(cur),
-                            Box::new(acc)
-                        ))
+                to_fun_ty(from_dsl_ty(p.stream().into_iter().collect()))
             },
 
             Some(other) => panic!("expected type atom, got '{other}'"),
-            None => panic!("expecte type atom"),
+            None => panic!("expected type atom"),
 
         }
     }
@@ -94,17 +87,73 @@ impl Type {
         }
     }
 
-    // TODO: replace occurences of `Unk(name)` with `Now(name)`
-    // for every names in `known`
-    fn now_known(self, known: Vec<String>) -> Type { todo!() }
+    // List the names of not yet known type variables
+    // (ie. every `Unk`)
+    fn unknowns(&self) -> Vec<String> {
+        match self {
+            Type::Num | Type::Str | Type::Now(_) => vec![],
+            Type::Arr(a) => a.unknowns(),
+            Type::Fun(a, b) => [a.unknowns(), b.unknowns()].concat(),
+            Type::Unk(name) => vec![name.clone()],
+        }
+    }
 
-    // TODO
+    // Replace occurences of `Unk(name)` with `Now(name)`
+    // for every names in `known`.
+    fn now_known(self, known: &Vec<String>) -> Type {
+        match self {
+            Type::Num | Type::Str | Type::Now(_) => self.clone(),
+            Type::Arr(a) => Type::Arr(Box::new(a.now_known(known))),
+            Type::Fun(a, b) => Type::Fun(Box::new(a.now_known(known)), Box::new(b.now_known(known))),
+            Type::Unk(name) => {
+                if known.contains(&name) {
+                    Type::Now(name)
+                } else {
+                    Type::Unk(name)
+                }
+            },
+        }
+    }
+
     /// (will) Create the appropriate Type value, eg.:
     ///     Type::Arr(Type::Num)
     ///     Type::Unk("a".to_string())
     ///     a // when it's a now known type (then is has been update via now_known)
-    fn as_type<T>(&self) -> Toks where T: Iterator<Item=TokenTree> {
-        parse("Type::Num")
+    fn as_type(&self) -> Toks {
+        match self {
+            Type::Num => parse("Type::Num"),
+            Type::Str => parse("Type::Str"),
+
+            Type::Arr(a) =>
+                tts!(
+                    parse("Type::Arr"), parents(tts!(
+                        parse("Box::new"), parents(tts!(
+                            a.as_type()
+                        ))
+                    ))
+                ).collect(),
+
+            Type::Fun(a, b) =>
+                tts!(
+                    parse("Type::Fun"), parents(tts!(
+                        parse("  Box::new"), parents(tts!(
+                            a.as_type()
+                        )),
+                        parse(", Box::new"), parents(tts!(
+                            b.as_type()
+                        ))
+                    ))
+                ).collect(),
+
+            Type::Unk(name) =>
+                tts!(
+                    parse("Type::Unk"), parents(tts!(
+                        parse(&format!("\"{name}\".to_string()"))
+                    ))
+                ).collect(),
+
+            Type::Now(name) => parse(name),
+        }
     }
 
     /// (will) Wraps the result of expr into the appropriate Value, eg.:
@@ -117,10 +166,17 @@ impl Type {
                     parse(&format!("Value::{}", self.plain_name())), parents(expr)
                 ).collect(),
 
-            // TODO
-            Type::Arr(a) => todo!(), // Array { has: a, items: expr }
-            Type::Fun(a, b) => todo!(), // Function {} // XXX: is it supposed to reach here?
+            Type::Arr(a) =>
+                tts!(
+                    parse("Value::Arr"), parents(tts!(
+                        parse("Array"), braces(tts!(
+                            parse("  has:"), a.as_type(),
+                            parse(", items:"), expr
+                        ))
+                    ))
+                ).collect(),
 
+            Type::Fun(_, _) => unreachable!("[internal] trying to produce a value of function type in an unexpecte maner"),
             Type::Unk(name) => unreachable!("[internal] trying to produce a value of unknown type '{name}'"),
             Type::Now(name) => todo!("[internal] trying to produce a value of now-known type '{name}'"), // how that works for eg. `id`
         }
@@ -129,15 +185,18 @@ impl Type {
     /// (will) Match (pattern before the '=>'), storing the result into the ident, eg.:
     ///     Value::Arr(ident)
     fn as_match(&self, ident: &str) -> String {
-        format!("Some(Value::{}({ident})),", self.plain_name())
+        format!("Value::{}({ident}),", self.plain_name())
     }
 }
 
+/// Parses the atoms in a function type declaration
+/// (ie. separated by '->').
 fn from_dsl_ty(tts: Toks) -> Vec<Type> {
     if 0 == tts.len() {
         vec![]
     } else {
         let mut iter = tts.into_iter();
+        let mut found_arrop = false;
 
         let head: Toks = iter
             .by_ref()
@@ -145,6 +204,7 @@ fn from_dsl_ty(tts: Toks) -> Vec<Type> {
                 if let TokenTree::Punct(p) = t {
                     if '-' != p.as_char()
                     || Spacing::Joint != p.spacing() { panic!("expected token '->', got {}", TokenTree::Punct(p.clone())); }
+                    found_arrop = true;
                     false
                 } else { true }
             })
@@ -156,20 +216,38 @@ fn from_dsl_ty(tts: Toks) -> Vec<Type> {
             }
         }
 
-        match iter.next() {
-            Some(TokenTree::Punct(p))
-                if '>' != p.as_char()
-                || Spacing::Alone != p.spacing() => panic!("expected token '->', got {}", TokenTree::Punct(p)),
-            _ => (),
+        if found_arrop {
+            match iter.next() {
+                Some(TokenTree::Punct(p))
+                    if '>' != p.as_char()
+                    || Spacing::Alone != p.spacing() => panic!("expected token '->', got {}", TokenTree::Punct(p)),
+                _ => (),
+            }
         }
-
         let tail: Toks = iter.collect();
+        if !found_arrop && 0 != tail.len() {
+            panic!("expected token '=', got {}", tail[0]);
+        }
 
         [Type::new_atom(head.into_iter())]
             .into_iter()
             .chain(from_dsl_ty(tail))
             .collect()
     }
+}
+
+// Joins back the atoms parsed by `from_dsl_ty`
+// into a(n actual) Type::Fun
+fn to_fun_ty(crap: Vec<Type>) -> Type {
+    crap.into_iter()
+        .rev()
+        .reduce(|acc, cur|
+            Type::Fun(
+                Box::new(cur),
+                Box::new(acc)
+            )
+        )
+        .unwrap()
 }
 
 // (will) Call fn_tail with and after extracting the (correctly typed) args
@@ -215,23 +293,43 @@ fn function<T>(name_ident: Ident, params_and_ret: Vec<Type>, fn_tail: T, iter_n:
         )
     };
 
-    // TODO: build the new type (maps) by keeping as ident whichever should
-    // this will be done by constructing a new vec, mapping the previous on
-    // through `Type::now_known` which means the list of known types has to
-    // be build
+    let mut iter = params_and_ret.into_iter();
+    let settled: Vec<Type> = iter.by_ref().take(iter_n).collect(); // this first part was used in previous iteration, not here
+    let head = iter.next().unwrap(); // head is the type of the latest (will) applied argument
+    let tail: Vec<Type> = iter.collect(); // tail it the return type, to be updated with info from the latest arg's type
 
-    let func = if params_and_ret.len()-1 == iter_n {
-        group(tts!(parse("|this|"), wrap_extract_call(params_and_ret, fn_tail)))
-    } else {
-                                                // TODO: v- will be receiving an updated version
-        group(tts!(parse("|this|"), function(name_ident, params_and_ret, fn_tail, iter_n+1)))
-    };
+    assert!(0 < tail.len(), "[internal] one too many iteration in `function` (or missed call to `value`)");
+
+    let type_a = head.as_type();
+    let type_b = to_fun_ty(tail.clone()).as_type();
+    let maps = tts!(
+        parents(tts!(
+            type_a, parse(","), type_b
+        ))
+    );
+    // TODO: m kinda lost rn
+    let _somewhere = parse(&format!("let_sure ({{names}}) = this.args.index({iter_n}).typed()"));
+
+    let names = head.unknowns();
+    let niw_head = head;
+    let niw_tail: Vec<Type> = tail.into_iter().map(|it| it.now_known(&names)).collect();
+
+    let niw_params_and_ret = [settled, vec![niw_head], niw_tail].concat();
+
+    let func = group(tts!(
+        parse("|this|"),
+        if niw_params_and_ret.len()-2 == iter_n {
+            wrap_extract_call(niw_params_and_ret, fn_tail)
+        } else {
+            function(name_ident, niw_params_and_ret, fn_tail, iter_n+1)
+        }
+    ));
 
     tts!(
         parse("Value::Fun"), parents(tts!(
             parse("Function"), braces(tts!(
                 parse("  name:"), name,
-                parse(", maps:"), parents(tts!()), // maps,
+                parse(", maps:"), maps,
                 parse(", args:"), args,
                 parse(", func:"), func,
             ))

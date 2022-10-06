@@ -17,7 +17,7 @@ fn _crap() -> Vec<(String, String, Value)> {
     vec![
 
     named_val!(add :: Num -> Num -> Num = |a, b| a + b),
-    named_val!(sum :: [Num] -> Num = |a| 0),
+    named_val!(sum :: [Num] -> Num = |a: Array| 0.0),
 
     // named_val!(id :: a -> a = |a| a),
 
@@ -32,6 +32,7 @@ fn _crap() -> Vec<(String, String, Value)> {
     // named_val!(tostr :: Num -> Str = |n| n.to_string()),
 
     named_val!(pi :: Num = 3.14),
+    named_val!(idk :: [Num] = vec![Value::Num(1.0), Value::Num(1.0), Value::Num(2.0), Value::Num(3.0), Value::Num(5.0), Value::Num(8.0)]),
 
     ]
 }
