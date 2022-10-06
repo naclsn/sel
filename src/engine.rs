@@ -251,6 +251,31 @@ impl From<Value> for String {
     }
 }
 
+impl From<&str> for Value {
+    fn from(_: &str) -> Self {
+        todo!()
+    }
+}
+impl From<Value> for &str {
+    fn from(_: Value) -> Self {
+        todo!()
+    }
+}
+
+impl From<Vec<Value>> for Value {
+    fn from(_: Vec<Value>) -> Self {
+        todo!()
+    }
+}
+impl From<Value> for Vec<Value> {
+    fn from(v: Value) -> Self {
+        match v {
+            Value::Arr(a) => a.items,
+            _ => unreachable!(),
+        }
+    }
+}
+
 impl From<Vec<Number>> for Value {
     fn from(_: Vec<Number>) -> Self {
         todo!()
@@ -287,6 +312,17 @@ impl<const L: usize> From<[Number; L]> for Value {
 
 impl<const L: usize> From<[String; L]> for Value {
     fn from(_: [String; L]) -> Self {
+        todo!()
+    }
+}
+
+impl From<Function> for Value {
+    fn from(_: Function) -> Self {
+        todo!()
+    }
+}
+impl From<Value> for Function {
+    fn from(v: Value) -> Self {
         todo!()
     }
 }

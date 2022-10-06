@@ -1,3 +1,5 @@
+// xxx: now I hate it
+
 extern crate proc_macro;
 use proc_macro::{TokenStream, TokenTree, Ident, Spacing, Group, Delimiter};
 
@@ -8,12 +10,6 @@ macro_rules! tts {
     ($h:expr, $($t:expr),+) => { tts!($h)$(.chain(tts!($t)))+ };
     ($text:literal) => { $text.parse::<TokenStream>().unwrap().into_iter() };
     ($expr:expr) => { $expr.into_iter() };
-
-    ($h:expr, $($t:expr),+,) => { tts!($h, $($t),+) };
-    ($text:literal,) => { tts!($text) };
-    ($expr:expr,) => { tts!($expr) };
-
-    () => { tts!([]) };
 }
 
 fn parse(rs: &str) -> Toks {
@@ -32,7 +28,6 @@ fn braces<T>(content: T) -> Toks where T: Iterator<Item=TokenTree> {
 //     vec![TokenTree::Group(Group::new(Delimiter::Bracket, content.collect()))]
 // }
 
-// YYY: cannot use the one from main crate (circular deps, I guess..?)
 #[derive(Debug, Clone)]
 enum Type {
     Num,
@@ -67,7 +62,7 @@ impl Type {
             },
 
             Some(TokenTree::Group(p)) if Delimiter::Parenthesis == p.delimiter() => {
-                to_fun_ty(from_dsl_ty(p.stream().into_iter().collect()))
+                to_fun_ty(from_dsl_ty(p.stream().into_iter().collect())) // note that it may not be a Type::Fun in the end...
             },
 
             Some(other) => panic!("expected type atom, got '{other}'"),
@@ -76,19 +71,8 @@ impl Type {
         }
     }
 
-    // fn plain_name(&self) -> &str {
-    //     match self {
-    //         Type::Num => "Num",
-    //         Type::Str => "Str",
-    //         Type::Arr(_) => "Arr",
-    //         Type::Fun(_, _) => "Fun",
-    //         Type::Unk(_) => unreachable!("[internal] this is probably not supposed to get here, but not sure (plain_name for 'Unk')"),
-    //         Type::Now(_) => unreachable!("[internal] this is probably not supposed to get here, but not sure (plain_name for 'Now')"),
-    //     }
-    // }
-
     // List the names of not yet known type variables
-    // (ie. every `Unk`)
+    // (ie. every `Unk`).
     fn unknowns(&self) -> Vec<String> {
         match self {
             Type::Num | Type::Str | Type::Now(_) => vec![],
@@ -119,7 +103,7 @@ impl Type {
     ///     Type::Arr(Type::Num)
     ///     Type::Unk("a".to_string())
     ///     a // when it's a now known type (then is has been update via now_known)
-    fn as_type(&self) -> Toks {
+    fn construct(&self) -> Toks {
         match self {
             Type::Num => parse("Type::Num"),
             Type::Str => parse("Type::Str"),
@@ -128,7 +112,7 @@ impl Type {
                 tts!(
                     parse("Type::Arr"), parents(tts!(
                         parse("Box::new"), parents(tts!(
-                            a.as_type()
+                            a.construct()
                         ))
                     ))
                 ).collect(),
@@ -137,10 +121,10 @@ impl Type {
                 tts!(
                     parse("Type::Fun"), parents(tts!(
                         parse("  Box::new"), parents(tts!(
-                            a.as_type()
+                            a.construct()
                         )),
                         parse(", Box::new"), parents(tts!(
-                            b.as_type()
+                            b.construct()
                         ))
                     ))
                 ).collect(),
@@ -156,37 +140,31 @@ impl Type {
         }
     }
 
-    // /// (will) Wraps the result of expr into the appropriate Value, eg.:
-    // ///     Value::Arr({ has: Type::Num, items: expr })
-    // fn as_value<T>(&self, expr: T) -> Toks where T: Iterator<Item=TokenTree> {
-    //     match self {
+    fn destruct(&self) -> Toks {
+        match self {
+            Type::Num => parse("_"), //parse("Type::Num"),
+            Type::Str => parse("_"), //parse("Type::Str"),
 
-    //         Type::Num | Type::Str =>
-    //             tts!(
-    //                 parse(&format!("Value::{}", self.plain_name())), parents(expr)
-    //             ).collect(),
+            Type::Arr(a) =>
+                tts!(
+                    parse("Type::Arr"), parents(tts!(
+                        a.destruct()
+                    ))
+                ).collect(),
 
-    //         Type::Arr(a) =>
-    //             tts!(
-    //                 parse("Value::Arr"), parents(tts!(
-    //                     parse("Array"), braces(tts!(
-    //                         parse("  has:"), a.as_type(),
-    //                         parse(", items:"), expr
-    //                     ))
-    //                 ))
-    //             ).collect(),
+            Type::Fun(a, b) =>
+                tts!(
+                    parse("Type::Fun"), parents(tts!(
+                        a.destruct(),
+                        parse(","),
+                        b.destruct()
+                    ))
+                ).collect(),
 
-    //         Type::Fun(_, _) => unreachable!("[internal] trying to produce a value of function type in an unexpecte maner"),
-    //         Type::Unk(name) => unreachable!("[internal] trying to produce a value of unknown type '{name}'"),
-    //         Type::Now(name) => todo!("[internal] trying to produce a value of now-known type '{name}'"), // how that works for eg. `id`
-    //     }
-    // }
-
-    // /// (will) Match (pattern before the '=>'), storing the result into the ident, eg.:
-    // ///     Value::Arr(ident)
-    // fn as_match(&self, ident: &str) -> String {
-    //     format!("Value::{}({ident}),", self.plain_name())
-    // }
+            Type::Unk(name) => parse(name),
+            Type::Now(_name) => parse("_"), //parse(name), // YYY: |
+        }
+    }
 }
 
 /// Parses the atoms in a function type declaration
@@ -236,8 +214,10 @@ fn from_dsl_ty(tts: Toks) -> Vec<Type> {
     }
 }
 
-// Joins back the atoms parsed by `from_dsl_ty`
-// into a(n actual) Type::Fun
+/// Joins back the atoms parsed by `from_dsl_ty`
+/// into a(n actual) Type::Fun.
+/// Note that as a consequence, if the vec contains
+/// a single Type then it will be this one.
 fn to_fun_ty(crap: Vec<Type>) -> Type {
     crap.into_iter()
         .rev()
@@ -250,7 +230,8 @@ fn to_fun_ty(crap: Vec<Type>) -> Type {
         .unwrap()
 }
 
-// (will) Call fn_tail with and after extracting the (correctly typed) args
+/// (will) Call fn_tail with and after extracting the
+/// (correctly typed) args.
 fn wrap_extract_call<T>(params_and_ret: Vec<Type>, fn_tail: T) -> Toks where T: Iterator<Item=TokenTree> {
     let mut params = params_and_ret;
     params.pop();
@@ -286,29 +267,47 @@ fn function<T>(name_ident: Ident, params_and_ret: Vec<Type>, fn_tail: T, iter_n:
 
     assert!(0 < tail.len(), "[internal] one too many iteration in `function` (or missed call to `value`)");
 
-    let type_a = head.as_type();
-    let type_b = to_fun_ty(tail.clone()).as_type();
+    let type_a = head.construct();
+    let type_b = to_fun_ty(tail.clone()).construct();
     let maps = tts!(
         parents(tts!(
             type_a, parse(","), type_b
         ))
     );
-    // TODO: m kinda lost rn
-    let _somewhere = parse(&format!("let_sure ({{names}}) = this.args.index({iter_n}).typed()"));
 
     let names = head.unknowns();
-    let niw_head = head;
+    let niw_head = head.clone();
     let niw_tail: Vec<Type> = tail.into_iter().map(|it| it.now_known(&names)).collect();
-
     let niw_params_and_ret = [settled, vec![niw_head], niw_tail].concat();
 
+    let type_match = if 0 == names.len() {
+        vec![]
+    } else {
+        // TODO: construct the match
+        // RE/FIXME: k, this will be a bit more complex du to the
+        //           need to manually unbox every nested Types
+        // is there an other magical type trickery that can save the day..?
+        let match_patt = head.destruct();
+        let names_list = names.join(",");
+        let unbox_list = ["*", &names.join(",*")].concat();
+        tts!(
+            parse(&format!("let ({names_list}) = match this.args.index({iter_n}).typed()")), braces(tts!(
+                match_patt, parse(&format!("=> ({unbox_list}),")),
+                parse("_ => unreachable!(),")
+            )),
+            parse(";")
+        ).collect()
+    };
+
     let func = group(tts!(
-        parse("|this|"),
-        if niw_params_and_ret.len()-2 == iter_n {
-            wrap_extract_call(niw_params_and_ret, fn_tail)
-        } else {
-            function(name_ident, niw_params_and_ret, fn_tail, iter_n+1)
-        }
+        parse("|this|"), braces(tts!(
+            type_match,
+            if niw_params_and_ret.len()-2 == iter_n {
+                wrap_extract_call(niw_params_and_ret, fn_tail)
+            } else {
+                function(name_ident, niw_params_and_ret, fn_tail, iter_n+1)
+            }
+        ))
     ));
 
     tts!(
@@ -317,7 +316,7 @@ fn function<T>(name_ident: Ident, params_and_ret: Vec<Type>, fn_tail: T, iter_n:
                 parse("  name:"), name,
                 parse(", maps:"), maps,
                 parse(", args:"), args,
-                parse(", func:"), func,
+                parse(", func:"), func
             ))
         ))
     ).collect()
