@@ -43,42 +43,44 @@ enum Type {
     Unk(String),
 }
 
-// XXX: can (will) probly drop the wrapping and use the enum directly
-#[derive(Clone)]
-struct Param {
-    _source: Toks,
-    plain_name: String,
-    ty: Type,
-}
+impl Type {
+    /// Here, atom can be:
+    ///  - Type
+    ///  - name
+    ///  - [<arr>]
+    ///  - (<fun>)
+    /// Uses the iterator as far as needed (so parsing <fun> can be recursive).
+    fn new_atom<T>(source: T) -> Self where T: Iterator<Item=TokenTree> {
+        match source.next() {
 
-impl Param {
-    fn new(source: Toks) -> Self {
-        // TODO: proper, this quick hack (eg. parenthesized types)
-        let plain_name = match &source[0] {
-            TokenTree::Ident(i) => {
-                if i.to_string().chars().next().unwrap().is_ascii_uppercase() { format!("Value::{i}") }
-                else { "Value::Garbo".to_string() }
+            Some(TokenTree::Ident(i)) => {
+                match i.to_string().as_str() {
+                    "Num" => Type::Num,
+                    "Str" => Type::Str,
+                    name => Type::Unk(name.to_string()),
+                }
             },
-            TokenTree::Group(p) if Delimiter::Bracket == p.delimiter() => {
-                "Value::Arr".to_string()
-            },
-            other => panic!("incorrect type representation near {other}"),
-        };
 
-        Self {
-            _source: source,
-            plain_name,
-            ty: (),
+            Some(TokenTree::Group(p)) if Delimiter::Bracket == p.delimiter() => {
+                Type::Arr(Box::new(Type::new_atom(source))) // take between brackets
+            },
+
+            Some(TokenTree::Group(p)) if Delimiter::Parenthesis == p.delimiter() => {
+                let types = from_dsl_ty(source.collect()); // take between parenthesis
+                Type::Fun(Box::new(types[0]), Box::new(types[1])) // .. and so on (ie. fold)
+            },
+
+            Some(other) => panic!("incorrect type representation near {other}"),
+            None => panic!("expecte type expression"),
+
         }
     }
 
-    fn _repr(&self) -> String {
-        self._source
-            .iter()
-            .map(|t| t.to_string())
-            .collect::<Vec<String>>()
-            .join("+")
-    }
+    // TODO
+    fn plain_name(&self) -> &str { todo!() }
+
+    // TODO
+    fn now_known(&mut self, names: Vec<String>) {}
 
     // TODO
     /// (will) Create the appropriate Type value, eg.:
@@ -94,18 +96,18 @@ impl Param {
     ///     Value::Arr({ has: Type::Num, items: expr })
     fn as_value<T>(&self, expr: T) -> Toks where T: Iterator<Item=TokenTree> {
         tts!(
-            parse(&self.plain_name), parents(expr)
+            parse(&self.plain_name()), parents(expr)
         ).collect()
     }
 
     /// (will) Match (pattern before the '=>'), storing the result into the ident, eg.:
     ///     Value::Arr(ident)
     fn as_match(&self, ident: &str) -> String {
-        format!("Some({}({ident})),", self.plain_name)
+        format!("Some({}({ident})),", self.plain_name())
     }
 }
 
-fn from_dsl_ty(tts: Toks) -> Vec<Param> {
+fn from_dsl_ty(tts: Toks) -> Vec<Type> { // TODO: take Iterator for tts
     if 0 == tts.len() {
         vec![]
     } else {
@@ -130,7 +132,8 @@ fn from_dsl_ty(tts: Toks) -> Vec<Param> {
 
         let tail: Toks = iter.collect();
 
-        [Param::new(head)]
+        // TODO: use Iterators for head and tail
+        [Type::new_atom(head)]
             .into_iter()
             .chain(from_dsl_ty(tail))
             .collect()
@@ -138,7 +141,7 @@ fn from_dsl_ty(tts: Toks) -> Vec<Param> {
 }
 
 // wrap fn_tail around the match that extracts args (as well as the call)
-fn wrap_extract_call<T>(params_and_ret: Vec<Param>, fn_tail: T) -> Toks where T: Iterator<Item=TokenTree> {
+fn wrap_extract_call<T>(params_and_ret: Vec<Type>, fn_tail: T) -> Toks where T: Iterator<Item=TokenTree> {
     let mut params = params_and_ret;
     let ret_last = params.pop().unwrap();
 
@@ -169,7 +172,7 @@ fn wrap_extract_call<T>(params_and_ret: Vec<Param>, fn_tail: T) -> Toks where T:
     ))
 }
 
-fn function<T>(name_ident: Ident, params_and_ret: Vec<Param>, fn_tail: T, iter_n: usize) -> Toks where T: Iterator<Item=TokenTree> {
+fn function<T>(name_ident: Ident, params_and_ret: Vec<Type>, fn_tail: T, iter_n: usize) -> Toks where T: Iterator<Item=TokenTree> {
     let (name, args) = if 0 == iter_n {
         ( tts!(parse(&format!("\"{name_ident}\".to_string()")))
         , tts!(parse("vec![]"))
@@ -203,7 +206,7 @@ fn function<T>(name_ident: Ident, params_and_ret: Vec<Param>, fn_tail: T, iter_n
     ).collect()
 }
 
-fn value<T>(_name_ident: Ident, ret_last: Param, val_tail: T) -> Toks where T: Iterator<Item=TokenTree> {
+fn value<T>(_name_ident: Ident, ret_last: Type, val_tail: T) -> Toks where T: Iterator<Item=TokenTree> {
     ret_last.as_value(val_tail)
 }
 
