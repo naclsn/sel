@@ -1,7 +1,7 @@
 use std::{env, io::stdin};
 
 use crate::{
-    engine::{Apply, Type, Typed, Value},
+    engine::{Apply, Typed, Value},
     parser::parse_string,
     prelude::{get_prelude, PreludeLookup},
 };
@@ -22,7 +22,7 @@ fn lookup(name: String) {
     }
 }
 
-fn process(script: String, check_only: bool) {
+fn process(script: String, check_only: bool, debug_types: bool) {
     let prelude = &get_prelude();
     let app = parse_string(&script, prelude).result();
 
@@ -35,7 +35,11 @@ fn process(script: String, check_only: bool) {
             Ok(it) => {
                 let res = app.clone().apply(Value::Str(it));
                 let ty = res.typed();
-                println!("{} :: {}", res.clone().coerse(Type::Str).unwrap_or(res), ty)
+                if debug_types {
+                    println!("{} :: {}", res, ty)
+                } else {
+                    println!("{}", res.as_text())
+                }
             }
             Err(e) => panic!("{}", e),
         }
@@ -47,22 +51,29 @@ fn main() {
     let prog = args.next().unwrap();
 
     let mut check_only = false;
+    let mut debug_types = false;
     match args.peek().map(|it| it.as_str()) {
         Some("-h") | None => {
             return usage(prog);
         }
-        Some("-c") => check_only = true,
-        Some("-l") => {
+        Some("-c") => {
+            check_only = true;
             args.next();
-            match args.next() {
-                Some(name) => lookup(name),
-                None => println!("missing name to lookup in the prelude"),
-            }
+        }
+        Some("-d") => {
+            debug_types = true;
+            args.next();
+        }
+        Some("-l") => {
+            args.skip(1)
+                .next()
+                .map(lookup)
+                .or_else(|| Some(println!("missing name to lookup in the prelude")));
             return;
         }
         _ => (),
     }
 
-    let script = args.skip(1).collect::<Vec<String>>().join(" ");
-    process(script, check_only);
+    let script = args.collect::<Vec<String>>().join(" ");
+    process(script, check_only, debug_types);
 }

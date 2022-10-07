@@ -1,7 +1,7 @@
 use std::{iter::Peekable, str::Chars, vec};
 
 use crate::{
-    engine::{Apply, Function, Typed, Value},
+    engine::{Apply, Function, Value},
     prelude::PreludeLookup,
 };
 
@@ -183,12 +183,7 @@ where
     /// in order. Consumes it because it advances
     /// the underlying iterator.
     pub fn result(self) -> Value {
-        let fs: Vec<Value> = self
-            .map(|f| {
-                println!("got {} :: {}", f, f.typed());
-                f
-            })
-            .collect();
+        let fs: Vec<Value> = self.collect();
 
         if 1 == fs.len() {
             return fs.into_iter().next().unwrap();

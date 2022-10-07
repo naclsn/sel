@@ -1,5 +1,10 @@
 use std::fmt;
 
+// NOTE: `Debug` is kept for rust-level debugging,
+//       `Display` is used for sel-level debugging
+//       as such, the actual output for a type of
+//       value is through Value::to_text
+
 #[derive(Debug, Clone)]
 pub enum Type {
     Num,
@@ -20,6 +25,38 @@ pub enum Value {
     Str(String),
     Arr(Array),
     Fun(Function),
+}
+
+impl Value {
+    pub fn as_text(&self) -> String {
+        match self {
+            Value::Num(n) => n.to_string(),
+            Value::Str(s) => s.to_string(),
+            Value::Arr(a) => match &a.has {
+                Type::Num | Type::Str => a
+                    .items
+                    .iter()
+                    .map(Value::as_text)
+                    .collect::<Vec<String>>()
+                    .join(" "),
+                Type::Arr(t) => match **t {
+                    Type::Num | Type::Str => a
+                        .items
+                        .iter()
+                        .map(Value::as_text)
+                        .collect::<Vec<String>>()
+                        .join("\n"),
+                    _ => panic!(
+                        "no acceptable text conversion for the last return type (deep array)"
+                    ),
+                },
+                _ => panic!(
+                    "no acceptable text conversion for the last return type (array of functions)"
+                ),
+            },
+            _ => panic!("no acceptable text conversion for the last return type (function)"),
+        }
+    }
 }
 
 pub type Number = f32;
@@ -89,8 +126,8 @@ impl Typed for Value {
             },
             Type::Arr(ref t) if Type::Num == **t => match self {
                 Value::Str(v) => Some(Value::Arr(Array {
-                    has: to,
-                    items: v.chars().map(|c| Value::Num((c as u32) as f32)).collect(),
+                    has: Type::Num,
+                    items: v.chars().map(|c| Value::Num((c as u32) as Number)).collect(),
                 })),
                 Value::Arr(v) => {
                     let may = v
@@ -99,7 +136,7 @@ impl Typed for Value {
                         .map(|i| i.coerse(Type::Num))
                         .collect::<Option<Vec<Value>>>();
                     match may {
-                        Some(items) => Some(Value::Arr(Array { has: to, items })),
+                        Some(items) => Some(Value::Arr(Array { has: *t.clone(), items })),
                         None => None,
                     }
                 }
@@ -107,7 +144,7 @@ impl Typed for Value {
             },
             Type::Arr(ref t) if Type::Str == **t => match self {
                 Value::Str(v) => Some(Value::Arr(Array {
-                    has: to,
+                    has: Type::Str,
                     items: v.chars().map(|c| Value::Str(c.to_string())).collect(),
                 })),
                 Value::Arr(v) => {
@@ -117,7 +154,7 @@ impl Typed for Value {
                         .map(|i| i.coerse(Type::Str))
                         .collect::<Option<Vec<Value>>>();
                     match may {
-                        Some(items) => Some(Value::Arr(Array { has: to, items })),
+                        Some(items) => Some(Value::Arr(Array { has: *t.clone(), items })),
                         None => None,
                     }
                 }
@@ -234,13 +271,16 @@ impl fmt::Debug for Function {
 // TODO: all of them and a bit more (more macro anyone?)
 
 impl From<Number> for Value {
-    fn from(_: Number) -> Self {
-        todo!()
+    fn from(n: Number) -> Self {
+        Value::Num(n)
     }
 }
 impl From<Value> for Number {
-    fn from(_: Value) -> Self {
-        todo!()
+    fn from(v: Value) -> Self {
+        match v {
+            Value::Num(n) => n,
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -250,14 +290,17 @@ impl From<String> for Value {
     }
 }
 impl From<Value> for String {
-    fn from(_: Value) -> Self {
-        todo!()
+    fn from(v: Value) -> Self {
+        match v {
+            Value::Str(s) => s,
+            _ => unreachable!(),
+        }
     }
 }
 
 impl From<&str> for Value {
-    fn from(_: &str) -> Self {
-        todo!()
+    fn from(v: &str) -> Self {
+        Value::Str(v.to_string())
     }
 }
 impl From<Value> for &str {
@@ -266,15 +309,24 @@ impl From<Value> for &str {
     }
 }
 
-impl FromIterator<Value> for Value {
-    fn from_iter<T: IntoIterator<Item = Value>>(_iter: T) -> Self {
-        todo!()
+// impl FromIterator<Value> for Value {
+//     fn from_iter<T: IntoIterator<Item = Value>>(_iter: T) -> Self {
+//         todo!() // XXX: still will not be able to infer the contained type!
+//     }
+// }
+
+impl<'a> FromIterator<&'a str> for Value {
+    fn from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Self {
+        Value::Arr(Array {
+            has: Type::Str,
+            items: iter.into_iter().map(|s| Value::from(s)).collect(),
+        })
     }
 }
 
 impl From<Array> for Value {
-    fn from(_: Array) -> Self {
-        todo!()
+    fn from(a: Array) -> Self {
+        Value::Arr(a)
     }
 }
 impl From<Value> for Array {
@@ -286,11 +338,11 @@ impl From<Value> for Array {
     }
 }
 
-impl From<Vec<Value>> for Value {
-    fn from(_: Vec<Value>) -> Self {
-        todo!()
-    }
-}
+// impl From<Vec<Value>> for Value {
+//     fn from(_: Vec<Value>) -> Self {
+//         todo!() // XXX: still will not be able to infer the contained type!
+//     }
+// }
 impl From<Value> for Vec<Value> {
     fn from(v: Value) -> Self {
         match v {
@@ -328,6 +380,20 @@ impl From<Value> for Vec<String> {
     }
 }
 
+impl From<Vec<&str>> for Value {
+    fn from(_: Vec<&str>) -> Self {
+        todo!()
+    }
+}
+impl From<Value> for Vec<&str> {
+    fn from(v: Value) -> Self {
+        match v {
+            Value::Arr(a) => a.items.into_iter().map(|it| it.into()).collect(),
+            _ => unreachable!(),
+        }
+    }
+}
+
 impl<const L: usize> From<[Number; L]> for Value {
     fn from(_: [Number; L]) -> Self {
         todo!()
@@ -346,7 +412,10 @@ impl From<Function> for Value {
     }
 }
 impl From<Value> for Function {
-    fn from(_v: Value) -> Self {
-        todo!()
+    fn from(v: Value) -> Self {
+        match v {
+            Value::Fun(f) => f,
+            _ => unreachable!(),
+        }
     }
 }

@@ -1,4 +1,5 @@
 use dsl_macro_lib::val;
+use std::ops::Index;
 
 use crate::{
     engine::{Apply, Array, Function, Number, Type, Typed, Value},
@@ -43,7 +44,7 @@ pub trait PreludeLookup {
 }
 
 macro_rules! make_prelude {
-    ($(($name:ident :: $($ty:tt)->+ = $def:expr)),*,) => {
+    ($(($name:ident :: $($ty:tt)->+ = $def:expr; $doc:literal)),*,) => {
         struct _Prelude(Vec<PreludeEntry>);
 
         impl PreludeLookup for _Prelude {
@@ -57,23 +58,36 @@ macro_rules! make_prelude {
 
         fn _get_prelude_impl() -> _Prelude {
             _Prelude(vec![
-                $(make_prelude!(@ $name :: $($ty)->+ = $def)),*
+                $(make_prelude!(@ $name :: $($ty)->+ = $def; $doc)),*
             ])
         }
     };
-    (@ $name:ident :: $($ty:tt)->+ = $def:expr) => {
+    (@ $name:ident :: $($ty:tt)->+ = $def:expr; $doc:literal) => {
         PreludeEntry {
             name: stringify!($name),
             typedef: stringify!($($ty)->+),
-            docstr: "$doc",
+            docstr: $doc,
             value: || val!($name :: $($ty)->+ = $def),
         }
     };
 }
 
-#[rustfmt::skip]
 make_prelude! {
-    (add :: Num -> Num -> Num = |a: Number, b: Number| a + b),
+    (add :: Num -> Num -> Num = |a: Number, b: Number| a + b;
+        "add two numbers"),
+    (const :: a -> b -> a = |a: Value, _: Value| a;
+        "always evaluate to its first argument, ignoring its second argument"),
+    (map :: (a -> b) -> [a] -> [b] = |f: Function, a: Array|
+        Array { // XXX: working with array is not perfect...
+            has: a.has,
+            items: a.items
+                .into_iter()
+                .map(|v| f.clone().apply(v))
+                .collect(),
+        };
+        "make a new list by applying a function to each value from a list"),
+    (split :: Str -> Str -> [Str] = |sep: String, s: String| s.split(&sep).collect::<Value>();
+        "break a string into pieces separated by the argument, consuming the delimiter"),
 }
 
 // TODO: using dsl_macro_lib::val
