@@ -1,5 +1,3 @@
-// xxx: now I hate it
-
 extern crate proc_macro;
 use proc_macro::{TokenStream, TokenTree, Ident, Spacing, Group, Delimiter};
 
@@ -136,38 +134,47 @@ impl Type {
                     ))
                 ).collect(),
 
-            Type::Now(name) => parse(name),
+            // YYY: need cloning because a same type may appread
+            // multiple times in a function's maps
+            Type::Now(name) => parse(&format!("{name}.clone()")),
         }
     }
 
-    fn destruct(&self) -> Toks {
+    /// (will) Destructure the given expression,
+    /// extracting the unkown into same-name variables.
+    fn destruct(&self, expr: Toks) -> Toks {
         match self {
-            Type::Num => parse("_"), //parse("Type::Num"),
-            Type::Str => parse("_"), //parse("Type::Str"),
+            Type::Num => vec![], //tts!(parse("let /*sure*/ Type::Num = "), expr, parse(";")).collect(),
+            Type::Str => vec![], //tts!(parse("let /*sure*/ Type::Str = "), expr, parse(";")).collect(),
 
             Type::Arr(a) =>
                 tts!(
-                    parse("Type::Arr"), parents(tts!(
-                        a.destruct()
-                    ))
+                    parse("let (type_c) = match "), expr, braces(tts!(
+                        parse("Type::Arr(box_c) => (*box_c), _ => unreachable!()")
+                    )), parse(";"),
+                    a.destruct(parse("type_c"))
                 ).collect(),
 
             Type::Fun(a, b) =>
                 tts!(
-                    parse("Type::Fun"), parents(tts!(
-                        a.destruct(),
-                        parse(","),
-                        b.destruct()
-                    ))
+                    parse("let (type_a, type_b) = match "), expr, braces(tts!(
+                        parse("Type::Fun(box_a, box_b) => (*box_a, *box_b), _ => unreachable!()")
+                    )), parse(";"),
+                    a.destruct(parse("type_a")),
+                    b.destruct(parse("type_b"))
                 ).collect(),
 
-            Type::Unk(name) => parse(name),
-            Type::Now(_name) => parse("_"), //parse(name), // YYY: |
+            Type::Unk(name) =>
+                tts!(
+                    parse(&format!("let {name} = ")), expr, parse(";")
+                ).collect(),
+
+            Type::Now(_name) => vec![], //parse(&format!("let /*sure*/ {name} = {name};")),
         }
     }
 }
 
-/// Parses the atoms in a function type declaration
+/// Parse the atoms in a function type declaration
 /// (ie. separated by '->').
 fn from_dsl_ty(tts: Toks) -> Vec<Type> {
     if 0 == tts.len() {
@@ -214,7 +221,7 @@ fn from_dsl_ty(tts: Toks) -> Vec<Type> {
     }
 }
 
-/// Joins back the atoms parsed by `from_dsl_ty`
+/// Join back the atoms parsed by `from_dsl_ty`
 /// into a(n actual) Type::Fun.
 /// Note that as a consequence, if the vec contains
 /// a single Type then it will be this one.
@@ -283,20 +290,16 @@ fn function<T>(name_ident: Ident, params_and_ret: Vec<Type>, fn_tail: T, iter_n:
     let type_match = if 0 == names.len() {
         vec![]
     } else {
-        // TODO: construct the match
-        // RE/FIXME: k, this will be a bit more complex du to the
-        //           need to manually unbox every nested Types
-        // is there an other magical type trickery that can save the day..?
-        let match_patt = head.destruct();
-        let names_list = names.join(",");
-        let unbox_list = ["*", &names.join(",*")].concat();
-        tts!(
-            parse(&format!("let ({names_list}) = match this.args.index({iter_n}).typed()")), braces(tts!(
-                match_patt, parse(&format!("=> ({unbox_list}),")),
-                parse("_ => unreachable!(),")
-            )),
-            parse(";")
-        ).collect()
+        // YYY: it needs to re-do the whole cumulative work
+        // for every new argument because it cannot use the
+        // previous iteration's variables (would make it a
+        // closure) (can't it just use this.maps though?)
+        niw_params_and_ret[0..iter_n+1]
+            .iter()
+            .enumerate()
+            .map(|(k, it)| it.destruct(parse(&format!("this.args.index({k}).typed()"))))
+            .flatten()
+            .collect()
     };
 
     let func = group(tts!(
@@ -331,7 +334,7 @@ pub fn val(stream: TokenStream) -> TokenStream {
     let mut it = stream.into_iter();
 
     let name = match it.next() {
-        Some(TokenTree::Ident(a)) => a,
+        Some(TokenTree::Ident(name)) => name,
         Some(other) => panic!("expected identifier (name), got '{other}'"),
         None => panic!("expected identifier (name)"),
     };

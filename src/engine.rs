@@ -262,6 +262,26 @@ impl From<Value> for &str {
     }
 }
 
+impl FromIterator<Value> for Value {
+    fn from_iter<T: IntoIterator<Item = Value>>(iter: T) -> Self {
+        todo!()
+    }
+}
+
+impl From<Array> for Value {
+    fn from(_: Array) -> Self {
+        todo!()
+    }
+}
+impl From<Value> for Array {
+    fn from(v: Value) -> Self {
+        match v {
+            Value::Arr(a) => a,
+            _ => unreachable!(),
+        }
+    }
+}
+
 impl From<Vec<Value>> for Value {
     fn from(_: Vec<Value>) -> Self {
         todo!()
