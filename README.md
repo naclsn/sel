@@ -2,7 +2,8 @@ Yet an other `awk`-ish command line tool, with a
 (point-free) functional approach.
 
 - [Overview](#Overview)
-  - [Getting Sfarted](#Getting%20Sfarted)
+  - [Getting Started](#Getting%20Started)
+  - [Command Usage](#Command%Usage)
 - [Details](#Details)
   - [Syntax](#Syntax)
   - [Type System](#Type%20System)
@@ -18,7 +19,7 @@ Similarly to commands such as `awk`, `sed` or `perl
 -pe`/`perl -ne`, `sel` takes a script to apply to its
 standard input to produce its standard output.
 
-## Getting Sfarted
+## Getting Started
 
 ```console
 $ cargo build --release

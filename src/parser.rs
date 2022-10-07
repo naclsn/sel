@@ -1,8 +1,9 @@
+use std::{iter::Peekable, str::Chars, vec};
+
 use crate::{
     engine::{Apply, Function, Typed, Value},
-    prelude::{lookup_binary, lookup_name, lookup_unary},
+    prelude::PreludeLookup,
 };
-use std::{iter::Peekable, str::Chars, vec};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Unop {
@@ -154,20 +155,28 @@ impl Lex for Vec<Token> {
 }
 
 #[derive(Clone)]
-pub struct Parser<T>(Peekable<T::TokenIter>)
-where
-    T: Lex;
-
-pub fn parse_string<'a>(script: &'a String) -> Parser<&'a String> {
-    Parser(script.lex().peekable())
-}
-fn parse_vec(tokens: Vec<Token>) -> Parser<Vec<Token>> {
-    Parser(tokens.lex().peekable())
-}
-
-impl<T> Parser<T>
+pub struct Parser<'a, T, L>(Peekable<T::TokenIter>, &'a L)
 where
     T: Lex,
+    L: PreludeLookup;
+
+pub fn parse_string<'a, L>(script: &'a String, prelude: &'a L) -> Parser<'a, &'a String, L>
+where
+    L: PreludeLookup,
+{
+    Parser(script.lex().peekable(), prelude)
+}
+fn parse_vec<'a, L>(tokens: Vec<Token>, prelude: &'a L) -> Parser<'a, Vec<Token>, L>
+where
+    L: PreludeLookup,
+{
+    Parser(tokens.lex().peekable(), prelude)
+}
+
+impl<'a, T, L> Parser<'a, T, L>
+where
+    T: Lex,
+    L: PreludeLookup,
 {
     /// Build each functions and return a single
     /// function that will apply its input to each
@@ -227,18 +236,22 @@ where
 
             Some(Token::Literal(value)) => Some(value.clone()),
 
-            Some(Token::Name(name)) => Some(lookup_name(name.to_string()).expect("Unknown name")),
+            Some(Token::Name(name)) => {
+                Some(self.1.lookup_name(name.to_string()).expect("Unknown name"))
+            }
 
-            Some(Token::Operator(Operator::Unary(un))) => Some(lookup_unary(un).apply(
+            Some(Token::Operator(Operator::Unary(un))) => Some(self.1.lookup_unary(un).apply(
                 if let Some(Token::Operator(Operator::Binary(bin))) = self.0.peek() {
-                    lookup_binary(*bin)
+                    self.1.lookup_binary(*bin)
                 } else {
                     self.next_atom().expect("Missing argument for unary")
                 },
             )),
 
             Some(Token::Operator(Operator::Binary(bin))) => Some(
-                lookup_binary(bin).apply(self.next_atom().expect("Missing argument for binary")),
+                self.1
+                    .lookup_binary(bin)
+                    .apply(self.next_atom().expect("Missing argument for binary")),
             ),
 
             // TODO: properly recursive
@@ -267,7 +280,7 @@ where
                     0 == lvl,
                     "Unbalanced subscript expression: missing closing ']'"
                 );
-                Some(parse_vec(tokens).result())
+                Some(parse_vec(tokens, self.1).result())
             }
             Some(Token::SubscriptEnd) => {
                 panic!("Unbalanced subscript expression: missing opening '['")
@@ -276,9 +289,10 @@ where
     } // next_atom
 } // impl Parser
 
-impl<T> Iterator for Parser<T>
+impl<'a, T, L> Iterator for Parser<'a, T, L>
 where
     T: Lex,
+    L: PreludeLookup,
 {
     type Item = Value;
 
