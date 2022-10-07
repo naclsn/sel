@@ -48,7 +48,7 @@ where
 enum Type {
     Num,
     Str,
-    Arr(Box<Type>),
+    Lst(Box<Type>),
     Fun(Box<Type>, Box<Type>),
     Unk(String),
     Now(String),
@@ -76,7 +76,7 @@ impl Type {
             },
 
             Some(TokenTree::Group(p)) if Delimiter::Bracket == p.delimiter() => {
-                Type::Arr(Box::new(Type::new_atom(p.stream().into_iter())))
+                Type::Lst(Box::new(Type::new_atom(p.stream().into_iter())))
             }
 
             Some(TokenTree::Group(p)) if Delimiter::Parenthesis == p.delimiter() => {
@@ -93,7 +93,7 @@ impl Type {
     fn unknowns(&self) -> Vec<String> {
         match self {
             Type::Num | Type::Str | Type::Now(_) => vec![],
-            Type::Arr(a) => a.unknowns(),
+            Type::Lst(a) => a.unknowns(),
             Type::Fun(a, b) => [a.unknowns(), b.unknowns()].concat(),
             Type::Unk(name) => vec![name.clone()],
         }
@@ -104,7 +104,7 @@ impl Type {
     fn now_known(self, known: &Vec<String>) -> Type {
         match self {
             Type::Num | Type::Str | Type::Now(_) => self.clone(),
-            Type::Arr(a) => Type::Arr(Box::new(a.now_known(known))),
+            Type::Lst(a) => Type::Lst(Box::new(a.now_known(known))),
             Type::Fun(a, b) => {
                 Type::Fun(Box::new(a.now_known(known)), Box::new(b.now_known(known)))
             }
@@ -119,7 +119,7 @@ impl Type {
     }
 
     /// (will) Create the appropriate Type value, eg.:
-    ///     Type::Arr(Type::Num)
+    ///     Type::Lst(Type::Num)
     ///     Type::Unk("a".to_string())
     ///     a // when it's a now known type (then is has been update via now_known)
     fn construct(&self) -> Toks {
@@ -127,8 +127,8 @@ impl Type {
             Type::Num => parse("Type::Num"),
             Type::Str => parse("Type::Str"),
 
-            Type::Arr(a) => tts!(
-                parse("Type::Arr"),
+            Type::Lst(a) => tts!(
+                parse("Type::Lst"),
                 parents(tts!(parse("Box::new"), parents(tts!(a.construct()))))
             )
             .collect(),
@@ -163,11 +163,11 @@ impl Type {
             Type::Num => vec![], //tts!(parse("let /*sure*/ Type::Num = "), expr, parse(";")).collect(),
             Type::Str => vec![], //tts!(parse("let /*sure*/ Type::Str = "), expr, parse(";")).collect(),
 
-            Type::Arr(a) => tts!(
+            Type::Lst(a) => tts!(
                 parse("let (type_c) = match "),
                 expr,
                 braces(tts!(parse(
-                    "Type::Arr(box_c) => (*box_c), _ => unreachable!()"
+                    "Type::Lst(box_c) => (*box_c), _ => unreachable!()"
                 ))),
                 parse(";"),
                 a.destruct(parse("type_c"))

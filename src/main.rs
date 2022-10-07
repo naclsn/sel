@@ -1,7 +1,8 @@
 use std::{env, io::stdin};
 
+use parser::Application;
+
 use crate::{
-    engine::{Apply, Typed, Value},
     parser::parse_string,
     prelude::{get_prelude, PreludeLookup},
 };
@@ -22,9 +23,9 @@ fn lookup(name: String) {
     }
 }
 
-fn process(script: String, check_only: bool, debug_types: bool) {
+fn process(script: String, check_only: bool) {
     let prelude = &get_prelude();
-    let app = parse_string(&script, prelude).result();
+    let app: Application = parse_string(&script, prelude).collect();
 
     if check_only {
         return;
@@ -33,13 +34,8 @@ fn process(script: String, check_only: bool, debug_types: bool) {
     for line in stdin().lines() {
         match line {
             Ok(it) => {
-                let res = app.clone().apply(Value::Str(it));
-                let ty = res.typed();
-                if debug_types {
-                    println!("{} :: {}", res, ty)
-                } else {
-                    println!("{}", res.as_text())
-                }
+                let res = app.apply(it);
+                println!("{}", res)
             }
             Err(e) => panic!("{}", e),
         }
@@ -51,17 +47,12 @@ fn main() {
     let prog = args.next().unwrap();
 
     let mut check_only = false;
-    let mut debug_types = false;
     match args.peek().map(|it| it.as_str()) {
         Some("-h") | None => {
             return usage(prog);
         }
         Some("-c") => {
             check_only = true;
-            args.next();
-        }
-        Some("-d") => {
-            debug_types = true;
             args.next();
         }
         Some("-l") => {
@@ -75,5 +66,5 @@ fn main() {
     }
 
     let script = args.collect::<Vec<String>>().join(" ");
-    process(script, check_only, debug_types);
+    process(script, check_only);
 }

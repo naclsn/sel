@@ -1,7 +1,7 @@
 use std::{iter::Peekable, str::Chars, vec};
 
 use crate::{
-    engine::{Apply, Function, Value},
+    engine::{Function, Value},
     prelude::PreludeLookup,
 };
 
@@ -173,16 +173,30 @@ where
     Parser(tokens.lex().peekable(), prelude)
 }
 
+impl FromIterator<Value> for Application {
+    fn from_iter<T: IntoIterator<Item = Value>>(iter: T) -> Self {
+        Application {
+            funcs: iter
+                .into_iter()
+                .map(|v| match v {
+                    Value::Fun(f) => f,
+                    other => {
+                        println!("trying to build an application from functions,");
+                        println!("but got: {other}");
+                        panic!("type error");
+                    },
+                }).collect(),
+            env: (),
+        }
+    }
+}
+
 impl<'a, T, L> Parser<'a, T, L>
 where
     T: Lex,
     L: PreludeLookup,
 {
-    /// Build each functions and return a single
-    /// function that will apply its input to each
-    /// in order. Consumes it because it advances
-    /// the underlying iterator.
-    pub fn result(self) -> Value {
+    fn as_value(self) -> Value {
         let fs: Vec<Value> = self.collect();
 
         if 1 == fs.len() {
@@ -204,8 +218,6 @@ where
             })
             .unwrap();
 
-        // XXX: this will get its own structure
-        //      (here the env for recursive scrips?)
         Value::Fun(Function {
             name: "(script)".to_string(),
             maps: (firstin, lastout),
@@ -214,7 +226,7 @@ where
                 let arg = this.args.last().unwrap().clone();
                 this.args[..this.args.len() - 1]
                     .iter()
-                    .fold(arg, |r, f| f.clone().apply(r))
+                    .fold(arg, |r, f| Function::from(f.clone()).apply(r))
             },
         })
     } // fn result
@@ -237,7 +249,7 @@ where
 
             Some(Token::Operator(Operator::Unary(un))) => Some(self.1.lookup_unary(un).apply(
                 if let Some(Token::Operator(Operator::Binary(bin))) = self.0.peek() {
-                    self.1.lookup_binary(*bin)
+                    self.1.lookup_binary(*bin).into()
                 } else {
                     self.next_atom().expect("Missing argument for unary")
                 },
@@ -275,7 +287,7 @@ where
                     0 == lvl,
                     "Unbalanced subscript expression: missing closing ']'"
                 );
-                Some(parse_vec(tokens, self.1).result())
+                Some(parse_vec(tokens, self.1).as_value())
             }
             Some(Token::SubscriptEnd) => {
                 panic!("Unbalanced subscript expression: missing opening '['")
@@ -305,12 +317,27 @@ where
                             break;
                         }
                         Some(arg) => {
-                            base = base.apply(arg);
+                            base = Function::from(base).apply(arg);
                         }
                     }
                 }
                 Some(base)
             }
         } // match next_atom
+    }
+}
+
+// YYY: more private fields
+pub struct Application {
+    pub funcs: Vec<Function>,
+    pub env: (),
+}
+
+impl Application {
+    pub fn apply(&self, line: String) -> String {
+        self.funcs
+            .iter()
+            .fold(Value::Str(line), |acc, cur| cur.clone().apply(acc))
+            .as_text()
     }
 }

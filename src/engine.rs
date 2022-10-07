@@ -3,70 +3,35 @@ use std::fmt;
 // NOTE: `Debug` is kept for rust-level debugging,
 //       `Display` is used for sel-level debugging
 //       as such, the actual output for a type of
-//       value is through Value::to_text
+//       value is through Value::as_text
 
 #[derive(Debug, Clone)]
 pub enum Type {
     Num,
     Str,
-    Arr(Box<Type>),
+    Lst(Box<Type>),
     Fun(Box<Type>, Box<Type>),
     Unk(String),
-}
-
-pub trait Typed {
-    fn typed(&self) -> Type;
-    fn coerse(self, to: Type) -> Option<Value>;
 }
 
 #[derive(Debug, Clone)]
 pub enum Value {
     Num(Number),
     Str(String),
-    Arr(Array),
+    Lst(List),
     Fun(Function),
-}
-
-impl Value {
-    pub fn as_text(&self) -> String {
-        match self {
-            Value::Num(n) => n.to_string(),
-            Value::Str(s) => s.to_string(),
-            Value::Arr(a) => match &a.has {
-                Type::Num | Type::Str => a
-                    .items
-                    .iter()
-                    .map(Value::as_text)
-                    .collect::<Vec<String>>()
-                    .join(" "),
-                Type::Arr(t) => match **t {
-                    Type::Num | Type::Str => a
-                        .items
-                        .iter()
-                        .map(Value::as_text)
-                        .collect::<Vec<String>>()
-                        .join("\n"),
-                    _ => panic!(
-                        "no acceptable text conversion for the last return type (deep array)"
-                    ),
-                },
-                _ => panic!(
-                    "no acceptable text conversion for the last return type (array of functions)"
-                ),
-            },
-            _ => panic!("no acceptable text conversion for the last return type (function)"),
-        }
-    }
 }
 
 pub type Number = f32;
 
+// YYY: more private fields
 #[derive(Debug, Clone)]
-pub struct Array {
+pub struct List {
     pub has: Type,
     pub items: Vec<Value>,
 }
 
+// YYY: more private fields
 #[derive(Clone)]
 pub struct Function {
     pub name: String,
@@ -75,11 +40,10 @@ pub struct Function {
     pub func: fn(Function) -> Value,
 }
 
-impl Apply for Function {
-    fn apply(mut self, arg: Value) -> Value {
+impl Function {
+    pub fn apply(mut self, arg: Value) -> Value {
         let given_type = arg.typed();
 
-        // YYY: can have a 'no auto coerse' flag for functions like `tonum` and `tostr`
         match arg.coerse(self.maps.0.clone()) {
             None => {
                 println!("wrong type of argument for function:");
@@ -97,21 +61,47 @@ impl Apply for Function {
     }
 }
 
-pub trait Apply {
-    fn apply(self, arg: Value) -> Value;
-}
+impl Value {
+    pub fn as_text(&self) -> String {
+        match self {
+            Value::Num(n) => n.to_string(),
+            Value::Str(s) => s.to_string(),
+            Value::Lst(a) => match &a.has {
+                Type::Num | Type::Str => a
+                    .items
+                    .iter()
+                    .map(Value::as_text)
+                    .collect::<Vec<String>>()
+                    .join(" "),
+                Type::Lst(t) => match **t {
+                    Type::Num | Type::Str => a
+                        .items
+                        .iter()
+                        .map(Value::as_text)
+                        .collect::<Vec<String>>()
+                        .join("\n"),
+                    _ => panic!(
+                        "no acceptable text conversion for the last return type (deep array)"
+                    ),
+                },
+                _ => panic!(
+                    "no acceptable text conversion for the last return type (array of functions)"
+                ),
+            },
+            _ => panic!("no acceptable text conversion for the last return type (function)"),
+        }
+    }
 
-impl Typed for Value {
-    fn typed(&self) -> Type {
+    pub fn typed(&self) -> Type {
         match self {
             Value::Num(_) => Type::Num,
             Value::Str(_) => Type::Str,
-            Value::Arr(a) => Type::Arr(Box::new(a.has.clone())),
+            Value::Lst(a) => Type::Lst(Box::new(a.has.clone())),
             Value::Fun(f) => Type::Fun(Box::new(f.maps.0.clone()), Box::new(f.maps.1.clone())),
         }
     }
 
-    fn coerse(self, to: Type) -> Option<Value> {
+    pub fn coerse(self, to: Type) -> Option<Value> {
         if to == self.typed() {
             return Some(self.clone());
         }
@@ -124,58 +114,43 @@ impl Typed for Value {
                 Value::Num(v) => Some(Value::Str(v.to_string())),
                 _ => None,
             },
-            Type::Arr(ref t) if Type::Num == **t => match self {
-                Value::Str(v) => Some(Value::Arr(Array {
+            Type::Lst(ref t) if Type::Num == **t => match self {
+                Value::Str(v) => Some(Value::Lst(List {
                     has: Type::Num,
                     items: v.chars().map(|c| Value::Num((c as u32) as Number)).collect(),
                 })),
-                Value::Arr(v) => {
+                Value::Lst(v) => {
                     let may = v
                         .items
                         .into_iter()
                         .map(|i| i.coerse(Type::Num))
                         .collect::<Option<Vec<Value>>>();
                     match may {
-                        Some(items) => Some(Value::Arr(Array { has: *t.clone(), items })),
+                        Some(items) => Some(Value::Lst(List { has: *t.clone(), items })),
                         None => None,
                     }
                 }
                 _ => None,
             },
-            Type::Arr(ref t) if Type::Str == **t => match self {
-                Value::Str(v) => Some(Value::Arr(Array {
+            Type::Lst(ref t) if Type::Str == **t => match self {
+                Value::Str(v) => Some(Value::Lst(List {
                     has: Type::Str,
                     items: v.chars().map(|c| Value::Str(c.to_string())).collect(),
                 })),
-                Value::Arr(v) => {
+                Value::Lst(v) => {
                     let may = v
                         .items
                         .into_iter()
                         .map(|i| i.coerse(Type::Str))
                         .collect::<Option<Vec<Value>>>();
                     match may {
-                        Some(items) => Some(Value::Arr(Array { has: *t.clone(), items })),
+                        Some(items) => Some(Value::Lst(List { has: *t.clone(), items })),
                         None => None,
                     }
                 }
                 _ => None,
             },
             _ => None,
-        }
-    }
-}
-
-impl Apply for Value {
-    fn apply(self, arg: Value) -> Value {
-        match self {
-            Value::Fun(fun) => fun.apply(arg),
-
-            other => {
-                println!("value is not a function:");
-                println!("  applying argument: {}", arg.typed());
-                println!("         to a value: {}", other.typed());
-                panic!("type error");
-            }
         }
     }
 }
@@ -190,7 +165,7 @@ impl PartialEq for Type {
         match (self, other) {
             (Type::Num, Type::Num) => true,
             (Type::Str, Type::Str) => true,
-            (Type::Arr(a), Type::Arr(b)) => a == b,
+            (Type::Lst(a), Type::Lst(b)) => a == b,
             (Type::Fun(a, c), Type::Fun(b, d)) => a == b && c == d,
             (Type::Unk(a), Type::Unk(b)) => a == b, // YYY: ?
             (Type::Unk(_), _) => true,
@@ -205,7 +180,7 @@ impl fmt::Display for Type {
         match self {
             Type::Num => write!(f, "Num"),
             Type::Str => write!(f, "Str"),
-            Type::Arr(a) => write!(f, "[{a}]"),
+            Type::Lst(a) => write!(f, "[{a}]"),
             Type::Fun(a, b) => match **a {
                 Type::Fun(_, _) => write!(f, "({a}) -> {b}"),
                 _ => write!(f, "{a} -> {b}"),
@@ -220,14 +195,14 @@ impl fmt::Display for Value {
         match self {
             Value::Num(n) => write!(f, "{n}"),
             Value::Str(s) => write!(f, "{{{s}}}"),
-            Value::Arr(a) => write!(
+            Value::Lst(a) => write!(
                 f,
                 "@{{{}}}",
                 a.items
                     .iter()
                     .map(|v| match v {
                         Value::Str(s) => s.clone(),
-                        Value::Arr(_) => v.to_string()[1..].to_string(),
+                        Value::Lst(_) => v.to_string()[1..].to_string(),
                         _ => v.to_string(),
                     })
                     .collect::<Vec<String>>()
@@ -317,22 +292,22 @@ impl From<Value> for &str {
 
 impl<'a> FromIterator<&'a str> for Value {
     fn from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Self {
-        Value::Arr(Array {
+        Value::Lst(List {
             has: Type::Str,
             items: iter.into_iter().map(|s| Value::from(s)).collect(),
         })
     }
 }
 
-impl From<Array> for Value {
-    fn from(a: Array) -> Self {
-        Value::Arr(a)
+impl From<List> for Value {
+    fn from(a: List) -> Self {
+        Value::Lst(a)
     }
 }
-impl From<Value> for Array {
+impl From<Value> for List {
     fn from(v: Value) -> Self {
         match v {
-            Value::Arr(a) => a,
+            Value::Lst(a) => a,
             _ => unreachable!(),
         }
     }
@@ -346,7 +321,7 @@ impl From<Value> for Array {
 impl From<Value> for Vec<Value> {
     fn from(v: Value) -> Self {
         match v {
-            Value::Arr(a) => a.items,
+            Value::Lst(a) => a.items,
             _ => unreachable!(),
         }
     }
@@ -360,7 +335,7 @@ impl From<Vec<Number>> for Value {
 impl From<Value> for Vec<Number> {
     fn from(v: Value) -> Self {
         match v {
-            Value::Arr(a) => a.items.into_iter().map(|it| it.into()).collect(),
+            Value::Lst(a) => a.items.into_iter().map(|it| it.into()).collect(),
             _ => unreachable!(),
         }
     }
@@ -374,7 +349,7 @@ impl From<Vec<String>> for Value {
 impl From<Value> for Vec<String> {
     fn from(v: Value) -> Self {
         match v {
-            Value::Arr(a) => a.items.into_iter().map(|it| it.into()).collect(),
+            Value::Lst(a) => a.items.into_iter().map(|it| it.into()).collect(),
             _ => unreachable!(),
         }
     }
@@ -388,7 +363,7 @@ impl From<Vec<&str>> for Value {
 impl From<Value> for Vec<&str> {
     fn from(v: Value) -> Self {
         match v {
-            Value::Arr(a) => a.items.into_iter().map(|it| it.into()).collect(),
+            Value::Lst(a) => a.items.into_iter().map(|it| it.into()).collect(),
             _ => unreachable!(),
         }
     }

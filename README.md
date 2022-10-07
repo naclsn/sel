@@ -54,8 +54,15 @@ if not already present.
 Comments span from the first `#` of a line to the end of
 the line (`\n` character).
 
-A script is an expression, written with few kinds of
-tokens: operators, literals and words.
+A script is an expression usually describing a function
+from a string (eg. line) to another string.
+
+A main idea behind the language it to not be botherd with
+quoting when issuing a command through a POSIX shell. For
+example, the `()` (for delimitating an expression)
+are replaced with `[]`. Even though it seems this could
+trigger file name expansion, this only occures if it does
+not contain a space (which does not occure often).
 
 Operators are presented [here](#Operators). The exeptions
 to the syntax are the following:
@@ -87,8 +94,8 @@ typing language.
 The types are:
  - string (`Str`)
  - number (`Num`)
- - array of string or number (`[Str]` and `[Num]`)
- - functions (for example `Num -> Str`)
+ - list of strings or numbers (`[Str]` and `[Num]`)
+ - function (for example `Num -> Str`)
 
 Some examples of type definitions may look like the
 following:
@@ -107,8 +114,8 @@ Note the following implicit coersions:
 -------------|-------------|----------
  `Num`       | `Str`       | writes the number in decimal
  `Str`       | `Num`       | tries to parse the string as a number
- `Str`       | `[Num]`     | array of the Unicode codepoints
- `Str`       | `[Str]`     | array of the Unicode graphemes
+ `Str`       | `[Num]`     | list of the Unicode codepoints
+ `Str`       | `[Str]`     | list of the Unicode graphemes
 
 Coersion is attempted when an argument does not match
 the destination parameter. For example the two following
@@ -166,8 +173,8 @@ String literals are written between matching `{` and
 characters; for example `{a {b} c}` is a valid string
 contaning exactly `a {b} c`.
 
-There is no direct way to represent arrays. To obtain an
-array, the `@` operator (or [the underlying function]())
+There is no direct way to represent lists. To obtain an
+list, the `@` operator (or [the underlying function]())
 can be used. Here are some examples:
  expression                | yields (represented as JSON)
 ---------------------------|------------------------------
@@ -178,9 +185,9 @@ can be used. Here are some examples:
  `@{{1, 2}, {1:3}}`        | [[1, 2], [1, 2]]
  `@{text, 42, more}`       | ["text", "42", "more"]
 
-As shown in the last example, when parsing an array,
+As shown in the last example, when parsing an list,
 coersion to `Num` is attempted for every entries. If
-a single fails, the array is kept as an array of `Str`
+a single fails, the list is kept as an list of `Str`
 (see also: [coersion rules](#Coersion)).
 
 ## Prelude

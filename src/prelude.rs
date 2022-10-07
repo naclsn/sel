@@ -2,7 +2,7 @@ use dsl_macro_lib::val;
 use std::ops::Index;
 
 use crate::{
-    engine::{Apply, Array, Function, Number, Type, Typed, Value},
+    engine::{List, Function, Number, Type, Value},
     parser::{Binop, Unop},
 };
 
@@ -24,14 +24,14 @@ pub trait PreludeLookup {
         self.lookup(name).map(|it| (it.value)())
     }
 
-    fn lookup_unary(&self, un: Unop) -> Value {
+    fn lookup_unary(&self, un: Unop) -> Function {
         match un {
             Unop::Array => self.lookup_name("array".to_string()).unwrap(),
             Unop::Flip => self.lookup_name("flip".to_string()).unwrap(),
-        }
+        }.into()
     }
 
-    fn lookup_binary(&self, bin: Binop) -> Value {
+    fn lookup_binary(&self, bin: Binop) -> Function {
         // XXX: they are all flipped
         match bin {
             Binop::Addition => self.lookup_name("add".to_string()).unwrap(),
@@ -39,7 +39,7 @@ pub trait PreludeLookup {
             Binop::Multiplication => self.lookup_name("mul".to_string()).unwrap(),
             Binop::Division => self.lookup_name("div".to_string()).unwrap(),
             // Binop::Range          => self.lookup_name("range".to_string()).unwrap(),
-        }
+        }.into()
     }
 }
 
@@ -77,8 +77,8 @@ make_prelude! {
         "add two numbers"),
     (const :: a -> b -> a = |a: Value, _: Value| a;
         "always evaluate to its first argument, ignoring its second argument"),
-    (map :: (a -> b) -> [a] -> [b] = |f: Function, a: Array|
-        Array { // XXX: working with array is not perfect...
+    (map :: (a -> b) -> [a] -> [b] = |f: Function, a: List|
+        List { // XXX: working with list is not great because of having to manually carry the type
             has: a.has,
             items: a.items
                 .into_iter()
