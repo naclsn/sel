@@ -188,7 +188,11 @@ impl fmt::Display for Value {
                 "@{{{}}}",
                 a.items
                     .iter()
-                    .map(|v| v.to_string())
+                    .map(|v| match v {
+                        Value::Str(s) => s.clone(),
+                        Value::Arr(_) => v.to_string()[1..].to_string(),
+                        _ => v.to_string(),
+                    })
                     .collect::<Vec<String>>()
                     .join(", ")
             ),
