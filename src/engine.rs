@@ -39,7 +39,25 @@ pub struct Function {
 }
 
 impl Apply for Function {
-    fn apply(self, arg: Value) -> Value { todo!("not sure") }
+    fn apply(mut self, arg: Value) -> Value {
+        let given_type = arg.typed();
+
+        // YYY: can have a 'no auto coerse' flag for functions like `tonum` and `tostr`
+        match arg.coerse(self.maps.0.clone()) {
+            None => {
+                println!("wrong type of argument for function:");
+                println!("    applying argument: {}", given_type);
+                println!("  to function mapping: {} to {}", self.maps.0, self.maps.1);
+                println!("no valid implicit conversion between the two types");
+                panic!("type error");
+            }
+
+            Some(correct) => {
+                self.args.push(correct);
+                (self.func)(self)
+            }
+        }
+    }
 }
 
 pub trait Apply {
@@ -112,25 +130,8 @@ impl Typed for Value {
 
 impl Apply for Value {
     fn apply(self, arg: Value) -> Value {
-        let self_type = self.typed();
-        let arg_type = arg.typed();
         match self {
-
-            // move to impl for Function
-            Value::Fun(mut fun) => match arg.coerse(fun.maps.0.clone()) { // YYY: may have a 'no auto coerse' flag for functions like `tonum` and `tostr`
-                None => {
-                    println!("wrong type of argument for function:");
-                    println!("  applying argument: {}", arg_type);
-                    println!("        to function: {}", self_type);
-                    println!("no valid implicit conversion between the two types");
-                    panic!("type error");
-                }
-
-                Some(correct) => {
-                    fun.args.push(correct);
-                    (fun.func)(fun)
-                }
-            },
+            Value::Fun(fun) => fun.apply(arg),
 
             other => {
                 println!("value is not a function:");
@@ -138,7 +139,6 @@ impl Apply for Value {
                 println!("         to a value: {}", other.typed());
                 panic!("type error");
             }
-
         }
     }
 }
@@ -263,7 +263,7 @@ impl From<Value> for &str {
 }
 
 impl FromIterator<Value> for Value {
-    fn from_iter<T: IntoIterator<Item = Value>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item = Value>>(_iter: T) -> Self {
         todo!()
     }
 }
@@ -342,7 +342,7 @@ impl From<Function> for Value {
     }
 }
 impl From<Value> for Function {
-    fn from(v: Value) -> Self {
+    fn from(_v: Value) -> Self {
         todo!()
     }
 }

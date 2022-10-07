@@ -7,7 +7,6 @@ use std::{env, io::stdin};
 mod engine;
 mod parser;
 mod prelude;
-mod dsl_playground;
 
 fn main() {
     let app = parse_string(&env::args().skip(1).collect::<Vec<String>>().join(" ")).result();

@@ -1,6 +1,6 @@
 use std::ops::Index;
 
-use crate::engine::{Apply, Array, Function, Type, Typed, Value, Number};
+use crate::engine::{Apply, Array, Function, Number, Type, Typed, Value};
 
 use dsl_macro_lib::val;
 
@@ -13,6 +13,7 @@ macro_rules! named_val {
     };
 }
 
+#[rustfmt::skip]
 fn _crap() -> Vec<(String, String, Value)> {
     vec![
 
@@ -34,6 +35,5 @@ fn _crap() -> Vec<(String, String, Value)> {
 
         named_val!(pi :: Num = 3.14),
         named_val!(idk :: [Num] = [1.0, 1.0, 2.0, 3.0, 5.0, 8.0]),
-
     ]
 }
