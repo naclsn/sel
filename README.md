@@ -1,7 +1,18 @@
 Yet an other `awk`-ish command line tool, with a
 (point-free) functional approach.
 
-## Overview
+- [Overview](#Overview)
+  - [Getting Sfarted](#Getting%20Sfarted)
+- [Details](#Details)
+  - [Syntax](#Syntax)
+  - [Type System](#Type%20System)
+    - [Coersion](#Coersion)
+  - [Operators](#Operators)
+  - [Literals](#Literals)
+  - [Prelude](#Prelude)
+- [Library](#Library)
+
+# Overview
 
 Similarly to commands such as `awk`, `sed` or `perl
 -pe`/`perl -ne`, `sel` takes a script to apply to its
@@ -22,9 +33,13 @@ $ seq 17 42 | target/release/sel [...idk...]
 41
 ```
 
+## Command Usage
+
+(flags (check, lookup/search, ..))
+
 ---
 
-## Details
+# Details
 
 The provided script defines an operation which is applied
 on each line (by default, see [recurse]()). As such,
@@ -33,7 +48,7 @@ Note that the ending newline character (`\n` most of the
 time) is removed before input and re-appended to the output
 if not already present.
 
-### Syntax
+## Syntax
 
 Comments span from the first `#` of a line to the end of
 the line (`\n` character).
@@ -63,7 +78,7 @@ Finally words are made of the 26 lower case letters from
 a to z included. A word will always be looked up for its
 value in the [prelude](#Prelude).
 
-### Type System
+## Type System
 
 The representation of types uses a subset of Haskell's
 typing language.
@@ -84,13 +99,15 @@ map :: (a -> b) -> [a] -> [b]
 In type definitions, lower case words mean the type may
 be any, only known at run time.
 
+### Coersion
+
 Note the following implicit coersions:
  actual type | destination | behavior
 -------------|-------------|----------
  `Num`       | `Str`       | writes the number in decimal
  `Str`       | `Num`       | tries to parse the string as a number
- `Str`       | `[Num]`     | array of the Unicode [codepoints]()
- `Str`       | `[Str]`     | array of the Unicode [characters]()
+ `Str`       | `[Num]`     | array of the Unicode codepoints
+ `Str`       | `[Str]`     | array of the Unicode graphemes
 
 Coersion is attempted when an argument does not match
 the destination parameter. For example the two following
@@ -106,7 +123,7 @@ Conditions (boolean values) may be represented with the
 `Num` type. In that case 0 means false, any other value
 means true.
 
-### Operators
+## Operators
 
 A set of "binary" and "unary" operators is defined.
 Although this they are just aliases to functions in the
@@ -133,38 +150,42 @@ The following tokens are used as operators:
  `@`   | `` // (parse)
  `^`   | `` // (reserved)
 
-### Literals
+## Literals
 
-<!--
-The syntax is somewhere around `a, b, c` where each can
-be an item or a range; so for example:
- in `{}`                | yields
-------------------------|--------
- `1, 2, 3`              | json [1, 2, 3]
- `1, 5:9`               | json [1, 5, 6, 7, 8]
- `1, 9:5`               | json [1, 9, 8, 7, 6] -- idk about end-point
- `this, is, some, text` | json ["this", "is", "some", "text"]
- `text, 42, more`       | json ["text", 42, "more"]
+Numeric literals comes in two forms: integer and floating
+points. Both are expressed using the charaters `0` to `9`,
+with `.` as the decimal separator. The floating point
+notation needs the leading 0; `.5` will effectively be
+desugared as `[flip mul] 5`. It is not possible to express
+a negative value literally. To obtain such a value, the
+`sub 0` function can be used.
 
-When the text cannot be parsed as a number, it is a
-string. In this case spaces at its begining and end are
-trimmed. Similarly, a string containing a `:` is only
-converted to a range if both ends are valid numbers. (But
-then this is just the same as keeping every element not
-range a string, right? because string a converted to
-numbers whenever needed?)
+String literals are written between matching `{` and
+`}`. A string literal can contain matched pairs of these
+characters; for example `{a {b} c}` is a valid string
+contaning exactly `a {b} c`.
 
-Also, on the parse level, a `{}` literal can contain a `}`
-and be valid if it had a matching `{` before it:
- input source         | note
-----------------------|------
- {hello {some} world} | valid
- {bla } bla}          | invalid (or rather, the string stops on the first `}`)
- {bla { bla}          | invalid (because it is looking for a closing `}`)
+There is no direct way to represent arrays. To obtain an
+array, the `@` operator (or [the underlying function]())
+can be used. Here are some examples:
+ expression                | yields (represented as JSON)
+---------------------------|------------------------------
+ `@{1, 2, 3}`              | [1, 2, 3]
+ `@{1, 5:9}`               | [1, 5, 6, 7, 8]
+ `@{1, 9:5}`               | [1, 9, 8, 7, 6]
+ `@{this, is, some, text}` | ["this", "is", "some", "text"]
+ `@{{1, 2}, {1:3}}`        | [[1, 2], [1, 2]]
+ `@{text, 42, more}`       | ["text", "42", "more"]
 
-Having matching paris `{}` in literals allow for nested array definition
--->
+As shown in the last example, when parsing an array,
+coersion to `Num` is attempted for every entries. If
+a single fails, the array is kept as an array of `Str`
+(see also: [coersion rules](#Coersion)).
 
-### Prelude
+## Prelude
 
 (naming rules)
+
+# Library
+
+(features (unicode-segmentation))
