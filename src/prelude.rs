@@ -2,7 +2,7 @@ use dsl_macro_lib::val;
 use std::ops::Index;
 
 use crate::{
-    engine::{List, Function, Number, Type, Value},
+    engine::{Function, List, Number, Type, Value},
     parser::{Binop, Unop},
 };
 
@@ -18,7 +18,10 @@ pub struct PreludeEntry {
 }
 
 pub trait PreludeLookup {
-    fn lookup(&self, name: String) -> Option<&PreludeEntry>;
+    fn list(&self) -> Vec<&PreludeEntry>;
+    fn lookup(&self, name: String) -> Option<&PreludeEntry> {
+        self.list().into_iter().find(|it| it.name == name)
+    }
 
     fn lookup_name(&self, name: String) -> Option<Value> {
         self.lookup(name).map(|it| (it.value)())
@@ -28,7 +31,8 @@ pub trait PreludeLookup {
         match un {
             Unop::Array => self.lookup_name("array".to_string()).unwrap(),
             Unop::Flip => self.lookup_name("flip".to_string()).unwrap(),
-        }.into()
+        }
+        .into()
     }
 
     fn lookup_binary(&self, bin: Binop) -> Function {
@@ -39,7 +43,8 @@ pub trait PreludeLookup {
             Binop::Multiplication => self.lookup_name("mul".to_string()).unwrap(),
             Binop::Division => self.lookup_name("div".to_string()).unwrap(),
             // Binop::Range          => self.lookup_name("range".to_string()).unwrap(),
-        }.into()
+        }
+        .into()
     }
 }
 
@@ -48,6 +53,10 @@ macro_rules! make_prelude {
         struct _Prelude(Vec<PreludeEntry>);
 
         impl PreludeLookup for _Prelude {
+            fn list(&self) -> Vec<&PreludeEntry> {
+                self.0.iter().collect()
+            }
+
             fn lookup(&self, name: String) -> Option<&PreludeEntry> {
                 self.0
                     .binary_search_by_key(&name.as_str(), |t| t.name)

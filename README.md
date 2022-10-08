@@ -59,10 +59,11 @@ from a string (eg. line) to another string.
 
 A main idea behind the language it to not be botherd with
 quoting when issuing a command through a POSIX shell. For
-example, the `()` (for delimitating an expression)
-are replaced with `[]`. Even though it seems this could
-trigger file name expansion, this only occures if it does
-not contain a space (which does not occure often).
+example, delimitating an expression (usually done with
+`()`) here uses `[]`. Even though it seems this could
+trigger file name expansion, this only occures if it
+does not contain a space (and expressions within `[]`
+will often contain spaces).
 
 Operators are presented [here](#Operators). The exeptions
 to the syntax are the following:

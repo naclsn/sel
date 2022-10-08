@@ -1,9 +1,7 @@
 use std::{env, io::stdin};
 
-use parser::Application;
-
 use crate::{
-    parser::parse_string,
+    parser::{parse_string, Application},
     prelude::{get_prelude, PreludeLookup},
 };
 

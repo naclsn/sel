@@ -184,8 +184,9 @@ impl FromIterator<Value> for Application {
                         println!("trying to build an application from functions,");
                         println!("but got: {other}");
                         panic!("type error");
-                    },
-                }).collect(),
+                    }
+                })
+                .collect(),
             env: (),
         }
     }
