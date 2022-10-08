@@ -1,6 +1,7 @@
 use std::{env, io::stdin};
 
 use crate::{
+    engine::Type,
     parser::{parse_string, Application},
     prelude::{get_prelude, PreludeLookup},
 };
@@ -26,6 +27,9 @@ fn process(script: String, check_only: bool) {
     let app: Application = parse_string(&script, prelude).collect();
 
     if check_only {
+        let in_type = app.funcs.first().unwrap();
+        let out_type = app.funcs.last().unwrap();
+        println!(":: {}", Type::Fun(Box::new(in_type.maps.0.clone()), Box::new(out_type.maps.1.clone())));
         return;
     }
 
@@ -57,7 +61,12 @@ fn main() {
             args.skip(1)
                 .next()
                 .map(lookup)
-                .or_else(|| Some(println!("missing name to lookup in the prelude")));
+                .or_else(|| {
+                    for it in get_prelude().list() {
+                        println!("{} :: {}", it.name, it.typedef);
+                    }
+                    Some(())
+                });
             return;
         }
         _ => (),

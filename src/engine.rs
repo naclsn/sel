@@ -67,25 +67,25 @@ impl Value {
             Value::Num(n) => n.to_string(),
             Value::Str(s) => s.to_string(),
             Value::Lst(a) => match &a.has {
-                Type::Num | Type::Str => a
+                Type::Num | Type::Str | Type::Unk(_) => a // XXX: list of unk
                     .items
                     .iter()
                     .map(Value::as_text)
                     .collect::<Vec<String>>()
                     .join(" "),
                 Type::Lst(t) => match **t {
-                    Type::Num | Type::Str => a
+                    Type::Num | Type::Str | Type::Unk(_) => a // XXX: list of unk
                         .items
                         .iter()
                         .map(Value::as_text)
                         .collect::<Vec<String>>()
                         .join("\n"),
                     _ => panic!(
-                        "no acceptable text conversion for the last return type (deep array)"
+                        "no acceptable text conversion for the last return type (deep list)"
                     ),
                 },
                 _ => panic!(
-                    "no acceptable text conversion for the last return type (array of functions)"
+                    "no acceptable text conversion for the last return type (list of functions)"
                 ),
             },
             _ => panic!("no acceptable text conversion for the last return type (function)"),
@@ -114,7 +114,7 @@ impl Value {
                 Value::Num(v) => Some(Value::Str(v.to_string())),
                 _ => None,
             },
-            Type::Lst(ref t) if Type::Num == **t => match self {
+            Type::Lst(t) if Type::Num == *t => match self {
                 Value::Str(v) => Some(Value::Lst(List {
                     has: Type::Num,
                     items: v
@@ -138,7 +138,7 @@ impl Value {
                 }
                 _ => None,
             },
-            Type::Lst(ref t) if Type::Str == **t => match self {
+            Type::Lst(t) if Type::Str == *t => match self {
                 Value::Str(v) => Some(Value::Lst(List {
                     has: Type::Str,
                     items: v.chars().map(|c| Value::Str(c.to_string())).collect(),
@@ -148,6 +148,23 @@ impl Value {
                         .items
                         .into_iter()
                         .map(|i| i.coerse(Type::Str))
+                        .collect::<Option<Vec<Value>>>();
+                    match may {
+                        Some(items) => Some(Value::Lst(List {
+                            has: *t.clone(),
+                            items,
+                        })),
+                        None => None,
+                    }
+                }
+                _ => None,
+            },
+            Type::Lst(t) => match self {
+                Value::Lst(v) => {
+                    let may = v
+                        .items
+                        .into_iter()
+                        .map(|i| i.coerse(*t.clone()))
                         .collect::<Option<Vec<Value>>>();
                     match may {
                         Some(items) => Some(Value::Lst(List {
@@ -252,8 +269,6 @@ impl fmt::Debug for Function {
     }
 }
 
-// TODO: all of them and a bit more (more macro anyone?)
-
 macro_rules! impl_from_into_value {
     ($type:ident <-> $other:ty: from: $from:expr; into: $into:expr;) => {
         impl From<$other> for Value {
@@ -285,7 +300,7 @@ macro_rules! impl_from_into_value {
         impl IntoIterator for Value {
             type Item = $other;
             type IntoIter = T
-                where T: Iterator<Item=Self::Item>;
+                where T: Iterator<Item=Self::Item>; // pain in the but
             fn into_iter(self) -> Self::IntoIter {
                 match self {
                     Value::Lst(u) if Type::$type == u.has => ($into)(u.items),
@@ -307,7 +322,7 @@ impl_from_into_value! { Str <-> String:
 }
 impl_from_into_value! { Str <-> &str:
     from: |o: &str| o.to_string();
-    into: |_u| todo!();
+    into: |_u: String| todo!("&str from String");
 }
 
 impl_from_into_value! { Lst <-> Vec<Number>:
@@ -336,6 +351,7 @@ impl_from_into_value! { Fun <-> Function:
 // impl FromIterator<Value> for Value {
 //     fn from_iter<T: IntoIterator<Item = Value>>(_iter: T) -> Self {
 //         todo!() // XXX: still will not be able to infer the contained type!
+//         // see discusion about it next commented-out 'From'
 //     }
 // }
 
@@ -381,6 +397,11 @@ impl IntoIterator for Value {
 // impl From<Vec<Value>> for Value {
 //     fn from(_: Vec<Value>) -> Self {
 //         todo!() // XXX: still will not be able to infer the contained type!
+//         // could: if vec not empty, infer type from content
+//         //        else use a wildcard type (Unk?) in a way that it does not matter
+//         // note that it could simply be `has: Type::Unk("")` and rely on coersion
+//         // when the vector is indeed empty...
+//         // a question is does using a place-holder type fundamentaly breaks something else...
 //     }
 // }
 impl From<Value> for Vec<Value> {

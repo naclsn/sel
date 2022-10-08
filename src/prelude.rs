@@ -1,5 +1,5 @@
 use dsl_macro_lib::val;
-use std::ops::Index;
+use std::{ops::Index, iter};
 
 use crate::{
     engine::{Function, List, Number, Type, Value},
@@ -86,266 +86,41 @@ make_prelude! {
         "add two numbers"),
     (const :: a -> b -> a = |a: Value, _: Value| a;
         "always evaluate to its first argument, ignoring its second argument"),
+    (id :: a -> a = |a: Value| a;
+        "the identity function, returns its input"),
+    (join :: Str -> [Str] -> Str = |sep: String, a: Vec<String>| a.join(sep.as_str());
+        "join a list of string with a separator between entries"),
     (map :: (a -> b) -> [a] -> [b] = |f: Function, a: List|
         List { // XXX: working with list is not great because of having to manually carry the type
-            has: a.has,
+            has: f.maps.1.clone(), // for example here the type if of f.maps.1, which might be Unk...
             items: a.items
                 .into_iter()
                 .map(|v| f.clone().apply(v))
                 .collect(),
         };
         "make a new list by applying a function to each value from a list"),
+    (replicate :: Num -> a -> [a] = |n: Number, a: Value|
+        List {
+            has: a.typed(),
+            items: iter::repeat(a).take(n as usize).collect(),
+        };
+        "replicate a finite amount of copies of the same value"),
+    (reverse :: [a] -> [a] = |a: List|
+        List {
+            has: a.has,
+            items: a.items.into_iter().rev().collect(),
+        };
+        "reverse the order of the elements in the list"),
+    (singleton :: a -> [a] = |a: Value|
+        List {
+            has: a.typed(),
+            items: vec![a],
+        };
+        "make a list of an item"),
     (split :: Str -> Str -> [Str] = |sep: String, s: String| s.split(&sep).collect::<Value>();
         "break a string into pieces separated by the argument, consuming the delimiter"),
+    (tonum :: Str -> Num = |s: String| s.parse::<Number>().unwrap_or(0.0);
+        "convert a string into number"),
+    (tostr :: Num -> Str = |n: String| n.to_string();
+        "convert a number into string"),
 }
-
-// TODO: using dsl_macro_lib::val
-// lazy_static! { static ref LU: [(&'static str, Function); 11] = [
-
-//     ("add", Function { // Num -> Num -> Num
-//         name: "add".to_string(),
-//         maps: (
-//             Type::Num,
-//             Type::Fun(Box::new(Type::Num), Box::new(Type::Num))
-//         ),
-//         args: vec![],
-//         func: |this| {
-//             Value::Fun(Function {
-//                 name: this.name,
-//                 maps: (
-//                     Type::Num,
-//                     Type::Num
-//                 ),
-//                 args: this.args,
-//                 func: |this| {
-//                     let_sure!{ [Value::Num(a), Value::Num(b)] = this.args[..2];
-//                     Value::Num(a+b) }
-//                 }
-//             })
-//         },
-//     }),
-
-//     ("const", Function { // a -> b -> a
-//         name: "const".to_string(),
-//         maps: (
-//             Type::Unk("a".to_string()),
-//             Type::Fun(
-//                 Box::new(Type::Unk("b".to_string())),
-//                 Box::new(Type::Unk("a".to_string()))
-//             )
-//         ),
-//         args: vec![],
-//         func: |this| {
-//             Value::Fun(Function {
-//                 name: this.name,
-//                 maps: (
-//                     Type::Unk("b".to_string()),
-//                     this.args[0].typed()
-//                 ),
-//                 args: this.args,
-//                 func: |this| this.args[0].clone(),
-//             })
-//         },
-//     }),
-
-//     ("id", Function { // a -> a
-//         name: "id".to_string(),
-//         maps: (Type::Unk("a".to_string()), Type::Unk("a".to_string())),
-//         args: vec![],
-//         func: |this| this.args[0].clone(),
-//     }),
-
-//     ("join", Function { // Str -> [Str] -> Str
-//         name: "join".to_string(),
-//         maps: (
-//             Type::Str,
-//             Type::Fun(
-//                 Box::new(Type::Arr(Box::new(Type::Str))),
-//                 Box::new(Type::Str)
-//             )
-//         ),
-//         args: vec![],
-//         func: |this| {
-//             Value::Fun(Function {
-//                 name: this.name,
-//                 maps: (
-//                     Type::Arr(Box::new(Type::Str)),
-//                     Type::Str
-//                 ),
-//                 args: this.args,
-//                 func: |this| {
-//                     let_sure!{ [Value::Str(c), Value::Arr(a)] = &this.args[..2];
-//                     Value::Str(a.items
-//                         .iter()
-//                         .map(|i| {
-//                             let_sure!{ Value::Str(s) = i;
-//                             s.clone() }
-//                         })
-//                         .collect::<Vec<String>>()
-//                         .join(c.as_str())
-//                     ) }
-//                 }
-//             })
-//         }
-//     }),
-
-//     ("map", Function { // (a -> b) -> [a] -> [b]
-//         name: "map".to_string(),
-//         maps: (
-//             Type::Fun(
-//                 Box::new(Type::Unk("a".to_string())),
-//                 Box::new(Type::Unk("b".to_string()))
-//             ),
-//             Type::Fun(
-//                 Box::new(Type::Arr(Box::new(Type::Unk("a".to_string())))),
-//                 Box::new(Type::Arr(Box::new(Type::Unk("b".to_string()))))
-//             )
-//         ),
-//         args: vec![],
-//         func: |this| {
-//             let_sure!{ Type::Fun(typea, typeb) = this.args.index(0).typed();
-//             Value::Fun(Function { // [a] -> [b]
-//                 name: this.name,
-//                 maps: (
-//                     Type::Arr(typea),
-//                     Type::Arr(typeb)
-//                 ),
-//                 args: this.args,
-//                 func: |this| {
-//                     let mut arg_iter = this.args.into_iter();
-//                     match (this.maps, (arg_iter.next(), arg_iter.next())) {
-//                         ((_, Type::Arr(typeb)), (Some(f), Some(Value::Arr(a)))) =>
-//                             Value::Arr(Array { // [b]
-//                                 has: *typeb,
-//                                 items: a.items
-//                                     .into_iter()
-//                                     .map(|i| f.clone().apply(i))
-//                                     .collect()
-//                             }),
-//                         _ => unreachable!(),
-//                     }
-//                 }
-//             }) }
-//         },
-//     }),
-
-//     ("replicate", Function { // Num -> a -> Str // ok, was 'replicate'
-//         name: "replicate".to_string(),
-//         maps: (
-//             Type::Num,
-//             Type::Fun(
-//                 Box::new(Type::Unk("a".to_string())),
-//                 Box::new(Type::Arr(Box::new(Type::Unk("a".to_string()))))
-//             )
-//         ),
-//         args: vec![],
-//         func: |this| {
-//             Value::Fun(Function {
-//                 name: this.name,
-//                 maps: (
-//                     Type::Unk("a".to_string()),
-//                     Type::Arr(Box::new(Type::Unk("a".to_string())))
-//                 ),
-//                 args: this.args,
-//                 func: |this| {
-//                     let mut args_iter = this.args.into_iter();
-//                     let_sure!{ (Some(Value::Num(n)), Some(o)) = (args_iter.next(), args_iter.next());
-//                     Value::Arr(Array {
-//                         has: o.typed(),
-//                         items: vec![o; n as usize]
-//                     }) }
-//                 },
-//             })
-//         },
-//     }),
-
-//     ("reverse", Function { // [a] -> [a]
-//         name: "reverse".to_string(),
-//         maps: (
-//             Type::Arr(Box::new(Type::Unk("a".to_string()))),
-//             Type::Arr(Box::new(Type::Unk("a".to_string())))
-//         ),
-//         args: vec![],
-//         func: |this| {
-//             let crap = this.args.into_iter().next(); // YYY: interesting
-//             match crap {
-//                 Some(Value::Arr(v)) => {
-//                     Value::Arr(Array {
-//                         has: v.has,
-//                         items: v.items
-//                             .into_iter()
-//                             .rev()
-//                             .collect()
-//                     })
-//                 },
-//                 _ => panic!("type error"),
-//             }
-//         },
-//     }),
-
-//     ("singleton", Function { // a -> [a]
-//         name: "singleton".to_string(),
-//         maps: (
-//             Type::Unk("a".to_string()),
-//             Type::Arr(Box::new(Type::Unk("a".to_string())))
-//         ),
-//         args: vec![],
-//         func: |this| Value::Arr(Array { has: this.args[0].typed(), items: this.args }),
-//     }),
-
-//     ("split", Function { // Str -> Str -> [Str]
-//         name: "split".to_string(),
-//         maps: (
-//             Type::Str,
-//             Type::Fun(
-//                 Box::new(Type::Str),
-//                 Box::new(Type::Arr(Box::new(Type::Str)))
-//             )
-//         ),
-//         args: vec![],
-//         func: |this| {
-//             Value::Fun(Function {
-//                 name: this.name,
-//                 maps: (
-//                     Type::Str,
-//                     Type::Arr(Box::new(Type::Str))
-//                 ),
-//                 args: this.args,
-//                 func: |this| {
-//                     match (&this.args[0], &this.args[1]) {
-//                         (Value::Str(c), Value::Str(s)) =>
-//                             Value::Arr(Array {
-//                                 has: Type::Str,
-//                                 items: s
-//                                     .split(c)
-//                                     .map(|u| Value::Str(u.to_string()))
-//                                     .collect()
-//                             }),
-//                         _ => panic!("type error"),
-//                     }
-//                 }
-//             })
-//         },
-//     }),
-
-//     ("tonum", Function { // Str -> Num
-//         name: "tonum".to_string(),
-//         maps: (Type::Str, Type::Num),
-//         args: vec![],
-//         func: |this| {
-//             let_sure!{ Value::Str(c) = &this.args[0];
-//             Value::Num(c.parse().unwrap_or(0.0)) }
-//         },
-//     }),
-
-//     ("tostr", Function { // Num -> Str // should probably be a -> Str
-//         name: "tostr".to_string(),
-//         maps: (Type::Num, Type::Str),
-//         args: vec![],
-//         func: |this| {
-//             let_sure!{ Value::Num(a) = &this.args[0];
-//             Value::Str(a.to_string()) }
-//         },
-//     }),
-
-// ]; }
