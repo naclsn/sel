@@ -1,4 +1,4 @@
-use std::{fmt, vec};
+use std::{fmt, slice::Iter, vec};
 
 // NOTE: `Debug` is kept for rust-level debugging,
 //       `Display` is used for sel-level debugging
@@ -28,7 +28,8 @@ pub type Number = f32;
 #[derive(Debug, Clone)]
 pub struct List {
     pub has: Type,
-    pub items: Vec<Value>,
+    #[deprecated]
+    items: Vec<Value>,
 }
 
 // YYY: more private fields
@@ -36,8 +37,50 @@ pub struct List {
 pub struct Function {
     pub name: String,
     pub maps: (Type, Type),
-    pub args: Vec<Value>,
-    pub func: fn(Function) -> Value,
+    pub args: Vec<Value>,            // YYY: would like it private
+    pub func: fn(Function) -> Value, // YYY: would like it private (maybe `fn(Function, Vec<Value>) -> Value`)
+}
+
+impl List {
+    pub fn new<T: Iterator<Item = Value>>(has: Type, items: T) -> List {
+        List {
+            has,
+            items: items.collect(),
+        } // ZZZ: rip
+    }
+
+    pub fn iter(&self) -> Iter<'_, Value> {
+        self.items.iter()
+    }
+}
+
+pub struct ListIter {
+    it: vec::IntoIter<Value>,
+}
+
+impl Iterator for ListIter {
+    type Item = Value;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.it.next()
+    }
+}
+
+impl DoubleEndedIterator for ListIter {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.it.next_back()
+    }
+}
+
+impl IntoIterator for List {
+    type Item = Value;
+    type IntoIter = ListIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        ListIter {
+            it: self.items.into_iter(),
+        }
+    }
 }
 
 impl Function {
@@ -68,21 +111,19 @@ impl Value {
             Value::Str(s) => s.to_string(),
             Value::Lst(a) => match &a.has {
                 Type::Num | Type::Str | Type::Unk(_) => a // XXX: list of unk
-                    .items
                     .iter()
                     .map(Value::as_text)
-                    .collect::<Vec<String>>()
+                    .collect::<Vec<String>>() // ZZZ: inf hang
                     .join(" "),
                 Type::Lst(t) => match **t {
                     Type::Num | Type::Str | Type::Unk(_) => a // XXX: list of unk
-                        .items
                         .iter()
                         .map(Value::as_text)
-                        .collect::<Vec<String>>()
+                        .collect::<Vec<String>>() // ZZZ: inf hang
                         .join("\n"),
-                    _ => panic!(
-                        "no acceptable text conversion for the last return type (deep list)"
-                    ),
+                    _ => {
+                        panic!("no acceptable text conversion for the last return type (deep list)")
+                    }
                 },
                 _ => panic!(
                     "no acceptable text conversion for the last return type (list of functions)"
@@ -115,69 +156,43 @@ impl Value {
                 _ => None,
             },
             Type::Lst(t) if Type::Num == *t => match self {
-                Value::Str(v) => Some(Value::Lst(List {
-                    has: Type::Num,
-                    items: v
-                        .chars()
-                        .map(|c| Value::Num((c as u32) as Number))
-                        .collect(),
-                })),
-                Value::Lst(v) => {
-                    let may = v
-                        .items
-                        .into_iter()
-                        .map(|i| i.coerse(Type::Num))
-                        .collect::<Option<Vec<Value>>>();
-                    match may {
-                        Some(items) => Some(Value::Lst(List {
-                            has: *t.clone(),
-                            items,
-                        })),
-                        None => None,
-                    }
-                }
+                Value::Str(v) => Some(Value::Lst(List::new(
+                    Type::Num,
+                    v.chars().map(|c| Value::Num((c as u32) as Number)),
+                ))),
+                Value::Lst(v) => Some(Value::Lst(List::new(
+                    *t.clone(),
+                    v.into_iter().map(|it| it.coerse_or_keep(Type::Num)),
+                ))),
+
                 _ => None,
             },
             Type::Lst(t) if Type::Str == *t => match self {
-                Value::Str(v) => Some(Value::Lst(List {
-                    has: Type::Str,
-                    items: v.chars().map(|c| Value::Str(c.to_string())).collect(),
-                })),
-                Value::Lst(v) => {
-                    let may = v
-                        .items
-                        .into_iter()
-                        .map(|i| i.coerse(Type::Str))
-                        .collect::<Option<Vec<Value>>>();
-                    match may {
-                        Some(items) => Some(Value::Lst(List {
-                            has: *t.clone(),
-                            items,
-                        })),
-                        None => None,
-                    }
-                }
+                Value::Str(v) => Some(Value::Lst(List::new(
+                    Type::Str,
+                    v.chars().map(|c| Value::Str(c.to_string())),
+                ))),
+                Value::Lst(v) => Some(Value::Lst(List::new(
+                    *t.clone(),
+                    v.into_iter().map(|it| it.coerse_or_keep(Type::Str)),
+                ))),
                 _ => None,
             },
             Type::Lst(t) => match self {
-                Value::Lst(v) => {
-                    let may = v
-                        .items
-                        .into_iter()
-                        .map(|i| i.coerse(*t.clone()))
-                        .collect::<Option<Vec<Value>>>();
-                    match may {
-                        Some(items) => Some(Value::Lst(List {
-                            has: *t.clone(),
-                            items,
-                        })),
-                        None => None,
-                    }
-                }
+                Value::Lst(v) => Some(Value::Lst(List::new(
+                    *t.clone(),
+                    v.into_iter().map(|it| it.coerse_or_keep(*t.clone())),
+                ))),
                 _ => None,
             },
             _ => None,
-        }
+        } // match to
+    } // fn coerse
+
+    /*pub?*/
+    fn coerse_or_keep(self, to: Type) -> Value {
+        let backup = self.clone(); // could avoid this by failing early
+        self.coerse(to).unwrap_or(backup)
     }
 }
 
@@ -224,8 +239,7 @@ impl fmt::Display for Value {
             Value::Lst(a) => write!(
                 f,
                 "@{{{}}}",
-                a.items
-                    .iter()
+                a.iter()
                     .map(|v| match v {
                         Value::Str(s) => s.clone(),
                         Value::Lst(_) => v.to_string()[1..].to_string(),
@@ -326,16 +340,16 @@ impl_from_into_value! { Str <-> &str:
 }
 
 impl_from_into_value! { Lst <-> Vec<Number>:
-    from: |o: Vec<Number>| List { has: Type::Num, items: o.into_iter().map(Value::from).collect() };
-    into: |u: List| u.items.into_iter().map(Number::from).collect();
+    from: |o: Vec<Number>| List::new(Type::Num, o.into_iter().map(Value::from));
+    into: |u: List| u.into_iter().map(Number::from).collect();
 }
 impl_from_into_value! { Lst <-> Vec<String>:
-    from: |o: Vec<String>| List { has: Type::Num, items: o.into_iter().map(Value::from).collect() };
-    into: |u: List| u.items.into_iter().map(String::from).collect();
+    from: |o: Vec<String>| List::new(Type::Num, o.into_iter().map(Value::from));
+    into: |u: List| u.into_iter().map(String::from).collect();
 }
 impl_from_into_value! { Lst <-> Vec<&str>:
-    from: |o: Vec<&str>| List { has: Type::Num, items: o.into_iter().map(Value::from).collect() };
-    into: |u: List| u.items.into_iter().map(|i| i.into()).collect();
+    from: |o: Vec<&str>| List::new(Type::Num, o.into_iter().map(Value::from));
+    into: |u: List| u.into_iter().map(|i| i.into()).collect();
 }
 
 impl_from_into_value! { Lst <-> List:
@@ -357,38 +371,29 @@ impl_from_into_value! { Fun <-> Function:
 
 impl FromIterator<Number> for Value {
     fn from_iter<T: IntoIterator<Item = Number>>(iter: T) -> Self {
-        Value::Lst(List {
-            has: Type::Num,
-            items: iter.into_iter().map(Value::from).collect(),
-        })
+        Value::Lst(List::new(Type::Num, iter.into_iter().map(Value::from)))
     }
 }
 
 impl FromIterator<String> for Value {
     fn from_iter<T: IntoIterator<Item = String>>(iter: T) -> Self {
-        Value::Lst(List {
-            has: Type::Str,
-            items: iter.into_iter().map(Value::from).collect(),
-        })
+        Value::Lst(List::new(Type::Str, iter.into_iter().map(Value::from)))
     }
 }
 
 impl<'a> FromIterator<&'a str> for Value {
     fn from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Self {
-        Value::Lst(List {
-            has: Type::Str,
-            items: iter.into_iter().map(Value::from).collect(),
-        })
+        Value::Lst(List::new(Type::Str, iter.into_iter().map(Value::from)))
     }
 }
 
 impl IntoIterator for Value {
     type Item = Value;
-    type IntoIter = vec::IntoIter<Value>;
+    type IntoIter = ListIter;
 
     fn into_iter(self) -> Self::IntoIter {
         match self {
-            Value::Lst(u) => u.items.into_iter(),
+            Value::Lst(u) => u.into_iter(),
             _ => unreachable!(),
         }
     }
@@ -407,7 +412,7 @@ impl IntoIterator for Value {
 impl From<Value> for Vec<Value> {
     fn from(v: Value) -> Self {
         match v {
-            Value::Lst(a) => a.items,
+            Value::Lst(a) => a.into_iter().collect(),
             _ => unreachable!(),
         }
     }
@@ -415,18 +420,12 @@ impl From<Value> for Vec<Value> {
 
 impl<const L: usize> From<[Number; L]> for Value {
     fn from(o: [Number; L]) -> Self {
-        Value::Lst(List {
-            has: Type::Num,
-            items: o.into_iter().map(Value::from).collect(),
-        })
+        Value::Lst(List::new(Type::Num, o.into_iter().map(Value::from)))
     }
 }
 
 impl<const L: usize> From<[String; L]> for Value {
     fn from(o: [String; L]) -> Self {
-        Value::Lst(List {
-            has: Type::Str,
-            items: o.into_iter().map(Value::from).collect(),
-        })
+        Value::Lst(List::new(Type::Str, o.into_iter().map(Value::from)))
     }
 }
