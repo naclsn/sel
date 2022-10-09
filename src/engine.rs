@@ -1,4 +1,4 @@
-use std::{fmt, slice::Iter, vec};
+use std::{fmt, slice, vec};
 
 // NOTE: `Debug` is kept for rust-level debugging,
 //       `Display` is used for sel-level debugging
@@ -28,9 +28,8 @@ pub type Number = f32;
 #[derive(Debug, Clone)]
 pub struct List {
     pub has: Type,
-    #[deprecated]
-    items: Vec<Value>,
-}
+    items: dyn Iterator<Item = Value>,
+} // @see: https://stackoverflow.com/questions/30353462/how-to-clone-a-struct-storing-a-boxed-trait-object
 
 // YYY: more private fields
 #[derive(Clone)]
@@ -42,44 +41,17 @@ pub struct Function {
 }
 
 impl List {
-    pub fn new<T: Iterator<Item = Value>>(has: Type, items: T) -> List {
-        List {
-            has,
-            items: items.collect(),
-        } // ZZZ: rip
-    }
-
-    pub fn iter(&self) -> Iter<'_, Value> {
-        self.items.iter()
+    // pub fn new<T: Iterator<Item = Value>>(has: Type, items: T) -> List {
+    pub fn new(has: Type, items: impl Iterator<Item = Value>) -> List {
+        List { has, items }
     }
 }
 
-pub struct ListIter {
-    it: vec::IntoIter<Value>,
-}
-
-impl Iterator for ListIter {
+impl Iterator for List {
     type Item = Value;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.it.next()
-    }
-}
-
-impl DoubleEndedIterator for ListIter {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.it.next_back()
-    }
-}
-
-impl IntoIterator for List {
-    type Item = Value;
-    type IntoIter = ListIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        ListIter {
-            it: self.items.into_iter(),
-        }
+        self.items.next()
     }
 }
 
@@ -105,7 +77,7 @@ impl Function {
 }
 
 impl Value {
-    pub fn as_text(&self) -> String {
+    pub fn as_text(&self) -> String { // ZZZ: consumes, so cannot borrow
         match self {
             Value::Num(n) => n.to_string(),
             Value::Str(s) => s.to_string(),
@@ -158,7 +130,8 @@ impl Value {
             Type::Lst(t) if Type::Num == *t => match self {
                 Value::Str(v) => Some(Value::Lst(List::new(
                     Type::Num,
-                    v.chars().map(|c| Value::Num((c as u32) as Number)),
+                    v.chars()
+                        .map(|c| Value::Num((c as u32) as Number)),
                 ))),
                 Value::Lst(v) => Some(Value::Lst(List::new(
                     *t.clone(),
@@ -371,25 +344,34 @@ impl_from_into_value! { Fun <-> Function:
 
 impl FromIterator<Number> for Value {
     fn from_iter<T: IntoIterator<Item = Number>>(iter: T) -> Self {
-        Value::Lst(List::new(Type::Num, iter.into_iter().map(Value::from)))
+        Value::Lst(List::new(
+            Type::Num,
+            iter.into_iter().map(Value::from),
+        ))
     }
 }
 
 impl FromIterator<String> for Value {
     fn from_iter<T: IntoIterator<Item = String>>(iter: T) -> Self {
-        Value::Lst(List::new(Type::Str, iter.into_iter().map(Value::from)))
+        Value::Lst(List::new(
+            Type::Str,
+            iter.into_iter().map(Value::from),
+        ))
     }
 }
 
 impl<'a> FromIterator<&'a str> for Value {
     fn from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Self {
-        Value::Lst(List::new(Type::Str, iter.into_iter().map(Value::from)))
+        Value::Lst(List::new(
+            Type::Str,
+            iter.into_iter().map(Value::from),
+        ))
     }
 }
 
 impl IntoIterator for Value {
     type Item = Value;
-    type IntoIter = ListIter;
+    type IntoIter = ListIntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
         match self {
@@ -420,12 +402,18 @@ impl From<Value> for Vec<Value> {
 
 impl<const L: usize> From<[Number; L]> for Value {
     fn from(o: [Number; L]) -> Self {
-        Value::Lst(List::new(Type::Num, o.into_iter().map(Value::from)))
+        Value::Lst(List::new(
+            Type::Num,
+            o.into_iter().map(Value::from),
+        ))
     }
 }
 
 impl<const L: usize> From<[String; L]> for Value {
     fn from(o: [String; L]) -> Self {
-        Value::Lst(List::new(Type::Str, o.into_iter().map(Value::from)))
+        Value::Lst(List::new(
+            Type::Str,
+            o.into_iter().map(Value::from),
+        ))
     }
 }

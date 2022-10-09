@@ -118,7 +118,7 @@ make_prelude! {
         "reverse the order of the elements in the list"
     ),
     (singleton :: a -> [a] = |a: Value|
-        List::new(a.typed(), [a].into_iter());
+        List::new(a.typed(), iter::once(a));
         "make a list of an item"
     ),
     (split :: Str -> Str -> [Str] = |sep: String, s: String|
