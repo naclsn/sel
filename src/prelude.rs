@@ -32,14 +32,17 @@ pub trait PreludeLookup {
     }
 
     fn lookup_binary(&self, bin: Binop) -> Function {
-        // TODO: they are all flipped
-        match bin {
-            Binop::Addition => self.lookup_name("add".to_string()).unwrap(),
-            Binop::Substraction => self.lookup_name("sub".to_string()).unwrap(),
-            Binop::Multiplication => self.lookup_name("mul".to_string()).unwrap(),
-            Binop::Division => self.lookup_name("div".to_string()).unwrap(),
-            // Binop::Range          => self.lookup_name("range".to_string()).unwrap(),
-        }
+        let flip: Function = self.lookup_name("flip".to_string()).unwrap().into();
+        flip.apply(
+            match bin {
+                Binop::Addition => self.lookup_name("add".to_string()).unwrap(),
+                Binop::Substraction => self.lookup_name("sub".to_string()).unwrap(),
+                Binop::Multiplication => self.lookup_name("mul".to_string()).unwrap(),
+                Binop::Division => self.lookup_name("div".to_string()).unwrap(),
+                // Binop::Range          => self.lookup_name("range".to_string()).unwrap(),
+            }
+            .into(),
+        )
         .into()
     }
 }
@@ -87,6 +90,12 @@ make_prelude! {
     (const :: a -> b -> a = |a: Value, _: Value|
         a;
         "always evaluate to its first argument, ignoring its second argument"
+    ),
+    (flip :: (a -> b -> c) -> b -> a -> c = |f: Function, snd: Value, fst: Value| {
+            let g: Function = f.apply(fst).into();
+            g.apply(snd)
+        };
+        "reverse the order of the argument to a function"
     ),
     (id :: a -> a = |a: Value|
         a;
