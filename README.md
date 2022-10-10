@@ -1,9 +1,16 @@
 Yet an other `awk`-ish command line tool, with a
-(point-free) functional approach.
+("point-free") functional approach.
+
+> if anybody knows how to this, please send help:
+> ```rust
+> pub struct List {
+>     items: dyn Iterator<Item=Value>
+> }
+> ```
 
 - [Overview](#Overview)
   - [Getting Started](#Getting%20Started)
-  - [Command Usage](#Command%Usage)
+  - [Command Usage](#Command%20Usage)
 - [Details](#Details)
   - [Syntax](#Syntax)
   - [Type System](#Type%20System)

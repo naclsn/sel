@@ -1,4 +1,4 @@
-use std::{fmt, slice, vec};
+use std::{fmt, vec};
 
 // NOTE: `Debug` is kept for rust-level debugging,
 //       `Display` is used for sel-level debugging
@@ -44,7 +44,7 @@ impl List {
     pub fn new<T: Iterator<Item = Value>>(has: Type, items: T) -> List {
         List {
             has,
-            items: items.collect(),
+            items: items.collect(), // XXX: fichtre :-( this is so frustrating
         }
     }
 }

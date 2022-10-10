@@ -23,8 +23,8 @@ fn lookup(name: String) {
 }
 
 fn process(script: String, check_only: bool) {
-    let prelude = &get_prelude();
-    let app: Application = parse_string(&script, prelude).collect();
+    let prelude = get_prelude();
+    let app: Application = parse_string(&script, &prelude).collect();
 
     if check_only {
         let in_type = app.funcs.first().unwrap().maps.0.clone();

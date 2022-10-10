@@ -111,7 +111,7 @@ make_prelude! {
     ),
     (replicate :: Num -> a -> [a] = |n: Number, a: Value|
         List::new(a.typed(),iter::repeat(a).take(n as usize));
-        "replicate a finite amount of copies of the same value"
+        "replicate a finite amount of copies of the same value THIS WILL MAKE IT CRASH"
     ),
     (reverse :: [a] -> [a] = |a: List|
         List::new(a.has.clone(), a.into_iter().rev());
