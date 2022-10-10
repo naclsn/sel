@@ -95,7 +95,7 @@ make_prelude! {
             let g: Function = f.apply(fst).into();
             g.apply(snd)
         };
-        "reverse the order of the argument to a function"
+        "flip the two parameters by passing the first given after the second one"
     ),
     (id :: a -> a = |a: Value|
         a;
@@ -128,6 +128,10 @@ make_prelude! {
     (split :: Str -> Str -> [Str] = |sep: String, s: String|
         s.split(&sep).collect::<Value>();
         "break a string into pieces separated by the argument, consuming the delimiter"
+    ),
+    (sub :: Num -> Num -> Num = |a: Number, b: Number|
+        a-b;
+        "substract the second number from the first"
     ),
     (take :: Num -> [a] -> [a] = |n: Number, a: List|
         List::new(a.has.clone(), a.into_iter().take(n as usize));

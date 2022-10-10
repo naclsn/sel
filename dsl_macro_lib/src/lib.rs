@@ -313,24 +313,17 @@ where
     let niw_tail: Vec<Type> = tail.into_iter().map(|it| it.now_known(&names)).collect();
     let niw_params_and_ret = [settled, vec![niw_head], niw_tail].concat();
 
-    let type_match = /*if 0 == names.len() {
-        vec![]
-    } else {*/
-        // it needs to re-do the whole cumulative work for
-        // new argument because it cannot use the previous
-        // iteration's variables (would make it a closure)
-        niw_params_and_ret[0..iter_n + 1]
-            .iter()
-            .enumerate()
-            .map(|(k, it)| it.destruct(parse(&format!("this.args.index({k}).typed()"))))
-            .flatten()
-            .collect()
-    /*}*/;
+    let type_extract: Toks = niw_params_and_ret[0..iter_n + 1]
+        .iter()
+        .enumerate()
+        .map(|(k, it)| it.destruct(parse(&format!("this.args.index({k}).typed()"))))
+        .flatten()
+        .collect();
 
     let func = group(tts!(
         parse("|this|"),
         braces(tts!(
-            type_match,
+            type_extract,
             if niw_params_and_ret.len() - 2 == iter_n {
                 wrap_extract_call(niw_params_and_ret, fn_tail)
             } else {

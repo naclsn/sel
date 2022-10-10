@@ -182,7 +182,7 @@ impl PartialEq for Type {
             (Type::Str, Type::Str) => true,
             (Type::Lst(a), Type::Lst(b)) => a == b,
             (Type::Fun(a, c), Type::Fun(b, d)) => a == b && c == d,
-            (Type::Unk(_), Type::Unk(_)) => true,
+            (Type::Unk(_), _) | (_, Type::Unk(_)) => true,
             _ => false,
         }
     }
