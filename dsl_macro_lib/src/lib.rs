@@ -150,8 +150,8 @@ impl Type {
             )
             .collect(),
 
-            // YYY: need cloning because a same type may appread
-            // multiple times in a function's maps
+            // needs cloning because a same type may appear
+            // multiple times in a function's `maps`
             Type::Now(name) => parse(&format!("{name}.clone()")),
         }
     }
@@ -316,10 +316,9 @@ where
     let type_match = if 0 == names.len() {
         vec![]
     } else {
-        // YYY: it needs to re-do the whole cumulative work
-        // for every new argument because it cannot use the
-        // previous iteration's variables (would make it a
-        // closure) (can't it just use this.maps though?)
+        // it needs to re-do the whole cumulative work for
+        // new argument because it cannot use the previous
+        // iteration's variables (would make it a closure)
         niw_params_and_ret[0..iter_n + 1]
             .iter()
             .enumerate()

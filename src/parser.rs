@@ -262,7 +262,6 @@ where
                     .apply(self.next_atom().expect("Missing argument for binary")),
             ),
 
-            // TODO: properly recursive
             Some(Token::SubscriptBegin) => {
                 let mut lvl: u32 = 1;
                 let tokens = self

@@ -25,7 +25,7 @@ module.exports = grammar({
 
     name: _ => /[a-z]+/,
     unop: _ => choice(...'%@'.split('')),
-    binop: _ => choice(...'+-./:=_~'.split('')), // YYY: may take the `:` out into its own 'range literal'
+    binop: _ => choice(...'+-./:=_~'.split('')),
 
     subscript: $ => seq('[', optional($._elements1), ']'),
 

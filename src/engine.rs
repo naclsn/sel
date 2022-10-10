@@ -79,23 +79,23 @@ impl Function {
 }
 
 impl Value {
-    // TODO: if ever lists are made lazy, it will be possible to send
+    // REM: if ever lists are made lazy, it will be possible to send
     // an infinite data structure here; when that is the case, it would
     // be better to still print things out (ie. iterate the structure
-    // rather than collect it) - granted this is probably an rare need
-    // and could probably do with a simple crash with err message
+    // rather than collect it) - although this is probably a rare need
+    // and could probably do with a simple crash with error message
     pub fn as_text(self) -> String {
         match self {
             Value::Num(n) => n.to_string(),
             Value::Str(s) => s.to_string(),
             Value::Lst(a) => match &a.has {
-                Type::Num | Type::Str | Type::Unk(_) => a // XXX: list of unk
+                Type::Num | Type::Str | Type::Unk(_) => a
                     .into_iter()
                     .map(Value::as_text)
                     .collect::<Vec<String>>()
                     .join(" "),
                 Type::Lst(t) => match **t {
-                    Type::Num | Type::Str | Type::Unk(_) => a // XXX: list of unk
+                    Type::Num | Type::Str | Type::Unk(_) => a
                         .into_iter()
                         .map(Value::as_text)
                         .collect::<Vec<String>>()
@@ -175,17 +175,14 @@ impl PartialEq for Type {
     /// Two types are equal iif:
     /// - exact same simple type (Num, Str)
     /// - recursively same type (Arr, Fun)
-    /// - same type name (Unk)
-    /// - only one is unknown
+    /// - either unknown
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Type::Num, Type::Num) => true,
             (Type::Str, Type::Str) => true,
             (Type::Lst(a), Type::Lst(b)) => a == b,
             (Type::Fun(a, c), Type::Fun(b, d)) => a == b && c == d,
-            (Type::Unk(a), Type::Unk(b)) => a == b, // YYY: ?
-            (Type::Unk(_), _) => true,
-            (_, Type::Unk(_)) => true,
+            (Type::Unk(_), Type::Unk(_)) => true,
             _ => false,
         }
     }
@@ -338,13 +335,6 @@ impl_from_into_value! { Fun <-> Function:
     into: |u| u;
 }
 
-// impl FromIterator<Value> for Value {
-//     fn from_iter<T: IntoIterator<Item = Value>>(_iter: T) -> Self {
-//         todo!() // XXX: still will not be able to infer the contained type!
-//         // see discusion about it next commented-out 'From'
-//     }
-// }
-
 impl FromIterator<Number> for Value {
     fn from_iter<T: IntoIterator<Item = Number>>(iter: T) -> Self {
         Value::Lst(List::new(Type::Num, iter.into_iter().map(Value::from)))
@@ -375,16 +365,6 @@ impl IntoIterator for Value {
     }
 }
 
-// impl From<Vec<Value>> for Value {
-//     fn from(_: Vec<Value>) -> Self {
-//         todo!() // XXX: still will not be able to infer the contained type!
-//         // could: if vec not empty, infer type from content
-//         //        else use a wildcard type (Unk?) in a way that it does not matter
-//         // note that it could simply be `has: Type::Unk("")` and rely on coersion
-//         // when the vector is indeed empty...
-//         // a question is does using a place-holder type fundamentaly breaks something else...
-//     }
-// }
 impl From<Value> for Vec<Value> {
     fn from(v: Value) -> Self {
         match v {

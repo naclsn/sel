@@ -205,3 +205,20 @@ a single fails, the list is kept as an list of `Str`
 # Library
 
 (features (unicode-segmentation))
+
+---
+
+### Work in Progress
+#### Feature Goals
+- lib interface
+- REPL
+- interactive (based on REPL)
+#### TODO/Doing
+- more privacy (goes with clean-ish lib interface)
+- list of unknowns (verify behavior / make proper)
+- prelude (binary operators flipped)
+- proper unicode (eg. graphems and word)
+- prelude (fill)
+- generated documentation (esp. prelude)
+#### Later or Abandoned
+- lazy lists (Rust iterators)

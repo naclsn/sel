@@ -6,10 +6,6 @@ use crate::{
     parser::{Binop, Unop},
 };
 
-pub fn get_prelude() -> impl PreludeLookup {
-    _get_prelude_impl()
-}
-
 pub struct PreludeEntry {
     pub name: &'static str,
     pub typedef: &'static str,
@@ -36,7 +32,7 @@ pub trait PreludeLookup {
     }
 
     fn lookup_binary(&self, bin: Binop) -> Function {
-        // XXX: they are all flipped
+        // TODO: they are all flipped
         match bin {
             Binop::Addition => self.lookup_name("add".to_string()).unwrap(),
             Binop::Substraction => self.lookup_name("sub".to_string()).unwrap(),
@@ -50,6 +46,7 @@ pub trait PreludeLookup {
 
 macro_rules! make_prelude {
     ($(($name:ident :: $($ty:tt)->+ = $def:expr; $doc:literal)),*,) => {
+        #[doc(hidden)]
         struct _Prelude(Vec<PreludeEntry>);
 
         impl PreludeLookup for _Prelude {
@@ -65,7 +62,8 @@ macro_rules! make_prelude {
             }
         }
 
-        fn _get_prelude_impl() -> _Prelude {
+        $(#[doc = concat!("* `", stringify!($name :: $($ty)->+), "` ", $doc, "\n")])*
+        pub fn get_prelude() -> impl PreludeLookup {
             _Prelude(vec![
                 $(make_prelude!(@ $name :: $($ty)->+ = $def; $doc)),*
             ])
@@ -99,19 +97,16 @@ make_prelude! {
         "join a list of string with a separator between entries"
     ),
     (map :: (a -> b) -> [a] -> [b] = |f: Function, a: List|
-        List::new(
-            f.maps.1.clone(), // XXX: can be Unk
-            a.into_iter().map(|v| f.clone().apply(v)),
-        );
+        List::new(f.maps.1.clone(), a.into_iter().map(|v| f.clone().apply(v)));
         "make a new list by applying a function to each value from a list"
     ),
     (repeat :: a -> [a] = |a: Value|
         List::new(a.typed(), iter::repeat(a));
-        "repeat an infinite amount of copies of the same value"
+        "repeat an infinite amount of copies of the same value (as of now, this simply crashes)"
     ),
     (replicate :: Num -> a -> [a] = |n: Number, a: Value|
         List::new(a.typed(),iter::repeat(a).take(n as usize));
-        "replicate a finite amount of copies of the same value THIS WILL MAKE IT CRASH"
+        "replicate a finite amount of copies of the same value"
     ),
     (reverse :: [a] -> [a] = |a: List|
         List::new(a.has.clone(), a.into_iter().rev());
@@ -130,7 +125,7 @@ make_prelude! {
         "take the first elements of a list, discading the rest"
     ),
     (tonum :: Str -> Num = |s: String|
-        s.parse::<Number>().unwrap_or(0.0); // YYY: should fail?
+        s.parse::<Number>().unwrap_or(0.0);
         "convert a string into number"
     ),
     (tostr :: Num -> Str = |n: String|
