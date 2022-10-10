@@ -5,7 +5,7 @@ use std::{fmt, slice, vec};
 //       as such, the actual output for a type of
 //       value is through Value::as_text
 
-#[derive(Debug, Clone)]
+#[derive(Clone)] //Debug)]
 pub enum Type {
     Num,
     Str,
@@ -14,7 +14,7 @@ pub enum Type {
     Unk(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)] //Debug)]
 pub enum Value {
     Num(Number),
     Str(String),
@@ -25,11 +25,35 @@ pub enum Value {
 pub type Number = f32;
 
 // YYY: more private fields
-#[derive(Debug, Clone)]
+#[derive(Clone)] //Debug)]
 pub struct List {
     pub has: Type,
-    items: dyn Iterator<Item = Value>,
+    items: Box<dyn Some>,
 } // @see: https://stackoverflow.com/questions/30353462/how-to-clone-a-struct-storing-a-boxed-trait-object
+
+// type Idk = Iterator<Item = Value>;
+
+trait Some: SomeClone {}
+trait SomeClone { fn clone_box(&self) -> Box<dyn Some>; }
+
+impl<T> SomeClone for T
+where
+    T: 'static + Some + Clone,
+{
+    fn clone_box(&self) -> Box<dyn Some> {
+        Box::new(self.clone())
+    }
+}
+impl Clone for Box<dyn Some> {
+    fn clone(&self) -> Box<dyn Some> {
+        self.clone_box()
+    }
+}
+
+impl<T> Some for T
+where
+    T: Iterator<Item = Value> + Clone + 'static,
+{}
 
 // YYY: more private fields
 #[derive(Clone)]
@@ -42,8 +66,8 @@ pub struct Function {
 
 impl List {
     // pub fn new<T: Iterator<Item = Value>>(has: Type, items: T) -> List {
-    pub fn new(has: Type, items: impl Iterator<Item = Value>) -> List {
-        List { has, items }
+    pub fn new(has: Type, items: impl Iterator<Item = Value> + Clone) -> List {
+        List { has, items: Box::new(items) }
     }
 }
 
@@ -77,7 +101,8 @@ impl Function {
 }
 
 impl Value {
-    pub fn as_text(&self) -> String { // ZZZ: consumes, so cannot borrow
+    pub fn as_text(&self) -> String {
+        // ZZZ: consumes, so cannot borrow
         match self {
             Value::Num(n) => n.to_string(),
             Value::Str(s) => s.to_string(),
@@ -130,8 +155,7 @@ impl Value {
             Type::Lst(t) if Type::Num == *t => match self {
                 Value::Str(v) => Some(Value::Lst(List::new(
                     Type::Num,
-                    v.chars()
-                        .map(|c| Value::Num((c as u32) as Number)),
+                    v.chars().map(|c| Value::Num((c as u32) as Number)),
                 ))),
                 Value::Lst(v) => Some(Value::Lst(List::new(
                     *t.clone(),
@@ -344,28 +368,19 @@ impl_from_into_value! { Fun <-> Function:
 
 impl FromIterator<Number> for Value {
     fn from_iter<T: IntoIterator<Item = Number>>(iter: T) -> Self {
-        Value::Lst(List::new(
-            Type::Num,
-            iter.into_iter().map(Value::from),
-        ))
+        Value::Lst(List::new(Type::Num, iter.into_iter().map(Value::from)))
     }
 }
 
 impl FromIterator<String> for Value {
     fn from_iter<T: IntoIterator<Item = String>>(iter: T) -> Self {
-        Value::Lst(List::new(
-            Type::Str,
-            iter.into_iter().map(Value::from),
-        ))
+        Value::Lst(List::new(Type::Str, iter.into_iter().map(Value::from)))
     }
 }
 
 impl<'a> FromIterator<&'a str> for Value {
     fn from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Self {
-        Value::Lst(List::new(
-            Type::Str,
-            iter.into_iter().map(Value::from),
-        ))
+        Value::Lst(List::new(Type::Str, iter.into_iter().map(Value::from)))
     }
 }
 
@@ -402,18 +417,12 @@ impl From<Value> for Vec<Value> {
 
 impl<const L: usize> From<[Number; L]> for Value {
     fn from(o: [Number; L]) -> Self {
-        Value::Lst(List::new(
-            Type::Num,
-            o.into_iter().map(Value::from),
-        ))
+        Value::Lst(List::new(Type::Num, o.into_iter().map(Value::from)))
     }
 }
 
 impl<const L: usize> From<[String; L]> for Value {
     fn from(o: [String; L]) -> Self {
-        Value::Lst(List::new(
-            Type::Str,
-            o.into_iter().map(Value::from),
-        ))
+        Value::Lst(List::new(Type::Str, o.into_iter().map(Value::from)))
     }
 }
