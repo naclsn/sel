@@ -244,22 +244,43 @@ where
 
             Some(Token::Literal(value)) => Some(value.clone()),
 
-            Some(Token::Name(name)) => {
-                Some(self.1.lookup_name(name.to_string()).expect("Unknown name"))
+            Some(Token::Name(name)) => Some(
+                self.1
+                    .lookup_name(name.to_string())
+                    .expect(&format!("Unknown name '{name}'")),
+            ),
+
+            Some(Token::Operator(Operator::Unary(un))) => {
+                let unf = self.1.lookup_unary(un);
+                let (opr, is_opr_bin) =
+                    if let Some(Token::Operator(Operator::Binary(bin))) = self.0.peek() {
+                        let r = self.1.lookup_binary(*bin).into();
+                        self.0.next();
+                        (r, true)
+                    } else {
+                        (
+                            self.next_atom()
+                                .expect(&format!("Missing argument for unary {un:?}")),
+                            false,
+                        )
+                    };
+                let r = unf.apply(opr);
+                Some(if is_opr_bin {
+                    let f: Function = r.into();
+                    f.apply(
+                        self.next_atom()
+                            .expect(&format!("Missing argument for binary after unary {un:?}")),
+                    )
+                } else {
+                    r
+                })
             }
 
-            Some(Token::Operator(Operator::Unary(un))) => Some(self.1.lookup_unary(un).apply(
-                if let Some(Token::Operator(Operator::Binary(bin))) = self.0.peek() {
-                    self.1.lookup_binary(*bin).into()
-                } else {
-                    self.next_atom().expect("Missing argument for unary")
-                },
-            )),
-
             Some(Token::Operator(Operator::Binary(bin))) => Some(
-                self.1
-                    .lookup_binary(bin)
-                    .apply(self.next_atom().expect("Missing argument for binary")),
+                self.1.lookup_binary(bin).apply(
+                    self.next_atom()
+                        .expect(&format!("Missing argument for binary {bin:?}")),
+                ),
             ),
 
             Some(Token::SubscriptBegin) => {

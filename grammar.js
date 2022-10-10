@@ -17,7 +17,7 @@ module.exports = grammar({
       $.literal,
       $.name,
       $.subscript,
-      seq($.unop, choice(prec(1, $.binop), $.atom)),
+      seq($.unop, choice(prec(1, seq($.binop, $.atom)), $.atom)),
       seq($.binop, $.atom),
     ),
 
