@@ -5,7 +5,7 @@ use std::{fmt, slice, vec};
 //       as such, the actual output for a type of
 //       value is through Value::as_text
 
-#[derive(Clone)] //Debug)]
+#[derive(Debug, Clone)]
 pub enum Type {
     Num,
     Str,
@@ -14,7 +14,7 @@ pub enum Type {
     Unk(String),
 }
 
-#[derive(Clone)] //Debug)]
+#[derive(Debug, Clone)]
 pub enum Value {
     Num(Number),
     Str(String),
@@ -25,35 +25,11 @@ pub enum Value {
 pub type Number = f32;
 
 // YYY: more private fields
-#[derive(Clone)] //Debug)]
+#[derive(Debug, Clone)]
 pub struct List {
     pub has: Type,
-    items: Box<dyn Some>,
-} // @see: https://stackoverflow.com/questions/30353462/how-to-clone-a-struct-storing-a-boxed-trait-object
-
-// type Idk = Iterator<Item = Value>;
-
-trait Some: SomeClone {}
-trait SomeClone { fn clone_box(&self) -> Box<dyn Some>; }
-
-impl<T> SomeClone for T
-where
-    T: 'static + Some + Clone,
-{
-    fn clone_box(&self) -> Box<dyn Some> {
-        Box::new(self.clone())
-    }
+    items: Vec<Value>,
 }
-impl Clone for Box<dyn Some> {
-    fn clone(&self) -> Box<dyn Some> {
-        self.clone_box()
-    }
-}
-
-impl<T> Some for T
-where
-    T: Iterator<Item = Value> + Clone + 'static,
-{}
 
 // YYY: more private fields
 #[derive(Clone)]
@@ -65,17 +41,19 @@ pub struct Function {
 }
 
 impl List {
-    // pub fn new<T: Iterator<Item = Value>>(has: Type, items: T) -> List {
-    pub fn new(has: Type, items: impl Iterator<Item = Value> + Clone) -> List {
-        List { has, items: Box::new(items) }
+    pub fn new<T: Iterator<Item = Value>>(has: Type, items: T) -> List {
+        List {
+            has,
+            items: items.collect(),
+        }
     }
 }
 
-impl Iterator for List {
+impl IntoIterator for List {
     type Item = Value;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.items.next()
+    type IntoIter = vec::IntoIter<Value>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.into_iter()
     }
 }
 
@@ -101,32 +79,32 @@ impl Function {
 }
 
 impl Value {
-    pub fn as_text(&self) -> String {
-        // ZZZ: consumes, so cannot borrow
+    // TODO: if ever lists are made lazy, it will be possible to send
+    // an infinite data structure here; when that is the case, it would
+    // be better to still print things out (ie. iterate the structure
+    // rather than collect it) - granted this is probably an rare need
+    // and could probably do with a simple crash with err message
+    pub fn as_text(self) -> String {
         match self {
             Value::Num(n) => n.to_string(),
             Value::Str(s) => s.to_string(),
             Value::Lst(a) => match &a.has {
                 Type::Num | Type::Str | Type::Unk(_) => a // XXX: list of unk
-                    .iter()
+                    .into_iter()
                     .map(Value::as_text)
-                    .collect::<Vec<String>>() // ZZZ: inf hang
+                    .collect::<Vec<String>>()
                     .join(" "),
                 Type::Lst(t) => match **t {
                     Type::Num | Type::Str | Type::Unk(_) => a // XXX: list of unk
-                        .iter()
+                        .into_iter()
                         .map(Value::as_text)
-                        .collect::<Vec<String>>() // ZZZ: inf hang
+                        .collect::<Vec<String>>()
                         .join("\n"),
-                    _ => {
-                        panic!("no acceptable text conversion for the last return type (deep list)")
-                    }
+                    _ => panic!("no text conversion for the last return type (deep list)"),
                 },
-                _ => panic!(
-                    "no acceptable text conversion for the last return type (list of functions)"
-                ),
+                _ => panic!("no text conversion for the last return type (functions)"),
             },
-            _ => panic!("no acceptable text conversion for the last return type (function)"),
+            _ => panic!("no text conversion for the last return type (function)"),
         }
     }
 
@@ -188,7 +166,7 @@ impl Value {
 
     /*pub?*/
     fn coerse_or_keep(self, to: Type) -> Value {
-        let backup = self.clone(); // could avoid this by failing early
+        let backup = self.clone(); // could avoid this by failing/succeeding early
         self.coerse(to).unwrap_or(backup)
     }
 }
@@ -236,7 +214,8 @@ impl fmt::Display for Value {
             Value::Lst(a) => write!(
                 f,
                 "@{{{}}}",
-                a.iter()
+                a.clone()
+                    .into_iter()
                     .map(|v| match v {
                         Value::Str(s) => s.clone(),
                         Value::Lst(_) => v.to_string()[1..].to_string(),
@@ -386,7 +365,7 @@ impl<'a> FromIterator<&'a str> for Value {
 
 impl IntoIterator for Value {
     type Item = Value;
-    type IntoIter = ListIntoIter;
+    type IntoIter = <List as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
         match self {
