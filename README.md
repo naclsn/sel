@@ -72,12 +72,10 @@ trigger file name expansion, this only occures if it
 does not contain a space (and expressions within `[]`
 will often contain spaces).
 
-Operators are presented [here](#Operators). The exeptions
-to the syntax are the following:
- syntax  | equivalent
----------|------------
- `a:b`   | `` // range a b
- `a, b`  | (no equivalent in the prelude) ((really?)) // then a b or [flip comp] a b (comp? circ? compose?)
+Operators are presented [here](#Operators). An exeptions
+to the syntax is the `,` binary operator in that it is
+the only one that is written with both its operand on
+its sides.
 
 The `,` operator is used to chain functions. It is
 equivalent in Haskell to `flip (.)` or the Unix shell pipe
@@ -125,6 +123,9 @@ Note the following implicit coersions:
  `Str`       | `[Num]`     | list of the Unicode codepoints
  `Str`       | `[Str]`     | list of the Unicode graphemes
 
+These rules apply recursively on complex data structures
+involving lists (eg. `[Str]` to `[Num]`).
+
 Coersion is attempted when an argument does not match
 the destination parameter. For example the two following
 scripts are effectively equivalent (because the script
@@ -147,24 +148,33 @@ prelude, an operator will bind tighter to the next atom
 to make a new atom.
 
 See the difference of interpretation in:
- script      | desugared
--------------|-----------
- `map sub 1` | `map sub 1` (type error)
- `map -1`    | `map [[flip sub] 1]` (ie. x-1 for each x)
- `map %-1`   | `map [[flip [flip sub]] 1]` (ie. 1-x for each x)
+ script       | desugared
+--------------|-----------
+ `map sub 1`  | `map sub 1` (type error)
+ `map %sub 1` | `map [flip sub] 1` (but still type error)
+ `map -1`     | `map [[flip sub] 1]` (ie. x-1 for each x)
+ `map %-1`    | `map [[flip [flip sub]] 1]` (ie. 1-x for each x)
 
 The following tokens are used as operators:
- token | equivalent
--------|------------
- `+`   | `flip add`
- `-`   | `flip sub`
- `.`   | `flip mul`
- `/`   | `flip div`
- `=`   | `` // eq
- `%`   | `flip`
- `_`   | `index`
- `@`   | `` // (parse)
- `^`   | `` // (reserved)
+ token | kind   | equivalent
+-------|--------|------------
+ `+`   | binary | `flip add`
+ `-`   | binary | `flip sub`
+ `.`   | binary | `flip mul`
+ `/`   | binary | `flip div`
+ `=`   | binary | `` // eq
+ `%`   | unary  | `flip`
+ `_`   | binary | `index`
+ `@`   | unary  | `` // (parse)
+ `^`   |        | `` // ((reserved))
+ `:`   |        | `` // ((reserved))
+
+The difference between an unary operator and a binary
+operator is that an unary operator will first check
+if the next token is a binary operator. If it is one,
+the unary operator is first applied the binary operator,
+then the next atom is passed to the result. See the last
+example in the table [above](#Operator).
 
 ## Literals
 
@@ -181,7 +191,7 @@ String literals are written between matching `{` and
 characters; for example `{a {b} c}` is a valid string
 contaning exactly `a {b} c`.
 
-There is no direct way to represent lists. To obtain an
+There is no direct way to represent lists. To obtain a
 list, the `@` operator (or [the underlying function]())
 can be used. Here are some examples:
  expression                | yields (represented as JSON)
@@ -193,10 +203,10 @@ can be used. Here are some examples:
  `@{{1, 2}, {1:3}}`        | [[1, 2], [1, 2]]
  `@{text, 42, more}`       | ["text", "42", "more"]
 
-As shown in the last example, when parsing an list,
-coersion to `Num` is attempted for every entries. If
-a single fails, the list is kept as an list of `Str`
-(see also: [coersion rules](#Coersion)).
+As shown in the examples, when parsing an list, coersion
+to `Num` is attempted for each entrie. If a single fails,
+the list is kept as an list of `Str` (see also: [coersion
+rules](#Coersion)).
 
 ## Prelude
 
@@ -215,10 +225,7 @@ a single fails, the list is kept as an list of `Str`
 - interactive (based on REPL)
 #### TODO/Doing
 - more privacy (goes with clean-ish lib interface)
-- list of unknowns (verify behavior / make proper)
-- prelude (binary operators flipped)
 - proper unicode (eg. graphems and word)
 - prelude (fill)
-- generated documentation (esp. prelude)
 #### Later or Abandoned
 - lazy lists (Rust iterators)
