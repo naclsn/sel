@@ -1,13 +1,6 @@
 Yet an other `awk`-ish command line tool, with a
 ("point-free") functional approach.
 
-> if anybody knows how to this, please send help:
-> ```rust
-> pub struct List {
->     items: dyn Iterator<Item=Value>
-> }
-> ```
-
 - [Overview](#Overview)
   - [Getting Started](#Getting%20Started)
   - [Command Usage](#Command%20Usage)
@@ -220,12 +213,10 @@ rules](#Coersion)).
 
 ### Work in Progress
 #### Feature Goals
+- proper unicode (eg. graphems and word)
+- lazy
 - lib interface
 - REPL
 - interactive (based on REPL)
 #### TODO/Doing
-- more privacy (goes with clean-ish lib interface)
-- proper unicode (eg. graphems and word)
-- prelude (fill)
-#### Later or Abandoned
-- lazy lists (Rust iterators)
+- prelude (fill/devise)
