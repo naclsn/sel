@@ -1,25 +1,113 @@
+#ifndef SEL_VALUE_HPP
+#define SEL_VALUE_HPP
+
 #include <iostream>
 #include <string>
+#include <sstream>
+#include <assert.h>
 
-namespace Engine {
+#include "utils.hpp"
+
+namespace sel {
 
   enum class BasicType {
-    NUM,
-    STR,
-    LST,
-    FUN,
-    CPL,
+    UNK, // str
+    NUM, // 0
+    STR, // 0
+    LST, // 1
+    FUN, // 2
+    CPL, // 2
   };
+
   struct Type {
     BasicType base;
-    BasicType pars[2];
+    union {
+      std::string* name;
+      Type* pair[2];
+    } pars;
+
+    Type(BasicType ty) {
+      assert(BasicType::NUM == ty || BasicType::STR == ty);
+      base = ty;
+    }
+    Type(BasicType ty, std::string* name) {
+      assert(BasicType::UNK == ty);
+      base = ty;
+      pars.name = name;
+    }
+    Type(BasicType ty, Type* has) {
+      assert(BasicType::LST == ty);
+      base = ty;
+      pars.pair[0] = has;
+    }
+    Type(BasicType ty, Type* fst, Type* snd) {
+      assert(BasicType::FUN == ty || BasicType::CPL == ty);
+      base = ty;
+      pars.pair[0] = fst;
+      pars.pair[1] = snd;
+    }
+
+    Type(std::istream& in) { }
+
+    ~Type() {
+      switch (base) {
+        case BasicType::UNK:
+          delete pars.name;
+          break;
+
+        case BasicType::LST:
+          delete pars.pair[0];
+          break;
+
+        case BasicType::FUN:
+        case BasicType::CPL:
+          delete pars.pair[0];
+          delete pars.pair[1];
+          break;
+
+        default: ;
+      }
+    }
+
+    std::ostream& output(std::ostream& out) const;
+    bool operator==(Type const& other) const;
+  }; // struct Type
+  std::ostream& operator<<(std::ostream& out, Type const& ty);
+
+
+  // k, this was a fun attempt and works as a placeholder,
+  // now TODO: make it proper
+  class TypeError : public std::runtime_error {
+  private:
+    Type from, to;
+    mutable std::string* r;
+    char const* msg;
+
+  public:
+    TypeError(Type from, Type to, char const* msg): std::runtime_error("type error"), from(from), to(to), r(nullptr), msg(msg) { }
+    ~TypeError() { delete r; }
+
+    char const* what() const throw() {
+      if (nullptr == r) {
+        std::stringstream s;
+        s << std::runtime_error::what() << ": " << msg << std::endl
+          << "\tfrom: " << from << std::endl
+          << "\t  to: " <<   to << std::endl
+        ;
+        r = new std::string(s.str());
+      }
+      return r->c_str();
+    }
+
   };
+
 
   class Num;
   class Str;
   class Lst;
   class Fun;
   class Cpl;
+
 
   /**
    * The as[..] collection of methods is only implemented
@@ -34,65 +122,93 @@ namespace Engine {
    * coersion is not possible, nullptr is returned.
    */
   class Val {
+  private:
+    Type ty;
+
   protected:
-    virtual std::ostream& output(std::ostream& stream) const = 0;
+    /**
+     * Tail end of laziness, called from eg. `output`.
+     * Any result it generate (including the returned
+     * pointer) are under the responsibility of `this`. No
+     * free, no share.
+     */
+    virtual Val const* eval() const = 0;
+
+    virtual std::ostream& output(std::ostream& out) const = 0;
 
   public:
+    Val(Type ty): ty(ty) { }
     virtual ~Val() { }
 
-    virtual const Num* asNum()           const { return nullptr; }
-    virtual const Str* asStr()           const { return nullptr; }
-    virtual const Lst* asLst(Type)       const { return nullptr; }
-    virtual const Fun* asFun(Type, Type) const { return nullptr; }
-    virtual const Cpl* asCpl(Type, Type) const { return nullptr; }
+    friend std::ostream& operator<<(std::ostream& out, Val const& val) { return val.output(out); }
 
-    virtual const Num* toNum()               const { return asNum();     }
-    virtual const Str* toStr()               const { return asStr();     }
-    virtual const Lst* toLst(Type a)         const { return asLst(a);    }
-    virtual const Fun* toFun(Type a, Type b) const { return asFun(a, b); }
-    virtual const Cpl* toCpl(Type a, Type b) const { return asCpl(a, b); }
+    /**
+     * Return a reference to the `Type` this value
+     * contains. Do not free, do not share.
+     */
+    Type const& typed() const { return ty; }
 
-    friend std::ostream& operator<<(std::ostream& stream, const Val& val) { return val.output(stream); }
-  };
+    /**
+     * Coerse to a target type (potentially different). The
+     * returned object owns the previous value (or has
+     * already freed it). As such:
+     * - holding a ref/ptr to previous `this` is undefined
+     * - previous `this` is sure to be del with new `this`
+     * 
+     * For Example, `Str` to `[Num]` wraps the string
+     * into an iterator and packs it into a `Lst`. The
+     * underlying `Str` is still in use.
+     * 
+     * An invalide coersion returns `nullptr` (YYY: rather
+     * than throwing? wouldn't this be more C++?).
+     */
+    virtual Val const* coerse(Type to) const = 0;
+
+    /**
+     * Unchecked type conversion, return `this`. Reminder
+     * to check type with `typed` and use `coerse`
+     * if needed.
+     */
+    // template <typename T>
+    // T const* as() const { return (T*)this; }
+  }; // class Val
+
 
   class Num : public Val {
   private:
     float n;
 
-  public:
-    Num(float f): n(f) { }
-
-    const Num* asNum() const override { return this; }
-    const Str* toStr() const override;
-
-    const Num operator+(const Num& other) const { return Num(n+other.n); }
-
   protected:
-    std::ostream& output(std::ostream& stream) const override { return stream << n; }
-  };
+    Val const* eval() const override { return this; }
+    std::ostream& output(std::ostream& out) const override { return out << n; }
 
-  class Str : public Val, std::string {
   public:
-    Str(const char* c): std::string(c) { }
-    Str(std::string s): std::string(s) { }
+    Num(float f): Val(BasicType::NUM), n(f) { }
+    ~Num() { std::cerr << "~Num()" << std::endl; }
 
-    const Str* asStr() const override { return this; }
-    const Num* toNum() const override;
-    // const Lst* toLst(Type) const override;
+    Val const* coerse(Type to) const override;
+  }; // class Num
 
+
+  class Str : public Val {
   protected:
-    std::ostream& output(std::ostream& stream) const override { return stream << this; }
-  };
+    Val const* eval() const override { TODO("Str::eval"); return nullptr; }
+    std::ostream& output(std::ostream& out) const override { TODO("Str::output"); return out; }
 
-  class Lst : public Val {
   public:
-    Lst() { }
+    Str(): Val(BasicType::STR) { }
+    Str(std::istream* in): Val(BasicType::STR) {
+      std::cerr
+        << "Str value initialized with:" << std::endl
+        << in << std::endl
+        << "---" << std::endl
+      ;
+    }
+    ~Str() { std::cerr << "~Str()" << std::endl; }
 
-    // const Lst* asNumLst() const override { return this; }
-    // const Lst* asStrLst() const override { return this; }
+    Val const* coerse(Type to) const override;
+  }; // class Str
 
-  protected:
-    std::ostream& output(std::ostream& stream) const override { return stream << "@{}"; }
-  };
+} // namespace sel
 
-}
+#endif // SEL_VALUE_HPP

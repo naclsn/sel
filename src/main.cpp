@@ -2,16 +2,36 @@
 
 #include "value.hpp"
 
+using namespace std;
+using namespace sel;
+
 int main() {
-  Engine::Val* a = new Engine::Num(1);
-  Engine::Val* b = new Engine::Num(2);
+  try {
+    Num const* true_a = new Num(1);
 
-  Engine::Fun* add;
+    Val const& a = *true_a;
+    cout
+      << "this is the original number: " << a.typed() << endl
+      << "  and here is the value: " << a << endl;
 
-  std::cout << *a->asNum() + *b->asNum() << std::endl;
+    Val const& b = *a.coerse(BasicType::STR);
+    cout
+      << "this is supposed to now be a string: " << b.typed() << endl
+      << "  and here is the value: " << b << endl;
 
-  delete a;
-  delete b;
+    Val const& c = *b.coerse(BasicType::NUM);
+    cout
+      << "this is supposed to now be a number again: " << c.typed() << endl;
+      // << "  and here is the value: " << c << endl;
 
-  return 0;
+    delete &c;
+    return EXIT_SUCCESS;
+
+  } catch (TypeError const& e) {
+    cerr
+      << "got error:" << endl
+      << e.what() << endl
+    ;
+    return EXIT_FAILURE;
+  }
 }
