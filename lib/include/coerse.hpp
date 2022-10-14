@@ -20,10 +20,9 @@ namespace sel {
 
   public:
     StrFromNum(Num* source): source(source) { }
-    VERB_DTOR(StrFromNum, {
-      delete source;
-    });
+    ~StrFromNum() { delete source; }
 
+    Val* clone() override;
     Val* coerse(Type to) override;
   }; // class CoerseNumToStr
 

@@ -6,6 +6,13 @@
 namespace sel {
 
   class Str : public Val {
+  public:
+    Str(): Val(Ty::STR) { }
+
+    Val* coerse(Type to) override;
+  }; // class Str
+
+  class StrBuffered : public Str {
   private:
     mutable std::string* buffer;
 
@@ -19,21 +26,20 @@ namespace sel {
     }
 
   public:
-    Str(): Val(Ty::STR) { }
-    Str(std::string): Val(Ty::STR) { }
-    Str(char*): Val(Ty::STR) { }
-    VERB_DTOR(Str, {
-      delete buffer;
-    });
+    StrBuffered(): buffer(nullptr) { }
+    StrBuffered(std::string* s): buffer(s) { }
+    StrBuffered(std::string s): buffer(new std::string(s)) { }
+    StrBuffered(char* c): buffer(new std::string(c)) { }
+    ~StrBuffered() { delete buffer; }
 
     Val* coerse(Type to) override;
 
     void setBuffer(std::string* s) { buffer = s; }
     bool hasBuffer() { return nullptr != buffer; }
     std::string* getBuffer() { return buffer; }
-  }; // class Str
+  }; // class StrBuffered
 
-  class StrFromStream : public Str {
+  class StrFromStream : public StrBuffered {
   private:
     mutable std::istream* stream;
 
@@ -42,10 +48,8 @@ namespace sel {
 
   public:
     StrFromStream(): stream(nullptr) { }
-    StrFromStream(std::istream* in): stream(in) { TODO("StrFromStream ctor"); }
-    VERB_DTOR(StrFromStream, {
-      delete stream;
-    });
+    StrFromStream(std::istream* in): stream(in) { }
+    ~StrFromStream() { delete stream; }
 
     void setStream(std::istream* in) { stream = in; }
   };

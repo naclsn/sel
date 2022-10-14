@@ -11,6 +11,10 @@ namespace sel {
     StrFromStream::eval();
   }
 
+  Val* StrFromNum::clone() {
+    return new StrFromNum((Num*)source->clone());
+  }
+
   Val* StrFromNum::coerse(Type to) {
     if (!hasBuffer()) {
       if (Ty::NUM == to.base) {

@@ -13,4 +13,8 @@ namespace sel {
     throw CoerseError(Ty::NUM, to, "Num::coerse");
   }
 
+  Val* NumFloat::clone() {
+    return new NumFloat(n);
+  }
+
 }

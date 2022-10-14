@@ -129,6 +129,12 @@ namespace sel {
     Type& typed() { return ty; }
 
     /**
+     * Explicitly create a new value which does not share
+     * any state with `this`.
+     */
+    virtual Val* clone() = 0;
+
+    /**
      * Coerse to a target type (potentially different). The
      * returned object owns the previous value (or has
      * already freed it). As such:

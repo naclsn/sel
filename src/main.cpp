@@ -10,7 +10,7 @@ using namespace sel;
 
 int main() {
   try {
-    Num* true_a = new Num(1);
+    Num* true_a = new NumFloat(1);
 
     Val& a = *true_a;
     cout
@@ -28,6 +28,7 @@ int main() {
     //   // << "  and here is the value: " << c << endl;
 
     // delete &c;
+    delete &b;
     return EXIT_SUCCESS;
 
   } catch (TypeError& e) {
