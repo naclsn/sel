@@ -20,9 +20,12 @@ namespace sel {
 
   public:
     StrFromNum(Num* source): source(source) { }
-    ~StrFromNum() { delete source; }
+    ~StrFromNum() {
+      TRACE(~StrFromNum);
+      delete source;
+    }
 
-    Val* clone() override;
+    // Val* clone() override;
     Val* coerse(Type to) override;
   }; // class CoerseNumToStr
 

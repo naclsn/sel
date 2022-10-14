@@ -4,31 +4,62 @@
 #include "value.hpp"
 #include "number.hpp"
 #include "string.hpp"
+#include "list.hpp"
+#include "function.hpp"
 
 using namespace std;
 using namespace sel;
 
+class FunAdd : public Fun, public NumFloat {
+protected:
+  void eval() override {
+    TRACE(FunAdd::eval);
+    setValue(a->value() + b->value());
+  }
+  std::ostream& output(std::ostream& out) override {
+    return NumFloat::output(out);
+  }
+public:
+  Num* a;
+  Num* b;
+  FunAdd(): Fun(
+    new Type(Ty::NUM),
+    new Type(Ty::FUN,
+      new Type(Ty::NUM),
+      new Type(Ty::NUM)
+    )
+  ), /*NumFloat(),*/ a(nullptr), b(nullptr) { }
+  ~FunAdd() {
+    TRACE(~FunAdd);
+    delete a;
+    delete b;
+  }
+  Val* apply(Val* arg) override {
+    if (!a) { a = (Num*)arg->coerse(Ty::NUM); return (Fun*)this; }
+    if (!b) { b = (Num*)arg->coerse(Ty::NUM); return (Fun*)this; }
+    throw ParameterError(arg, "FunAdd::apply");
+  }
+};
+
+void some() {
+  Val* a = new NumFloat(1);
+  Val* b = new NumFloat(1);
+
+  cout << "a :: " << a->type() << " = " << *a << endl;
+  cout << "b :: " << b->type() << " = " << *b << endl;
+
+  Val* add0 = (Fun*)new FunAdd();
+  Val* add1 = ((Fun*)add0)->apply((Num*)a);
+  Val* res = ((Fun*)add1)->apply((Num*)b);
+
+  cout << "res :: " << res->type() << " = " << *res << endl;
+
+  delete res;
+}
+
 int main() {
   try {
-    Num* true_a = new NumFloat(1);
-
-    Val& a = *true_a;
-    cout
-      << "this is the original number: " << a.typed() << endl
-      << "  and here is the value: " << a << endl;
-
-    Val& b = *a.coerse(Ty::STR);
-    cout
-      << "this is supposed to now be a string: " << b.typed() << endl
-      << "  and here is the value: " << b << endl;
-
-    // Val& c = *b.coerse(Ty::NUM);
-    // cout
-    //   << "this is supposed to now be a number again: " << c.typed() << endl;
-    //   // << "  and here is the value: " << c << endl;
-
-    // delete &c;
-    delete &b;
+    some();
     return EXIT_SUCCESS;
 
   } catch (TypeError& e) {

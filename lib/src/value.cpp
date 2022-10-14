@@ -3,7 +3,7 @@
 
 namespace sel {
 
-  std::ostream& Type::output(std::ostream& out) {
+  std::ostream& Type::output(std::ostream& out) const {
     switch (base) {
       case Ty::UNK:
         out << *pars.name;
@@ -34,7 +34,7 @@ namespace sel {
     }
     return out;
   }
-  std::ostream& operator<<(std::ostream& out, Type& ty) { return ty.output(out); }
+  std::ostream& operator<<(std::ostream& out, Type const& ty) { return ty.output(out); }
 
   /**
    * Two types compare equal if any:
@@ -44,7 +44,7 @@ namespace sel {
    * - both FUN and recursive on fst and snd
    * - both CPL and recursive on fst and snd
    */
-  bool Type::operator==(Type& other) {
+  bool Type::operator==(Type const& other) const {
     if (Ty::UNK == base || Ty::UNK == other.base)
       return true;
 

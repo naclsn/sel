@@ -8,8 +8,19 @@ namespace sel {
     if (Ty::NUM == to.base) {
       // Val* r = new CoerseStrToNum((Val*)this)
     }
-    throw CoerseError(typed(), to, "Str::coerse");
+    throw CoerseError(type(), to, "Str::coerse");
   }
+
+  void StrBuffered::eval() {
+    if (!hasBuffer())
+      buffer = new std::string("");
+  }
+  std::ostream& StrBuffered::output(std::ostream& out) {
+    return out << *buffer;
+  }
+  // Val* StrBuffered::clone() const {
+  //   return new StrBuffered(*buffer);
+  // }
 
   void StrFromStream::eval() {
     if (hasBuffer()) return;
@@ -22,5 +33,10 @@ namespace sel {
 
     setBuffer(new std::string(tmp));
   }
+  // Val* StrFromStream::clone() const {
+  //   if (hasBuffer()) return StrBuffered::clone();
+  //   TODO("cloning a stream makes no sense"); // return new StrFromStream(stream);
+  //   return StrBuffered::clone();
+  // }
 
 }

@@ -7,7 +7,7 @@ namespace sel {
 
   class Str : public Val {
   public:
-    Str(): Val(Ty::STR) { }
+    Str(): Val(new Type(Ty::STR)) { }
 
     Val* coerse(Type to) override;
   }; // class Str
@@ -17,26 +17,25 @@ namespace sel {
     mutable std::string* buffer;
 
   protected:
-    void eval() override {
-      if (!hasBuffer()) buffer = new std::string("");
-    }
-    std::ostream& output(std::ostream& out) override {
-      eval();
-      return out << *buffer;
-    }
+    void eval() override;
+    std::ostream& output(std::ostream& out) override;
 
   public:
     StrBuffered(): buffer(nullptr) { }
     StrBuffered(std::string* s): buffer(s) { }
     StrBuffered(std::string s): buffer(new std::string(s)) { }
-    StrBuffered(char* c): buffer(new std::string(c)) { }
-    ~StrBuffered() { delete buffer; }
+    StrBuffered(char const* c): buffer(new std::string(c)) { }
+    ~StrBuffered() {
+      TRACE(~StrBuffered);
+      delete buffer;
+    }
 
-    Val* coerse(Type to) override;
+    // Val* clone() const override;
+    // Val* coerse(Type to) override;
 
     void setBuffer(std::string* s) { buffer = s; }
-    bool hasBuffer() { return nullptr != buffer; }
-    std::string* getBuffer() { return buffer; }
+    bool hasBuffer() const { return nullptr != buffer; }
+    std::string* getBuffer() const { return buffer; }
   }; // class StrBuffered
 
   class StrFromStream : public StrBuffered {
@@ -49,7 +48,12 @@ namespace sel {
   public:
     StrFromStream(): stream(nullptr) { }
     StrFromStream(std::istream* in): stream(in) { }
-    ~StrFromStream() { delete stream; }
+    ~StrFromStream() {
+      TRACE(~StrFromStream);
+      delete stream;
+    }
+
+    // Val* clone() const override;
 
     void setStream(std::istream* in) { stream = in; }
   };

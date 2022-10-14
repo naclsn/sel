@@ -7,21 +7,13 @@ namespace sel {
 
   class Lst : public Val {
   protected:
-    std::ostream& output(std::ostream& out) override {
-      eval();
-      char const* sep = Ty::LST == typed().pars.pair[0]->base
-        ? Ty::LST == typed().pars.pair[0]->pars.pair[0]->base
-          ? "\n\n"
-          : "\n"
-        : " ";
-      bool first = true;
-      while (!end())
-        out << (first ? "" : sep) << next();
-      return out;
-    }
+    std::ostream& output(std::ostream& out) override;
 
   public:
-    Lst(Type has): Val(Type(Ty::LST, &has)) { }
+    Lst(Type* has): Val(new Type(Ty::LST, has)) { }
+    ~Lst() {
+      TRACE(~Lst);
+    }
 
     Val* coerse(Type to) override;
 
@@ -34,11 +26,10 @@ namespace sel {
     virtual bool end() = 0;
     virtual void rewind() = 0;
 
-    virtual Val* operator[](size_t n) {
-      rewind();
-      for (size_t k = 0; k < n; k++) next();
-      return next().clone();
-    }
+    /**
+     * Does not necessarily check bounds.
+     */
+    virtual Val& operator[](size_t n);
 
     virtual bool isFinite() = 0;
     virtual size_t count() = 0;

@@ -7,10 +7,14 @@ namespace sel {
 
   class Num : public Val {
   public:
-    Num(): Val(Ty::NUM) { }
-    ~Num() { }
+    Num(): Val(new Type(Ty::NUM)) { }
+    ~Num() {
+      TRACE(~Num);
+    }
 
     Val* coerse(Type to) override;
+
+    virtual float value() = 0;
   }; // class Num
 
   class NumFloat : public Num {
@@ -18,15 +22,23 @@ namespace sel {
     float n;
 
   protected:
-    void eval() override { }
-    std::ostream& output(std::ostream& out) override { return out << n; }
+    void eval() override;
+    std::ostream& output(std::ostream& out) override;
+
+    void setValue(float f) { n = f; }
 
   public:
+    NumFloat() { }
     NumFloat(float f): n(f) { }
-    ~NumFloat() { }
+    ~NumFloat() {
+      TRACE(~NumFloat);
+    }
 
-    Val* clone() override;
-    Val* coerse(Type to) override;
+    // Val* clone() const override;
+    float value() override {
+      eval();
+      return n;
+    }
   }; // class Num
 
 }

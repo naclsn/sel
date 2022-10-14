@@ -50,6 +50,7 @@ namespace sel {
     Type(std::istream& in) { }
 
     ~Type() {
+      TRACE(~Type);
       switch (base) {
         case Ty::UNK:
           delete pars.name;
@@ -69,10 +70,10 @@ namespace sel {
       }
     }
 
-    std::ostream& output(std::ostream& out);
-    bool operator==(Type& other);
+    std::ostream& output(std::ostream& out) const;
+    bool operator==(Type const& other) const;
   }; // struct Type
-  std::ostream& operator<<(std::ostream& out, Type& ty);
+  std::ostream& operator<<(std::ostream& out, Type const& ty);
 
 
   class Num;
@@ -82,21 +83,9 @@ namespace sel {
   class Cpl;
 
 
-  /**
-   * The as[..] collection of methods is only implemented
-   * by the corresponding type. It returns a pointer
-   * to the same object or nullptr if the true type
-   * of the value does not match. This is a very cheap
-   * operation.
-   * On the other hand, the to[..] methods will actively
-   * try to coerse a value which true type does not
-   * match. This always incure the creation of a new
-   * object, even if the type actually matched. If the
-   * coersion is not possible, nullptr is returned.
-   */
   class Val {
   private:
-    Type ty;
+    Type* ty;
 
   protected:
     /**
@@ -116,23 +105,25 @@ namespace sel {
     virtual std::ostream& output(std::ostream& out) = 0;
 
   public:
-    Val(Type ty): ty(ty) { }
-    virtual ~Val() { }
+    Val(Type* ty): ty(ty) { }
+    virtual ~Val() { delete ty; }
 
-    friend std::ostream& operator<<(std::ostream& out, Val& val)
-    { return val.output(out); }
+    friend std::ostream& operator<<(std::ostream& out, Val& val) {
+      // val.eval();
+      return val.output(out);
+    }
 
     /**
      * Return a reference to the `Type` this value
      * contains. Do not free, do not share.
      */
-    Type& typed() { return ty; }
+    Type const& type() const { return *ty; }
 
     /**
      * Explicitly create a new value which does not share
      * any state with `this`.
      */
-    virtual Val* clone() = 0;
+    // virtual Val* clone() const = 0;
 
     /**
      * Coerse to a target type (potentially different). The

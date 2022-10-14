@@ -13,8 +13,12 @@ namespace sel {
     throw CoerseError(Ty::NUM, to, "Num::coerse");
   }
 
-  Val* NumFloat::clone() {
-    return new NumFloat(n);
+  void NumFloat::eval() { }
+  std::ostream& NumFloat::output(std::ostream& out) {
+    return out << n;
   }
+  // Val* NumFloat::clone() const {
+  //   return new NumFloat(n);
+  // }
 
 }

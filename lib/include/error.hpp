@@ -20,6 +20,13 @@ namespace sel {
     CoerseError(Type from, Type to, char const* msg): TypeError(msg), from(from), to(to) { }
   };
 
+  struct ParameterError : public TypeError {
+  public:
+    const Val* many;
+  
+    ParameterError(char const* msg): TypeError(msg), many(nullptr) { }
+    ParameterError(Val* many, char const* msg): TypeError(msg), many(many) { }
+  };
 }
 
 #endif // SEL_ERROR_HPP
