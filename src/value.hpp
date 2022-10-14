@@ -10,7 +10,7 @@
 
 namespace sel {
 
-  enum class BasicType {
+  enum class Ty {
     UNK, // str
     NUM, // 0
     STR, // 0
@@ -20,28 +20,28 @@ namespace sel {
   };
 
   struct Type {
-    BasicType base;
+    Ty base;
     union {
       std::string* name;
       Type* pair[2];
     } pars;
 
-    Type(BasicType ty) {
-      assert(BasicType::NUM == ty || BasicType::STR == ty);
+    Type(Ty ty) {
+      assert(Ty::NUM == ty || Ty::STR == ty);
       base = ty;
     }
-    Type(BasicType ty, std::string* name) {
-      assert(BasicType::UNK == ty);
+    Type(Ty ty, std::string* name) {
+      assert(Ty::UNK == ty);
       base = ty;
       pars.name = name;
     }
-    Type(BasicType ty, Type* has) {
-      assert(BasicType::LST == ty);
+    Type(Ty ty, Type* has) {
+      assert(Ty::LST == ty);
       base = ty;
       pars.pair[0] = has;
     }
-    Type(BasicType ty, Type* fst, Type* snd) {
-      assert(BasicType::FUN == ty || BasicType::CPL == ty);
+    Type(Ty ty, Type* fst, Type* snd) {
+      assert(Ty::FUN == ty || Ty::CPL == ty);
       base = ty;
       pars.pair[0] = fst;
       pars.pair[1] = snd;
@@ -51,16 +51,16 @@ namespace sel {
 
     ~Type() {
       switch (base) {
-        case BasicType::UNK:
+        case Ty::UNK:
           delete pars.name;
           break;
 
-        case BasicType::LST:
+        case Ty::LST:
           delete pars.pair[0];
           break;
 
-        case BasicType::FUN:
-        case BasicType::CPL:
+        case Ty::FUN:
+        case Ty::CPL:
           delete pars.pair[0];
           delete pars.pair[1];
           break;
@@ -69,37 +69,10 @@ namespace sel {
       }
     }
 
-    std::ostream& output(std::ostream& out) const;
-    bool operator==(Type const& other) const;
+    std::ostream& output(std::ostream& out);
+    bool operator==(Type& other);
   }; // struct Type
-  std::ostream& operator<<(std::ostream& out, Type const& ty);
-
-
-  // k, this was a fun attempt and works as a placeholder,
-  // now TODO: make it proper
-  class TypeError : public std::runtime_error {
-  private:
-    Type from, to;
-    mutable std::string* r;
-    char const* msg;
-
-  public:
-    TypeError(Type from, Type to, char const* msg): std::runtime_error("type error"), from(from), to(to), r(nullptr), msg(msg) { }
-    ~TypeError() { delete r; }
-
-    char const* what() const throw() {
-      if (nullptr == r) {
-        std::stringstream s;
-        s << std::runtime_error::what() << ": " << msg << std::endl
-          << "\tfrom: " << from << std::endl
-          << "\t  to: " <<   to << std::endl
-        ;
-        r = new std::string(s.str());
-      }
-      return r->c_str();
-    }
-
-  };
+  std::ostream& operator<<(std::ostream& out, Type& ty);
 
 
   class Num;
@@ -127,26 +100,33 @@ namespace sel {
 
   protected:
     /**
-     * Tail end of laziness, called from eg. `output`.
-     * Any result it generate (including the returned
-     * pointer) are under the responsibility of `this`. No
-     * free, no share.
+     * Tail end of laziness, called from eg. `output`. This
+     * should only need to actually compute once, following
+     * calls are likely to be no-ops. Any result it
+     * generate (including the returned pointer) are under
+     * the responsibility of `this`.
      */
-    virtual Val const* eval() const = 0;
+    virtual void eval() = 0;
 
-    virtual std::ostream& output(std::ostream& out) const = 0;
+    /**
+     * Produces the standard textual representation,
+     * used when the script eventually needs to generate
+     * an output.
+     */
+    virtual std::ostream& output(std::ostream& out) = 0;
 
   public:
     Val(Type ty): ty(ty) { }
     virtual ~Val() { }
 
-    friend std::ostream& operator<<(std::ostream& out, Val const& val) { return val.output(out); }
+    friend std::ostream& operator<<(std::ostream& out, Val& val)
+    { return val.output(out); }
 
     /**
      * Return a reference to the `Type` this value
      * contains. Do not free, do not share.
      */
-    Type const& typed() const { return ty; }
+    Type& typed() { return ty; }
 
     /**
      * Coerse to a target type (potentially different). The
@@ -159,55 +139,11 @@ namespace sel {
      * into an iterator and packs it into a `Lst`. The
      * underlying `Str` is still in use.
      * 
-     * An invalide coersion returns `nullptr` (YYY: rather
-     * than throwing? wouldn't this be more C++?).
+     * If the coersion cannot be done, throws a `CoerseError`.
+     * 
      */
-    virtual Val const* coerse(Type to) const = 0;
-
-    /**
-     * Unchecked type conversion, return `this`. Reminder
-     * to check type with `typed` and use `coerse`
-     * if needed.
-     */
-    // template <typename T>
-    // T const* as() const { return (T*)this; }
+    virtual Val* coerse(Type to) = 0;
   }; // class Val
-
-
-  class Num : public Val {
-  private:
-    float n;
-
-  protected:
-    Val const* eval() const override { return this; }
-    std::ostream& output(std::ostream& out) const override { return out << n; }
-
-  public:
-    Num(float f): Val(BasicType::NUM), n(f) { }
-    ~Num() { std::cerr << "~Num()" << std::endl; }
-
-    Val const* coerse(Type to) const override;
-  }; // class Num
-
-
-  class Str : public Val {
-  protected:
-    Val const* eval() const override { TODO("Str::eval"); return nullptr; }
-    std::ostream& output(std::ostream& out) const override { TODO("Str::output"); return out; }
-
-  public:
-    Str(): Val(BasicType::STR) { }
-    Str(std::istream* in): Val(BasicType::STR) {
-      std::cerr
-        << "Str value initialized with:" << std::endl
-        << in << std::endl
-        << "---" << std::endl
-      ;
-    }
-    ~Str() { std::cerr << "~Str()" << std::endl; }
-
-    Val const* coerse(Type to) const override;
-  }; // class Str
 
 } // namespace sel
 

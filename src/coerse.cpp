@@ -2,31 +2,25 @@
 
 namespace sel {
 
-//#pragma region CoreseNumToStr
-  Val* CoerseNumToStr::eval() const {
-    if (nullptr == result) {
-      // Num const* trueNum = source->as<Num>();
+  void StrFromNum::eval() {
+    if (!hasBuffer()) {
       std::stringstream* str = new std::stringstream();
-      *str << source;
-      result = new Str(str);
+      *str << *source;
+      setStream(str);
     }
-    return result;
+    StrFromStream::eval();
   }
 
-  const Val* CoerseNumToStr::coerse(Type to) const {
-    if (nullptr == result) {
-      // coersing back to original type
-      if (to == source->typed()) {
-        auto previous = source;
-        source = nullptr;
+  Val* StrFromNum::coerse(Type to) {
+    if (!hasBuffer()) {
+      if (Ty::NUM == to.base) {
+        Num* previous = source;
+        source = nullptr; // as to not free it
         delete this;
         return previous;
       }
-      // coersing into a new type (no need for this one to take place anymore)
-      throw TypeError(typed(), to, "CoerseNumToStr::coerse");
     }
-    throw TypeError(typed(), to, "CoerseNumToStr::coerse");
+    return StrFromStream::coerse(to);
   }
-//#pragma endregion
 
 } // namespace sel

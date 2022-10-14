@@ -3,6 +3,7 @@ project('sel', 'cpp')
 executable('sel'
   , 'src/main.cpp'
   , 'src/utils.hpp'
+  , 'src/error.hpp', 'src/error.cpp'
   , 'src/value.hpp', 'src/value.cpp'
   , 'src/number.hpp', 'src/number.cpp'
   , 'src/string.hpp', 'src/string.cpp'

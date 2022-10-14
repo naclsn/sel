@@ -3,39 +3,38 @@
 
 namespace sel {
 
-//#pragma region Type
-  std::ostream& Type::output(std::ostream& out) const {
+  std::ostream& Type::output(std::ostream& out) {
     switch (base) {
-      case BasicType::UNK:
+      case Ty::UNK:
         out << *pars.name;
         break;
 
-      case BasicType::NUM:
+      case Ty::NUM:
         out << "Num";
         break;
 
-      case BasicType::STR:
+      case Ty::STR:
         out << "Str";
         break;
 
-      case BasicType::LST:
+      case Ty::LST:
         out << "[" << *pars.pair[0] << "]";
         break;
 
-      case BasicType::FUN:
-        if (BasicType::FUN == pars.pair[0]->base)
+      case Ty::FUN:
+        if (Ty::FUN == pars.pair[0]->base)
           out << "(" << *pars.pair[0] << ") -> " << *pars.pair[1];
         else
           out << *pars.pair[0] << " -> " << *pars.pair[1];
         break;
 
-      case BasicType::CPL:
+      case Ty::CPL:
         out << "(" << *pars.pair[0] << ", " << *pars.pair[1] << ")";
         break;
     }
     return out;
   }
-  std::ostream& operator<<(std::ostream& out, Type const& ty) { return ty.output(out); }
+  std::ostream& operator<<(std::ostream& out, Type& ty) { return ty.output(out); }
 
   /**
    * Two types compare equal if any:
@@ -45,23 +44,23 @@ namespace sel {
    * - both FUN and recursive on fst and snd
    * - both CPL and recursive on fst and snd
    */
-  bool Type::operator==(Type const& other) const {
-    if (BasicType::UNK == base || BasicType::UNK == other.base)
+  bool Type::operator==(Type& other) {
+    if (Ty::UNK == base || Ty::UNK == other.base)
       return true;
 
     if (base != other.base)
       return false;
 
     switch (base) {
-      case BasicType::NUM:
-      case BasicType::STR:
+      case Ty::NUM:
+      case Ty::STR:
         return true;
 
-      case BasicType::LST:
+      case Ty::LST:
         return pars.pair[0] == other.pars.pair[0];
 
-      case BasicType::FUN:
-      case BasicType::CPL:
+      case Ty::FUN:
+      case Ty::CPL:
         return pars.pair[0] == other.pars.pair[0]
             && pars.pair[1] == other.pars.pair[1];
 
@@ -69,25 +68,5 @@ namespace sel {
         return false;
     }
   }
-//#pragma endregion
-
-//#pragma region Num
-  Val const* Num::coerse(Type to) const {
-    if (BasicType::NUM == to.base) return this;
-    if (BasicType::STR == to.base) {
-      Val* r = new CoerseNumToStr((Val*)this);
-      return r;
-    }
-    throw TypeError(typed(), to, "Num::coerse");
-  }
-//#pragma endregion
-
-//#pragma region Num
-  Val const* Str::coerse(Type to) const {
-    if (BasicType::STR == to.base) return this;
-    TODO("Str::coerse");
-    throw TypeError(typed(), to, "Str::coerse");
-  }
-//#pragma endregion
 
 } // namespace sel
