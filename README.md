@@ -22,9 +22,11 @@ standard input to produce its standard output.
 ## Getting Started
 
 ```console
-$ cargo build --release
+$ meson setup build
+$ cd build
+$ ninja
 ...
-$ seq 17 42 | target/release/sel [...idk...]
+$ seq 17 42 | ./sel [...idk...]
 17
 19
 23
@@ -109,12 +111,12 @@ be any, only known at run time.
 ### Coersion
 
 Note the following implicit coersions:
- actual type | destination | behavior
--------------|-------------|----------
- `Num`       | `Str`       | writes the number in decimal
- `Str`       | `Num`       | tries to parse the string as a number
- `Str`       | `[Num]`     | list of the Unicode codepoints
- `Str`       | `[Str]`     | list of the Unicode graphemes
+ true type | destination | behavior
+-----------|-------------|----------
+ `Num`     | `Str`       | writes the number in decimal
+ `Str`     | `Num`       | tries to parse as a number
+ `Str`     | `[Num]`     | list of the Unicode codepoints
+ `Str`     | `[Str]`     | list of the Unicode graphemes
 
 These rules apply recursively on complex data structures
 involving lists (eg. `[Str]` to `[Num]`).
@@ -122,8 +124,8 @@ involving lists (eg. `[Str]` to `[Num]`).
 Coersion is attempted when an argument does not match
 the destination parameter. For example the two following
 scripts are effectively equivalent (because the script
-input type is of `Str` and its output is coersed back to
-`Str`):
+input type is of `Str` and its output is implicitly
+coersed back to `Str`):
 ```sh
 seq 5 | sel tonum, map +1, tostr
 seq 5 | sel map +1
@@ -203,20 +205,17 @@ rules](#Coersion)).
 
 ## Prelude
 
-(naming rules)
+(naming rules?)
 
 # Library
-
-(features (unicode-segmentation))
 
 ---
 
 ### Work in Progress
 #### Feature Goals
 - proper unicode (eg. graphems and word)
-- lazy
+- lazy and infinite data structures
 - lib interface
+- broad prelude
 - REPL
 - interactive (based on REPL)
-#### TODO/Doing
-- prelude (fill/devise)

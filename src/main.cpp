@@ -1,72 +1,45 @@
 #include <iostream>
+#include <sstream>
 
-#include "error.hpp"
-#include "value.hpp"
-#include "number.hpp"
-#include "string.hpp"
-#include "list.hpp"
-#include "function.hpp"
+#include "errors.hpp"
+#include "types.hpp"
 
 using namespace std;
 using namespace sel;
 
-class FunAdd : public Fun, public NumFloat {
-protected:
-  void eval() override {
-    TRACE(FunAdd::eval);
-    setValue(a->value() + b->value());
-  }
-  std::ostream& output(std::ostream& out) override {
-    return NumFloat::output(out);
-  }
-public:
-  Num* a;
-  Num* b;
-  FunAdd(): Fun(
-    new Type(Ty::NUM),
-    new Type(Ty::FUN,
-      new Type(Ty::NUM),
-      new Type(Ty::NUM)
-    )
-  ), /*NumFloat(),*/ a(nullptr), b(nullptr) { }
-  ~FunAdd() {
-    TRACE(~FunAdd);
-    delete a;
-    delete b;
-  }
-  Val* apply(Val* arg) override {
-    if (!a) { a = (Num*)arg->coerse(Ty::NUM); return (Fun*)this; }
-    if (!b) { b = (Num*)arg->coerse(Ty::NUM); return (Fun*)this; }
-    throw ParameterError(arg, "FunAdd::apply");
-  }
-};
+void test_parseType() {
+  char const* source = "fn :: (Num -> Str*) -> Num -> ([Str]*, [Str*])";
 
-void some() {
-  Val* a = new NumFloat(1);
-  Val* b = new NumFloat(1);
+  Type expect = funType(
+    new Type(funType(
+      new Type(numType()),
+      new Type(strType(TyFlag::IS_INF))
+    )),
+    new Type(funType(
+      new Type(numType()),
+      new Type(cplType(
+        new Type(lstType(new Type(strType(TyFlag::IS_FIN)), TyFlag::IS_INF)),
+        new Type(lstType(new Type(strType(TyFlag::IS_INF)), TyFlag::IS_FIN))
+      ))
+    ))
+  );
 
-  cout << "a :: " << a->type() << " = " << *a << endl;
-  cout << "b :: " << b->type() << " = " << *b << endl;
+  std::istringstream ss(source);
+  Type result;
+  parseType(ss, nullptr, result);
 
-  Val* add0 = (Fun*)new FunAdd();
-  Val* add1 = ((Fun*)add0)->apply((Num*)a);
-  Val* res = ((Fun*)add1)->apply((Num*)b);
-
-  cout << "res :: " << res->type() << " = " << *res << endl;
-
-  delete res;
+  cout
+    << "  expect: " << expect << endl
+    << "  result: " << result << endl
+    << "compares equal: " << (expect == result) << endl
+  ;
 }
 
 int main() {
   try {
-    some();
-    return EXIT_SUCCESS;
-
-  } catch (TypeError& e) {
-    cerr
-      << "got error:" << endl
-      << e.what() << endl
-    ;
-    return EXIT_FAILURE;
+    test_parseType();
+  } catch (std::string const& e) {
+    cerr << "got err literal: " << e << endl;
   }
+  return 0;
 }
