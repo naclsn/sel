@@ -8,7 +8,7 @@ using namespace std;
 using namespace sel;
 
 void test_parseType() {
-  char const* source = "fn :: (Num -> Str*) -> Num -> ([Str]*, [Str*])";
+  char const* source = "fn :: (Num -> ((Str))*) -> Num -> ([Str]*, [Str*])";
 
   Type expect = funType(
     new Type(funType(
@@ -26,11 +26,13 @@ void test_parseType() {
 
   std::istringstream ss(source);
   Type result;
-  parseType(ss, nullptr, result);
+  std::string name;
+  parseType(ss, &name, result);
 
   cout
-    << "  expect: " << expect << endl
-    << "  result: " << result << endl
+    << "  source: " << source << endl
+    << "  expect: fn :: " << expect << endl
+    << "  result: " << name << " :: " << result << endl
     << "compares equal: " << (expect == result) << endl
   ;
 }
@@ -40,6 +42,8 @@ int main() {
     test_parseType();
   } catch (std::string const& e) {
     cerr << "got err literal: " << e << endl;
+  } catch (ParseError const& e) {
+    cerr << "parse error: expected " << *e.expected << "\n  situation: " << *e.situation << endl;
   }
   return 0;
 }

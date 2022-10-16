@@ -1,4 +1,4 @@
-#include "error.hpp"
+#include "errors.hpp"
 
 namespace sel {
 }

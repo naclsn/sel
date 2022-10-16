@@ -7,17 +7,58 @@
 
 namespace sel {
 
-  struct TypeError : public std::runtime_error {
-  public:
-    TypeError(char const* msg): std::runtime_error(msg) { }
+  struct BaseError : std::runtime_error {
+    BaseError(char const* msg): std::runtime_error(msg) { }
+    virtual ~BaseError() { }
   };
 
-  struct CoerseError : public TypeError {
-  public:
-    const Type from;
-    const Type to;
+  struct ParseError : BaseError {
+    std::string const* expected;
+    std::string const* situation;
+    ParseError(std::string const expected, std::string const situation, char const* msg)
+      : BaseError(msg)
+      , expected(new std::string(expected))
+      , situation(new std::string(situation))
+    { }
+    ~ParseError() {
+      delete expected;
+      delete situation;
+    }
+  };
 
-    CoerseError(Type from, Type to, char const* msg): TypeError(msg), from(from), to(to) { }
+  struct EOSError : ParseError {
+    EOSError(std::string const expected, char const* msg)
+      : ParseError(expected, "reached end of input", msg)
+    { }
+  };
+
+  struct NameError : ParseError {
+    std::string const* name;
+
+    NameError(std::string const unknown_name, char const* msg)
+      : ParseError("known name", "got unknown name", msg)
+      , name(new std::string(unknown_name))
+    { }
+    ~NameError() {
+      delete name;
+    }
+  };
+
+  struct TypeError : public BaseError {
+    TypeError(char const* msg)
+      : BaseError(msg)
+    { }
+  };
+
+  struct CoerseError : TypeError {
+    Type const* from;
+    Type const* to;
+
+    CoerseError(Type from, Type to, char const* msg)
+      : TypeError(msg)
+      , from(new Type(from))
+      , to(new Type(to))
+    { }
   };
 
   // struct ParameterError : public TypeError {

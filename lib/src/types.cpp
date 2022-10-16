@@ -3,6 +3,7 @@
 #include <iterator>
 
 #include "types.hpp"
+#include "errors.hpp"
 
 namespace sel {
 
@@ -128,15 +129,11 @@ namespace sel {
   // internal
   std::istream& operator>>(std::istream& in, TyToken& tt) {
     char c = in.get();
+    char cc = 0;
     if (in.eof()) return in;
     switch (c) {
       case ':':
-        if (':' != in.get()) {
-          tt.type = TyTokenType::UNKNOWN;
-          in.unget();
-          in.unget();
-          return in >> tt.text;
-        }
+        if (':' != (cc = in.get())) goto unknown_token_push2;
         tt.type = TyTokenType::TY_EQ;
         tt.text = "::";
         break;
@@ -162,12 +159,7 @@ namespace sel {
         break;
 
       case '-':
-        if ('>' != in.get()) {
-          tt.type = TyTokenType::UNKNOWN;
-          in.unget();
-          in.unget();
-          return in >> tt.text;
-        }
+        if ('>' != (cc = in.get())) goto unknown_token_push2;
         tt.type = TyTokenType::ARROW;
         tt.text = "->";
         break;
@@ -184,11 +176,7 @@ namespace sel {
 
       default: // TODO: `isalpha`: restrain to [A-Za-z]
         if (isspace(c)) break;
-        if (!isalpha(c)) {
-          tt.type = TyTokenType::UNKNOWN;
-          in.unget();
-          return in >> tt.text;
-        }
+        if (!isalpha(c)) goto unknown_token_push1;
 
         tt.type = islower(c)
           ? TyTokenType::NAME
@@ -198,43 +186,139 @@ namespace sel {
           tt.text.push_back(in.get());
     }
 
-    while (isspace(in.peek())) in.get();
+    if (false) {
+unknown_token_push2:
+      tt.text = cc;
+unknown_token_push1:
+      if (cc) tt.text+= c;
+      else    tt.text = c;
+      tt.type = TyTokenType::UNKNOWN;
+    }
+
+    while (!in.eof() && isspace(in.peek())) in.get();
     return in;
   }
 
-  // internal -- simple recursive parser; probly not the best, but not a requirement
-  void parseTypeImpl(std::istream_iterator<TyToken>& tts, Type& res) {
-    // flag indicate what was found, indicating the state (eg. cannot have both bracket and comma)
-    bool parenthesis = false, bracket = false, comma = false;
+  // internal
+  void parseTypeImpl(TyToken const& first, std::istream_iterator<TyToken>& tts, Type& res) {
+    static auto const eos = std::istream_iterator<TyToken>();
+    TyToken new_first;
 
-    std::cerr << "first TyToken at this level: " << *tts << std::endl;
+    // type ::= name
+    //        | ty_name
+    //        | (type)
+    //        | [type]
+    //        | type -> type
+    //        | (type, type)
+    //        | type*
+    switch (first.type) {
+      case TyTokenType::UNKNOWN:
+        throw ParseError("type expression",
+          ( std::string("got unknown tokens")
+          + " '" + first.text + " " + tts->text + " ...'"
+          ), "- what -");
 
-    // break and return when any of:
-    // - end of iterator
-    // - closing p, level above will figure the function/couple out
-    // - closing b, level above will figure the list out
-    // - comma, level above will figure the couple out
+      case TyTokenType::NAME:
+        res.base = Ty::UNK;
+        res.p.name = new std::string(first.text);
+        break;
 
-    res.base = Ty::UNK;
-    res.p.name = new std::string("idk");
+      case TyTokenType::TY_NAME:
+        if ("Num" == first.text)
+          res.base = Ty::NUM;
+        else if ("Str" == first.text)
+          res.base = Ty::STR;
+        else
+          throw NameError(first.text, "- what -");
+        break;
+
+      case TyTokenType::P_OPEN:
+        if (eos == tts) throw EOSError("type expression after '('", "- what -");
+        new_first = *tts;
+        parseTypeImpl(new_first, ++tts, res);
+        if (eos == tts) throw EOSError("token ',' or matching token ')'", "- what -");
+        //        | (type, type)
+        if (TyTokenType::COMMA == tts->type) {
+          res.p.box_pair[0] = new Type(res);
+          new_first = *++tts;
+          parseTypeImpl(new_first, ++tts, *(res.p.box_pair[1] = new Type()));
+          res.base = Ty::CPL;
+          res.flags = 0;
+        }
+        if (eos == tts) throw EOSError("matching token ')'", "- what -");
+        if (TyTokenType::P_CLOSE != tts->type)
+          throw ParseError("matching token ')'",
+            ( std::string("got unexpected tokens")
+            + " '" + tts++->text + " " + tts->text + " ...'"
+            ), "- what -");
+        tts++;
+        break;
+
+      case TyTokenType::B_OPEN:
+        if (eos == tts) throw EOSError("type expression after '['", "- what -");
+        res.p.box_has = new Type();
+        new_first = *tts;
+        parseTypeImpl(new_first, ++tts, *res.p.box_has);
+        if (eos == tts) throw EOSError("matching token ']'", "- what -");
+        if (TyTokenType::B_CLOSE != tts->type)
+          throw ParseError("matching token ')'",
+            ( std::string("got unexpected tokens")
+            + " '" + tts++->text + " " + tts->text + " ...'"
+            ), "- what -");
+        res.base = Ty::LST;
+        res.flags = 0;
+        tts++;
+        break;
+
+      default:
+        throw ParseError("type expression",
+          ( std::string("got unexpected tokens")
+          + " '" + first.text + " " + tts->text + " ...'"
+          ), "- what -");
+    }
+
+    if (eos == tts) return;
+    //        | type*
+    if (TyTokenType::STAR == tts->type) {
+      res.flags|= TyFlag::IS_INF;
+      tts++;
+    }
+
+    if (eos == tts) return;
+    //        | type -> type
+    if (TyTokenType::ARROW == tts->type) {
+      res.p.box_pair[0] = new Type(res);
+      new_first = *++tts;
+      parseTypeImpl(new_first, ++tts, *(res.p.box_pair[1] = new Type()));
+      res.base = Ty::FUN;
+      res.flags = 0;
+    }
   }
 
   void parseType(std::istream& in, std::string* named, Type& res) {
+    static auto const eos = std::istream_iterator<TyToken>();
     auto lexer = std::istream_iterator<TyToken>(in);
 
     // first check for "<name> '::'"
+    // note that the whole block needs to check the 2
+    // first tokens, and as such need to pop at least one;
+    // `first` is handed over to the `parseTypeImple`
+    // to compensate
     TyToken first = *lexer;
-    if (TyTokenType::NAME == first.type) {
-      TyToken second = *std::next(lexer);
+    if (TyTokenType::NAME == first.type && eos != lexer) {
+      TyToken second = *++lexer;
       if (TyTokenType::TY_EQ == second.type) {
-        // if caller wants it
+        lexer++; // drop '::'
+        if (eos == lexer) throw std::string("end of token stream");
         if (named) named->assign(first.text);
-        // skip over both
-        lexer++++;
-      } else named->assign("");
-    } else named->assign("");
+        first = *lexer++; // pop `first` (will forward to impl)
+      } else if (named) named->assign("");
+    } else {
+      if (named) named->assign("");
+      lexer++; // pop `first` (will forward to impl)
+    }
 
-    parseTypeImpl(lexer, res);
+    parseTypeImpl(first, lexer, res);
   }
 
   /**
@@ -244,6 +328,8 @@ namespace sel {
    * - both LST and recursive on has
    * - both FUN and recursive on fst and snd
    * - both CPL and recursive on fst and snd
+   *
+   * As such, this does not look at the flags (eg. IS_INF).
    */
   bool Type::operator==(Type const& other) const {
     if (Ty::UNK == base || Ty::UNK == other.base)
