@@ -2,8 +2,8 @@
 #include <sstream>
 #include <iterator>
 
-#include "types.hpp"
-#include "errors.hpp"
+#include "sel/types.hpp"
+#include "sel/errors.hpp"
 
 namespace sel {
 

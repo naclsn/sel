@@ -1,8 +1,8 @@
 #include <iostream>
 #include <sstream>
 
-#include "errors.hpp"
-#include "types.hpp"
+#include "sel/errors.hpp"
+#include "sel/types.hpp"
 
 using namespace std;
 using namespace sel;

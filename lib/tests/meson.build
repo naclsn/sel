@@ -12,3 +12,7 @@ foreach name : all
     )
   )
 endforeach
+
+unset_variable('all')
+unset_variable('name')
+unset_variable('filename')
