@@ -5,3 +5,7 @@ lib = library('sel',
   'src/types.cpp',
   include_directories : [inc]
 )
+
+if not meson.is_subproject()
+  subdir('tests')
+endif
