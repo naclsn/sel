@@ -13,6 +13,8 @@ foreach name : all
   )
 endforeach
 
-unset_variable('all')
-unset_variable('name')
-unset_variable('filename')
+if '0.60.0' < meson.version()
+  unset_variable('all')
+  unset_variable('name')
+  unset_variable('filename')
+endif

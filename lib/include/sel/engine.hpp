@@ -1,9 +1,15 @@
 #ifndef SEL_ENGINE_HPP
 #define SEL_ENGINE_HPP
 
+/**
+ * Main classes involved an runtime: types of values and
+ * the application.
+ */
+
 #include <string>
 
 #include "types.hpp"
+#include "visitors.hpp"
 
 namespace sel {
 
@@ -18,9 +24,10 @@ namespace sel {
     Type const ty;
     // virtual void eval() = 0; // more of a friendly reminder than actual contract
   public:
-    Val(Type ty): ty(Type(ty)) { }
-    virtual ~Val() = 0;
-    Type const& type() { return ty; }
+    Val(Type&& ty): ty(std::move(ty)) { }
+    virtual ~Val() { }
+    Type const& type() const { return ty; }
+    virtual void accept(Visitor& v) const = 0;
   };
 
   /**
@@ -110,6 +117,6 @@ namespace sel {
   class Application {
   };
 
-}
+} // namespace sel
 
 #endif // SEL_ENGINE_HPP

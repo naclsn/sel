@@ -15,13 +15,18 @@ install_subdir('include/sel', install_dir : 'include')
 lib = library('sel',
   'src/errors.cpp',
   'src/types.cpp',
+  'src/engine.cpp',
+  'src/parser.cpp',
+  'src/visitors/repr.cpp',
   # pre,
   include_directories : [inc],
   # version : '..',
   install : true,
 )
 
-# unset_variable(pre)
+# if '0.60.0' < meson.version()
+#   unset_variable(pre)
+# endif
 
 if not meson.is_subproject()
   subdir('tests')

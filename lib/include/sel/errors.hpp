@@ -1,9 +1,16 @@
 #ifndef SEL_ERROR_HPP
 #define SEL_ERROR_HPP
 
-#include <iostream>
+/**
+ * The various types of errors that can occure. All extend
+ * from `BaseError`.
+ */
+
+#include <stdexcept>
+#include <string>
 
 #include "types.hpp"
+#include "engine.hpp"
 
 namespace sel {
 
@@ -44,7 +51,7 @@ namespace sel {
     }
   };
 
-  struct TypeError : public BaseError {
+  struct TypeError : BaseError {
     TypeError(char const* msg)
       : BaseError(msg)
     { }
@@ -59,15 +66,27 @@ namespace sel {
       , from(new Type(from))
       , to(new Type(to))
     { }
+    ~CoerseError() {
+      delete from;
+      delete to;
+    }
   };
 
-  // struct ParameterError : public TypeError {
-  // public:
-  //   const Val* many;
+  struct ParameterError : TypeError {
+    Val const* many;
   
-  //   ParameterError(char const* msg): TypeError(msg), many(nullptr) { }
-  //   ParameterError(Val* many, char const* msg): TypeError(msg), many(many) { }
-  // };
-}
+    ParameterError(char const* msg)
+      : TypeError(msg)
+      , many(nullptr)
+    { }
+    ParameterError(Val* many, char const* msg)
+      : TypeError(msg)
+      , many(many)
+    { }
+    // ~ParameterError() {
+    //   delete many;
+    // }
+  };
+} // namespace sel
 
 #endif // SEL_ERROR_HPP

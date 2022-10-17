@@ -17,6 +17,6 @@ namespace sel {
   std::ostream& operator<<(std::ostream& out, Application const& ty);
   std::istream& operator>>(std::istream& in, Application& tt);
 
-}
+} // namespace sel
 
 #endif // SEL_PARSER_HPP

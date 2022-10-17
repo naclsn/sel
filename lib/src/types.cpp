@@ -7,6 +7,50 @@
 
 namespace sel {
 
+  Type::Type(Type const& ty) {
+    switch (base) {
+      case Ty::UNK:
+        p.name = new std::string(*ty.p.name);
+        break;
+
+      case Ty::LST:
+        p.box_has = new Type(*ty.p.box_has);
+        break;
+
+      case Ty::FUN:
+      case Ty::CPL:
+        p.box_pair[0] = new Type(*ty.p.box_pair[0]);
+        p.box_pair[1] = new Type(*ty.p.box_pair[1]);
+        break;
+
+      default: ;
+    }
+  }
+
+  Type::Type(Type&& ty) noexcept {
+    switch (base) {
+      case Ty::UNK:
+        p.name = ty.p.name;
+        ty.p.name = nullptr;
+        break;
+
+      case Ty::LST:
+        p.box_has = ty.p.box_has;
+        ty.p.box_has = nullptr;
+        break;
+
+      case Ty::FUN:
+      case Ty::CPL:
+        p.box_pair[0] = ty.p.box_pair[0];
+        p.box_pair[1] = ty.p.box_pair[1];
+        ty.p.box_pair[0] = nullptr;
+        ty.p.box_pair[1] = nullptr;
+        break;
+
+      default: ;
+    }
+  }
+
   Type::~Type() {
     switch (base) {
       case Ty::UNK:
@@ -28,65 +72,27 @@ namespace sel {
   }
 
   Type unkType(std::string* name) {
-    return Type {
-      .base=Ty::UNK,
-      .p={.name=name},
-    };
+    return Type(Ty::UNK, {.name=name}, 0);
   }
 
   Type numType() {
-    return Type {
-      .base=Ty::NUM,
-    };
+    return Type(Ty::NUM, {0}, 0);
   }
 
   Type strType(TyFlag is_inf) {
-    return Type {
-      .base=Ty::STR,
-      .flags=static_cast<uint8_t>(is_inf),
-    };
+    return Type(Ty::STR, {0}, static_cast<uint8_t>(is_inf));
   }
 
-  // Type lstType(Ty has, TyFlag is_inf) {
-  //   return Type {
-  //     .base=Ty::LST,
-  //     .p={.has=has},
-  //     .flags=static_cast<uint8_t>(is_inf),
-  //   };
-  // }
   Type lstType(Type* has, TyFlag is_inf) {
-    return Type {
-      .base=Ty::LST,
-      .p={.box_has=has},
-      .flags=static_cast<uint8_t>(is_inf),
-    };
+    return Type(Ty::LST, {.box_has=has}, static_cast<uint8_t>(is_inf));
   }
 
-  // Type funType(Ty fst, Ty snd) {
-  //   return Type {
-  //     .base=Ty::FUN,
-  //     .p={.pair={fst,snd}},
-  //   };
-  // }
   Type funType(Type* fst, Type* snd) {
-    return Type {
-      .base=Ty::FUN,
-      .p={.box_pair={fst,snd}},
-    };
+    return Type(Ty::FUN, {.box_pair={fst,snd}}, 0);
   }
 
-  // Type cplType(Ty fst, Ty snd) {
-  //   return Type {
-  //     .base=Ty::CPL,
-  //     .p={.pair={fst,snd}},
-  //   };
-  // }
   Type cplType(Type* fst, Type* snd) {
-    return Type {
-      .base=Ty::CPL,
-      .p={.box_pair={fst,snd}},
-      // .flags=, // YYY: don't know if it should bubble the IS_INF flag up
-    };
+    return Type(Ty::CPL, {.box_pair={fst,snd}}, 0);
   }
 
   // internal
@@ -239,7 +245,7 @@ unknown_token_push1:
         if (eos == tts) throw EOSError("token ',' or matching token ')'", "- what -");
         //        | (type, type)
         if (TyTokenType::COMMA == tts->type) {
-          res.p.box_pair[0] = new Type(res);
+          res.p.box_pair[0] = new Type(std::move(res));
           new_first = *++tts;
           parseTypeImpl(new_first, ++tts, *(res.p.box_pair[1] = new Type()));
           res.base = Ty::CPL;
@@ -287,7 +293,7 @@ unknown_token_push1:
     if (eos == tts) return;
     //        | type -> type
     if (TyTokenType::ARROW == tts->type) {
-      res.p.box_pair[0] = new Type(res);
+      res.p.box_pair[0] = new Type(std::move(res));
       new_first = *++tts;
       parseTypeImpl(new_first, ++tts, *(res.p.box_pair[1] = new Type()));
       res.base = Ty::FUN;

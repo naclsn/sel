@@ -10,8 +10,6 @@
 #include <istream>
 #include <string>
 
-#include "utils.hpp"
-
 namespace sel {
 
   enum class Ty {
@@ -33,19 +31,26 @@ namespace sel {
    * to construct/parse.
    */
   struct Type {
-    Ty base;
-    union {
+    Ty base = Ty::UNK;
+    union P {
       std::string* name;
       Type* box_has; // Ty has;
       Type* box_pair[2]; // Ty pair[2];
-    } p = {0};
+    } p = {.name=nullptr};
     uint8_t flags = 0;
 
-    // private: Type() { } // YYY: would like to disable default ctor
+    Type() { }
+    Type(Ty base, Type::P p, uint8_t flags)
+      : base(base)
+      , p(p)
+      , flags(flags)
+    { }
+    Type(Type const& ty);
+    Type(Type&& ty) noexcept;
     ~Type();
 
     bool operator==(Type const& other) const;
-  }; // struct Type
+  };
 
   Type unkType(std::string* name);
   Type numType();
