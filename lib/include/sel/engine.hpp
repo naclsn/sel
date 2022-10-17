@@ -6,7 +6,7 @@
  * the application.
  */
 
-#include <string>
+#include <ostream>
 
 #include "types.hpp"
 #include "visitors.hpp"
@@ -24,6 +24,7 @@ namespace sel {
     Type const ty;
     // virtual void eval() = 0; // more of a friendly reminder than actual contract
   public:
+    // Val(Val const& val) { }
     Val(Type&& ty): ty(std::move(ty)) { }
     virtual ~Val() { }
     Type const& type() const { return ty; }

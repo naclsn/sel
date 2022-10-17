@@ -38,7 +38,7 @@ $ seq 17 42 | build/sel [...idk...]
 
 ## Command Usage
 
-(flags (check, lookup/search, list, disable ic, ..))
+(flags (check, lookup/search, complete, list, disable ic..))
 
 ---
 

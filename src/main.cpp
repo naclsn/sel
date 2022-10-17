@@ -2,17 +2,20 @@
 #include <sstream>
 
 #include "sel/visitors.hpp"
-#include "sel/crap.hpp"
+#include "sel/bidoof.hpp"
 
 using namespace std;
 using namespace sel;
 
 int main() {
-  ValRepr repr = ValRepr(cout, {});
-  Crap crap = Crap();
+  std::ostringstream oss;
+  ValRepr repr = ValRepr(oss, {});
+  Bidoof bidoof = Bidoof();
 
-  crap.accept(repr);
-  // repr(crap);
+  bidoof.accept(repr);
+  // repr(bidoof);
+
+  cout << oss.str() << "\n";
 
   return 0;
 }

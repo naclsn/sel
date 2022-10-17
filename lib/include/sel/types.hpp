@@ -45,7 +45,7 @@ namespace sel {
       , p(p)
       , flags(flags)
     { }
-    Type(Type const& ty);
+    // Type(Type const& ty);
     Type(Type&& ty) noexcept;
     ~Type();
 
@@ -71,7 +71,7 @@ namespace sel {
   void parseType(std::istream& in, std::string* named, Type& res);
 
   std::ostream& operator<<(std::ostream& out, Type const& ty);
-  std::istream& operator>>(std::istream& in, Type& tt);
+  std::istream& operator>>(std::istream& in, Type& res);
 
 } // namespace sel
 

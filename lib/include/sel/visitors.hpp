@@ -16,7 +16,7 @@
 // #define VIS_ACCEPT(__ident) void accept(Visitor& v) { v.visit##__add_name(some); }
 
 // #include "engine.hpp"
-// #include "types.hpp"
+#include "types.hpp"
 
 namespace sel {
 
@@ -28,9 +28,9 @@ namespace sel {
   class Visitor {
   public:
     virtual ~Visitor() { }
-    // void operator()(Val& val); //{ val.accept(*this); } // well, this is frustrating :-(
+    // void operator()(Val& val) { val.accept(*this); } // well, this is frustrating :-(
 
-    virtual void visitCrap(char const* some, Val const* other) = 0;
+    virtual void visitBidoof(Type const& type, char const* some, Val const* other) = 0;
   };
 
   class ValRepr : public Visitor {
@@ -59,10 +59,10 @@ namespace sel {
       } const data;
     };
     ReprCx cx;
-    void reprHelper(char const* name, std::initializer_list<ReprField const> const fields);
+    void reprHelper(Type const& type, char const* name, std::initializer_list<ReprField const> const fields);
 
   public:
-    void visitCrap(char const* some, Val const* other) override;
+    void visitBidoof(Type const& type, char const* some, Val const* other) override;
   };
 
 } // namespace sel

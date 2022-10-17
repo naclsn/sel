@@ -7,15 +7,21 @@ namespace sel {
 #define fi_str(__name, __str) {.name=__name, .data_ty=ReprField::STR, .data={.str=__str}}
 #define fi_val(__name, __val) {.name=__name, .data_ty=ReprField::VAL, .data={.val=__val}}
 
-  void ValRepr::reprHelper(char const* name, std::initializer_list<ReprField const> const fields) {
-    char const* ln = 1 < fields.size()
-      ? "\n"
+  void ValRepr::reprHelper(Type const& type, char const* name, std::initializer_list<ReprField const> const fields) {
+    bool isln = 1 < fields.size();
+    std::string ln = isln
+      ? "\n" + std::string("   ", cx.indents)
       : " ";
-    res << name << " {" << ln;
+
+    // `iswrap` when the single field is a `Val` (so no increase indent)
+    bool iswrap = 1 == fields.size()
+      && ReprField::VAL == fields.begin()->data_ty;
+
+    res << "(" << type << ") " << name << " {" << ln;
+    if (!iswrap) cx.indents++;
 
     for (auto& it : fields) {
-      for (unsigned k = 0; k < cx.indents+1; k++)
-        res << "\t";
+      if (isln) res << "   ";
       res << it.name << "=";
 
       switch (it.data_ty) {
@@ -29,32 +35,28 @@ namespace sel {
 
         case ReprField::VAL:
           if (it.data.val) {
-            res << "(" << it.data.val->type() << ") ";
-            cx.indents++;
             it.data.val->accept(*this);
-            cx.indents--;
-            // res << "it.data.val->accept(*this)";
-          } else {
-            res << " -nil-";
-          }
+          } else res << " -nil-";
           break;
       }
 
       res << ln;
     }
 
-    if (1 < fields.size())
-      for (unsigned k = 0; k < cx.indents; k++)
-        res << "\t";
-
-    res << "}\n";
+    if (!iswrap) cx.indents--;
+    res << "}";
   }
 
-  void ValRepr::visitCrap(char const* some, Val const* other) {
-    reprHelper("Crap", {
-      fi_chr("some", some),
-      fi_val("other", other),
-    });
+  void ValRepr::visitBidoof(Type const& type, char const* some, Val const* other) {
+    if (Ty::NUM == type.base)
+      reprHelper(type, "Bidoof", {
+        fi_val("other", other),
+      });
+    else
+      reprHelper(type, "Bidoof", {
+        fi_chr("some", some),
+        fi_val("other", other),
+      });
   }
 
 } // namespace sel

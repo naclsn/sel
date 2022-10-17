@@ -1,5 +1,3 @@
-#include <iostream> // ZZZ: rem when no used
-#include <sstream>
 #include <iterator>
 
 #include "sel/types.hpp"
@@ -7,28 +5,28 @@
 
 namespace sel {
 
-  Type::Type(Type const& ty) {
-    switch (base) {
-      case Ty::UNK:
-        p.name = new std::string(*ty.p.name);
-        break;
-
-      case Ty::LST:
-        p.box_has = new Type(*ty.p.box_has);
-        break;
-
-      case Ty::FUN:
-      case Ty::CPL:
-        p.box_pair[0] = new Type(*ty.p.box_pair[0]);
-        p.box_pair[1] = new Type(*ty.p.box_pair[1]);
-        break;
-
-      default: ;
-    }
-  }
+  // Type::Type(Type const& ty) {
+  //   switch (base) {
+  //     case Ty::UNK:
+  //       p.name = new std::string(*ty.p.name);
+  //       break;
+  //
+  //     case Ty::LST:
+  //       p.box_has = new Type(*ty.p.box_has);
+  //       break;
+  //
+  //     case Ty::FUN:
+  //     case Ty::CPL:
+  //       p.box_pair[0] = new Type(*ty.p.box_pair[0]);
+  //       p.box_pair[1] = new Type(*ty.p.box_pair[1]);
+  //       break;
+  //
+  //     default: ;
+  //   }
+  // }
 
   Type::Type(Type&& ty) noexcept {
-    switch (base) {
+    switch (base = ty.base) {
       case Ty::UNK:
         p.name = ty.p.name;
         ty.p.name = nullptr;
@@ -49,6 +47,7 @@ namespace sel {
 
       default: ;
     }
+    flags = ty.flags;
   }
 
   Type::~Type() {
@@ -380,33 +379,18 @@ unknown_token_push1:
         break;
 
       case Ty::LST:
-        // if (TyFlag::IS_BOX & flags)
-          out << "[" << *ty.p.box_has << "]";
-        // else
-          // out << "[" << (Ty::NUM == p.has ? "Num" : "Str") << "]";
+        out << "[" << *ty.p.box_has << "]";
         break;
 
       case Ty::FUN:
-        // if (TyFlag::IS_BOX & flags) {
-          if (Ty::FUN == ty.p.box_pair[0]->base)
-            out << "(" << *ty.p.box_pair[0] << ") -> " << *ty.p.box_pair[1];
-          else
-            out << *ty.p.box_pair[0] << " -> " << *ty.p.box_pair[1];
-        // }
-        // else
-        //   out
-        //     << (Ty::NUM == p.pair[0] ? "Num" : "Str")
-        //     << " -> " << (Ty::NUM == p.pair[1] ? "Num" : "Str");
+        if (Ty::FUN == ty.p.box_pair[0]->base)
+          out << "(" << *ty.p.box_pair[0] << ") -> " << *ty.p.box_pair[1];
+        else
+          out << *ty.p.box_pair[0] << " -> " << *ty.p.box_pair[1];
         break;
 
       case Ty::CPL:
-        // if (TyFlag::IS_BOX & flags)
-          out << "(" << *ty.p.box_pair[0] << ", " << *ty.p.box_pair[1] << ")";
-        // else
-        //   out
-        //     << "(" << (Ty::NUM == p.pair[0] ? "Num" : "Str")
-        //     << ", " << (Ty::NUM == p.pair[1] ? "Num" : "Str")
-        //     << ")";
+        out << "(" << *ty.p.box_pair[0] << ", " << *ty.p.box_pair[1] << ")";
         break;
     }
 
@@ -414,8 +398,8 @@ unknown_token_push1:
     return out;
   }
 
-  std::istream& operator>>(std::istream& in, Type& tt) {
-    parseType(in, nullptr, tt);
+  std::istream& operator>>(std::istream& in, Type& res) {
+    parseType(in, nullptr, res);
     return in;
   }
 

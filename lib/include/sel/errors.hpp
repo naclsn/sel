@@ -63,8 +63,8 @@ namespace sel {
 
     CoerseError(Type from, Type to, char const* msg)
       : TypeError(msg)
-      , from(new Type(from))
-      , to(new Type(to))
+      , from() //(new Type(from))
+      , to() //(new Type(to))
     { }
     ~CoerseError() {
       delete from;
