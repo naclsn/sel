@@ -7,6 +7,7 @@
  */
 
 #include <ostream>
+#include <istream>
 #include <string>
 
 #include "utils.hpp"
@@ -22,7 +23,7 @@ namespace sel {
     CPL, // 2
   };
   enum TyFlag {
-    IS_FIN = 0,
+    IS_FIN = 0, // (0, and as such default)
     IS_INF = 1,
     // IS_SIMPLE = 2, // no complex nested type(s), no dynamic alloc
   };
