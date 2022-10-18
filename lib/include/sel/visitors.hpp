@@ -28,9 +28,13 @@ namespace sel {
   class Visitor {
   public:
     virtual ~Visitor() { }
-    // void operator()(Val& val) { val.accept(*this); } // well, this is frustrating :-(
+    void operator()(Val const& val);
 
     virtual void visitBidoof(Type const& type, char const* some, Val const* other) = 0;
+    virtual void visitNumLiteral(Type const& type, double n) = 0;
+    virtual void visitAdd2(Type const& type) = 0;
+    virtual void visitAdd1(Type const& type, Val const* base, Val const* arg) = 0;
+    virtual void visitAdd0(Type const& type, Val const* base, Val const* arg) = 0;
   };
 
   class ValRepr : public Visitor {
@@ -63,6 +67,10 @@ namespace sel {
 
   public:
     void visitBidoof(Type const& type, char const* some, Val const* other) override;
+    void visitNumLiteral(Type const& type, double n) override;
+    void visitAdd2(Type const& type) override;
+    void visitAdd1(Type const& type, Val const* base, Val const* arg) override;
+    void visitAdd0(Type const& type, Val const* base, Val const* arg) override;
   };
 
 } // namespace sel

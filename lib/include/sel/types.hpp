@@ -45,7 +45,7 @@ namespace sel {
       , p(p)
       , flags(flags)
     { }
-    // Type(Type const& ty);
+    Type(Type const& ty); // REM: implementation is commented-out
     Type(Type&& ty) noexcept;
     ~Type();
 

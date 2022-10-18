@@ -1,5 +1,4 @@
 #include "sel/visitors.hpp"
-#include "sel/engine.hpp"
 
 namespace sel {
 
@@ -9,9 +8,14 @@ namespace sel {
 
   void ValRepr::reprHelper(Type const& type, char const* name, std::initializer_list<ReprField const> const fields) {
     bool isln = 1 < fields.size();
-    std::string ln = isln
-      ? "\n" + std::string("   ", cx.indents)
-      : " ";
+
+    std::string ln = " ";
+    if (isln) {
+      ln = "\n";
+      ln.reserve(3 * cx.indents + 2);
+      for (unsigned k = 0; k < cx.indents; k++)
+        ln.append("   ");
+    }
 
     // `iswrap` when the single field is a `Val` (so no increase indent)
     bool iswrap = 1 == fields.size()
@@ -35,7 +39,7 @@ namespace sel {
 
         case ReprField::VAL:
           if (it.data.val) {
-            it.data.val->accept(*this);
+            this->operator()(*it.data.val);
           } else res << " -nil-";
           break;
       }
@@ -57,6 +61,31 @@ namespace sel {
         fi_chr("some", some),
         fi_val("other", other),
       });
+  }
+
+  void ValRepr::visitNumLiteral(Type const& type, double n) {
+    auto nn = std::to_string(n);
+    reprHelper(type, "NumLiteral", {
+      fi_str("n", &nn),
+    });
+  }
+
+  void ValRepr::visitAdd2(Type const& type) {
+    reprHelper(type, "Add2", {});
+  }
+
+  void ValRepr::visitAdd1(Type const& type, Val const* base, Val const* arg) {
+    reprHelper(type, "Add1", {
+      fi_val("base", base),
+      fi_val("arg", arg),
+    });
+  }
+
+  void ValRepr::visitAdd0(Type const& type, Val const* base, Val const* arg) {
+    reprHelper(type, "Add0", {
+      fi_val("base", base),
+      fi_val("arg", arg),
+    });
   }
 
 } // namespace sel

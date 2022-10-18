@@ -38,6 +38,9 @@ namespace sel {
    */
   class Num : public Val {
   public:
+    Num()
+      : Val(numType())
+    { }
     virtual double value() = 0;
   };
 
@@ -47,6 +50,9 @@ namespace sel {
    */
   class Str : public Val { //, public std::istream
   public:
+    Str(TyFlag is_inf)
+      : Val(strType(is_inf))
+    { }
     friend std::ostream& operator<<(std::ostream& out, Str& val) { return val.output(out); }
     /**
      * Stream (compute, etc..) some bytes.
@@ -66,6 +72,9 @@ namespace sel {
    */
   class Lst : public Val { //, public std::iterator<std::input_iterator_tag, Val>
   public:
+    Lst(Type&& has, TyFlag is_inf)
+      : Val(lstType(new Type(std::move(has)), is_inf))
+    { }
     /**
      * Get (compute, etc..) the current value.
      */
@@ -95,7 +104,10 @@ namespace sel {
    */
   class Fun : public Val {
   public:
-    virtual Val& operator()(Val& arg) = 0;
+    Fun(Type&& fst, Type&& snd)
+      : Val(funType(new Type(std::move(fst)), new Type(std::move(snd))))
+    { }
+    virtual Val* operator()(Val* arg) = 0;
   };
 
   /**
@@ -106,6 +118,9 @@ namespace sel {
    */
   class Cpl : public Val {
   public:
+    Cpl(Type&& fst, Type&& snd)
+      : Val(cplType(new Type(std::move(fst)), new Type(std::move(snd))))
+    { }
     virtual Val& first() = 0;
     virtual Val& second() = 0;
   };

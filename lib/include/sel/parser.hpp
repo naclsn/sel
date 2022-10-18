@@ -14,6 +14,14 @@
 
 namespace sel {
 
+  class NumLiteral : public Num {
+    double const n;
+  public:
+    NumLiteral(double n): n(n) { }
+    double value() override { return n; }
+    void accept(Visitor& v) const override { v.visitNumLiteral(type(), n); }
+  };
+
   std::ostream& operator<<(std::ostream& out, Application const& ty);
   std::istream& operator>>(std::istream& in, Application& tt);
 
