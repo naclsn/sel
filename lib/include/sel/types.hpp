@@ -30,7 +30,7 @@ namespace sel {
    * Represents a type (yey). Use the [..]Type function
    * to construct/parse.
    */
-  struct Type {
+  struct Type { // TODO: maybe could do with cleaner move 'compliance' (eg. operator=) ((or none at all))
     Ty base = Ty::UNK;
     union P {
       std::string* name;
