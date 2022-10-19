@@ -19,7 +19,7 @@ namespace sel {
   public:
     NumLiteral(double n): n(n) { }
     double value() override { return n; }
-    void accept(Visitor& v) const override { v.visitNumLiteral(type(), n); }
+    void accept(Visitor& v) const override;
   };
 
   std::ostream& operator<<(std::ostream& out, Application const& ty);
