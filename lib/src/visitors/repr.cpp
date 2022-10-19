@@ -21,7 +21,7 @@ namespace sel {
     bool iswrap = 1 == fields.size()
       && ReprField::VAL == fields.begin()->data_ty;
 
-    res << "(" << type << ") " << name << " {" << ln;
+    res << "<" << type << "> " << name << " {" << ln;
     if (!iswrap) cx.indents++;
 
     for (auto& it : fields) {

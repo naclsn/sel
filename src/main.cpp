@@ -5,6 +5,14 @@
 #include "sel/bidoof.hpp"
 #include "sel/parser.hpp"
 
+// YYY: The prelude is generated during build. It (likely)
+// will be at the root of the buildir hence the include
+// path. The macro WITH_PRELUDE is only here for tools
+// that work off the source tree (eg. editor/lsp/..).
+#ifndef NO_PRELUDE
+#include "prelude.hpp"
+#endif
+
 using namespace std;
 using namespace sel;
 

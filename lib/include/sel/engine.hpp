@@ -9,9 +9,10 @@
 #include <ostream>
 
 #include "types.hpp"
-#include "visitors.hpp"
 
 namespace sel {
+
+  class Visitor;
 
   /**
    * Abstract base class for every types of values. See
