@@ -179,15 +179,15 @@ namespace sel {
         tt.text = "*";
         break;
 
-      default: // TODO: `isalpha`: restrain to [A-Za-z]
+      default:
         if (isspace(c)) break;
-        if (!isalpha(c)) goto unknown_token_push1;
+        if ((c < 'A' || 'Z' < c) && (c < 'a' || 'z' < c)) goto unknown_token_push1;
 
         tt.type = islower(c)
           ? TyTokenType::NAME
           : TyTokenType::TY_NAME;
         tt.text = c;
-        while (isalpha(in.peek()))
+        while ('a' <= in.peek() && in.peek() <= 'z') // no upper cases? should not, only first character
           tt.text.push_back(in.get());
     }
 

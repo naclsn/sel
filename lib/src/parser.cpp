@@ -24,7 +24,7 @@ namespace sel {
       BIN_OP,
       SUB_OPEN,
       SUB_CLOSE,
-      COMMA,
+      THEN,
     } type;
     union {
       std::string* name;
@@ -35,20 +35,45 @@ namespace sel {
     Token() {}
     Token(Token const& t) {
       switch (type = t.type) {
-        case Token::Type::NAME:    as.name = new std::string(*t.as.name); break;
-        case Token::Type::LIT_STR: as.str = new std::string(*t.as.str);   break;
-        default: ;
+        case Token::Type::NAME: as.name = new std::string(*t.as.name); break;
+        case Token::Type::LIT_STR: as.str = new std::string(*t.as.str); break;
+        case Token::Type::LIT_NUM: as.num = t.as.num;
+        default: as.chr = t.as.chr;
       }
       loc = t.loc;
     }
     ~Token() {
       switch (type) {
-        case Token::Type::NAME:    delete as.name; as.name = nullptr; break;
-        case Token::Type::LIT_STR: delete as.str;  as.str = nullptr;  break;
+        case Token::Type::NAME: delete as.name; as.name = nullptr; break;
+        case Token::Type::LIT_STR: delete as.str; as.str = nullptr; break;
         default: ;
       }
     }
   };
+
+  // internal
+  double parseNumber(std::istream& in) {
+    unsigned base = 10;
+    char c;
+    double r = 0;
+    while (true) {
+      c = in.peek();
+      if (c < '0' || '9' < c) break;
+      in.ignore(1);
+      r = r * base + (c-'0');
+    }
+    if ('.' == c) {
+      in.ignore(1);
+      while (true) {
+        c = in.peek();
+        if (c < '0' || '9' < c) break;
+        in.ignore(1);
+        r+= ((double)(c-'0')) / base;
+        base/= base;
+      }
+    }
+    return r;
+  }
 
   // internal
   std::ostream& operator<<(std::ostream& out, Token const& t) {
@@ -63,7 +88,7 @@ namespace sel {
       case Token::Type::BIN_OP:        out << "BIN_OP";        break;
       case Token::Type::SUB_OPEN:      out << "SUB_OPEN";      break;
       case Token::Type::SUB_CLOSE:     out << "SUB_CLOSE";     break;
-      case Token::Type::COMMA:         out << "COMMA";         break;
+      case Token::Type::THEN:          out << "THEN";          break;
     }
     out << ", ";
     switch (t.type) {
@@ -85,7 +110,7 @@ namespace sel {
       case Token::Type::BIN_OP:
       case Token::Type::SUB_OPEN:
       case Token::Type::SUB_CLOSE:
-      case Token::Type::COMMA:
+      case Token::Type::THEN:
         out << ".chr='" << t.as.chr << "'";
         break;
     }
@@ -100,18 +125,19 @@ namespace sel {
     switch (c) {
       // case -1: // trait::eof()
 
-      case ',': t.type = Token::Type::COMMA;         t.as.chr = in.get(); break;
+      case ',': t.type = Token::Type::THEN;          t.as.chr = c; in.ignore(1); break;
 
-      case '[': t.type = Token::Type::SUB_OPEN;      t.as.chr = in.get(); break;
-      case ']': t.type = Token::Type::SUB_CLOSE;     t.as.chr = in.get(); break;
+      case '[': t.type = Token::Type::SUB_OPEN;      t.as.chr = c; in.ignore(1); break;
+      case ']': t.type = Token::Type::SUB_CLOSE;     t.as.chr = c; in.ignore(1); break;
 
-      case '{': t.type = Token::Type::LIT_LST_OPEN;  t.as.chr = in.get(); break;
-      case '}': t.type = Token::Type::LIT_LST_CLOSE; t.as.chr = in.get(); break;
+      case '{': t.type = Token::Type::LIT_LST_OPEN;  t.as.chr = c; in.ignore(1); break;
+      case '}': t.type = Token::Type::LIT_LST_CLOSE; t.as.chr = c; in.ignore(1); break;
 
       case '@':
       case '%':
         t.type = Token::Type::UN_OP;
-        t.as.chr = in.get();
+        t.as.chr = c;
+        in.ignore(1);
         break;
 
       case '+':
@@ -119,7 +145,8 @@ namespace sel {
       case '.':
       case '/':
         t.type = Token::Type::BIN_OP;
-        t.as.chr = in.get();
+        t.as.chr = c;
+        in.ignore(1);
         break;
 
       case ':':
@@ -140,7 +167,7 @@ namespace sel {
       default:
         if ('0' <= c && c <= '9') {
           t.type = Token::Type::LIT_NUM;
-          in >> t.as.num;
+          t.as.num = parseNumber(in);
           break;
         }
 
@@ -149,7 +176,8 @@ namespace sel {
           t.as.name = new std::string();
           do {
             t.as.name->push_back(in.get());
-          } while (isalpha(in.peek()));
+            c = in.peek();
+          } while ('a' <= c && c <= 'z');
           break;
         }
     }
