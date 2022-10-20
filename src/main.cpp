@@ -5,13 +5,7 @@
 #include "sel/bidoof.hpp"
 #include "sel/parser.hpp"
 
-// YYY: The prelude is generated during build. It (likely)
-// will be at the root of the buildir hence the include
-// path. The macro WITH_PRELUDE is only here for tools
-// that work off the source tree (eg. editor/lsp/..).
-#ifndef NO_PRELUDE
 #include "prelude.hpp"
-#endif
 
 using namespace std;
 using namespace sel;
@@ -25,55 +19,6 @@ void bidoof() {
 
   cout << oss.str() << "\n";
 }
-
-
-template <typename To>
-To* coerse(Val* from) { return (To*)from; }
-
-
-struct Add2 : Fun {
-  Add2()
-    : Fun(numType(), funType(new Type(numType()), new Type(numType())))
-  { }
-  Val* operator()(Val* arg) override;
-  void accept(Visitor& v) const override { v.visitAdd2(type()); }
-};
-
-struct Add1 : Fun {
-  Add2* base;
-  Num* arg;
-  Add1(Add2* base, Num* arg)
-    : Fun(numType(), numType())
-    , base(base)
-    , arg(arg)
-  { }
-  Val* operator()(Val* arg) override;
-  void accept(Visitor& v) const override { v.visitAdd1(type(), base, arg); }
-};
-
-struct Add0 : Num {
-  Add1* base;
-  Num* arg;
-  Add0(Add1* base, Num* arg)
-    : base(base)
-    , arg(arg)
-  { }
-  double value() override;
-  void accept(Visitor& v) const override { v.visitAdd0(type(), base, arg); }
-};
-
-
-Val* Add2::operator()(Val* arg) {
-  return new Add1(this, coerse<Num>(arg));
-}
-Val* Add1::operator()(Val* arg) {
-  return new Add0(this, coerse<Num>(arg));
-}
-double Add0::value() {
-  return base->arg->value() + arg->value();
-}
-
-
 
 void show(char const* name, Val* val) {
   static auto repr = ValRepr(cout, {});

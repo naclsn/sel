@@ -13,13 +13,7 @@
 
 #include "types.hpp"
 
-// YYY: generated header, macro is for convenience with
-// tools not seeing these (eg. editor)
-#ifndef NO_PRELUDE
 #include "prelude_visit_each"
-#else
-#define PRELUDE_VISIT_EACH(__do)
-#endif
 
 /// __do(__name, ...) .. __VA_ARGS__ ..
 #define VISIT_EACH(__do) PRELUDE_VISIT_EACH(__do)                         \

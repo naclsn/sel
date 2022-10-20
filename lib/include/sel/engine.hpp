@@ -32,6 +32,9 @@ namespace sel {
     virtual void accept(Visitor& v) const = 0;
   };
 
+  template <typename To>
+  To* coerse(Val* from);
+
   /**
    * Abstract class for `Num`-type compatible values.
    * Numbers can be converted to common representation

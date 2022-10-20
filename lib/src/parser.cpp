@@ -35,13 +35,16 @@ namespace sel {
   // internal
   std::istream& operator>>(std::istream& in, Token& t) {
     char c = in.get();
+    // if (in.eof()) return in;
     switch (c) {
-      case ',': t.type = Token::Type::COMMA; t.as.chr = c; break;
+      // case -1: // trait::eof()
 
-      case '[': t.type = Token::Type::SUB_OPEN; t.as.chr = c; break;
-      case ']': t.type = Token::Type::SUB_CLOSE; t.as.chr = c; break;
+      case ',': t.type = Token::Type::COMMA;         t.as.chr = c; break;
 
-      case '{': t.type = Token::Type::LIT_LST_OPEN; t.as.chr = c; break;
+      case '[': t.type = Token::Type::SUB_OPEN;      t.as.chr = c; break;
+      case ']': t.type = Token::Type::SUB_CLOSE;     t.as.chr = c; break;
+
+      case '{': t.type = Token::Type::LIT_LST_OPEN;  t.as.chr = c; break;
       case '}': t.type = Token::Type::LIT_LST_CLOSE; t.as.chr = c; break;
 
       case '@':
@@ -60,24 +63,34 @@ namespace sel {
 
       case ':':
         t.type = Token::Type::LIT_STR;
-        throw "TODO: t.as.str";
+        t.as.str = c;
+        while (!in.eof()) {
+          c = in.get();
+          if (':' == c) {
+            if (':' != in.peek()) break;
+            in.ignore(1);
+          }
+          t.as.str.push_back(c);
+        }
         break;
-
-      // case trait::eof():
 
       default:
         if ('0' <= c && c <= '9') {
           t.type = Token::Type::LIT_NUM;
-          throw "TODO: t.as.num";
+          in >> t.as.num;
           break;
         }
 
         if ('a' <= c && c <= 'z') {
-          t.type = Token::Type::LIT_STR;
-          throw "TODO: t.as.str";
+          t.type = Token::Type::NAME;
+          t.as.name = c;
+          while (isalpha(in.peek()))
+            t.as.name.push_back(in.get());
           break;
         }
     }
+
+    while (!in.eof() && isspace(in.peek())) in.get();
     return in;
   }
 

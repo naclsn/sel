@@ -1,0 +1,5 @@
+// place holder file
+#define PRELUDE_VISIT_EACH(__do) \
+	__do(Add2, Type const& type) \
+	__do(Add1, Type const& type, Val const* base, Val const* arg) \
+	__do(Add0, Type const& type, Val const* base, Val const* arg)
