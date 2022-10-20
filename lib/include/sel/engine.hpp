@@ -57,11 +57,11 @@ namespace sel {
     Str(TyFlag is_inf)
       : Val(strType(is_inf))
     { }
-    friend std::ostream& operator<<(std::ostream& out, Str& val) { return val.output(out); }
+    friend std::ostream& operator<<(std::ostream& out, Str& val) { return val.stream(out); }
     /**
      * Stream (compute, etc..) some bytes.
      */
-    virtual std::ostream& output(std::ostream& out) = 0;
+    virtual std::ostream& stream(std::ostream& out) = 0;
     /**
      * Resets the internal state so the string may be
      * streamed again.
@@ -82,7 +82,7 @@ namespace sel {
     /**
      * Get (compute, etc..) the current value.
      */
-    virtual Val& operator*() = 0;
+    virtual Val* operator*() = 0;
     /**
      * Move to (compute, etc..) the next value.
      */
@@ -125,8 +125,8 @@ namespace sel {
     Cpl(Type&& fst, Type&& snd)
       : Val(cplType(new Type(std::move(fst)), new Type(std::move(snd))))
     { }
-    virtual Val& first() = 0;
-    virtual Val& second() = 0;
+    virtual Val* first() = 0;
+    virtual Val* second() = 0;
   };
 
   /**

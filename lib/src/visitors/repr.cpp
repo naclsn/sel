@@ -51,16 +51,8 @@ namespace sel {
     res << "}";
   }
 
-  void ValRepr::visitBidoof(Type const& type, char const* some, Val const* other) {
-    if (Ty::NUM == type.base)
-      reprHelper(type, "Bidoof", {
-        fi_val("other", other),
-      });
-    else
-      reprHelper(type, "Bidoof", {
-        fi_chr("some", some),
-        fi_val("other", other),
-      });
+  void ValRepr::visitBidoof(Type const& type) {
+    reprHelper(type, "Bidoof", {});
   }
 
   void ValRepr::visitNumLiteral(Type const& type, double n) {

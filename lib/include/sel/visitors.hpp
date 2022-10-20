@@ -16,9 +16,9 @@
 #include "prelude_visit_each"
 
 /// __do(__name, ...) .. __VA_ARGS__ ..
-#define VISIT_EACH(__do) PRELUDE_VISIT_EACH(__do)                         \
-  __do(Bidoof    , Type const& type, char const* some, Val const* other)  \
-  __do(NumLiteral, Type const& type, double n                          )  \
+#define VISIT_EACH(__do) PRELUDE_VISIT_EACH(__do)  \
+  __do(Bidoof, Type const& type)                   \
+  __do(NumLiteral, Type const& type, double)       \
 
 namespace sel {
 

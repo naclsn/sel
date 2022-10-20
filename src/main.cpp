@@ -13,9 +13,9 @@ using namespace sel;
 void bidoof() {
   std::ostringstream oss;
   ValRepr repr = ValRepr(oss, {});
-  Bidoof bidoof = Bidoof();
+  Bidoof bidoof = Bidoof("A");
 
-  repr(bidoof);
+  repr(**bidoof);
 
   cout << oss.str() << "\n";
 }

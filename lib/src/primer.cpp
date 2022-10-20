@@ -17,7 +17,6 @@ string ovst;
 string name;
 string upname;
 
-/// YYY: not meant to be used outside build process, more a reminder
 void usage(char const* fail) {
   cerr << "Usage: " << prog << " <xyz.txt> <xyz.hpp> <xyz.cpp> <xyz_visit_each>\n";
   cerr << "failed because: " << fail << endl;
