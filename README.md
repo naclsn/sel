@@ -3,6 +3,7 @@ Yet an other `awk`-ish command line tool, with a
 
 - [Overview](#Overview)
   - [Getting Started](#Getting%20Started)
+    - [Setting Up for Development](Setting%20Up%20for%20Development)
   - [Command Usage](#Command%20Usage)
 - [Details](#Details)
   - [Syntax](#Syntax)
@@ -35,6 +36,23 @@ $ seq 17 42 | build/sel [...idk...]
 37
 41
 ```
+
+### Setting Up for Development
+
+This project contains a few generated files (notably
+for the prelude) The files are generated at build time,
+in the build tree (eg. `build/`, depending on the `meson
+setup ..` command). More recent versions of clangd may be
+able to pick up on this, otherwise adding the following
+`compile_flags.txt` to the project root may help:
+```plain
+-Ibuild/lib
+-Ilib/include
+```
+
+Again, the generated file are made at build time. It may be
+needed to run the build command once (eg. `ninja -C build`,
+depending on the build tool).
 
 ## Command Usage
 
