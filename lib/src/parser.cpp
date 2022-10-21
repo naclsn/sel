@@ -186,16 +186,14 @@ namespace sel {
     return in;
   }
 
-  // ZZZ: wip
-  void parseApplication() {
-    std::istringstream iss("split : :, map +1, join ::::");
+  // internal
+  Val* parseAtom(std::istream& in) {
+    return nullptr;
+  }
 
-    std::istream_iterator<Token> isi(iss);
-    std::istream_iterator<Token> eos;
-
-    std::cerr << "parsing '" << iss.str() << "'\n";
-    while (eos != isi)
-      std::cerr << "  read token: " << *isi++ << std::endl;
+  // internal
+  Val* parseElement(std::istream& in) {
+    return nullptr;
   }
 
   std::ostream& operator<<(std::ostream& out, Application const& app) {
@@ -204,7 +202,13 @@ namespace sel {
   }
 
   std::istream& operator>>(std::istream& in, Application& app) {
-    throw "TODO: operator>> for Application\n";
+    std::istream_iterator<Token> lexer(in);
+    std::istream_iterator<Token> eos;
+
+    std::cerr << "parsing stream into Application\n";
+    while (eos != lexer)
+      std::cerr << "  read token: " << *lexer++ << std::endl;
+
     return in;
   }
 

@@ -32,7 +32,7 @@ namespace sel {
     Lst* operator++() override { return (Lst*)this; }
     bool end() const override { return false; }
 
-    Val* operator()(Val* arg) override { return (Fun*)this; }
+    Val* operator()(Environment const&env, Val* arg) override { return (Fun*)this; }
 
     Val* first() override { return (Cpl*)this; }
     Val* second() override { return (Cpl*)this; }

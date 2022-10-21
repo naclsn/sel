@@ -48,8 +48,19 @@ void numLiteral() {
   // delete a;
 }
 
+void parseApplication() {
+  istringstream iss("split : :, map +1, join ::::");
+
+  Application app;
+  iss >> app;
+
+  // ostringstream oss;
+  // oss << app;
+}
+
 int main() {
   // bidoof();
-  numLiteral();
+  // numLiteral();
+  parseApplication();
   return 0;
 }

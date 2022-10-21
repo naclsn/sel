@@ -21,18 +21,19 @@ module.exports = grammar({
       seq($.binop, $.atom),
     ),
 
-    literal: $ => choice($.number, $.string),
+    literal: $ => choice($.number, $.string, $.list),
 
     name: _ => /[a-z]+/,
     unop: _ => choice(...'%@'.split('')),
-    binop: _ => choice(...'+-./:=_~'.split('')),
+    binop: _ => choice(...'+-./=_'.split('')),
 
     subscript: $ => seq('[', optional($._elements1), ']'),
 
     number: _ => /[0-9]+(\.[0-9]+)?|0x[0-9A-F]+|0b[01]+|0o[0-7]/,
-    string: $ => $._string, _string: $ => seq('{', repeat(choice(/[^}]/, $._string)), '}'),
+    string: _ => seq(':', /([^:]|::)*/, ':'),
+    list: $ => seq('{', $._elements1, '}'),
 
-    reserved: _ => /[\^]/,
+    reserved: _ => /[~^]/,
 
   },
 

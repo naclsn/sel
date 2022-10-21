@@ -12,6 +12,13 @@
 
 namespace sel {
 
+  /**
+   * Implicitly passed through each functions. Used from
+   * an application.
+   */
+  class Environment {
+  };
+
   class Visitor;
 
   /**
@@ -111,7 +118,7 @@ namespace sel {
     Fun(Type&& fst, Type&& snd)
       : Val(funType(new Type(std::move(fst)), new Type(std::move(snd))))
     { }
-    virtual Val* operator()(Val* arg) = 0;
+    virtual Val* operator()(Environment const& env, Val* arg) = 0;
   };
 
   /**
@@ -132,9 +139,17 @@ namespace sel {
   /**
    * An application is constructed from parsing a user
    * script. It serializes back to an equivalent script
-   * (although it may not be strictly equal).
+   * (although it may not be strictly equal). The default
+   * constructor automatically creates a new environment.
    */
   class Application {
+  private:
+    Environment env;
+  public:
+    Application()
+      : env()
+    { }
+    Environment const& environ() const { return env; }
   };
 
 } // namespace sel
