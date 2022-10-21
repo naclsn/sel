@@ -7,6 +7,7 @@
 
 namespace sel {
 
+  /// XXX: not to be used, it's there just because - don't ask again
   class Bidoof : public Num, public Str, public Lst, public Fun, public Cpl {
   private:
     std::string* a;
@@ -32,7 +33,7 @@ namespace sel {
     Lst* operator++() override { return (Lst*)this; }
     bool end() const override { return false; }
 
-    Val* operator()(Environment const&env, Val* arg) override { return (Fun*)this; }
+    Val* operator()(Environment& env, Val* arg) override { return (Fun*)this; }
 
     Val* first() override { return (Cpl*)this; }
     Val* second() override { return (Cpl*)this; }

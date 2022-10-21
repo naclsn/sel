@@ -1,9 +1,35 @@
 #include <iterator>
 
+#include "sel/utils.hpp"
 #include "sel/types.hpp"
 #include "sel/errors.hpp"
 
 namespace sel {
+
+  // internal
+  std::ostream& operator<<(std::ostream& out, Ty ty) {
+    switch (ty) {
+      case Ty::UNK: out << "UNK"; break;
+      case Ty::NUM: out << "NUM"; break;
+      case Ty::STR: out << "STR"; break;
+      case Ty::LST: out << "LST"; break;
+      case Ty::FUN: out << "FUN"; break;
+      case Ty::CPL: out << "CPL"; break;
+    }
+    return out;
+  }
+
+  // internal
+  std::ostream& operator<<(std::ostream& out, TyFlag tf) {
+    out << (TyFlag::IS_INF & tf ? "IS_INF" : "IS_FIN");
+    return out;
+  }
+
+  Type::Type(Ty base, Type::P p, uint8_t flags)
+    : base(base)
+    , p(p)
+    , flags(flags)
+  { TRACE(Type, raw(this)<<"; "<<base); }
 
   // Type::Type(Type const& ty) {
   //   switch (base) {
@@ -26,6 +52,7 @@ namespace sel {
   // }
 
   Type::Type(Type&& ty) noexcept {
+    TRACE(Type&&, raw(this)<<"; "<<ty);
     switch (base = ty.base) {
       case Ty::UNK:
         p.name = ty.p.name;
@@ -51,6 +78,7 @@ namespace sel {
   }
 
   Type::~Type() {
+    TRACE(~Type, raw(this)<<"; "<<base)
     switch (base) {
       case Ty::UNK:
         delete p.name;
@@ -71,26 +99,32 @@ namespace sel {
   }
 
   Type unkType(std::string* name) {
+    TRACE(unkType, *name<<"*"<<raw(name));
     return Type(Ty::UNK, {.name=name}, 0);
   }
 
   Type numType() {
+    TRACE(numType, "");
     return Type(Ty::NUM, {0}, 0);
   }
 
   Type strType(TyFlag is_inf) {
+    TRACE(strType, is_inf);
     return Type(Ty::STR, {0}, static_cast<uint8_t>(is_inf));
   }
 
   Type lstType(Type* has, TyFlag is_inf) {
+    TRACE(lstType, *has<<"*"<<raw(has)<<", "<<is_inf);
     return Type(Ty::LST, {.box_has=has}, static_cast<uint8_t>(is_inf));
   }
 
   Type funType(Type* fst, Type* snd) {
+    TRACE(funType, *fst<<"*"<<raw(fst)<<", "<<*snd<<"*"<<raw(snd));
     return Type(Ty::FUN, {.box_pair={fst,snd}}, 0);
   }
 
   Type cplType(Type* fst, Type* snd) {
+    TRACE(cplType, *fst<<"*"<<raw(fst)<<", "<<*snd<<"*"<<raw(snd));
     return Type(Ty::CPL, {.box_pair={fst,snd}}, 0);
   }
 

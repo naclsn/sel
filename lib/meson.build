@@ -14,13 +14,15 @@ pre = custom_target('prelude',
     # '@OUTPUT@',
     'cp', '../stub/prelude.hpp', '../stub/prelude.cpp', '../stub/prelude_visit_each', '../build/lib/'
   ],
-  input : ['src/prelude.txt'],
+  # input : ['src/prelude.txt'],
+  input : ['../stub/prelude.hpp', '../stub/prelude.cpp', '../stub/prelude_visit_each'],
   output : ['prelude.hpp', 'prelude.cpp', 'prelude_visit_each'],
   install : true,
   install_dir : ['include/sel', false, 'include/sel'],
 )
 
 lib = library('sel',
+  'src/utils.cpp',
   'src/errors.cpp',
   'src/types.cpp',
   'src/engine.cpp',

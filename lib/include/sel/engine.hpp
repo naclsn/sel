@@ -12,11 +12,20 @@
 
 namespace sel {
 
+  class Application;
+
   /**
    * Implicitly passed through each functions. Used from
    * an application.
    */
   class Environment {
+  private:
+    Environment();
+    Application const& app;
+  public:
+    Environment(Application const& app)
+      : app(app)
+    { }
   };
 
   class Visitor;
@@ -39,6 +48,13 @@ namespace sel {
     virtual void accept(Visitor& v) const = 0;
   };
 
+  /**
+   * Coerse a value to a type. Returned pointer may be
+   * the same or a newly allocated value.
+   * For now this is a template function, but this might
+   * not be enough with dynamically known types; may change
+   * it for `coerse(Val val, Type to)`.
+   */
   template <typename To>
   To* coerse(Val* from);
 
@@ -118,7 +134,7 @@ namespace sel {
     Fun(Type&& fst, Type&& snd)
       : Val(funType(new Type(std::move(fst)), new Type(std::move(snd))))
     { }
-    virtual Val* operator()(Environment const& env, Val* arg) = 0;
+    virtual Val* operator()(Environment& env, Val* arg) = 0;
   };
 
   /**
@@ -147,7 +163,7 @@ namespace sel {
     Environment env;
   public:
     Application()
-      : env()
+      : env(*this)
     { }
     Environment const& environ() const { return env; }
   };

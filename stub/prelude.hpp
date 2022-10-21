@@ -2,6 +2,8 @@
 #ifndef SEL_PRELUDE_HPP
 #define SEL_PRELUDE_HPP
 
+#include "sel/utils.hpp"
+
 #include <string>
 
 #include "sel/engine.hpp"
@@ -13,11 +15,30 @@ namespace sel {
   Fun* lookup_unary(std::string const& name);
   Fun* lookup_binary(std::string const& name);
 
+  struct Abs1 : Fun {
+    Abs1()
+      : Fun(numType(), numType())
+    { }
+    Val* operator()(Environment& env, Val* arg) override;
+    void accept(Visitor& v) const override;
+  };
+
+  struct Abs0 : Num {
+    Abs1* base;
+    Num* arg;
+    Abs0(Abs1* base, Num* arg)
+      : base(base)
+      , arg(arg)
+    { }
+    double value() override;
+    void accept(Visitor& v) const override;
+  };
+
   struct Add2 : Fun {
     Add2()
       : Fun(numType(), funType(new Type(numType()), new Type(numType())))
     { }
-    Val* operator()(Val* arg) override;
+    Val* operator()(Environment& env, Val* arg) override;
     void accept(Visitor& v) const override;
   };
 
@@ -29,7 +50,7 @@ namespace sel {
       , base(base)
       , arg(arg)
     { }
-    Val* operator()(Val* arg) override;
+    Val* operator()(Environment& env, Val* arg) override;
     void accept(Visitor& v) const override;
   };
 

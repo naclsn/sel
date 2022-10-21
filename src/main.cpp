@@ -2,23 +2,10 @@
 #include <sstream>
 
 #include "sel/visitors.hpp"
-#include "sel/bidoof.hpp"
 #include "sel/parser.hpp"
-
-#include "prelude.hpp"
 
 using namespace std;
 using namespace sel;
-
-void bidoof() {
-  std::ostringstream oss;
-  ValRepr repr = ValRepr(oss, {});
-  Bidoof bidoof = Bidoof("A");
-
-  repr(**bidoof);
-
-  cout << oss.str() << "\n";
-}
 
 void show(char const* name, Val* val) {
   static auto repr = ValRepr(cout, {});
@@ -33,13 +20,16 @@ void numLiteral() {
   show("a", a);
   show("b", b);
 
+  Application app;
+  Environment noenv = app.environ();
+
   Fun* add2 = new Add2();
   show("add2", add2);
 
-  Fun* add1 = (Fun*)add2->operator()(a);
+  Fun* add1 = (Fun*)add2->operator()(noenv, a);
   show("add1", add1);
 
-  Num* add0 = (Num*)add1->operator()(b);
+  Num* add0 = (Num*)add1->operator()(noenv, b);
   show("add0", add0);
 
   double res = add0->value();
@@ -61,6 +51,14 @@ void parseApplication() {
 int main() {
   // bidoof();
   // numLiteral();
-  parseApplication();
+  // parseApplication();
+
+  cerr << "=== before constructing\n";
+  // auto a = Add2();
+  // auto a = NumLiteral(43);
+  auto a = Abs1();
+  // auto a = Bidoof("A");
+  cerr << "=== after constructing\n";
+
   return 0;
 }

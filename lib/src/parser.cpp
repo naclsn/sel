@@ -1,6 +1,5 @@
 #include <iterator>
 
-// ZZZ: some w is ip
 #include <iostream>
 #include <sstream>
 

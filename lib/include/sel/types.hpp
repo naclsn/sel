@@ -7,6 +7,7 @@
  */
 
 #include <ostream>
+
 #include <istream>
 #include <string>
 
@@ -40,11 +41,7 @@ namespace sel {
     uint8_t flags = 0;
 
     Type() { }
-    Type(Ty base, Type::P p, uint8_t flags)
-      : base(base)
-      , p(p)
-      , flags(flags)
-    { }
+    Type(Ty base, Type::P p, uint8_t flags);
     Type(Type const& ty); // REM: implementation is commented-out
     Type(Type&& ty) noexcept;
     ~Type();

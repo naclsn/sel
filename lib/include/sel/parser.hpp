@@ -11,6 +11,7 @@
 #include <string>
 
 #include "engine.hpp"
+#include "prelude.hpp"
 
 namespace sel {
 

@@ -62,6 +62,17 @@ namespace sel {
     });
   }
 
+  void ValRepr::visitAbs1(Type const& type) {
+    reprHelper(type, "Abs1", {});
+  }
+
+  void ValRepr::visitAbs0(Type const& type, Val const* base, Val const* arg) {
+    reprHelper(type, "Abs0", {
+      fi_val("base", base),
+      fi_val("arg", arg),
+    });
+  }
+
   void ValRepr::visitAdd2(Type const& type) {
     reprHelper(type, "Add2", {});
   }
