@@ -397,6 +397,9 @@ unknown_token_push1:
       default: return false;
     }
   }
+  bool Type::operator!=(Type const& other) const {
+    return !(*this == other);
+  }
 
   std::ostream& operator<<(std::ostream& out, Type const& ty) {
     switch (ty.base) {

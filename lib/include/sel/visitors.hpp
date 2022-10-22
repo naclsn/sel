@@ -10,19 +10,24 @@
 
 #include <ostream>
 #include <string>
+#include <vector>
 
 #include "types.hpp"
 
 #include "prelude_visit_each"
 
 /// __do(__name, ...) .. __VA_ARGS__ ..
-#define VISIT_EACH(__do) PRELUDE_VISIT_EACH(__do)  \
-  __do(Bidoof, Type const& type)                   \
-  __do(NumLiteral, Type const& type, double)       \
+#define VISIT_EACH(__do) PRELUDE_VISIT_EACH(__do)               \
+  __do(Bidoof, Type const& type)                                \
+  __do(NumLiteral, Type const& type, double const)              \
+  __do(StrLiteral, Type const& type, std::string const&)        \
+  __do(LstLiteral, Type const& type, std::vector<Val*> const&)  \
+  __do(FunChain, Type const& type, std::vector<Fun*> const&)    \
 
 namespace sel {
 
   class Val;
+  class Fun; // YYY: only FunChain, but may change back to Val
 
   /**
    * Base class for the visitor pattern over every `Val`.
@@ -63,7 +68,9 @@ namespace sel {
       } const data;
     };
     ReprCx cx;
-    void reprHelper(Type const& type, char const* name, std::initializer_list<ReprField const> const fields);
+
+    void reprHelper(Type const& type, char const* name, std::initializer_list<ReprField> const fields);
+    void reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields);
 
   public:
 #define DO(__n, ...) void visit##__n(__VA_ARGS__) override;

@@ -6,7 +6,11 @@ namespace sel {
 #define fi_str(__name, __str) {.name=__name, .data_ty=ReprField::STR, .data={.str=__str}}
 #define fi_val(__name, __val) {.name=__name, .data_ty=ReprField::VAL, .data={.val=__val}}
 
-  void ValRepr::reprHelper(Type const& type, char const* name, std::initializer_list<ReprField const> const fields) {
+  void ValRepr::reprHelper(Type const& type, char const* name, std::initializer_list<ReprField> const fields) {
+    std::vector<ReprField> tmp(fields);
+    reprHelper(type, name, tmp);
+  }
+  void ValRepr::reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields) {
     bool isln = 1 < fields.size();
 
     std::string ln = " ";
@@ -60,6 +64,36 @@ namespace sel {
     reprHelper(type, "NumLiteral", {
       fi_str("n", &nn),
     });
+  }
+
+  void ValRepr::visitStrLiteral(Type const& type, std::string const& s) {
+    reprHelper(type, "StrLiteral", {
+      fi_str("s", &s),
+    });
+  }
+
+  void ValRepr::visitLstLiteral(Type const& type, std::vector<Val*> const& v) {
+    size_t c = v.size();
+    std::vector<char[16]> b(c);
+    std::vector<ReprField> a;
+    a.reserve(c);
+    for (size_t k = 0; k < c; k++) {
+      std::sprintf(b[k], "v[%zu]", k);
+      a.push_back(fi_val(b[k], v[k]));
+    }
+    reprHelper(type, "LstLiteral", a);
+  }
+
+  void ValRepr::visitFunChain(Type const& type, std::vector<Fun*> const& f) {
+    size_t c = f.size();
+    std::vector<char[16]> b(c);
+    std::vector<ReprField> a;
+    a.reserve(c);
+    for (size_t k = 0; k < c; k++) {
+      std::sprintf(b[k], "f[%zu]", k);
+      a.push_back(fi_val(b[k], (Val*)f[k]));
+    }
+    reprHelper(type, "FunChain", a);
   }
 
   void ValRepr::visitAbs1(Type const& type) {

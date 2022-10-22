@@ -11,9 +11,9 @@
 namespace sel {
 
   // return may be nullptr
-  Val* lookup_name(std::string const& name);
-  Fun* lookup_unary(std::string const& name);
-  Fun* lookup_binary(std::string const& name);
+  Val* lookup_name(Environment& env, std::string const& name);
+  Fun* lookup_unary(Environment& env, std::string const& name);
+  Fun* lookup_binary(Environment& env, std::string const& name);
 
   struct Abs1 : Fun {
     Abs1()

@@ -47,6 +47,13 @@ namespace sel {
     ~Type();
 
     bool operator==(Type const& other) const;
+    bool operator!=(Type const& other) const;
+
+    Type* has() const { return p.box_has; }
+    Type* fst() const { return p.box_pair[0]; }
+    Type* snd() const { return p.box_pair[1]; }
+
+    bool isInf() { return TyFlag::IS_INF & flags; }
   };
 
   Type unkType(std::string* name);

@@ -7,6 +7,7 @@
  */
 
 #include <ostream>
+#include <vector>
 
 #include "types.hpp"
 
@@ -120,7 +121,11 @@ namespace sel {
      * interated again.
      */
     virtual void rewind() = 0;
-    // virtual size_t cound() = 0; // more like a size hint than actual count
+    /**
+     * Only valid for a finite list of course. [More like
+     * a size hint than actual count. [?]]
+     */
+    virtual size_t count() = 0;
     // virtual Val& operator[](size_t n) { rewind(); for (;;); return ...; }
   };
 
@@ -137,20 +142,20 @@ namespace sel {
     virtual Val* operator()(Environment& env, Val* arg) = 0;
   };
 
-  /**
-   * Abstract class for `Cpl`-type compatible values.
-   * Couples have a `first` and a `second`. Yeah, that's
-   * pretty much it. (Althrough these are often refered
-   * to as 'fst' and 'snd'.)
-   */
-  class Cpl : public Val {
-  public:
-    Cpl(Type&& fst, Type&& snd)
-      : Val(cplType(new Type(std::move(fst)), new Type(std::move(snd))))
-    { }
-    virtual Val* first() = 0;
-    virtual Val* second() = 0;
-  };
+  // /**
+  //  * Abstract class for `Cpl`-type compatible values.
+  //  * Couples have a `first` and a `second`. Yeah, that's
+  //  * pretty much it. (Althrough these are often refered
+  //  * to as 'fst' and 'snd'.)
+  //  */
+  // class Cpl : public Val {
+  // public:
+  //   Cpl(Type&& fst, Type&& snd)
+  //     : Val(cplType(new Type(std::move(fst)), new Type(std::move(snd))))
+  //   { }
+  //   virtual Val* first() = 0;
+  //   virtual Val* second() = 0;
+  // };
 
   /**
    * An application is constructed from parsing a user
@@ -161,11 +166,16 @@ namespace sel {
   class Application {
   private:
     Environment env;
+    std::vector<Fun*> funcs;
+
   public:
     Application()
       : env(*this)
+      , funcs()
     { }
-    Environment const& environ() const { return env; }
+
+    void push_fun(Fun* f) { funcs.push_back(f); }
+    Environment& environ() { return env; }
   };
 
 } // namespace sel
