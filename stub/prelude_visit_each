@@ -3,9 +3,4 @@
 #error do not include prelude_visit_each directly
 #endif
 
-#define PRELUDE_VISIT_EACH(__do) \
-	__do(Abs1, Type const& type) \
-	__do(Abs0, Type const& type, Val const* base, Val const* arg) \
-	__do(Add2, Type const& type) \
-	__do(Add1, Type const& type, Val const* base, Val const* arg) \
-	__do(Add0, Type const& type, Val const* base, Val const* arg)
+#define PRELUDE_VISIT_EACH(__do)

@@ -8,6 +8,6 @@ namespace sel {
   template Num* coerse(Val*);
   template Str* coerse(Val*);
   template Lst* coerse(Val*);
-  // template Cpl* coerse(Val*);
+  template Fun* coerse(Val*);
 
 } // namespace sel

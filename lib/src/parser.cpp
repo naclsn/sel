@@ -8,27 +8,27 @@
 
 namespace sel {
 
-  double NumLiteral::value() { return n; }
-  void NumLiteral::accept(Visitor& v) const { v.visitNumLiteral(type(), n); }
+  // double NumLiteral::value() { return n; }
+  // void NumLiteral::accept(Visitor& v) const { v.visitNumLiteral(type(), n); }
 
-  std::ostream& StrLiteral::stream(std::ostream& out) { return out << s; }
-  void StrLiteral::rewind() { }
-  void StrLiteral::accept(Visitor& v) const { v.visitStrLiteral(type(), s); }
+  // std::ostream& StrLiteral::stream(std::ostream& out) { return out << s; }
+  // void StrLiteral::rewind() { }
+  // void StrLiteral::accept(Visitor& v) const { v.visitStrLiteral(type(), s); }
 
-  Val* LstLiteral::operator*() { return v[c]; }
-  Lst* LstLiteral::operator++() { c++; return this; }
-  bool LstLiteral::end() const { return v.size()-1 <= c; }
-  void LstLiteral::rewind() { c = 0; }
-  size_t LstLiteral::count() { return v.size(); }
-  void LstLiteral::accept(Visitor& v) const { v.visitLstLiteral(type(), this->v); }
+  // Val* LstLiteral::operator*() { return v[c]; }
+  // Lst* LstLiteral::operator++() { c++; return this; }
+  // bool LstLiteral::end() const { return v.size()-1 <= c; }
+  // void LstLiteral::rewind() { c = 0; }
+  // size_t LstLiteral::count() { return v.size(); }
+  // void LstLiteral::accept(Visitor& v) const { v.visitLstLiteral(type(), this->v); }
 
-  Val* FunChain::operator()(Environment& env, Val* arg) {
-    Val* r = arg;
-    for (auto& it : f)
-      r = it->operator()(env, r);
-    return r;
-  }
-  void FunChain::accept(Visitor& v) const { v.visitFunChain(type(), f); }
+  // Val* FunChain::operator()(Environment& env, Val* arg) {
+  //   Val* r = arg;
+  //   for (auto& it : f)
+  //     r = it->operator()(env, r);
+  //   return r;
+  // }
+  // void FunChain::accept(Visitor& v) const { v.visitFunChain(type(), f); }
 
   // internal
   struct Token {
@@ -206,11 +206,11 @@ namespace sel {
   }
 
   // internal
-  Val* parseAtom(Environment& env, std::istream_iterator<Token>& lexer);
-  Val* parseElement(Environment& env, std::istream_iterator<Token>& lexer);
+  Val* parseAtom(Env& env, std::istream_iterator<Token>& lexer);
+  Val* parseElement(Env& env, std::istream_iterator<Token>& lexer);
 
   // internal
-  Val* parseAtom(Environment& env, std::istream_iterator<Token>& lexer) {
+  Val* parseAtom(Env& env, std::istream_iterator<Token>& lexer) {
     static std::istream_iterator<Token> eos;
     if (eos == lexer) return nullptr;
 
@@ -224,12 +224,12 @@ namespace sel {
         break;
 
       case Token::Type::LIT_NUM:
-        val = new NumLiteral(t.as.num);
+        // val = new NumLiteral(t.as.num);
         lexer++;
         break;
 
       case Token::Type::LIT_STR:
-        val = new StrLiteral(std::string(*t.as.str));
+        // val = new StrLiteral(std::string(*t.as.str));
         lexer++;
         break;
 
@@ -243,7 +243,7 @@ namespace sel {
              && Token::Type::THEN != lexer->type)
               ; // TODO: throw syntax error: expected ',' or '}'
           }
-          val = new LstLiteral(elms);
+          // val = new LstLiteral(elms);
         }
         break;
 
@@ -275,7 +275,7 @@ namespace sel {
           if (Token::Type::SUB_CLOSE != (++lexer)->type)
             ; // TODO: throw syntax error: expected closing ']'
 
-          val = new FunChain(elms);
+          // val = new FunChain(elms);
         }
         break;
 
@@ -286,7 +286,7 @@ namespace sel {
   }
 
   // internal
-  Val* parseElement(Environment& env, std::istream_iterator<Token>& lexer) {
+  Val* parseElement(Env& env, std::istream_iterator<Token>& lexer) {
     Val* val = parseAtom(env, lexer);
 
     while (Token::Type::THEN != lexer++->type) {
@@ -299,18 +299,17 @@ namespace sel {
     return val;
   }
 
-  std::ostream& operator<<(std::ostream& out, Application const& app) {
-    throw "TODO: operator<< for Application\n";
-    return out;
+  std::ostream& operator<<(std::ostream& out, App const& app) {
+    return out << "hey, am an app with this many function(s): " << app.funcs.size();
   }
 
-  std::istream& operator>>(std::istream& in, Application& app) {
+  std::istream& operator>>(std::istream& in, App& app) {
     std::istream_iterator<Token> lexer(in);
 
     while (true) {
-      Val* current = parseElement(app.environ(), lexer);
+      Val* current = parseElement(app.env, lexer);
       if (!current) break;
-      app.push_fun(coerse<Fun>(current));
+      app.funcs.push_back(coerse<Fun>(current));
     }
 
     return in;

@@ -13,18 +13,18 @@
 
 namespace sel {
 
-  class Application;
+  class App;
 
   /**
    * Implicitly passed through each functions. Used from
    * an application.
    */
-  class Environment {
+  class Env {
   private:
-    Environment();
-    Application const& app;
+    Env();
+    App const& app;
   public:
-    Environment(Application const& app)
+    Env(App const& app)
       : app(app)
     { }
   };
@@ -33,17 +33,20 @@ namespace sel {
 
   /**
    * Abstract base class for every types of values. See
-   * also `Num`, `Str`, `Lst`, `Fun` and `Cpl`. Each of
+   * also `Num`, `Str`, `Lst`, `Fun`. Each of
    * these abstract class in turn describe the common
    * ground for values of a type.
    */
   class Val {
   protected:
     Type const ty;
+    Env& env;
     // virtual void eval() = 0; // more of a friendly reminder than actual contract
   public:
-    // Val(Val const& val) { }
-    Val(Type&& ty): ty(std::move(ty)) { }
+    Val(Env& env, Type const& ty)
+      : ty(Type(ty))
+      , env(env)
+    { }
     virtual ~Val() { }
     Type const& type() const { return ty; }
     virtual void accept(Visitor& v) const = 0;
@@ -66,8 +69,8 @@ namespace sel {
    */
   class Num : public Val {
   public:
-    Num()
-      : Val(numType())
+    Num(Env& env)
+      : Val(env, Type(Ty::NUM, {0}, 0))
     { }
     virtual double value() = 0;
   };
@@ -78,8 +81,8 @@ namespace sel {
    */
   class Str : public Val { //, public std::istream
   public:
-    Str(TyFlag is_inf)
-      : Val(strType(is_inf))
+    Str(Env& env, TyFlag is_inf)
+      : Val(env, Type(Ty::STR, {0}, is_inf))
     { }
     friend std::ostream& operator<<(std::ostream& out, Str& val) { return val.stream(out); }
     /**
@@ -87,10 +90,19 @@ namespace sel {
      */
     virtual std::ostream& stream(std::ostream& out) = 0;
     /**
-     * Resets the internal state so the string may be
+     * `true` if there is no more bytes to stream. Calling
+     * `stream` (or `entire`) at this point is probably undefined.
+     */
+    virtual bool end() const = 0;
+    /**
+     * Reset the internal state so the string may be
      * streamed again.
      */
     virtual void rewind() = 0;
+    /**
+     * Stream the whole string of bytes.
+     */
+    virtual std::ostream& entire(std::ostream& out) = 0;
   };
 
   /**
@@ -100,8 +112,8 @@ namespace sel {
    */
   class Lst : public Val { //, public std::iterator<std::input_iterator_tag, Val>
   public:
-    Lst(Type&& has, TyFlag is_inf)
-      : Val(lstType(new Type(std::move(has)), is_inf))
+    Lst(Env& env, Type& type)
+      : Val(env, type)
     { }
     /**
      * Get (compute, etc..) the current value.
@@ -136,46 +148,10 @@ namespace sel {
    */
   class Fun : public Val {
   public:
-    Fun(Type&& fst, Type&& snd)
-      : Val(funType(new Type(std::move(fst)), new Type(std::move(snd))))
+    Fun(Env& env, Type& type)
+      : Val(env, type)
     { }
-    virtual Val* operator()(Environment& env, Val* arg) = 0;
-  };
-
-  // /**
-  //  * Abstract class for `Cpl`-type compatible values.
-  //  * Couples have a `first` and a `second`. Yeah, that's
-  //  * pretty much it. (Althrough these are often refered
-  //  * to as 'fst' and 'snd'.)
-  //  */
-  // class Cpl : public Val {
-  // public:
-  //   Cpl(Type&& fst, Type&& snd)
-  //     : Val(cplType(new Type(std::move(fst)), new Type(std::move(snd))))
-  //   { }
-  //   virtual Val* first() = 0;
-  //   virtual Val* second() = 0;
-  // };
-
-  /**
-   * An application is constructed from parsing a user
-   * script. It serializes back to an equivalent script
-   * (although it may not be strictly equal). The default
-   * constructor automatically creates a new environment.
-   */
-  class Application {
-  private:
-    Environment env;
-    std::vector<Fun*> funcs;
-
-  public:
-    Application()
-      : env(*this)
-      , funcs()
-    { }
-
-    void push_fun(Fun* f) { funcs.push_back(f); }
-    Environment& environ() { return env; }
+    virtual Val* operator()(Env& env, Val* arg) = 0;
   };
 
 } // namespace sel
