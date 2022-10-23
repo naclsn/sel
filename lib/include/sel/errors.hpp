@@ -7,6 +7,7 @@
  */
 
 #include <stdexcept>
+#include <sstream>
 #include <string>
 
 #include "types.hpp"
@@ -15,8 +16,12 @@
 namespace sel {
 
   struct BaseError : std::runtime_error {
-    BaseError(char const* msg): std::runtime_error(msg) { }
-    virtual ~BaseError() { }
+    BaseError(char const* msg): std::runtime_error(msg), w(nullptr) { }
+    virtual ~BaseError() { delete w; }
+  protected:
+    std::string mutable* w;
+    char const* what() const noexcept override;
+    virtual std::ostringstream* getWhat() const = 0;
   };
 
   struct ParseError : BaseError {
@@ -31,6 +36,8 @@ namespace sel {
       delete expected;
       delete situation;
     }
+  protected:
+    std::ostringstream* getWhat() const override;
   };
 
   struct EOSError : ParseError {
@@ -41,7 +48,6 @@ namespace sel {
 
   struct NameError : ParseError {
     std::string const* name;
-
     NameError(std::string const unknown_name, char const* msg)
       : ParseError("known name", "got unknown name", msg)
       , name(new std::string(unknown_name))
@@ -60,21 +66,21 @@ namespace sel {
   struct CoerseError : TypeError {
     Type const* from;
     Type const* to;
-
-    CoerseError(Type from, Type to, char const* msg)
+    CoerseError(Type const& from, Type const& to, char const* msg)
       : TypeError(msg)
-      , from() //(new Type(from))
-      , to() //(new Type(to))
+      , from(new Type(from))
+      , to(new Type(to))
     { }
     ~CoerseError() {
       delete from;
       delete to;
     }
+  protected:
+    std::ostringstream* getWhat() const override;
   };
 
   struct ParameterError : TypeError {
     Val const* many;
-  
     ParameterError(char const* msg)
       : TypeError(msg)
       , many(nullptr)
@@ -86,6 +92,8 @@ namespace sel {
     // ~ParameterError() {
     //   delete many;
     // }
+  protected:
+    std::ostringstream* getWhat() const override;
   };
 } // namespace sel
 

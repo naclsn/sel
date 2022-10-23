@@ -14,7 +14,6 @@ namespace sel {
       case Ty::STR: out << "STR"; break;
       case Ty::LST: out << "LST"; break;
       case Ty::FUN: out << "FUN"; break;
-      case Ty::CPL: out << "CPL"; break;
     }
     return out;
   }
@@ -31,25 +30,26 @@ namespace sel {
     , flags(flags)
   { TRACE(Type, raw(this)<<"; "<<base); }
 
-  // Type::Type(Type const& ty) {
-  //   switch (base) {
-  //     case Ty::UNK:
-  //       p.name = new std::string(*ty.p.name);
-  //       break;
-  //
-  //     case Ty::LST:
-  //       p.box_has = new Type(*ty.p.box_has);
-  //       break;
-  //
-  //     case Ty::FUN:
-  //     case Ty::CPL:
-  //       p.box_pair[0] = new Type(*ty.p.box_pair[0]);
-  //       p.box_pair[1] = new Type(*ty.p.box_pair[1]);
-  //       break;
-  //
-  //     default: ;
-  //   }
-  // }
+  Type::Type(Type const& ty) {
+    TRACE(Type&, raw(this)<<"; "<<ty);
+    switch (base = ty.base) {
+      case Ty::UNK:
+        p.name = new std::string(*ty.p.name);
+        break;
+
+      case Ty::LST:
+        p.box_has = new std::vector<Type*>(*p.box_has);
+        break;
+
+      case Ty::FUN:
+        p.box_pair[0] = new Type(*ty.p.box_pair[0]);
+        p.box_pair[1] = new Type(*ty.p.box_pair[1]);
+        break;
+
+      default: ;
+    }
+    flags = ty.flags;
+  }
 
   Type::Type(Type&& ty) noexcept {
     TRACE(Type&&, raw(this)<<"; "<<ty);
@@ -65,7 +65,6 @@ namespace sel {
         break;
 
       case Ty::FUN:
-      case Ty::CPL:
         p.box_pair[0] = ty.p.box_pair[0];
         p.box_pair[1] = ty.p.box_pair[1];
         ty.p.box_pair[0] = nullptr;
@@ -89,7 +88,6 @@ namespace sel {
         break;
 
       case Ty::FUN:
-      case Ty::CPL:
         delete p.box_pair[0];
         delete p.box_pair[1];
         break;
@@ -98,35 +96,30 @@ namespace sel {
     }
   }
 
-  Type unkType(std::string* name) {
-    TRACE(unkType, *name<<"*"<<raw(name));
-    return Type(Ty::UNK, {.name=name}, 0);
-  }
+  // Type unkType(std::string* name) {
+  //   TRACE(unkType, *name<<"*"<<raw(name));
+  //   return Type(Ty::UNK, {.name=name}, 0);
+  // }
 
-  Type numType() {
-    TRACE(numType, "");
-    return Type(Ty::NUM, {0}, 0);
-  }
+  // Type numType() {
+  //   TRACE(numType, "");
+  //   return Type(Ty::NUM, {0}, 0);
+  // }
 
-  Type strType(TyFlag is_inf) {
-    TRACE(strType, is_inf);
-    return Type(Ty::STR, {0}, static_cast<uint8_t>(is_inf));
-  }
+  // Type strType(TyFlag is_inf) {
+  //   TRACE(strType, is_inf);
+  //   return Type(Ty::STR, {0}, static_cast<uint8_t>(is_inf));
+  // }
 
-  Type lstType(Type* has, TyFlag is_inf) {
-    TRACE(lstType, *has<<"*"<<raw(has)<<", "<<is_inf);
-    return Type(Ty::LST, {.box_has=has}, static_cast<uint8_t>(is_inf));
-  }
+  // Type lstType(Type* has, TyFlag is_inf) {
+  //   TRACE(lstType, *has<<"*"<<raw(has)<<", "<<is_inf);
+  //   return Type(Ty::LST, {.box_has=has}, static_cast<uint8_t>(is_inf));
+  // }
 
-  Type funType(Type* fst, Type* snd) {
-    TRACE(funType, *fst<<"*"<<raw(fst)<<", "<<*snd<<"*"<<raw(snd));
-    return Type(Ty::FUN, {.box_pair={fst,snd}}, 0);
-  }
-
-  Type cplType(Type* fst, Type* snd) {
-    TRACE(cplType, *fst<<"*"<<raw(fst)<<", "<<*snd<<"*"<<raw(snd));
-    return Type(Ty::CPL, {.box_pair={fst,snd}}, 0);
-  }
+  // Type funType(Type* fst, Type* snd) {
+  //   TRACE(funType, *fst<<"*"<<raw(fst)<<", "<<*snd<<"*"<<raw(snd));
+  //   return Type(Ty::FUN, {.box_pair={fst,snd}}, 0);
+  // }
 
   // internal
   enum class TyTokenType {
@@ -278,11 +271,18 @@ unknown_token_push1:
         if (eos == tts) throw EOSError("token ',' or matching token ')'", "- what -");
         //        | (type, type)
         if (TyTokenType::COMMA == tts->type) {
-          res.p.box_pair[0] = new Type(std::move(res));
-          new_first = *++tts;
-          parseTypeImpl(new_first, ++tts, *(res.p.box_pair[1] = new Type()));
-          res.base = Ty::CPL;
-          res.flags = 0;
+          auto* v = new std::vector<Type*>();
+          v->push_back(new Type(std::move(res)));
+          res.p.box_has = v;
+          do {
+            new_first = *++tts;
+            if (eos == tts) throw EOSError("type expression after ','", "- what -");
+            Type* it = new Type();
+            parseTypeImpl(new_first, ++tts, *it);
+            res.p.box_has->push_back(it);
+          } while (TyTokenType::COMMA == tts->type);
+          res.base = Ty::LST;
+          res.flags = TyFlag::IS_TPL;
         }
         if (eos == tts) throw EOSError("matching token ')'", "- what -");
         if (TyTokenType::P_CLOSE != tts->type)
@@ -295,12 +295,18 @@ unknown_token_push1:
 
       case TyTokenType::B_OPEN:
         if (eos == tts) throw EOSError("type expression after '['", "- what -");
-        res.p.box_has = new Type();
-        new_first = *tts;
-        parseTypeImpl(new_first, ++tts, *res.p.box_has);
+        res.p.box_has = new std::vector<Type*>();
+        do {
+          new_first = *tts;
+          Type* it = new Type();
+          parseTypeImpl(new_first, ++tts, *it);
+          res.p.box_has->push_back(it);
+          if (TyTokenType::COMMA != tts->type) break;
+          tts++;
+        } while (eos != tts);
         if (eos == tts) throw EOSError("matching token ']'", "- what -");
         if (TyTokenType::B_CLOSE != tts->type)
-          throw ParseError("matching token ')'",
+          throw ParseError("matching token ']'",
             ( std::string("got unexpected tokens")
             + " '" + tts++->text + " " + tts->text + " ...'"
             ), "- what -");
@@ -365,8 +371,7 @@ unknown_token_push1:
    * - any UNK
    * - both STR or both NUM
    * - both LST and recursive on has
-   * - both FUN and recursive on fst and snd
-   * - both CPL and recursive on fst and snd
+   * - both FUN and recursive on from and to
    *
    * As such, this does not look at the flags (eg. IS_INF).
    */
@@ -386,10 +391,10 @@ unknown_token_push1:
         return true;
 
       case Ty::LST:
+        return true; // YYY: proper
         return *p.box_has == *other.p.box_has;
 
       case Ty::FUN:
-      case Ty::CPL:
         return *p.box_pair[0] == *other.p.box_pair[0]
             && *p.box_pair[1] == *other.p.box_pair[1];
 
@@ -416,7 +421,15 @@ unknown_token_push1:
         break;
 
       case Ty::LST:
-        out << "[" << *ty.p.box_has << "]";
+        out << (TyFlag::IS_TPL & ty.flags
+          ? "("
+          : "[");
+        out << *(*ty.p.box_has)[0];
+        for (size_t k = 1, n = ty.p.box_has->size(); k < n; k++)
+          out << ", " << *(*ty.p.box_has)[k];
+        out << (TyFlag::IS_TPL & ty.flags
+          ? ")"
+          : "]");
         break;
 
       case Ty::FUN:
@@ -424,10 +437,6 @@ unknown_token_push1:
           out << "(" << *ty.p.box_pair[0] << ") -> " << *ty.p.box_pair[1];
         else
           out << *ty.p.box_pair[0] << " -> " << *ty.p.box_pair[1];
-        break;
-
-      case Ty::CPL:
-        out << "(" << *ty.p.box_pair[0] << ", " << *ty.p.box_pair[1] << ")";
         break;
     }
 

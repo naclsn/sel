@@ -115,7 +115,7 @@ The types are:
  - number (`Num`)
  - list (`[has]` eg. `[Str]` for list of strings)
  - function (for example `Num -> Str`)
- - couple, or tuple of size 2 (`(fst, snd)`)
+ - <!-- tuples are list, there --> (`(fst, snd)`)
 
 Some examples of type definitions:
 ```hs
