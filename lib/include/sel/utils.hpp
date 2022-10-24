@@ -2,7 +2,7 @@
 #define SEL_UTILS_HPP
 
 #include <iostream>
-#define TRACE(_f, _x) std::cerr << "[" #_f "]" << _x << "\n";
+#define TRACE(_f, _x) std::cerr << "[" #_f "] " << _x << "\n";
 
 namespace sel {
 

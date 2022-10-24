@@ -17,7 +17,7 @@ namespace sel {
   //   return r;
   // }
 
-  std::ostringstream* NIError::getWhat() const {
+  std::ostringstream* NIYError::getWhat() const {
     auto* r = new std::ostringstream();
     *r << "not implemented yet: " << missing;
     return r;

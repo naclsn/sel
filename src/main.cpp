@@ -8,12 +8,13 @@ using namespace std;
 using namespace sel;
 
 void test_parseApp() {
-  char const* source = "split : :, join ::::";
+  char const* source = "split : :, map [add 1], join ::::";
   istringstream iss(source);
   App app;
   iss >> app;
 
   cout
+    << "source: '" << source << "'\n"
     << "parsed app:\n" << app << endl
   ;
 }

@@ -22,7 +22,7 @@ namespace sel {
             new Type(Ty::NUM, {0}, 0)
           }}, 0
         ))
-    { }
+    { TRACE(Abs1, ":: " << ty); }
     Val* operator()(Val* arg) override;
   };
   struct Abs0 : Num {
@@ -32,7 +32,7 @@ namespace sel {
       : Num(env)
       , base(base)
       , arg(arg)
-    { }
+    { TRACE(Abs0, ":: " << ty); }
     double value() override;
   };
 
@@ -49,7 +49,7 @@ namespace sel {
             )
           }}, 0
         ))
-    { }
+    { TRACE(Add2, ":: " << ty); }
     Val* operator()(Val* arg) override;
   };
   struct Add1 : Fun {
@@ -64,7 +64,7 @@ namespace sel {
         ))
       , base(base)
       , arg(arg)
-    { }
+    { TRACE(Add1, ":: " << ty); }
     Val* operator()(Val* arg) override;
   };
   struct Add0 : Num {
@@ -74,11 +74,11 @@ namespace sel {
       : Num(env)
       , base(base)
       , arg(arg)
-    { }
+    { TRACE(Add0, ":: " << ty); }
     double value() override;
   };
 
-  // join :: Str -> [Str]* -> Str*
+  // join:: Str -> [Str]* -> Str*
   struct Join2 : Fun {
     Join2(Env& env)
       : Fun(env, Type(Ty::FUN,
@@ -96,7 +96,7 @@ namespace sel {
             )
           }}, 0
         ))
-    { }
+    { TRACE(Join2, ":: " << ty); }
     Val* operator()(Val* arg) override;
   };
   struct Join1 : Fun {
@@ -115,7 +115,7 @@ namespace sel {
         ))
       , base(base)
       , arg(arg)
-    { }
+    { TRACE(Join1, ":: " << ty); }
     Val* operator()(Val* arg) override;
   };
   struct Join0 : Str {
@@ -127,14 +127,14 @@ namespace sel {
       , base(base)
       , arg(arg)
       , beginning(true)
-    { }
+    { TRACE(Join0, ":: " << ty); }
     std::ostream& stream(std::ostream& out) override;
     bool end() const override;
     void rewind() override;
     std::ostream& entire(std::ostream& out) override;
   };
 
-  // map :: (a -> b) -> [a]* -> [b]*
+  // map:: (a -> b) -> [a]* -> [b]*
   struct Map2 : Fun {
     Map2(Env& env)
       : Fun(env, Type(Ty::FUN,
@@ -147,13 +147,21 @@ namespace sel {
             ),
             new Type(Ty::FUN,
               {.box_pair={
-                new Type(Ty::LST, {.box_has=types1(new Type(Ty::UNK, {.name=new std::string("a")}, 0))}, TyFlag::IS_INF),
-                new Type(Ty::LST, {.box_has=types1(new Type(Ty::UNK, {.name=new std::string("b")}, 0))}, TyFlag::IS_INF)
+                new Type(Ty::LST,
+                  {.box_has=
+                    types1(new Type(Ty::UNK, {.name=new std::string("a")}, 0))
+                  }, TyFlag::IS_INF
+                ),
+                new Type(Ty::LST,
+                  {.box_has=
+                    types1(new Type(Ty::UNK, {.name=new std::string("b")}, 0))
+                  }, TyFlag::IS_INF
+                )
               }}, 0
             )
           }}, 0
         ))
-    { }
+    { TRACE(Map2, ":: " << ty); }
     Val* operator()(Val* arg) override;
   };
   struct Map1 : Fun {
@@ -162,26 +170,36 @@ namespace sel {
     Map1(Env& env, Map2* base, Fun* arg)
       : Fun(env, Type(Ty::FUN,
           {.box_pair={
-            new Type(Ty::LST, {.box_has=types1(new Type(arg->type().from()))}, TyFlag::IS_INF),
-            new Type(Ty::LST, {.box_has=types1(new Type(arg->type().to  ()))}, TyFlag::IS_INF)
+            new Type(Ty::LST,
+              {.box_has=
+                types1(new Type(arg->type().from()))
+              }, TyFlag::IS_INF
+            ),
+            new Type(Ty::LST,
+              {.box_has=
+                types1(new Type(arg->type().to()))
+              }, TyFlag::IS_INF
+            )
           }}, 0
         ))
       , base(base)
       , arg(arg)
-    { }
+    { TRACE(Map1, ":: " << ty); }
     Val* operator()(Val* arg) override;
   };
   struct Map0 : Lst {
     Map1* base;
     Lst* arg;
     Map0(Env& env, Map1* base, Lst* arg)
-      : Lst(env,
-          Type(Ty::LST, {.box_has=types1(new Type(base->arg->type().to()))}, (TyFlag)(TyFlag::IS_INF & arg->type().flags))
-        )
+      : Lst(env, Type(Ty::LST,
+          {.box_has=
+            types1(new Type(base->arg->type().to()))
+          }, (TyFlag)(TyFlag::IS_INF & arg->type().flags)
+        ))
     // Type(arg->type()), (TyFlag)arg->type().flags)
       , base(base)
       , arg(arg)
-    { }
+    { TRACE(Map0, ":: " << ty); }
     Val* operator*() override;
     Lst& operator++() override;
     bool end() const override;
@@ -198,12 +216,16 @@ namespace sel {
             new Type(Ty::FUN,
               {.box_pair={
                 new Type(Ty::STR, {0}, TyFlag::IS_INF),
-                new Type(Ty::LST, {.box_has=types1(new Type(Ty::STR, {0}, TyFlag::IS_FIN))}, TyFlag::IS_INF)
+                new Type(Ty::LST,
+                  {.box_has=
+                    types1(new Type(Ty::STR, {0}, TyFlag::IS_FIN))
+                  }, TyFlag::IS_INF
+                )
               }}, 0
             )
           }}, 0
         ))
-    { }
+    { TRACE(Split2, ":: " << ty); }
     Val* operator()(Val* arg) override;
   };
   struct Split1 : Fun {
@@ -213,22 +235,30 @@ namespace sel {
       : Fun(env, Type(Ty::FUN,
           {.box_pair={
             new Type(Ty::STR, {0}, TyFlag::IS_INF),
-            new Type(Ty::LST, {.box_has=types1(new Type(Ty::STR, {0}, TyFlag::IS_FIN))}, TyFlag::IS_INF)
+            new Type(Ty::LST,
+              {.box_has=
+                types1(new Type(Ty::STR, {0}, TyFlag::IS_FIN))
+              }, TyFlag::IS_INF
+            )
           }}, 0
         ))
       , base(base)
       , arg(arg)
-    { }
+    { TRACE(Split1, ":: " << ty); }
     Val* operator()(Val* arg) override;
   };
   struct Split0 : Lst {
     Split1* base;
     Str* arg;
     Split0(Env& env, Split1* base, Str* arg)
-      : Lst(env, Type(Ty::LST, {.box_has=types1(new Type(Ty::STR, {0}, TyFlag::IS_FIN))}, (TyFlag)(TyFlag::IS_INF & arg->type().flags)))
+      : Lst(env, Type(Ty::LST,
+          {.box_has=
+            types1(new Type(Ty::STR, {0}, TyFlag::IS_FIN))
+          }, (TyFlag)(TyFlag::IS_INF & arg->type().flags)
+        ))
       , base(base)
       , arg(arg)
-    { }
+    { TRACE(Split0, ":: " << ty); }
     Val* operator*() override;
     Lst& operator++() override;
     bool end() const override;

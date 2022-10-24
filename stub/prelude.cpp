@@ -99,13 +99,13 @@ namespace sel {
   Val* Split1::operator()(Val* arg) { return new Split0(env, this, coerse<Str>(arg)); }
 
   Val* Split0::operator*() {
-    throw NIError("Val* Split0::operator*()", "- what -");
+    throw NIYError("Val* Split0::operator*()", "- what -");
     // Str& sep = *base->arg;
     // Str& str = *arg;
     return nullptr;
   }
   Lst& Split0::operator++() {
-    throw NIError("Lst& Split0::operator++()", "- what -");
+    throw NIYError("Lst& Split0::operator++()", "- what -");
     // Str& sep = *base->arg;
     // Str& str = *arg;
     return *this;
@@ -119,7 +119,7 @@ namespace sel {
     str.rewind();
   }
   size_t Split0::count() {
-    throw NIError("size_t Split0::count()", "- what -");
+    throw NIYError("size_t Split0::count()", "- what -");
     return 0;
   }
 

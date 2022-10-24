@@ -28,13 +28,17 @@ namespace sel {
 
   class StrLiteral : public Str {
     std::string const s;
+    bool read;
   public:
     StrLiteral(Env& env, std::string s)
       : Str(env, TyFlag::IS_FIN)
       , s(s)
+      , read(false)
     { }
     std::ostream& stream(std::ostream& out) override;
+    bool end() const override;
     void rewind() override;
+    std::ostream& entire(std::ostream& out) override;
   };
 
   class LstLiteral : public Lst {
@@ -74,7 +78,7 @@ namespace sel {
 
   // class StrStdin : public Str {
   //   StrStdin(Env& env)
-  //     : Str(env, TyFlag::IS_INF)
+  //     : Str(env, TyFlag::IS_FIN) // YYY: indeed, it reads a line, which is assumed to be of finite size (finit size memory)
   //   { }
   // };
 

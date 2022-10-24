@@ -36,7 +36,7 @@ namespace sel {
         break;
 
       case Ty::LST:
-        p.box_has = new std::vector<Type*>(*p.box_has);
+        p.box_has = new std::vector<Type*>(*ty.p.box_has);
         break;
 
       case Ty::FUN:
@@ -83,6 +83,8 @@ namespace sel {
         break;
 
       case Ty::LST:
+        for (auto const& it : *p.box_has)
+          delete it;
         delete p.box_has;
         p.box_has = nullptr;
         break;

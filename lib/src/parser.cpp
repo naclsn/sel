@@ -3,6 +3,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "sel/errors.hpp"
 #include "sel/parser.hpp"
 #include "sel/visitors.hpp"
 
@@ -10,8 +11,10 @@ namespace sel {
 
   double NumLiteral::value() { return n; }
 
-  std::ostream& StrLiteral::stream(std::ostream& out) { return out << s; }
-  void StrLiteral::rewind() { }
+  std::ostream& StrLiteral::stream(std::ostream& out) { read = true; return out << s; }
+  bool StrLiteral::end() const { return read; }
+  void StrLiteral::rewind() { read = false; }
+  std::ostream& StrLiteral::entire(std::ostream& out) { read = true; return out << s; }
 
   Val* LstLiteral::operator*() { return v[c]; }
   Lst& LstLiteral::operator++() { c++; return *this; }
@@ -135,9 +138,9 @@ namespace sel {
 
   // internal
   std::istream& operator>>(std::istream& in, Token& t) {
-    t.loc = in.tellg();
     char c = in.peek();
-    // if (in.eof()) return in;
+    if (in.eof()) return in;
+    t.loc = in.tellg();
     switch (c) {
       // case -1: // trait::eof()
 
@@ -149,7 +152,7 @@ namespace sel {
       case '{': t.type = Token::Type::LIT_LST_OPEN;  t.as.chr = c; in.ignore(1); break;
       case '}': t.type = Token::Type::LIT_LST_CLOSE; t.as.chr = c; in.ignore(1); break;
 
-      case '@':
+      // case '@':
       case '%':
         t.type = Token::Type::UN_OP;
         t.as.chr = c;
@@ -177,7 +180,7 @@ namespace sel {
           }
           t.as.str->push_back(c);
         } while (!in.eof());
-        // if (in.eof()) ..
+        // TODO: if (in.eof()) ..
         break;
 
       default:
@@ -208,8 +211,9 @@ namespace sel {
 
   // internal
   Val* parseAtom(Env& env, std::istream_iterator<Token>& lexer) {
+    TRACE(parseAtom, *lexer);
     static std::istream_iterator<Token> eos;
-    if (eos == lexer) return nullptr;
+    if (eos == lexer) throw EOSError("atom", "- what -");
 
     Val* val = nullptr;
     Token t = *lexer;
@@ -217,16 +221,17 @@ namespace sel {
     switch (t.type) {
       case Token::Type::NAME:
         val = lookup_name(env, *t.as.name);
+        if (!val) throw NameError(*t.as.name, "- what -");
         lexer++;
         break;
 
       case Token::Type::LIT_NUM:
-        // val = new NumLiteral(t.as.num);
+        val = new NumLiteral(env, t.as.num);
         lexer++;
         break;
 
       case Token::Type::LIT_STR:
-        // val = new StrLiteral(std::string(*t.as.str));
+        val = new StrLiteral(env, std::string(*t.as.str));
         lexer++;
         break;
 
@@ -240,14 +245,25 @@ namespace sel {
              && Token::Type::THEN != lexer->type)
               ; // TODO: throw syntax error: expected ',' or '}'
           }
-          // val = new LstLiteral(elms);
+
+          // TODO: for the type, need to know if the list
+          // literal should be a tuple or an actual list
+          // in both cases, may need to get the shortest
+          // repeating pattern, eg. `{:coucou:, 42,
+          // :blabla:, 12}` could be:
+          //   - `(Str, Num, Str, Num)`
+          //   - `[Str, Num]`
+
+          val = new LstLiteral(env, elms);
         }
         break;
 
       case Token::Type::UN_OP:
+        throw NIYError("unary syntax", "- what -");
         break;
 
       case Token::Type::BIN_OP:
+        throw NIYError("binary syntax", "- what -");
         break;
 
       case Token::Type::SUB_CLOSE: break;
@@ -272,26 +288,33 @@ namespace sel {
           if (Token::Type::SUB_CLOSE != (++lexer)->type)
             ; // TODO: throw syntax error: expected closing ']'
 
-          // val = new FunChain(elms);
+          val = new FunChain(env, elms);
         }
         break;
 
       case Token::Type::THEN: break;
     }
 
+    if (!val) throw ParseError("atom", std::string("got unexpected tokens ") + (char)((char)t.type+'0'), "- what -");
     return val;
   }
 
   // internal
   Val* parseElement(Env& env, std::istream_iterator<Token>& lexer) {
+    TRACE(parseElement, *lexer);
+    static std::istream_iterator<Token> eos;
+    if (eos == lexer) throw EOSError("element", "- what -");
     Val* val = parseAtom(env, lexer);
 
-    while (Token::Type::THEN != lexer++->type) {
+    while (Token::Type::THEN != lexer->type
+        && Token::Type::LIT_LST_CLOSE != lexer->type
+        && Token::Type::SUB_CLOSE != lexer->type
+        && eos != lexer) {
       Fun* base = coerse<Fun>(val);
       Val* arg = parseAtom(env, lexer);
-      if (!arg) break;
       base->operator()(arg);
     }
+    lexer++;
 
     return val;
   }
@@ -302,12 +325,13 @@ namespace sel {
 
   std::istream& operator>>(std::istream& in, App& app) {
     std::istream_iterator<Token> lexer(in);
+    static std::istream_iterator<Token> eos;
+    if (eos == lexer) throw EOSError("script", "- what -");
 
-    while (true) {
+    do {
       Val* current = parseElement(app.env, lexer);
-      if (!current) break;
       app.funcs.push_back(coerse<Fun>(current));
-    }
+    } while (eos != lexer);
 
     return in;
   }
