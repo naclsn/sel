@@ -41,7 +41,7 @@ namespace sel {
 #undef DO
   };
 
-//   class ValRepr : public Visitor {
+//   class VisRepr : public Visitor {
 //   public:
 //     struct ReprCx {
 //       unsigned indents;
@@ -67,10 +67,10 @@ namespace sel {
 //       } const data;
 //     };
 //     ReprCx cx;
-
+//
 //     void reprHelper(Type const& type, char const* name, std::initializer_list<ReprField> const fields);
 //     void reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields);
-
+//
 //   public:
 // #define DO(__n, ...) void visit##__n(__VA_ARGS__) override;
 //     VISIT_EACH(DO)

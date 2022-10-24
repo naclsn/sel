@@ -1,5 +1,3 @@
-#include <iterator>
-
 #include "sel/utils.hpp"
 #include "sel/types.hpp"
 #include "sel/errors.hpp"
@@ -81,15 +79,19 @@ namespace sel {
     switch (base) {
       case Ty::UNK:
         delete p.name;
+        p.name = nullptr;
         break;
 
       case Ty::LST:
         delete p.box_has;
+        p.box_has = nullptr;
         break;
 
       case Ty::FUN:
         delete p.box_pair[0];
         delete p.box_pair[1];
+        p.box_pair[0] = nullptr;
+        p.box_pair[1] = nullptr;
         break;
 
       default: ;

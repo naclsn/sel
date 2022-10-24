@@ -10,6 +10,8 @@
 #include <istream>
 #include <string>
 #include <vector>
+#include <iterator>
+
 
 namespace sel {
 
