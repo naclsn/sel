@@ -9,10 +9,10 @@
 
 namespace sel {
 
-  // return may be nullptr
+  /**
+   * Seach for a value by name, return nullptr if not found.
+   */
   Val* lookup_name(Env& env, std::string const& name);
-  Fun* lookup_unary(Env& env, std::string const& name);
-  Fun* lookup_binary(Env& env, std::string const& name);
 
   struct Abs1 : Fun {
     Abs1(Env& env)
