@@ -7,7 +7,19 @@
 using namespace std;
 using namespace sel;
 
+void test_parseApp() {
+  char const* source = "split : :, join ::::";
+  istringstream iss(source);
+  App app;
+  iss >> app;
+
+  cout
+    << "parsed app:\n" << app << endl
+  ;
+}
+
 int main() {
-  cout << "coucou\n";
+  test_parseApp();
+
   return 0;
 }

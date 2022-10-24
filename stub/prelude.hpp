@@ -2,10 +2,9 @@
 #ifndef SEL_PRELUDE_HPP
 #define SEL_PRELUDE_HPP
 
-#include "sel/utils.hpp"
-
 #include <string>
 
+#include "sel/utils.hpp"
 #include "sel/engine.hpp"
 
 namespace sel {

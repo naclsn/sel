@@ -151,7 +151,7 @@ namespace sel {
     Fun(Env& env, Type& type)
       : Val(env, type)
     { }
-    virtual Val* operator()(Env& env, Val* arg) = 0;
+    virtual Val* operator()(Val* arg) = 0;
   };
 
 } // namespace sel

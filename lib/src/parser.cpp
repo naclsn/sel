@@ -219,7 +219,7 @@ namespace sel {
 
     switch (t.type) {
       case Token::Type::NAME:
-        lookup_name(env, *t.as.name);
+        val = lookup_name(env, *t.as.name);
         lexer++;
         break;
 
@@ -293,7 +293,7 @@ namespace sel {
       Fun* base = coerse<Fun>(val);
       Val* arg = parseAtom(env, lexer);
       if (!arg) break;
-      base->operator()(env, arg);
+      base->operator()(arg);
     }
 
     return val;
