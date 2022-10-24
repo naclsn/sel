@@ -16,54 +16,66 @@
 
 namespace sel {
 
-  // class NumLiteral : public Num {
-  //   double const n;
-  // public:
-  //   NumLiteral(double n)
-  //     : n(n)
-  //   { }
-  //   double value() override;
-  //   void accept(Visitor& v) const override;
-  // };
+  class NumLiteral : public Num {
+    double const n;
+  public:
+    NumLiteral(Env& env, double n)
+      : Num(env)
+      , n(n)
+    { }
+    double value() override;
+  };
 
-  // class StrLiteral : public Str {
-  //   std::string const s;
-  // public:
-  //   StrLiteral(std::string s)
-  //     : Str(TyFlag::IS_FIN)
-  //     , s(s)
-  //   { }
-  //   std::ostream& stream(std::ostream& out) override;
-  //   void rewind() override;
-  //   void accept(Visitor& v) const override;
-  // };
+  class StrLiteral : public Str {
+    std::string const s;
+  public:
+    StrLiteral(Env& env, std::string s)
+      : Str(env, TyFlag::IS_FIN)
+      , s(s)
+    { }
+    std::ostream& stream(std::ostream& out) override;
+    void rewind() override;
+  };
 
-  // class LstLiteral : public Lst {
-  //   std::vector<Val*> const v;
-  //   size_t c;
-  // public:
-  //   LstLiteral(std::vector<Val*> v)
-  //     : Lst(unkType(new std::string("litlst")), TyFlag::IS_FIN)
-  //     , v(v)
-  //     , c(0)
-  //   { }
-  //   Val* operator*() override; //
-  //   Lst* operator++() override; //
-  //   bool end() const override; //
-  //   void rewind() override; //
-  //   size_t count() override; //
-  //   void accept(Visitor& v) const override;
-  // };
+  class LstLiteral : public Lst {
+    std::vector<Val*> const v;
+    size_t c;
+  public:
+    LstLiteral(Env& env, std::vector<Val*> v)
+      : Lst(env, Type(Ty::LST,
+          {.box_has=
+            new std::vector<Type*>() // ZZZ: right...
+          }, TyFlag::IS_FIN
+        ))
+      , v(v)
+      , c(0)
+    { }
+    Val* operator*() override;
+    Lst& operator++() override;
+    bool end() const override;
+    void rewind() override;
+    size_t count() override;
+  };
 
-  // class FunChain : public Fun {
-  //   std::vector<Fun*> const f;
-  // public:
-  //   FunChain(std::vector<Fun*> f)
-  //     : Fun(Type(*f[0]->type().fst()), Type(*f[f.size()-1]->type().snd()))
-  //     , f(f)
+  class FunChain : public Fun {
+    std::vector<Fun*> const f;
+  public:
+    FunChain(Env& env, std::vector<Fun*> f)
+      : Fun(env, Type(Ty::FUN,
+          {.box_pair={
+              new Type(f[0]->type().from()),
+              new Type(f[f.size()-1]->type().to())
+          }}, 0
+        ))
+      , f(f)
+    { }
+    Val* operator()(Val* arg) override;
+  };
+
+  // class StrStdin : public Str {
+  //   StrStdin(Env& env)
+  //     : Str(env, TyFlag::IS_INF)
   //   { }
-  //   Val* operator()(Env& env, Val* arg) override; //
-  //   void accept(Visitor& v) const override;
   // };
 
   /**

@@ -24,6 +24,16 @@ namespace sel {
     virtual std::ostringstream* getWhat() const = 0;
   };
 
+  struct NIError : BaseError {
+    std::string const missing;
+    NIError(std::string const missing, char const* msg)
+      : BaseError(msg)
+      , missing(missing)
+    { }
+  protected:
+    std::ostringstream* getWhat() const override;
+  };
+
   struct ParseError : BaseError {
     std::string const* expected;
     std::string const* situation;

@@ -55,6 +55,9 @@ namespace sel {
     Type const& to() const { return *p.box_pair[1]; }
   };
 
+  std::vector<Type*>* types1(Type* ty1);
+  std::vector<Type*>* types2(Type* ty1, Type* ty2);
+
   // Type unkType(std::string* name);
   // Type numType();
   // Type strType(TyFlag is_inf);

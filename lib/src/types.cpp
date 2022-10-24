@@ -98,6 +98,18 @@ namespace sel {
     }
   }
 
+  std::vector<Type*>* types1(Type* ty1) {
+    auto* r = new std::vector<Type*>();
+    r->push_back(ty1);
+    return r;
+  }
+  std::vector<Type*>* types2(Type* ty1, Type* ty2) {
+    auto* r = new std::vector<Type*>();
+    r->push_back(ty1);
+    r->push_back(ty2);
+    return r;
+  }
+
   // Type unkType(std::string* name) {
   //   TRACE(unkType, *name<<"*"<<raw(name));
   //   return Type(Ty::UNK, {.name=name}, 0);

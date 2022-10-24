@@ -60,7 +60,7 @@ namespace sel {
    * it for `coerse(Val val, Type to)`.
    */
   template <typename To>
-  To* coerse(Val* from);
+  To* coerse(Val* from); // TODO: add `Type const& ty`
 
   /**
    * Abstract class for `Num`-type compatible values.
@@ -112,7 +112,7 @@ namespace sel {
    */
   class Lst : public Val { //, public std::iterator<std::input_iterator_tag, Val>
   public:
-    Lst(Env& env, Type& type)
+    Lst(Env& env, Type const& type)
       : Val(env, type)
     { }
     /**
@@ -122,7 +122,7 @@ namespace sel {
     /**
      * Move to (compute, etc..) the next value.
      */
-    virtual Lst* operator++() = 0;
+    virtual Lst& operator++() = 0;
     /**
      * `true` if there is no next value to get. Calling
      * `next` at this point is probably undefined.
@@ -139,6 +139,7 @@ namespace sel {
      */
     virtual size_t count() = 0;
     // virtual Val& operator[](size_t n) { rewind(); for (;;); return ...; }
+    Lst& operator++(int) { ++*this; return *this; } // ZZZ: i dont even anymore
   };
 
   /**
@@ -148,7 +149,7 @@ namespace sel {
    */
   class Fun : public Val {
   public:
-    Fun(Env& env, Type& type)
+    Fun(Env& env, Type const& type)
       : Val(env, type)
     { }
     virtual Val* operator()(Val* arg) = 0;

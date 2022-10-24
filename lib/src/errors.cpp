@@ -11,9 +11,15 @@ namespace sel {
     return w->c_str();
   }
 
-  std::ostringstream* BaseError::getWhat() const {
+  // std::ostringstream* BaseError::getWhat() const {
+  //   auto* r = new std::ostringstream();
+  //   *r << "garbo";
+  //   return r;
+  // }
+
+  std::ostringstream* NIError::getWhat() const {
     auto* r = new std::ostringstream();
-    *r << "garbo";
+    *r << "not implemented yet: " << missing;
     return r;
   }
 

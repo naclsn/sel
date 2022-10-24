@@ -8,27 +8,24 @@
 
 namespace sel {
 
-  // double NumLiteral::value() { return n; }
-  // void NumLiteral::accept(Visitor& v) const { v.visitNumLiteral(type(), n); }
+  double NumLiteral::value() { return n; }
 
-  // std::ostream& StrLiteral::stream(std::ostream& out) { return out << s; }
-  // void StrLiteral::rewind() { }
-  // void StrLiteral::accept(Visitor& v) const { v.visitStrLiteral(type(), s); }
+  std::ostream& StrLiteral::stream(std::ostream& out) { return out << s; }
+  void StrLiteral::rewind() { }
 
-  // Val* LstLiteral::operator*() { return v[c]; }
-  // Lst* LstLiteral::operator++() { c++; return this; }
-  // bool LstLiteral::end() const { return v.size()-1 <= c; }
-  // void LstLiteral::rewind() { c = 0; }
-  // size_t LstLiteral::count() { return v.size(); }
-  // void LstLiteral::accept(Visitor& v) const { v.visitLstLiteral(type(), this->v); }
+  Val* LstLiteral::operator*() { return v[c]; }
+  Lst& LstLiteral::operator++() { c++; return *this; }
+  bool LstLiteral::end() const { return v.size()-1 <= c; }
+  void LstLiteral::rewind() { c = 0; }
+  size_t LstLiteral::count() { return v.size(); }
 
-  // Val* FunChain::operator()(Environment& env, Val* arg) {
-  //   Val* r = arg;
-  //   for (auto& it : f)
-  //     r = it->operator()(env, r);
-  //   return r;
-  // }
-  // void FunChain::accept(Visitor& v) const { v.visitFunChain(type(), f); }
+  Val* FunChain::operator()(Val* arg) {
+    Val* r = arg;
+    for (auto const& it : f)
+      r = it->operator()(r);
+    return r;
+  }
+
 
   // internal
   struct Token {
