@@ -8,15 +8,14 @@ using namespace std;
 using namespace sel;
 
 void test_parseApp() {
-  char const* source = "split : :, map [add 1], join ::::";
+  char const* source = "split : :, map [add 1, add 2], join ::::";
+  cout << "source: '" << source << "'\n";
+
   istringstream iss(source);
   App app;
   iss >> app;
 
-  cout
-    << "source: '" << source << "'\n"
-    << "parsed app:\n" << app << endl
-  ;
+  cout << "parsed app:\n" << app << endl;
 }
 
 int main() {

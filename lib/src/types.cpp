@@ -36,7 +36,10 @@ namespace sel {
         break;
 
       case Ty::LST:
-        p.box_has = new std::vector<Type*>(*ty.p.box_has);
+        p.box_has = new std::vector<Type*>();
+        p.box_has->reserve(ty.p.box_has->size());
+        for (auto const& it : *ty.p.box_has)
+          p.box_has->push_back(new Type(*it));
         break;
 
       case Ty::FUN:
@@ -75,7 +78,7 @@ namespace sel {
   }
 
   Type::~Type() {
-    TRACE(~Type, raw(this)<<"; "<<base)
+    TRACE(~Type, raw(this)<<"; "<<base);
     switch (base) {
       case Ty::UNK:
         delete p.name;

@@ -270,23 +270,28 @@ namespace sel {
       case Token::Type::SUB_OPEN:
         {
           if (Token::Type::SUB_CLOSE == (++lexer)->type)
-            ; // TODO: throw syntax error: empty sub-expression
+            throw ParseError("element", "got empty sub-expression", "- what -");
 
-          // single value between [] - except no one should do that >:
+          // early break: single value between []
           val = parseElement(env, lexer);
-          if (Token::Type::SUB_CLOSE == lexer->type)
+          if (Token::Type::SUB_CLOSE == lexer->type) {
+            lexer++;
             break;
+          }
+
+          if (Token::Type::THEN != lexer->type)
+            throw ParseError("token ',' or matching token ']'", std::string("got unexpected tokens ") + (char)((char)t.type+'0'), "- what -");
 
           std::vector<Fun*> elms;
           do {
             elms.push_back(coerse<Fun>(val));
-            if (Token::Type::THEN != lexer->type)
+            if (Token::Type::THEN != lexer->type && eos != lexer)
               break;
             val = parseElement(env, ++lexer);
-          } while (val);
+          } while (true);
 
-          if (Token::Type::SUB_CLOSE != (++lexer)->type)
-            ; // TODO: throw syntax error: expected closing ']'
+          if (Token::Type::SUB_CLOSE != lexer++->type)
+            throw ParseError("matching token ']'", std::string("got unexpected tokens ") + (char)((char)t.type+'0'), "- what -");
 
           val = new FunChain(env, elms);
         }
@@ -312,15 +317,20 @@ namespace sel {
         && eos != lexer) {
       Fun* base = coerse<Fun>(val);
       Val* arg = parseAtom(env, lexer);
-      base->operator()(arg);
+      val = base->operator()(arg);
     }
-    lexer++;
+
+    // if (Token::Type::THEN == lexer->type)
+    //   lexer++;
 
     return val;
   }
 
   std::ostream& operator<<(std::ostream& out, App const& app) {
-    return out << "hey, am an app with this many function(s): " << app.funcs.size();
+    out << "hey, am an app with this many function(s): " << app.funcs.size();
+    for (auto const& it : app.funcs)
+      out << "\n\t" << it->type();
+    return out;
   }
 
   std::istream& operator>>(std::istream& in, App& app) {
@@ -331,7 +341,7 @@ namespace sel {
     do {
       Val* current = parseElement(app.env, lexer);
       app.funcs.push_back(coerse<Fun>(current));
-    } while (eos != lexer);
+    } while (Token::Type::THEN == lexer->type && eos != ++lexer);
 
     return in;
   }
