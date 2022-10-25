@@ -41,41 +41,43 @@ namespace sel {
 #undef DO
   };
 
-   class VisRepr : public Visitor {
-   public:
-     struct ReprCx {
-       unsigned indents;
-       bool single_line;
-     };
-     VisRepr(std::ostream& res, ReprCx cx)
-       : res(res)
-       , cx(cx)
-     { }
-   private:
-     std::ostream& res;
-     struct ReprField {
-       char const* name;
-       enum {
-         CHR,
-         STR,
-         VAL,
-       } const data_ty;
-       union {
-         Val const* val;
-         std::string const* str;
-         char const* chr;
-       } const data;
-     };
-     ReprCx cx;
+  class VisRepr : public Visitor {
+  public:
+    struct ReprCx {
+      unsigned indents;
+      bool top_level;
+      bool single_line;
+    };
+    VisRepr(std::ostream& res, ReprCx cx)
+      : res(res)
+      , cx(cx)
+    { }
 
-     void reprHelper(Type const& type, char const* name, std::initializer_list<ReprField> const fields);
-     void reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields);
+  private:
+    std::ostream& res;
+    struct ReprField {
+      char const* name;
+      enum {
+        CHR,
+        STR,
+        VAL,
+      } const data_ty;
+      union {
+        Val const* val;
+        std::string const* str;
+        char const* chr;
+      } const data;
+    };
+    ReprCx cx;
 
-   public:
- #define DO(__n, ...) void visit##__n(__VA_ARGS__) override;
-     VISIT_EACH(DO)
- #undef DO
-   };
+    void reprHelper(Type const& type, char const* name, std::initializer_list<ReprField> const fields);
+    void reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields);
+
+  public:
+#define DO(__n, ...) void visit##__n(__VA_ARGS__) override;
+    VISIT_EACH(DO)
+#undef DO
+  };
 
 } // namespace sel
 

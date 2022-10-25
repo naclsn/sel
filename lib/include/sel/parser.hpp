@@ -13,6 +13,7 @@
 
 #include "engine.hpp"
 #include "prelude.hpp"
+#include "visitors.hpp"
 
 namespace sel {
 
@@ -102,6 +103,8 @@ namespace sel {
       : env(*this)
       , funcs()
     { }
+
+    void repr(std::ostream& out, VisRepr::ReprCx cx={.top_level=true}) const;
 
     friend std::ostream& operator<<(std::ostream& out, App const& ty);
     friend std::istream& operator>>(std::istream& in, App& tt);

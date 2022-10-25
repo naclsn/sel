@@ -330,6 +330,12 @@ namespace sel {
     return val;
   }
 
+  void App::repr(std::ostream& out, VisRepr::ReprCx cx) const {
+    VisRepr repr(out, cx);
+    for (auto const& it : funcs)
+      repr(*it);
+  }
+
   std::ostream& operator<<(std::ostream& out, App const& app) {
     out << "hey, am an app with this many function(s): " << app.funcs.size();
     for (auto const& it : app.funcs)

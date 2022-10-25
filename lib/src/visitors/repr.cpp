@@ -11,21 +11,23 @@ namespace sel {
     reprHelper(type, name, tmp);
   }
   void VisRepr::reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields) {
-    bool isln = 1 < fields.size();
+    bool isln = 1 < fields.size() && !cx.single_line;
 
     std::string ln = " ";
+    std::string ind = "";
     if (isln) {
       ln = "\n";
-      ln.reserve(3 * cx.indents + 2);
+      ind.reserve(3 * cx.indents + 1);
       for (unsigned k = 0; k < cx.indents; k++)
-        ln.append("   ");
+        ind.append("   ");
     }
 
     // `iswrap` when the single field is a `Val` (so no increase indent)
     bool iswrap = 1 == fields.size()
       && ReprField::VAL == fields.begin()->data_ty;
 
-    res << "<" << type << "> " << name << " {" << ln;
+    if (cx.top_level) res << ind;
+    res << "<" << type << "> " << name << " {" << ln << ind;
     if (!iswrap) cx.indents++;
 
     for (auto& it : fields) {
@@ -38,26 +40,34 @@ namespace sel {
           break;
 
         case ReprField::STR:
-          res << " \"" << *it.data.str << "\"";
+          {
+            res << " \"";
+            std::string::size_type from = 0, to = it.data.str->find('"');
+            while (std::string::npos != to) {
+              res << it.data.str->substr(from, to) << "\\\"";
+              from = to+1;
+              to = it.data.str->find('"', from);
+            }
+            res << it.data.str->substr(from) << "\"";
+          }
           break;
 
         case ReprField::VAL:
           if (it.data.val) {
+            bool was_top = cx.top_level;
+            cx.top_level = false;
             this->operator()(*it.data.val);
+            cx.top_level = was_top;
           } else res << " -nil-";
           break;
       }
 
-      res << ln;
+      res << ln << ind;
     }
 
     if (!iswrap) cx.indents--;
     res << "}";
-  }
-
-#if 0
-  void VisRepr::visitBidoof(Type const& type) {
-    reprHelper(type, "Bidoof", {});
+    if (cx.top_level) res << "\n";
   }
 
   void VisRepr::visitNumLiteral(Type const& type, double n) {
@@ -125,6 +135,59 @@ namespace sel {
       fi_val("arg", arg),
     });
   }
-#endif
+
+  void VisRepr::visitJoin2(Type const& type) {
+    reprHelper(type, "Join2", {});
+  }
+
+  void VisRepr::visitJoin1(Type const& type, Val const* base, Val const* arg) {
+    reprHelper(type, "Join1", {
+      fi_val("base", base),
+      fi_val("arg", arg),
+    });
+  }
+
+  void VisRepr::visitJoin0(Type const& type, Val const* base, Val const* arg) {
+    reprHelper(type, "Join0", {
+      fi_val("base", base),
+      fi_val("arg", arg),
+    });
+  }
+
+  void VisRepr::visitMap2(Type const& type) {
+    reprHelper(type, "Map2", {});
+  }
+
+  void VisRepr::visitMap1(Type const& type, Val const* base, Val const* arg) {
+    reprHelper(type, "Map1", {
+      fi_val("base", base),
+      fi_val("arg", arg),
+    });
+  }
+
+  void VisRepr::visitMap0(Type const& type, Val const* base, Val const* arg) {
+    reprHelper(type, "Map0", {
+      fi_val("base", base),
+      fi_val("arg", arg),
+    });
+  }
+
+  void VisRepr::visitSplit2(Type const& type) {
+    reprHelper(type, "Split2", {});
+  }
+
+  void VisRepr::visitSplit1(Type const& type, Val const* base, Val const* arg) {
+    reprHelper(type, "Split1", {
+      fi_val("base", base),
+      fi_val("arg", arg),
+    });
+  }
+
+  void VisRepr::visitSplit0(Type const& type, Val const* base, Val const* arg) {
+    reprHelper(type, "Split0", {
+      fi_val("base", base),
+      fi_val("arg", arg),
+    });
+  }
 
 } // namespace sel

@@ -24,7 +24,7 @@ namespace sel {
         ))
     { TRACE(Abs1, ":: " << ty); }
     Val* operator()(Val* arg) override;
-    // void accept(Visitor& v) const override;
+    void accept(Visitor& v) const override;
   };
   struct Abs0 : Num {
     Abs1* base;
@@ -35,7 +35,7 @@ namespace sel {
       , arg(arg)
     { TRACE(Abs0, ":: " << ty); }
     double value() override;
-    // void accept(Visitor& v) const override;
+    void accept(Visitor& v) const override;
   };
 
   struct Add2 : Fun {
@@ -53,7 +53,7 @@ namespace sel {
         ))
     { TRACE(Add2, ":: " << ty); }
     Val* operator()(Val* arg) override;
-    // void accept(Visitor& v) const override;
+    void accept(Visitor& v) const override;
   };
   struct Add1 : Fun {
     Add2* base;
@@ -69,7 +69,7 @@ namespace sel {
       , arg(arg)
     { TRACE(Add1, ":: " << ty); }
     Val* operator()(Val* arg) override;
-    // void accept(Visitor& v) const override;
+    void accept(Visitor& v) const override;
   };
   struct Add0 : Num {
     Add1* base;
@@ -80,7 +80,7 @@ namespace sel {
       , arg(arg)
     { TRACE(Add0, ":: " << ty); }
     double value() override;
-    // void accept(Visitor& v) const override;
+    void accept(Visitor& v) const override;
   };
 
   // join:: Str -> [Str]* -> Str*
@@ -103,7 +103,7 @@ namespace sel {
         ))
     { TRACE(Join2, ":: " << ty); }
     Val* operator()(Val* arg) override;
-    // void accept(Visitor& v) const override;
+    void accept(Visitor& v) const override;
   };
   struct Join1 : Fun {
     Join2* base;
@@ -123,7 +123,7 @@ namespace sel {
       , arg(arg)
     { TRACE(Join1, ":: " << ty); }
     Val* operator()(Val* arg) override;
-    // void accept(Visitor& v) const override;
+    void accept(Visitor& v) const override;
   };
   struct Join0 : Str {
     Join1* base;
@@ -139,7 +139,7 @@ namespace sel {
     bool end() const override;
     void rewind() override;
     std::ostream& entire(std::ostream& out) override;
-    // void accept(Visitor& v) const override;
+    void accept(Visitor& v) const override;
   };
 
   // map:: (a -> b) -> [a]* -> [b]*
@@ -171,7 +171,7 @@ namespace sel {
         ))
     { TRACE(Map2, ":: " << ty); }
     Val* operator()(Val* arg) override;
-    // void accept(Visitor& v) const override;
+    void accept(Visitor& v) const override;
   };
   struct Map1 : Fun {
     Map2* base;
@@ -195,7 +195,7 @@ namespace sel {
       , arg(arg)
     { TRACE(Map1, ":: " << ty); }
     Val* operator()(Val* arg) override;
-    // void accept(Visitor& v) const override;
+    void accept(Visitor& v) const override;
   };
   struct Map0 : Lst {
     Map1* base;
@@ -215,7 +215,7 @@ namespace sel {
     bool end() const override;
     void rewind() override;
     size_t count() override;
-    // void accept(Visitor& v) const override;
+    void accept(Visitor& v) const override;
   };
 
   // split :: Str -> Str* -> [Str]* -- NOTE: this assumes the delimiter will happend at some point, maybe it should be `[Str*]*` but this could make it annoying to work with
@@ -238,7 +238,7 @@ namespace sel {
         ))
     { TRACE(Split2, ":: " << ty); }
     Val* operator()(Val* arg) override;
-    // void accept(Visitor& v) const override;
+    void accept(Visitor& v) const override;
   };
   struct Split1 : Fun {
     Split2* base;
@@ -258,7 +258,7 @@ namespace sel {
       , arg(arg)
     { TRACE(Split1, ":: " << ty); }
     Val* operator()(Val* arg) override;
-    // void accept(Visitor& v) const override;
+    void accept(Visitor& v) const override;
   };
   struct Split0 : Lst {
     Split1* base;
@@ -277,7 +277,7 @@ namespace sel {
     bool end() const override;
     void rewind() override;
     size_t count() override;
-    // void accept(Visitor& v) const override;
+    void accept(Visitor& v) const override;
   };
 
 }
