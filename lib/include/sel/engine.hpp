@@ -52,6 +52,15 @@ namespace sel {
     virtual void accept(Visitor& v) const;
   };
 
+  class Nil : public Val {
+  public:
+    Nil(Env& env)
+      : Val(env, Type(Ty::UNK, {.name=new std::string("()")}, 0))
+    { }
+    ~Nil() { }
+    void accept(Visitor& v) const { }
+  };
+
   /**
    * Coerse a value to a type. Returned pointer may be
    * the same or a newly allocated value.

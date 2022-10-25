@@ -70,6 +70,7 @@ namespace sel {
     if (cx.top_level) res << "\n";
   }
 
+
   void VisRepr::visitNumLiteral(Type const& type, double n) {
     auto nn = std::to_string(n);
     reprHelper(type, "NumLiteral", {
@@ -106,6 +107,15 @@ namespace sel {
     }
     reprHelper(type, "FunChain", a);
   }
+
+  void VisRepr::visitStdin(Type const& type) {
+    reprHelper(type, "Stdin", {});
+  }
+
+  void VisRepr::visitStdout(Type const& type) {
+    reprHelper(type, "Stdout", {});
+  }
+
 
   void VisRepr::visitAbs1(Type const& type) {
     reprHelper(type, "Abs1", {});

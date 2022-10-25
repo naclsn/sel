@@ -27,10 +27,23 @@ namespace sel {
   Val* FunChain::operator()(Val* arg) {
     Val* r = arg;
     for (auto const& it : f)
-      r = it->operator()(r);
+      r = (*it)(r);
     return r;
   }
   void FunChain::accept(Visitor& v) const { v.visitFunChain(ty, f); }
+
+  Val* Stdin::operator()(Val* _arg) {
+    std::string line("");
+    if (in) std::getline(*in, line);
+    return new StrLiteral(env, line);
+  }
+  void Stdin::accept(Visitor& v) const { v.visitStdin(ty); }
+
+  Val* Stdout::operator()(Val* arg) {
+    if (out) coerse<Str>(arg)->entire(*out) << std::endl;
+    return new Nil(env);
+  }
+  void Stdout::accept(Visitor& v) const { v.visitStdout(ty); }
 
 
   // internal
@@ -323,10 +336,21 @@ namespace sel {
       val = base->operator()(arg);
     }
 
-    // if (Token::Type::THEN == lexer->type)
-    //   lexer++;
-
     return val;
+  }
+
+  void App::run(std::istream& in, std::ostream& out) {
+    // if (!fin || !fout) throw BaseError("uninitialized or malformed application");
+
+    fin->setIn(&in);
+    fout->setOut(&out);
+
+    Val* r = new Nil(env);
+    for (auto const& it : funcs)
+      r = (*it)(r);
+
+    fin->setIn(nullptr);
+    fout->setOut(nullptr);
   }
 
   void App::repr(std::ostream& out, VisRepr::ReprCx cx) const {
@@ -347,10 +371,14 @@ namespace sel {
     static std::istream_iterator<Token> eos;
     if (eos == lexer) throw EOSError("script", "- what -");
 
+    app.funcs.push_back(app.fin = new Stdin(app.env));
+
     do {
       Val* current = parseElement(app.env, lexer);
       app.funcs.push_back(coerse<Fun>(current));
     } while (Token::Type::THEN == lexer->type && eos != ++lexer);
+
+    app.funcs.push_back(app.fout = new Stdout(app.env));
 
     return in;
   }

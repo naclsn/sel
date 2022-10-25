@@ -15,7 +15,8 @@ void test_repr() {
 }
 
 void test_parseApp() {
-  char const* source = "split : :, map [tonum, add 1, add 2, tostr], join ::::";
+  // char const* source = "split : :, map [tonum, add 1, add 2, tostr], join ::::";
+  char const* source = "tonum, add 42, tostr";
   cout << "source: '" << source << "'\n";
 
   istringstream iss(source);
@@ -24,11 +25,34 @@ void test_parseApp() {
 
   cout << "parsed app:\n";
   // cout << app << endl;
-  app.repr(cout, {.indents=1, .top_level=true});
+  app.repr(cout, {.top_level=true});
+
+  cout << "\n====\n\n";
+
+  // istringstream input("1 2 3");
+  // ostringstream output;
+  // app.run(input, output);
+  // cout << output.str();
+
+  while (!cin.eof())
+    app.run(cin, cout);
 }
 
-int main() {
-  test_parseApp();
+void doTheThing(int argc, char* argv[]) {
+  stringstream source;
+  for (int k = 1; k < argc; k++)
+    source << argv[k] << ' ';
+
+  App app;
+  source >> app;
+
+  while (!cin.eof())
+    app.run(cin, cout);
+}
+
+int main(int argc, char* argv[]) {
+  // test_parseApp();
+  doTheThing(argc, argv);
 
   return 0;
 }

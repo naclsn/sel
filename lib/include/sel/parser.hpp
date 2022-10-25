@@ -81,11 +81,39 @@ namespace sel {
     void accept(Visitor& v) const override;
   };
 
-  // class StrStdin : public Str {
-  //   StrStdin(Env& env)
-  //     : Str(env, TyFlag::IS_FIN) // YYY: indeed, it reads a line, which is assumed to be of finite size (finit size memory)
-  //   { }
-  // };
+  class Stdin : public Fun {
+    std::istream* in;
+  public:
+    Stdin(Env& env)
+      : Fun(env, Type(Ty::FUN,
+          {.box_pair={
+            new Type(Ty::UNK, {.name=new std::string("()")}, 0),
+            new Type(Ty::STR, {0}, TyFlag::IS_FIN) // YYY: indeed, it reads a line, which is assumed to be of finite size
+          }}, 0
+        ))
+      , in(nullptr)
+    { }
+    Val* operator()(Val* arg) override;
+    void accept(Visitor& v) const override;
+    void setIn(std::istream* in) { this->in = in; }
+  };
+
+  class Stdout : public Fun {
+    std::ostream* out;
+  public:
+    Stdout(Env& env)
+      : Fun(env, Type(Ty::FUN,
+          {.box_pair={
+            new Type(Ty::STR, {0}, TyFlag::IS_INF), // YYY: will consider output may be infinite
+            new Type(Ty::UNK, {.name=new std::string("()")}, 0)
+          }}, 0
+        ))
+      , out(nullptr)
+    { }
+    Val* operator()(Val* arg) override;
+    void accept(Visitor& v) const override;
+    void setOut(std::ostream* out) { this->out = out; }
+  };
 
   /**
    * An application is constructed from parsing a user
@@ -97,12 +125,16 @@ namespace sel {
   private:
     Env env;
     std::vector<Fun*> funcs;
+    Stdin* fin;
+    Stdout* fout;
 
   public:
     App()
       : env(*this)
       , funcs()
     { }
+
+    void run(std::istream& in, std::ostream& out);
 
     void repr(std::ostream& out, VisRepr::ReprCx cx={.top_level=true}) const;
 

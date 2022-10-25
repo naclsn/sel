@@ -22,6 +22,8 @@
   __do(StrLiteral, Type const& type, std::string const&)        \
   __do(LstLiteral, Type const& type, std::vector<Val*> const&)  \
   __do(FunChain, Type const& type, std::vector<Fun*> const&)    \
+  __do(Stdin, Type const& type)                                 \
+  __do(Stdout, Type const& type)                                \
 
 namespace sel {
 
