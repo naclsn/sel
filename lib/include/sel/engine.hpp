@@ -49,7 +49,7 @@ namespace sel {
     { }
     virtual ~Val() { }
     Type const& type() const { return ty; }
-    // virtual void accept(Visitor& v) const = 0; // ZZZ
+    virtual void accept(Visitor& v) const;
   };
 
   /**

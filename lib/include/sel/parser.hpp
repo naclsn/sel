@@ -24,6 +24,7 @@ namespace sel {
       , n(n)
     { }
     double value() override;
+    void accept(Visitor& v) const override;
   };
 
   class StrLiteral : public Str {
@@ -39,6 +40,7 @@ namespace sel {
     bool end() const override;
     void rewind() override;
     std::ostream& entire(std::ostream& out) override;
+    void accept(Visitor& v) const override;
   };
 
   class LstLiteral : public Lst {
@@ -59,6 +61,7 @@ namespace sel {
     bool end() const override;
     void rewind() override;
     size_t count() override;
+    void accept(Visitor& v) const override;
   };
 
   class FunChain : public Fun {
@@ -74,6 +77,7 @@ namespace sel {
       , f(f)
     { }
     Val* operator()(Val* arg) override;
+    void accept(Visitor& v) const override;
   };
 
   // class StrStdin : public Str {

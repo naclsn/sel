@@ -10,17 +10,20 @@
 namespace sel {
 
   double NumLiteral::value() { return n; }
+  void NumLiteral::accept(Visitor& v) const { v.visitNumLiteral(ty, n); }
 
   std::ostream& StrLiteral::stream(std::ostream& out) { read = true; return out << s; }
   bool StrLiteral::end() const { return read; }
   void StrLiteral::rewind() { read = false; }
   std::ostream& StrLiteral::entire(std::ostream& out) { read = true; return out << s; }
+  void StrLiteral::accept(Visitor& v) const { v.visitStrLiteral(ty, s); }
 
   Val* LstLiteral::operator*() { return v[c]; }
   Lst& LstLiteral::operator++() { c++; return *this; }
   bool LstLiteral::end() const { return v.size()-1 <= c; }
   void LstLiteral::rewind() { c = 0; }
   size_t LstLiteral::count() { return v.size(); }
+  void LstLiteral::accept(Visitor& v) const { v.visitLstLiteral(ty, this->v); }
 
   Val* FunChain::operator()(Val* arg) {
     Val* r = arg;
@@ -28,6 +31,7 @@ namespace sel {
       r = it->operator()(r);
     return r;
   }
+  void FunChain::accept(Visitor& v) const { v.visitFunChain(ty, f); }
 
 
   // internal
