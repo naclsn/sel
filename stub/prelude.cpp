@@ -11,6 +11,8 @@ namespace sel {
     if ("join"  == name) return new Join2(env);
     if ("map"   == name) return new Map2(env);
     if ("split" == name) return new Split2(env);
+    if ("tonum" == name) return new Tonum1(env);
+    if ("tostr" == name) return new Tostr1(env);
     return nullptr;
   }
 
@@ -136,5 +138,29 @@ namespace sel {
     return 0;
   }
   void Split0::accept(Visitor& v) const { v.visitSplit0(ty, base, arg); }
+
+
+  Val* Tonum1::operator()(Val* arg) { return new Tonum0(env, this, coerse<Str>(arg)); }
+  void Tonum1::accept(Visitor& v) const { v.visitTonum1(ty); }
+
+  double Tonum0::value() {
+    // XXX: quickly hacked
+    std::stringstream ss;
+    arg->entire(ss);
+    double r;
+    ss >> r;
+    return r;
+  }
+  void Tonum0::accept(Visitor& v) const { v.visitTonum0(ty, base, arg); }
+
+
+  Val* Tostr1::operator()(Val* arg) { return new Tostr0(env, this, coerse<Num>(arg)); }
+  void Tostr1::accept(Visitor& v) const { v.visitTostr1(ty); }
+
+  std::ostream& Tostr0::stream(std::ostream& out) { read = true; return out << arg->value(); }
+  bool Tostr0::end() const { return read; }
+  void Tostr0::rewind() { read = false; }
+  std::ostream& Tostr0::entire(std::ostream& out) { read = true; return out << arg->value(); }
+  void Tostr0::accept(Visitor& v) const { v.visitTostr0(ty, base, arg); }
 
 } // namespace sel

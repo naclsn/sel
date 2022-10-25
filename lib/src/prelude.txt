@@ -21,3 +21,11 @@ split :: Str -> Str* -> [Str]*
 	struct Split2 : Fun;
 	struct Split1 : Fun;
 	struct Split0 : Lst;
+
+tonum :: Str -> Num
+	struct Tonum1 : Fun;
+	struct Tonum0 : Num;
+
+tostr :: Num -> Str
+	struct Tostr1 : Fun;
+	struct Tostr0 : Str;

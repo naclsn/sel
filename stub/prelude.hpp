@@ -280,6 +280,58 @@ namespace sel {
     void accept(Visitor& v) const override;
   };
 
+  struct Tonum1 : Fun {
+    Tonum1(Env& env)
+      : Fun(env, Type(Ty::FUN,
+          {.box_pair={
+            new Type(Ty::STR, {0}, TyFlag::IS_FIN),
+            new Type(Ty::NUM, {0}, 0)
+          }}, 0
+        ))
+    { TRACE(Tonum1, ":: " << ty); }
+    Val* operator()(Val* arg) override;
+    void accept(Visitor& v) const override;
+  };
+  struct Tonum0 : Num {
+    Tonum1* base;
+    Str* arg;
+    Tonum0(Env& env, Tonum1* base, Str* arg)
+      : Num(env)
+      , base(base)
+      , arg(arg)
+    { TRACE(Tonum0, ":: " << ty); }
+    double value() override;
+    void accept(Visitor& v) const override;
+  };
+
+  struct Tostr1 : Fun {
+    Tostr1(Env& env)
+      : Fun(env, Type(Ty::FUN,
+          {.box_pair={
+            new Type(Ty::NUM, {0}, 0),
+            new Type(Ty::STR, {0}, TyFlag::IS_FIN)
+          }}, 0
+        ))
+    { TRACE(Tostr1, ":: " << ty); }
+    Val* operator()(Val* arg) override;
+    void accept(Visitor& v) const override;
+  };
+  struct Tostr0 : Str {
+    Tostr1* base;
+    Num* arg;
+    bool read;
+    Tostr0(Env& env, Tostr1* base, Num* arg)
+      : Str(env, TyFlag::IS_FIN)
+      , base(base)
+      , arg(arg)
+    { TRACE(Tostr0, ":: " << ty); }
+    std::ostream& stream(std::ostream& out) override;
+    bool end() const override;
+    void rewind() override;
+    std::ostream& entire(std::ostream& out) override;
+    void accept(Visitor& v) const override;
+  };
+
 }
 
 #endif // SEL_PRELUDE_HPP

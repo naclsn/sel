@@ -15,7 +15,7 @@ void test_repr() {
 }
 
 void test_parseApp() {
-  char const* source = "split : :, map [add 1, add 2], join ::::";
+  char const* source = "split : :, map [tonum, add 1, add 2, tostr], join ::::";
   cout << "source: '" << source << "'\n";
 
   istringstream iss(source);

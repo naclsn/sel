@@ -190,4 +190,26 @@ namespace sel {
     });
   }
 
+  void VisRepr::visitTonum1(Type const& type) {
+    reprHelper(type, "Tonum1", {});
+  }
+
+  void VisRepr::visitTonum0(Type const& type, Val const* base, Val const* arg) {
+    reprHelper(type, "Tonum0", {
+      fi_val("base", base),
+      fi_val("arg", arg),
+    });
+  }
+
+  void VisRepr::visitTostr1(Type const& type) {
+    reprHelper(type, "Tostr1", {});
+  }
+
+  void VisRepr::visitTostr0(Type const& type, Val const* base, Val const* arg) {
+    reprHelper(type, "Tostr0", {
+      fi_val("base", base),
+      fi_val("arg", arg),
+    });
+  }
+
 } // namespace sel
