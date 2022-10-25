@@ -286,7 +286,14 @@ rules](#Coersion)).
 
 ---
 
-### Work in Progress
+### Notepad
+#### TODO/WIP
+- unary and binary syntax
+- some tests on parsing
+- better errors
+- update doc comments
+- update README.md
+- primer
 #### Feature Goals
 - lazy and infinite data structures
 - lib interface
