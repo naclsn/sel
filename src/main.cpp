@@ -15,8 +15,7 @@ void test_repr() {
 }
 
 void test_parseApp() {
-  // char const* source = "split : :, map [tonum, add 1, add 2, tostr], join ::::";
-  char const* source = "tonum, add 42, tostr";
+  char const* source = "split : :, map [tonum, add 1, add 2, tostr], join ::::";
   cout << "source: '" << source << "'\n";
 
   istringstream iss(source);
@@ -29,13 +28,10 @@ void test_parseApp() {
 
   cout << "\n====\n\n";
 
-  // istringstream input("1 2 3");
-  // ostringstream output;
-  // app.run(input, output);
-  // cout << output.str();
-
-  while (!cin.eof())
-    app.run(cin, cout);
+  istringstream input("1 2 3");
+  ostringstream output;
+  app.run(input, output);
+  cout << output.str();
 }
 
 void doTheThing(int argc, char* argv[]) {
@@ -46,8 +42,7 @@ void doTheThing(int argc, char* argv[]) {
   App app;
   source >> app;
 
-  while (!cin.eof())
-    app.run(cin, cout);
+  app.runToEnd(cin, cout);
 }
 
 int main(int argc, char* argv[]) {

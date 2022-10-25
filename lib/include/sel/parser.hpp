@@ -135,6 +135,9 @@ namespace sel {
     { }
 
     void run(std::istream& in, std::ostream& out);
+    void runToEnd(std::istream& in, std::ostream& out);
+
+    void recurse();
 
     void repr(std::ostream& out, VisRepr::ReprCx cx={.top_level=true}) const;
 

@@ -353,6 +353,31 @@ namespace sel {
     fout->setOut(nullptr);
   }
 
+  void App::runToEnd(std::istream& in, std::ostream& out) {
+    // if (!fin || !fout) throw BaseError("uninitialized or malformed application");
+
+    fin->setIn(&in);
+    fout->setOut(&out);
+
+    while (in.peek() && !in.eof()) {
+      Val* r = new Nil(env);
+      for (auto const& it : funcs)
+        r = (*it)(r);
+    }
+
+    fin->setIn(nullptr);
+    fout->setOut(nullptr);
+  }
+
+  // XXX: that's not quite it, but close
+  void App::recurse() {
+    // if (!fin->in || !fout->out) throw BaseError("cannot recurse, not in a run");
+
+    Val* r = new Nil(env);
+    for (auto const& it : funcs)
+      r = (*it)(r);
+  }
+
   void App::repr(std::ostream& out, VisRepr::ReprCx cx) const {
     VisRepr repr(out, cx);
     for (auto const& it : funcs)
