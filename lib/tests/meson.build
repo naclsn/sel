@@ -1,5 +1,7 @@
 all = [
+  'parseApp',
   'parseType',
+  'VisRepr',
 ]
 
 foreach name : all

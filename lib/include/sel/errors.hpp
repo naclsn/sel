@@ -59,7 +59,7 @@ namespace sel {
   struct NameError : ParseError {
     std::string const* name;
     NameError(std::string const unknown_name, char const* msg)
-      : ParseError("known name", "got unknown name", msg)
+      : ParseError("known name", "got unknown name '"+unknown_name+"'", msg)
       , name(new std::string(unknown_name))
     { }
     ~NameError() {

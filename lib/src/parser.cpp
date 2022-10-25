@@ -359,11 +359,10 @@ namespace sel {
     fin->setIn(&in);
     fout->setOut(&out);
 
-    while (in.peek() && !in.eof()) {
-      Val* r = new Nil(env);
+    Val* r = new Nil(env);
+    while (in.peek() && !in.eof())
       for (auto const& it : funcs)
         r = (*it)(r);
-    }
 
     fin->setIn(nullptr);
     fout->setOut(nullptr);

@@ -15,11 +15,13 @@ namespace sel {
 
     std::string ln = " ";
     std::string ind = "";
+    std::string lnind;
+    ind.reserve(3 * cx.indents + 1);
+    for (unsigned k = 0; k < cx.indents; k++)
+      ind.append("   ");
     if (isln) {
       ln = "\n";
-      ind.reserve(3 * cx.indents + 1);
-      for (unsigned k = 0; k < cx.indents; k++)
-        ind.append("   ");
+      lnind = ln+ind;
     }
 
     // `iswrap` when the single field is a `Val` (so no increase indent)
@@ -27,7 +29,7 @@ namespace sel {
       && ReprField::VAL == fields.begin()->data_ty;
 
     if (cx.top_level) res << ind;
-    res << "<" << type << "> " << name << " {" << ln << ind;
+    res << "<" << type << "> " << name << " {" << lnind;
     if (!iswrap) cx.indents++;
 
     for (auto& it : fields) {
@@ -62,7 +64,7 @@ namespace sel {
           break;
       }
 
-      res << ln << ind;
+      res << lnind;
     }
 
     if (!iswrap) cx.indents--;

@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "sel/types.hpp"
+#include "sel/parser.hpp"
 
 using namespace std;
 using namespace sel;
@@ -35,10 +36,12 @@ using namespace sel;
   exit(EXIT_FAILURE);                      \
 }
 
+#define assert_cmp assert_eq
+
 #define TEST(__function)  \
-  void __function();      \
+  void __##__function();  \
   int main() {            \
-    __function();         \
+    __##__function();     \
     return EXIT_SUCCESS;  \
   }                       \
-  void __function()
+  void __##__function()

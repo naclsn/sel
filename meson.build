@@ -1,6 +1,6 @@
 project('sel', 'cpp',
   default_options : ['cpp_std=c++11'],
-  version : '0.0.2',
+  version : '0.1.5',
   # license : '..',
 )
 
