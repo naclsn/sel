@@ -196,7 +196,8 @@ namespace sel {
           }
           t.as.str->push_back(c);
         } while (!in.eof());
-        // TODO: if (in.eof()) ..
+        if (':' != c && in.eof())
+          throw EOSError("matching token ':'", "- what -");
         break;
 
       default:
@@ -259,7 +260,7 @@ namespace sel {
             elms.push_back(parseElement(env, lexer));
             if (Token::Type::LIT_LST_CLOSE != lexer->type
              && Token::Type::THEN != lexer->type)
-              ; // TODO: throw syntax error: expected ',' or '}'
+              throw ParseError("token ',' or matching token '}'", std::string("got unexpected tokens ") + (char)((char)t.type+'0'), "- what -");
           }
 
           // TODO: for the type, need to know if the list

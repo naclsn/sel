@@ -50,7 +50,7 @@ namespace sel {
       bool top_level;
       bool single_line;
     };
-    VisRepr(std::ostream& res, ReprCx cx)
+    VisRepr(std::ostream& res, ReprCx cx={.top_level=true})
       : res(res)
       , cx(cx)
     { }

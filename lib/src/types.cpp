@@ -440,6 +440,11 @@ unknown_token_push1:
         break;
 
       case Ty::LST:
+        // early break: list with no types
+        if (0 == ty.p.box_has->size()) {
+          out << "[mixed]"; // ZZZ: right...
+          break;
+        }
         out << (TyFlag::IS_TPL & ty.flags
           ? "("
           : "[");

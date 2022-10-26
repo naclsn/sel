@@ -15,7 +15,7 @@ namespace sel {
 
     std::string ln = " ";
     std::string ind = "";
-    std::string lnind;
+    std::string lnind = " ";
     ind.reserve(3 * cx.indents + 1);
     for (unsigned k = 0; k < cx.indents; k++)
       ind.append("   ");
@@ -32,6 +32,7 @@ namespace sel {
     res << "<" << type << "> " << name << " {" << lnind;
     if (!iswrap) cx.indents++;
 
+    int nu = 0;
     for (auto& it : fields) {
       if (isln) res << "   ";
       res << it.name << "=";
