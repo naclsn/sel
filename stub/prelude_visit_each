@@ -9,6 +9,9 @@
   __do(Add2, Type const& type) \
   __do(Add1, Type const& type, Val const* base, Val const* arg) \
   __do(Add0, Type const& type, Val const* base, Val const* arg) \
+  __do(Flip2, Type const& type) \
+  __do(Flip1, Type const& type, Val const* base, Val const* arg) \
+  __do(Flip0, Type const& type, Val const* base, Val const* arg) \
   __do(Join2, Type const& type) \
   __do(Join1, Type const& type, Val const* base, Val const* arg) \
   __do(Join0, Type const& type, Val const* base, Val const* arg) \
@@ -18,6 +21,9 @@
   __do(Split2, Type const& type) \
   __do(Split1, Type const& type, Val const* base, Val const* arg) \
   __do(Split0, Type const& type, Val const* base, Val const* arg) \
+  __do(Sub2, Type const& type) \
+  __do(Sub1, Type const& type, Val const* base, Val const* arg) \
+  __do(Sub0, Type const& type, Val const* base, Val const* arg) \
   __do(Tonum1, Type const& type) \
   __do(Tonum0, Type const& type, Val const* base, Val const* arg) \
   __do(Tostr1, Type const& type) \

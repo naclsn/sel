@@ -7,6 +7,11 @@ add :: Num -> Num -> Num
 	struct Add1 : Fun;
 	struct Add0 : Num;
 
+flip :: (a -> b -> c) -> b -> a -> c
+  struct Flip2 : Fun;
+  struct Flip1 : Fun;
+  struct Flip0 : Fun;
+
 join:: Str -> [Str]* -> Str*
 	struct Join2 : Fun;
 	struct Join1 : Fun;
@@ -21,6 +26,11 @@ split :: Str -> Str* -> [Str]*
 	struct Split2 : Fun;
 	struct Split1 : Fun;
 	struct Split0 : Lst;
+
+sub :: Num -> Num -> Num
+	struct Sub2 : Fun;
+	struct Sub1 : Fun;
+	struct Sub0 : Num;
 
 tonum :: Str -> Num
 	struct Tonum1 : Fun;

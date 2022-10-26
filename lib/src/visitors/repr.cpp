@@ -32,7 +32,6 @@ namespace sel {
     res << "<" << type << "> " << name << " {" << lnind;
     if (!iswrap) cx.indents++;
 
-    int nu = 0;
     for (auto& it : fields) {
       if (isln) res << "   ";
       res << it.name << "=";
@@ -149,6 +148,24 @@ namespace sel {
     });
   }
 
+  void VisRepr::visitFlip2(Type const& type) {
+    reprHelper(type, "Flip2", {});
+  }
+
+  void VisRepr::visitFlip1(Type const& type, Val const* base, Val const* arg) {
+    reprHelper(type, "Flip1", {
+      fi_val("base", base),
+      fi_val("arg", arg),
+    });
+  }
+
+  void VisRepr::visitFlip0(Type const& type, Val const* base, Val const* arg) {
+    reprHelper(type, "Flip0", {
+      fi_val("base", base),
+      fi_val("arg", arg),
+    });
+  }
+
   void VisRepr::visitJoin2(Type const& type) {
     reprHelper(type, "Join2", {});
   }
@@ -198,6 +215,24 @@ namespace sel {
 
   void VisRepr::visitSplit0(Type const& type, Val const* base, Val const* arg) {
     reprHelper(type, "Split0", {
+      fi_val("base", base),
+      fi_val("arg", arg),
+    });
+  }
+
+  void VisRepr::visitSub2(Type const& type) {
+    reprHelper(type, "Sub2", {});
+  }
+
+  void VisRepr::visitSub1(Type const& type, Val const* base, Val const* arg) {
+    reprHelper(type, "Sub1", {
+      fi_val("base", base),
+      fi_val("arg", arg),
+    });
+  }
+
+  void VisRepr::visitSub0(Type const& type, Val const* base, Val const* arg) {
+    reprHelper(type, "Sub0", {
       fi_val("base", base),
       fi_val("arg", arg),
     });

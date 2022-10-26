@@ -83,7 +83,78 @@ namespace sel {
     void accept(Visitor& v) const override;
   };
 
-  // join:: Str -> [Str]* -> Str*
+  // flip :: (a -> b -> c) -> b -> a -> c
+  struct Flip2 : Fun {
+    Flip2(Env& env)
+      : Fun(env, Type(Ty::FUN,
+          {.box_pair={
+            new Type(Ty::FUN,
+              {.box_pair={
+                new Type(Ty::UNK, {.name=new std::string("a")}, 0),
+                new Type(Ty::FUN,
+                  {.box_pair={
+                    new Type(Ty::UNK, {.name=new std::string("b")}, 0),
+                    new Type(Ty::UNK, {.name=new std::string("c")}, 0)
+                  }}, 0
+                )
+              }}, 0
+            ),
+            new Type(Ty::FUN,
+              {.box_pair={
+                new Type(Ty::UNK, {.name=new std::string("b")}, 0),
+                new Type(Ty::FUN,
+                  {.box_pair={
+                    new Type(Ty::UNK, {.name=new std::string("a")}, 0),
+                    new Type(Ty::UNK, {.name=new std::string("c")}, 0)
+                  }}, 0
+                )
+              }}, 0
+            )
+          }}, 0
+        ))
+    { TRACE(Flip2, ":: " << ty); }
+    Val* operator()(Val* arg) override;
+    void accept(Visitor& v) const override;
+  };
+  struct Flip1 : Fun {
+    Flip2* base;
+    Fun* arg;
+    Flip1(Env& env, Flip2* base, Fun* arg)
+      : Fun(env, Type(Ty::FUN,
+          {.box_pair={
+            new Type(arg->type().to().from()),
+            new Type(Ty::FUN,
+              {.box_pair={
+                new Type(arg->type().from()),
+                new Type(arg->type().to().to())
+              }}, 0
+            )
+          }}, 0
+        ))
+      , base(base)
+      , arg(arg)
+    { TRACE(Flip1, ":: " << ty); }
+    Val* operator()(Val* arg) override;
+    void accept(Visitor& v) const override;
+  };
+  struct Flip0 : Fun {
+    Flip1* base;
+    Val* arg;
+    Flip0(Env& env, Flip1* base, Val* arg)
+      : Fun(env, Type(Ty::FUN,
+          {.box_pair={
+            new Type(base->arg->type().from()),
+            new Type(base->arg->type().to().to()) // which should be same as `arg->type()` [maybe?]
+          }}, 0
+        ))
+      , base(base)
+      , arg(arg)
+    { TRACE(Flip0, ":: " << ty); }
+    Val* operator()(Val* arg) override;
+    void accept(Visitor& v) const override;
+  };
+
+  // join :: Str -> [Str]* -> Str*
   struct Join2 : Fun {
     Join2(Env& env)
       : Fun(env, Type(Ty::FUN,
@@ -277,6 +348,51 @@ namespace sel {
     bool end() const override;
     void rewind() override;
     size_t count() override;
+    void accept(Visitor& v) const override;
+  };
+
+  struct Sub2 : Fun {
+    Sub2(Env& env)
+      : Fun(env, Type(Ty::FUN,
+          {.box_pair={
+            new Type(Ty::NUM, {0}, 0),
+            new Type(Ty::FUN,
+              {.box_pair={
+                new Type(Ty::NUM, {0}, 0),
+                new Type(Ty::NUM, {0}, 0)
+              }}, 0
+            )
+          }}, 0
+        ))
+    { TRACE(Sub2, ":: " << ty); }
+    Val* operator()(Val* arg) override;
+    void accept(Visitor& v) const override;
+  };
+  struct Sub1 : Fun {
+    Sub2* base;
+    Num* arg;
+    Sub1(Env& env, Sub2* base, Num* arg)
+      : Fun(env, Type(Ty::FUN,
+          {.box_pair={
+            new Type(Ty::NUM, {0}, 0),
+            new Type(Ty::NUM, {0}, 0)
+          }}, 0
+        ))
+      , base(base)
+      , arg(arg)
+    { TRACE(Sub1, ":: " << ty); }
+    Val* operator()(Val* arg) override;
+    void accept(Visitor& v) const override;
+  };
+  struct Sub0 : Num {
+    Sub1* base;
+    Num* arg;
+    Sub0(Env& env, Sub1* base, Num* arg)
+      : Num(env)
+      , base(base)
+      , arg(arg)
+    { TRACE(Sub0, ":: " << ty); }
+    double value() override;
     void accept(Visitor& v) const override;
   };
 

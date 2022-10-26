@@ -8,9 +8,11 @@ namespace sel {
   Val* lookup_name(Env& env, std::string const& name) {
     if ("abs"   == name) return new Abs1(env);
     if ("add"   == name) return new Add2(env);
+    if ("flip"  == name) return new Flip2(env);
     if ("join"  == name) return new Join2(env);
     if ("map"   == name) return new Map2(env);
     if ("split" == name) return new Split2(env);
+    if ("sub"   == name) return new Sub2(env);
     if ("tonum" == name) return new Tonum1(env);
     if ("tostr" == name) return new Tostr1(env);
     return nullptr;
@@ -36,6 +38,21 @@ namespace sel {
     return base->arg->value() + arg->value();
   }
   void Add0::accept(Visitor& v) const { v.visitAdd0(ty, base, arg); }
+
+
+  Val* Flip2::operator()(Val* arg) { return new Flip1(env, this, coerse<Fun>(arg)); }
+  void Flip2::accept(Visitor& v) const { v.visitFlip2(ty); }
+
+  Val* Flip1::operator()(Val* arg) { return new Flip0(env, this, coerse<Fun>(arg)); }
+  void Flip1::accept(Visitor& v) const { v.visitFlip1(ty, base, arg); }
+
+  Val* Flip0::operator()(Val* arg) {
+    Fun& fun = *base->arg;
+    Val* b = this->arg;
+    Val* a = arg;
+    return (*(Fun*)fun(a))(b);
+  }
+  void Flip0::accept(Visitor& v) const { v.visitFlip0(ty, base, arg); }
 
 
   Val* Join2::operator()(Val* arg) { return new Join1(env, this, coerse<Str>(arg)); }
@@ -138,6 +155,18 @@ namespace sel {
     return 0;
   }
   void Split0::accept(Visitor& v) const { v.visitSplit0(ty, base, arg); }
+
+
+  Val* Sub2::operator()(Val* arg) { return new Sub1(env, this, coerse<Num>(arg)); }
+  void Sub2::accept(Visitor& v) const { v.visitSub2(ty); }
+
+  Val* Sub1::operator()(Val* arg) { return new Sub0(env, this, coerse<Num>(arg)); }
+  void Sub1::accept(Visitor& v) const { v.visitSub1(ty, base, arg); }
+
+  double Sub0::value() {
+    return base->arg->value() - arg->value();
+  }
+  void Sub0::accept(Visitor& v) const { v.visitSub0(ty, base, arg); }
 
 
   Val* Tonum1::operator()(Val* arg) { return new Tonum0(env, this, coerse<Str>(arg)); }

@@ -275,12 +275,35 @@ namespace sel {
         }
         break;
 
-      case Token::Type::UN_OP:
-        throw NIYError("unary syntax", "- what -");
+      case Token::Type::UN_OP: // TODO: will have a lookup_unop
+        switch (t.as.chr) {
+          // case '@': val = lookup_name(env, ""); break;
+          case '%': val = lookup_name(env, "flip"); break;
+          // default unreachable
+        }
+        t = *++lexer;
+        if (Token::Type::BIN_OP == t.type) { // ZZZ: yeah, code dup (as if that was the only problem)
+          switch (t.as.chr) {
+            case '+': val = lookup_name(env, "add"); break;
+            case '-': val = lookup_name(env, "sub"); break;
+            case '.': val = lookup_name(env, "mul"); break;
+            case '/': val = lookup_name(env, "div"); break;
+            // default unreachable
+          }
+          val = (*(Fun*)lookup_name(env, "flip"))(val);
+        } else val = parseAtom(env, lexer);
+        val = (*(Fun*)val)(val);
         break;
 
-      case Token::Type::BIN_OP:
-        throw NIYError("binary syntax", "- what -");
+      case Token::Type::BIN_OP: // TODO: will have a lookup_unop
+        switch (t.as.chr) {
+          case '+': val = lookup_name(env, "add"); break;
+          case '-': val = lookup_name(env, "sub"); break;
+          case '.': val = lookup_name(env, "mul"); break;
+          case '/': val = lookup_name(env, "div"); break;
+          // default unreachable
+        }
+        val = (*(Fun*)(*(Fun*)lookup_name(env, "flip"))(val))(parseAtom(env, ++lexer));
         break;
 
       case Token::Type::SUB_CLOSE: break;

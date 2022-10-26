@@ -43,4 +43,19 @@ TEST(parseApp) {
     "}\n"
     "<Str* -> ()> Stdout { }\n"
   );
+
+  doTestEq(
+    "tonum, +1, tostr",
+    "<() -> Str> Stdin { }\n"
+    "<Str -> Num> Tonum1 { }\n"
+    "<Num -> Num> Flip0 {\n"
+    "   base=<Num -> Num -> Num> Flip1 {\n"
+    "      base=<(a -> b -> c) -> b -> a -> c> Flip2 { }\n"
+    "      arg=<Num -> Num -> Num> Add2 { }\n"
+    "   }\n"
+    "   arg=<Num> NumLiteral { n= \"1.000000\" }\n"
+    "}\n"
+    "<Num -> Str> Tostr1 { }\n"
+    "<Str* -> ()> Stdout { }\n"
+  );
 }
