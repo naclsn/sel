@@ -281,18 +281,22 @@ namespace sel {
           case '%': val = lookup_name(env, "flip"); break;
           // default unreachable
         }
-        t = *++lexer;
-        if (Token::Type::BIN_OP == t.type) { // ZZZ: yeah, code dup (as if that was the only problem)
-          switch (t.as.chr) {
-            case '+': val = lookup_name(env, "add"); break;
-            case '-': val = lookup_name(env, "sub"); break;
-            case '.': val = lookup_name(env, "mul"); break;
-            case '/': val = lookup_name(env, "div"); break;
-            // default unreachable
-          }
-          val = (*(Fun*)lookup_name(env, "flip"))(val);
-        } else val = parseAtom(env, lexer);
-        val = (*(Fun*)val)(val);
+        {
+          Val* arg;
+          t = *++lexer;
+          if (Token::Type::BIN_OP == t.type) { // ZZZ: yeah, code dup (as if that was the only problem)
+            switch (t.as.chr) {
+              case '+': arg = lookup_name(env, "add"); break;
+              case '-': arg = lookup_name(env, "sub"); break;
+              case '.': arg = lookup_name(env, "mul"); break;
+              case '/': arg = lookup_name(env, "div"); break;
+              // default unreachable
+            }
+            arg = (*(Fun*)lookup_name(env, "flip"))(arg);
+            lexer++;
+          } else arg = parseAtom(env, lexer);
+          val = (*(Fun*)val)(arg);
+        }
         break;
 
       case Token::Type::BIN_OP: // TODO: will have a lookup_unop

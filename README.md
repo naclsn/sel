@@ -288,7 +288,6 @@ rules](#Coersion)).
 
 ### Notepad
 #### TODO/WIP
-- unary and binary syntax
 - some tests on parsing
 - better errors
 - update doc comments
