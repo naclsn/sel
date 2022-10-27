@@ -59,7 +59,18 @@ TEST(parseApp) {
     "<Str* -> ()> Output { }\n"
   );
 
-  // parsing lists
+  doTestEq(
+    "{1, 2, 3, :soleil:, {map}}",
+    "<Str*> Input { }\n"
+    "<[mixed]> LstLiteral {\n"
+    "   v[0]=<Num> NumLiteral { n= \"1.000000\" }\n"
+    "   v[1]=<Num> NumLiteral { n= \"2.000000\" }\n"
+    "   v[2]=<Num> NumLiteral { n= \"3.000000\" }\n"
+    "   v[3]=<Str> StrLiteral { s= \"soleil\" }\n"
+    "   v[4]=<[mixed]> LstLiteral { v[0]=<(a -> b) -> [a]* -> [b]*> Map2 { } }\n"
+    "}\n"
+    "<Str* -> ()> Output { }\n"
+  );
 
   doTestEq(
     "%map",

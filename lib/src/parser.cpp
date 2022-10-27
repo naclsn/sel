@@ -282,7 +282,7 @@ namespace sel {
         }
         {
           Val* arg;
-          t = *++lexer;
+          Token t = *++lexer;
           if (Token::Type::BIN_OP == t.type) { // ZZZ: yeah, code dup (as if that was the only problem)
             switch (t.as.chr) {
               case '+': arg = lookup_name(env, "add"); break;
