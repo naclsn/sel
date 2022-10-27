@@ -17,7 +17,7 @@ void doTestEq(char const* source, char const* repr) {
 TEST(parseApp) {
   doTestEq(
     "split : :, map [tonum, add 1, add 2, tostr], join ::::",
-    "<() -> Str> Stdin { }\n"
+    "<Str*> Input { }\n"
     "<Str* -> [Str]*> Split1 {\n"
     "   base=<Str -> Str* -> [Str]*> Split2 { }\n"
     "   arg=<Str> StrLiteral { s= \" \" }\n"
@@ -41,12 +41,12 @@ TEST(parseApp) {
     "   base=<Str -> [Str]* -> Str*> Join2 { }\n"
     "   arg=<Str> StrLiteral { s= \":\" }\n"
     "}\n"
-    "<Str* -> ()> Stdout { }\n"
+    "<Str* -> ()> Output { }\n"
   );
 
   doTestEq(
     "tonum, +1, tostr",
-    "<() -> Str> Stdin { }\n"
+    "<Str*> Input { }\n"
     "<Str -> Num> Tonum1 { }\n"
     "<Num -> Num> Flip0 {\n"
     "   base=<Num -> Num -> Num> Flip1 {\n"
@@ -56,24 +56,24 @@ TEST(parseApp) {
     "   arg=<Num> NumLiteral { n= \"1.000000\" }\n"
     "}\n"
     "<Num -> Str> Tostr1 { }\n"
-    "<Str* -> ()> Stdout { }\n"
+    "<Str* -> ()> Output { }\n"
   );
 
   // parsing lists
 
   doTestEq(
     "%map",
-    "<() -> Str> Stdin { }\n"
+    "<Str*> Input { }\n"
     "<[a]* -> (a -> b) -> [b]*> Flip1 {\n"
     "   base=<(a -> b -> c) -> b -> a -> c> Flip2 { }\n"
     "   arg=<(a -> b) -> [a]* -> [b]*> Map2 { }\n"
     "}\n"
-    "<Str* -> ()> Stdout { }\n"
+    "<Str* -> ()> Output { }\n"
   );
 
   doTestEq(
     "tonum, %-1, tostr",
-    "<() -> Str> Stdin { }\n"
+    "<Str*> Input { }\n"
     "<Str -> Num> Tonum1 { }\n"
     "<Num -> Num> Flip0 {\n"
     "   base=<Num -> Num -> Num> Flip1 {\n"
@@ -86,6 +86,6 @@ TEST(parseApp) {
     "   arg=<Num> NumLiteral { n= \"1.000000\" }\n"
     "}\n"
     "<Num -> Str> Tostr1 { }\n"
-    "<Str* -> ()> Stdout { }\n"
+    "<Str* -> ()> Output { }\n"
   );
 }

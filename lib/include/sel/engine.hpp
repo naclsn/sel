@@ -19,6 +19,7 @@ namespace sel {
    * Implicitly passed through each functions. Used from
    * an application.
    */
+  // XXX: likely will not be used anymore, remove at some point
   class Env {
   private:
     Env();
@@ -50,15 +51,6 @@ namespace sel {
     virtual ~Val() { }
     Type const& type() const { return ty; }
     virtual void accept(Visitor& v) const;
-  };
-
-  class Nil : public Val {
-  public:
-    Nil(Env& env)
-      : Val(env, Type(Ty::UNK, {.name=new std::string("()")}, 0))
-    { }
-    ~Nil() { }
-    void accept(Visitor& v) const { }
   };
 
   /**

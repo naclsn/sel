@@ -110,12 +110,12 @@ namespace sel {
     reprHelper(type, "FunChain", a);
   }
 
-  void VisRepr::visitStdin(Type const& type) {
-    reprHelper(type, "Stdin", {});
+  void VisRepr::visitInput(Type const& type) {
+    reprHelper(type, "Input", {});
   }
 
-  void VisRepr::visitStdout(Type const& type) {
-    reprHelper(type, "Stdout", {});
+  void VisRepr::visitOutput(Type const& type) {
+    reprHelper(type, "Output", {});
   }
 
 

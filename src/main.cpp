@@ -52,7 +52,7 @@ after_while: ;
     return argc & 1;
   }
 
-  app.runToEnd(cin, cout);
+  app.run(cin, cout);
 
   return EXIT_SUCCESS;
 }

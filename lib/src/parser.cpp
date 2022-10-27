@@ -32,18 +32,17 @@ namespace sel {
   }
   void FunChain::accept(Visitor& v) const { v.visitFunChain(ty, f); }
 
-  Val* Stdin::operator()(Val* _arg) {
-    std::string line("");
-    if (in) std::getline(*in, line);
-    return new StrLiteral(env, line);
-  }
-  void Stdin::accept(Visitor& v) const { v.visitStdin(ty); }
+  std::ostream& Input::stream(std::ostream& out) { return out << in->get(); } // ZZZ: ?
+  bool Input::end() const { return in->eof(); }
+  void Input::rewind() { throw NIYError("rewinding input", "- what -"); }
+  std::ostream& Input::entire(std::ostream& out) { return out << in->rdbuf(); } // ZZZ: ?
+  void Input::accept(Visitor& v) const { v.visitInput(ty); }
 
-  Val* Stdout::operator()(Val* arg) {
-    if (out) coerse<Str>(arg)->entire(*out) << std::endl;
-    return new Nil(env);
+  Val* Output::operator()(Val* arg) {
+    if (out) coerse<Str>(arg)->entire(*out);
+    return nullptr;
   }
-  void Stdout::accept(Visitor& v) const { v.visitStdout(ty); }
+  void Output::accept(Visitor& v) const { v.visitOutput(ty); }
 
 
   // internal
@@ -373,42 +372,21 @@ namespace sel {
     fin->setIn(&in);
     fout->setOut(&out);
 
-    Val* r = new Nil(env);
+    Val* r = fin;
     for (auto const& it : funcs)
       r = (*it)(r);
+    (*fout)(r);
 
     fin->setIn(nullptr);
     fout->setOut(nullptr);
-  }
-
-  void App::runToEnd(std::istream& in, std::ostream& out) {
-    // if (!fin || !fout) throw BaseError("uninitialized or malformed application");
-
-    fin->setIn(&in);
-    fout->setOut(&out);
-
-    Val* r = new Nil(env);
-    while (in.peek() && !in.eof())
-      for (auto const& it : funcs)
-        r = (*it)(r);
-
-    fin->setIn(nullptr);
-    fout->setOut(nullptr);
-  }
-
-  // XXX: that's not quite it, but close
-  void App::recurse() {
-    // if (!fin->in || !fout->out) throw BaseError("cannot recurse, not in a run");
-
-    Val* r = new Nil(env);
-    for (auto const& it : funcs)
-      r = (*it)(r);
   }
 
   void App::repr(std::ostream& out, VisRepr::ReprCx cx) const {
     VisRepr repr(out, cx);
+    repr(*fin);
     for (auto const& it : funcs)
       repr(*it);
+    repr(*fout);
   }
 
   std::ostream& operator<<(std::ostream& out, App const& app) {
@@ -423,14 +401,14 @@ namespace sel {
     static std::istream_iterator<Token> eos;
     if (eos == lexer) throw EOSError("script", "- what -");
 
-    app.funcs.push_back(app.fin = new Stdin(app.env));
+    app.fin = new Input(app.env);
 
     do {
       Val* current = parseElement(app.env, lexer);
       app.funcs.push_back(coerse<Fun>(current));
     } while (Token::Type::THEN == lexer->type && eos != ++lexer);
 
-    app.funcs.push_back(app.fout = new Stdout(app.env));
+    app.fout = new Output(app.env);
 
     return in;
   }

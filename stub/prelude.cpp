@@ -175,6 +175,7 @@ namespace sel {
   double Tonum0::value() {
     // XXX: quickly hacked
     std::stringstream ss;
+    // arg->rewind();
     arg->entire(ss);
     double r;
     ss >> r;

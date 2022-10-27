@@ -81,27 +81,25 @@ namespace sel {
     void accept(Visitor& v) const override;
   };
 
-  class Stdin : public Fun {
+  class Input : public Str {
     std::istream* in;
   public:
-    Stdin(Env& env)
-      : Fun(env, Type(Ty::FUN,
-          {.box_pair={
-            new Type(Ty::UNK, {.name=new std::string("()")}, 0),
-            new Type(Ty::STR, {0}, TyFlag::IS_FIN) // YYY: indeed, it reads a line, which is assumed to be of finite size
-          }}, 0
-        ))
+    Input(Env& env)
+      : Str(env, TyFlag::IS_INF)
       , in(nullptr)
     { }
-    Val* operator()(Val* arg) override;
+    std::ostream& stream(std::ostream& out) override;
+    bool end() const override;
+    void rewind() override;
+    std::ostream& entire(std::ostream& out) override;
     void accept(Visitor& v) const override;
     void setIn(std::istream* in) { this->in = in; }
   };
 
-  class Stdout : public Fun {
+  class Output : public Fun {
     std::ostream* out;
   public:
-    Stdout(Env& env)
+    Output(Env& env)
       : Fun(env, Type(Ty::FUN,
           {.box_pair={
             new Type(Ty::STR, {0}, TyFlag::IS_INF), // YYY: will consider output may be infinite
@@ -125,8 +123,8 @@ namespace sel {
   private:
     Env env;
     std::vector<Fun*> funcs;
-    Stdin* fin;
-    Stdout* fout;
+    Input* fin;
+    Output* fout;
 
   public:
     App()
@@ -135,9 +133,6 @@ namespace sel {
     { }
 
     void run(std::istream& in, std::ostream& out);
-    void runToEnd(std::istream& in, std::ostream& out);
-
-    void recurse();
 
     void repr(std::ostream& out, VisRepr::ReprCx cx={.top_level=true}) const;
 
