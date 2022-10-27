@@ -40,6 +40,7 @@ namespace sel {
   template <typename Tail, typename Base, Ty LastFrom, Ty LastTo>
   struct prelude_value_rec<Tail, Base, LastFrom, LastTo> : Fun {
     struct last : abstract_val_for<LastTo>::base {
+      typedef prelude_value_rec base;
       last(prelude_value_rec* base, Val* arg)
         : abstract_val_for<LastTo>::base(noenv)
       { }
@@ -50,9 +51,9 @@ namespace sel {
     Val* operator()(Val* arg) override { return new Tail(this, arg); }
   };
 
-  template <typename T, Ty From, Ty... To>
-  struct prelude_value : Fun { // v-- sad
-    typedef prelude_value_rec<T::tail, prelude_value, To...> next;
+  template <typename Tail, Ty From, Ty... To>
+  struct prelude_value : Fun {
+    typedef prelude_value_rec<Tail, prelude_value, To...> next;
     typedef typename next::last last;
     prelude_value()
       : Fun(noenv, Type())
@@ -66,18 +67,25 @@ namespace sel {
   //   { }
   // };
 
-  struct Add : prelude_value<Add, Ty::NUM, Ty::NUM, Ty::NUM> {
-    struct tail : last {
-      double value() override;
-    };
+  // TODO: try inside-out
+  struct AddTail;
+  struct Add : prelude_value<AddTail, Ty::NUM, Ty::NUM, Ty::NUM> { };
+  struct AddTail : Add::last {
+    AddTail(Add::last::base* base, Val* arg): Add::last(base, arg) { }
+    double value() override;
   };
-  static Add::tail it;
+
+  void bidoof() {
+    Add add2 = Add();
+    auto& add1 = *(Add::next*)add2(nullptr);
+    Num& add0 = *(Num*)add1(nullptr);
+  }
+
   // struct Pi : prelude_value<Ty::NUM> {
   //   double value() override;
   // };
 
   // static Pi pi = Pi();
-  // static Add add = Add();
 
 }
 
