@@ -251,7 +251,7 @@ namespace sel {
         lexer++;
         break;
 
-      case Token::Type::LIT_LST_CLOSE: lexer++; break;
+      case Token::Type::LIT_LST_CLOSE: lexer++; break; // YYY: unreachable?
       case Token::Type::LIT_LST_OPEN:
         {
           std::vector<Val*> elms;
@@ -309,7 +309,7 @@ namespace sel {
         val = (*(Fun*)(*(Fun*)lookup_name(env, "flip"))(val))(parseAtom(env, ++lexer));
         break;
 
-      case Token::Type::SUB_CLOSE: break;
+      case Token::Type::SUB_CLOSE: lexer++; break; // YYY: unreachable?
       case Token::Type::SUB_OPEN:
         {
           if (Token::Type::SUB_CLOSE == (++lexer)->type)
@@ -390,6 +390,7 @@ namespace sel {
   }
 
   std::ostream& operator<<(std::ostream& out, App const& app) {
+    // TODO: todo
     out << "hey, am an app with this many function(s): " << app.funcs.size();
     for (auto const& it : app.funcs)
       out << "\n\t" << it->type();

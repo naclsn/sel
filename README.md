@@ -54,6 +54,14 @@ Again, the generated file are made at build time. It may be
 needed to run the build command once (eg. `ninja -C build`,
 depending on the build tool).
 
+To enable coverage:
+```console
+$ meson configure build -Db_coverage=true
+$ pip install gcovr # for example
+$ ninja -C build test # needed by messon
+$ ninja -C build coverage
+```
+
 ## Command Usage
 
 (flags (check, lookup/search, complete, list, disable ic..))
@@ -288,11 +296,10 @@ rules](#Coersion)).
 
 ### Notepad
 #### TODO/WIP
-- some tests on parsing
 - better errors
 - update doc comments
 - update README.md
-- primer
+- primer or temlates
 #### Feature Goals
 - lazy and infinite data structures
 - lib interface

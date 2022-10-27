@@ -22,9 +22,9 @@ namespace sel {
   // XXX: likely will not be used anymore, remove at some point
   class Env {
   private:
-    Env();
     App const& app;
   public:
+    Env();
     Env(App const& app)
       : app(app)
     { }
