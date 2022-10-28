@@ -15,8 +15,6 @@ namespace sel {
    */
   Val* lookup_name(std::string const& name);
 
-  Val* bidoof();
-
   template <Ty Type> struct bin_vat { typedef Val vat; };
   template <> struct bin_vat<Ty::NUM> { typedef Num vat; };
   template <> struct bin_vat<Ty::STR> { typedef Str vat; };
@@ -24,16 +22,18 @@ namespace sel {
   template <> struct bin_vat<Ty::FUN> { typedef Fun vat; };
 
   /*
-    ->: next
-    <-: base
+    vat: 'Val abstract type', so ex the class `Num` for Ty::NUM
 
-    head <-> body <..> body <-> tail
+    ->: Next
+    <-: Base
 
-    head: empty ctor
-    body and tail: ctor with base and arg
+    Head <-> Body <..> Body <-> Tail
 
-    head and body: extend from Fun
-    tail: extends from the last type
+    Head: empty struct
+    Body and Tail: struct with base and arg fields
+
+    Head and Body: extend from Fun
+    Tail: extends from the last vat
   */
   // TODO: replace the use of raw Ty for types that hold more info
   // - need to be able to have eg. Type(Ty::LST, !!, !!)
@@ -43,7 +43,7 @@ namespace sel {
   struct bin_val : Fun {
     // constexpr static char const* name = Next::name;
     typedef bin_val<bin_val, To...> Base;
-    typedef typename Base::tail_vat tail_vat;
+    typedef typename Base::Tail Tail;
     // this is the ctor for body types
     bin_val()
       : Fun(Type(Ty::NUM, {0}, 0)) // ZZZ: wrong
@@ -64,18 +64,22 @@ namespace sel {
     }
   };
 
+  // struct no_base_marker { };
+
   template <typename Next, Ty LastFrom, Ty LastTo>
   struct bin_val<Next, LastFrom, LastTo> : Fun {
+    // typedef no_base_marker Base;
     // this is the parent class for the tail type
-    struct tail_vat : bin_vat<LastTo>::vat {
-      typedef bin_val head;
+    struct Tail : bin_vat<LastTo>::vat {
+      typedef Next Base;
+      typedef bin_val Head;
       // this is the ctor for the tail type
-      tail_vat()
+      Tail()
         : bin_vat<LastTo>::vat() // ZZZ: wrong
       { }
-      Next* base;
+      Base* base;
       Val* arg; // ZZZ: wrong
-      inline void setup(Next* base, Val* arg) { // (this needed because wasn't able to inherit ctor)
+      inline void setup(Base* base, Val* arg) { // (this needed because wasn't able to inherit ctor)
         this->base = base;
         this->arg = arg;
       }
