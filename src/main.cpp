@@ -19,7 +19,7 @@ void build(App& app, char const* const srcs[]) {
   source >> app;
 }
 
-int main(int argc, char const* const argv[]) {
+int main0(int argc, char const* const argv[]) {
   char const* prog = *argv++;
   if (argc < 2) usage(prog);
 
@@ -55,4 +55,13 @@ after_while: ;
   app.run(cin, cout);
 
   return EXIT_SUCCESS;
+}
+
+int main() {
+  VisRepr repr(cerr);
+
+  Val* a = bidoof();
+  repr(*a);
+
+  return 0;
 }

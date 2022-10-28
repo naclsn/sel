@@ -15,4 +15,13 @@ namespace sel {
     return nullptr;
   }
 
+  struct Add : bin_val<Add, Ty::NUM, Ty::NUM, Ty::NUM>::tail_vat {
+    double value() override { return 0; }
+  };
+
+  Val* bidoof() {
+    Val* add2 = new Add::head();
+    return add2;
+  }
+
 } // namespace sel
