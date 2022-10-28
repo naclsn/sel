@@ -72,5 +72,6 @@ int main() {
   cerr << "add0: ";
   (*repr)(*add0);
 
+  cerr << "result: " << (*(Num*)add0).value();
   return 0;
 }

@@ -41,7 +41,7 @@ namespace sel {
 
   template <typename Next, Ty From, Ty... To>
   struct bin_val : Fun {
-    constexpr static char const* name = Next::name;
+    // constexpr static char const* name = Next::name;
     typedef bin_val<bin_val, To...> Base;
     typedef typename Base::tail_vat tail_vat;
     // this is the ctor for body types
@@ -49,13 +49,13 @@ namespace sel {
       : Fun(Type(Ty::NUM, {0}, 0)) // ZZZ: wrong
     { }
     Base* base;
-    Val* arg;
+    Val* arg; // ZZZ: wrong
     inline void setup(Base* base, Val* arg) {
       this->base = base;
       this->arg = arg;
     }
     void accept(Visitor& v) const override {
-      v.visitBody(Next::name, this->ty, this->base, this->arg);
+      v.visitBody("Next::name", this->ty, this->base, this->arg);
     }
     Val* operator()(Val* arg) override {
       auto* r = new Next();
@@ -74,13 +74,13 @@ namespace sel {
         : bin_vat<LastTo>::vat() // ZZZ: wrong
       { }
       Next* base;
-      Val* arg;
+      Val* arg; // ZZZ: wrong
       inline void setup(Next* base, Val* arg) { // (this needed because wasn't able to inherit ctor)
         this->base = base;
         this->arg = arg;
       }
       void accept(Visitor& v) const override {
-        v.visitTail(Next::name, this->ty, this->base, this->arg);
+        v.visitTail("Next::name", this->ty, this->base, this->arg);
       }
     };
     // this is the ctor for the head type
@@ -93,7 +93,7 @@ namespace sel {
       return r;
     }
     void accept(Visitor& v) const override {
-      v.visitHead(Next::name, ty);
+      v.visitHead("Next::name", ty);
     }
   };
 

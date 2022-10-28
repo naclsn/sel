@@ -3,8 +3,10 @@
 namespace sel {
 
   struct Add : bin_val<Add, Ty::NUM, Ty::NUM, Ty::NUM>::tail_vat {
-    constexpr static char const* name = "add"; // I have no idea why it works..? (does it?)
-    double value() override { return 0; }
+    //constexpr static char const* name = "add"; // I have no idea why it works..? (but LSP hates it)
+    double value() override {
+      return ((Num*)base->arg)->value() + ((Num*)arg)->value();
+    }
   };
 
   Val* lookup_name(std::string const& name) {
