@@ -20,8 +20,8 @@ namespace sel {
   class NumLiteral : public Num {
     double const n;
   public:
-    NumLiteral(Env& env, double n)
-      : Num(env)
+    NumLiteral(double n)
+      : Num()
       , n(n)
     { }
     double value() override;
@@ -32,8 +32,8 @@ namespace sel {
     std::string const s;
     bool read;
   public:
-    StrLiteral(Env& env, std::string s)
-      : Str(env, TyFlag::IS_FIN)
+    StrLiteral(std::string s)
+      : Str(TyFlag::IS_FIN)
       , s(s)
       , read(false)
     { }
@@ -48,8 +48,8 @@ namespace sel {
     std::vector<Val*> const v;
     size_t c;
   public:
-    LstLiteral(Env& env, std::vector<Val*> v)
-      : Lst(env, Type(Ty::LST,
+    LstLiteral(std::vector<Val*> v)
+      : Lst(Type(Ty::LST,
           {.box_has=
             new std::vector<Type*>() // ZZZ: right...
           }, TyFlag::IS_FIN
@@ -68,8 +68,8 @@ namespace sel {
   class FunChain : public Fun {
     std::vector<Fun*> const f;
   public:
-    FunChain(Env& env, std::vector<Fun*> f)
-      : Fun(env, Type(Ty::FUN,
+    FunChain(std::vector<Fun*> f)
+      : Fun(Type(Ty::FUN,
           {.box_pair={
               new Type(f[0]->type().from()),
               new Type(f[f.size()-1]->type().to())
@@ -84,8 +84,8 @@ namespace sel {
   class Input : public Str {
     std::istream* in;
   public:
-    Input(Env& env)
-      : Str(env, TyFlag::IS_INF)
+    Input()
+      : Str(TyFlag::IS_INF)
       , in(nullptr)
     { }
     std::ostream& stream(std::ostream& out) override;
@@ -99,8 +99,8 @@ namespace sel {
   class Output : public Fun {
     std::ostream* out;
   public:
-    Output(Env& env)
-      : Fun(env, Type(Ty::FUN,
+    Output()
+      : Fun(Type(Ty::FUN,
           {.box_pair={
             new Type(Ty::STR, {0}, TyFlag::IS_INF), // YYY: will consider output may be infinite
             new Type(Ty::UNK, {.name=new std::string("()")}, 0)
@@ -116,20 +116,17 @@ namespace sel {
   /**
    * An application is constructed from parsing a user
    * script. It serializes back to an equivalent script
-   * (although it may not be strictly equal). The default
-   * constructor automatically creates a new environment.
+   * (although it may not be strictly equal).
    */
   class App {
   private:
-    Env env;
     std::vector<Fun*> funcs;
     Input* fin;
     Output* fout;
 
   public:
     App()
-      : env(*this)
-      , funcs()
+      : funcs()
     { }
 
     void run(std::istream& in, std::ostream& out);

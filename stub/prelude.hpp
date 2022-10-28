@@ -12,11 +12,11 @@ namespace sel {
   /**
    * Seach for a value by name, return nullptr if not found.
    */
-  Val* lookup_name(Env& env, std::string const& name);
+  Val* lookup_name(std::string const& name);
 
   struct Abs1 : Fun {
-    Abs1(Env& env)
-      : Fun(env, Type(Ty::FUN,
+    Abs1()
+      : Fun(Type(Ty::FUN,
           {.box_pair={
             new Type(Ty::NUM, {0}, 0),
             new Type(Ty::NUM, {0}, 0)
@@ -29,8 +29,8 @@ namespace sel {
   struct Abs0 : Num {
     Abs1* base;
     Num* arg;
-    Abs0(Env& env, Abs1* base, Num* arg)
-      : Num(env)
+    Abs0(Abs1* base, Num* arg)
+      : Num()
       , base(base)
       , arg(arg)
     { TRACE(Abs0, ":: " << ty); }
@@ -39,8 +39,8 @@ namespace sel {
   };
 
   struct Add2 : Fun {
-    Add2(Env& env)
-      : Fun(env, Type(Ty::FUN,
+    Add2()
+      : Fun(Type(Ty::FUN,
           {.box_pair={
             new Type(Ty::NUM, {0}, 0),
             new Type(Ty::FUN,
@@ -58,8 +58,8 @@ namespace sel {
   struct Add1 : Fun {
     Add2* base;
     Num* arg;
-    Add1(Env& env, Add2* base, Num* arg)
-      : Fun(env, Type(Ty::FUN,
+    Add1(Add2* base, Num* arg)
+      : Fun(Type(Ty::FUN,
           {.box_pair={
             new Type(Ty::NUM, {0}, 0),
             new Type(Ty::NUM, {0}, 0)
@@ -74,8 +74,8 @@ namespace sel {
   struct Add0 : Num {
     Add1* base;
     Num* arg;
-    Add0(Env& env, Add1* base, Num* arg)
-      : Num(env)
+    Add0(Add1* base, Num* arg)
+      : Num()
       , base(base)
       , arg(arg)
     { TRACE(Add0, ":: " << ty); }
@@ -85,8 +85,8 @@ namespace sel {
 
   // flip :: (a -> b -> c) -> b -> a -> c
   struct Flip2 : Fun {
-    Flip2(Env& env)
-      : Fun(env, Type(Ty::FUN,
+    Flip2()
+      : Fun(Type(Ty::FUN,
           {.box_pair={
             new Type(Ty::FUN,
               {.box_pair={
@@ -119,8 +119,8 @@ namespace sel {
   struct Flip1 : Fun {
     Flip2* base;
     Fun* arg;
-    Flip1(Env& env, Flip2* base, Fun* arg)
-      : Fun(env, Type(Ty::FUN,
+    Flip1(Flip2* base, Fun* arg)
+      : Fun(Type(Ty::FUN,
           {.box_pair={
             new Type(arg->type().to().from()),
             new Type(Ty::FUN,
@@ -140,8 +140,8 @@ namespace sel {
   struct Flip0 : Fun {
     Flip1* base;
     Val* arg;
-    Flip0(Env& env, Flip1* base, Val* arg)
-      : Fun(env, Type(Ty::FUN,
+    Flip0(Flip1* base, Val* arg)
+      : Fun(Type(Ty::FUN,
           {.box_pair={
             new Type(base->arg->type().from()),
             new Type(base->arg->type().to().to()) // which should be same as `arg->type()` [maybe?]
@@ -156,8 +156,8 @@ namespace sel {
 
   // join :: Str -> [Str]* -> Str*
   struct Join2 : Fun {
-    Join2(Env& env)
-      : Fun(env, Type(Ty::FUN,
+    Join2()
+      : Fun(Type(Ty::FUN,
           {.box_pair={
             new Type(Ty::STR, {0}, TyFlag::IS_FIN),
             new Type(Ty::FUN,
@@ -179,8 +179,8 @@ namespace sel {
   struct Join1 : Fun {
     Join2* base;
     Str* arg;
-    Join1(Env& env, Join2* base, Str* arg)
-      : Fun(env, Type(Ty::FUN,
+    Join1(Join2* base, Str* arg)
+      : Fun(Type(Ty::FUN,
           {.box_pair={
             new Type(Ty::LST,
               {.box_has=
@@ -200,8 +200,8 @@ namespace sel {
     Join1* base;
     Lst* arg;
     bool beginning;
-    Join0(Env& env, Join1* base, Lst* arg)
-      : Str(env, (TyFlag)(TyFlag::IS_INF & arg->type().flags))
+    Join0(Join1* base, Lst* arg)
+      : Str((TyFlag)(TyFlag::IS_INF & arg->type().flags))
       , base(base)
       , arg(arg)
       , beginning(true)
@@ -215,8 +215,8 @@ namespace sel {
 
   // map:: (a -> b) -> [a]* -> [b]*
   struct Map2 : Fun {
-    Map2(Env& env)
-      : Fun(env, Type(Ty::FUN,
+    Map2()
+      : Fun(Type(Ty::FUN,
           {.box_pair={
             new Type(Ty::FUN,
               {.box_pair={
@@ -247,8 +247,8 @@ namespace sel {
   struct Map1 : Fun {
     Map2* base;
     Fun* arg;
-    Map1(Env& env, Map2* base, Fun* arg)
-      : Fun(env, Type(Ty::FUN,
+    Map1(Map2* base, Fun* arg)
+      : Fun(Type(Ty::FUN,
           {.box_pair={
             new Type(Ty::LST,
               {.box_has=
@@ -271,8 +271,8 @@ namespace sel {
   struct Map0 : Lst {
     Map1* base;
     Lst* arg;
-    Map0(Env& env, Map1* base, Lst* arg)
-      : Lst(env, Type(Ty::LST,
+    Map0(Map1* base, Lst* arg)
+      : Lst(Type(Ty::LST,
           {.box_has=
             types1(new Type(base->arg->type().to()))
           }, (TyFlag)(TyFlag::IS_INF & arg->type().flags)
@@ -291,8 +291,8 @@ namespace sel {
 
   // split :: Str -> Str* -> [Str]* -- NOTE: this assumes the delimiter will happend at some point, maybe it should be `[Str*]*` but this could make it annoying to work with
   struct Split2 : Fun {
-    Split2(Env& env)
-      : Fun(env, Type(Ty::FUN,
+    Split2()
+      : Fun(Type(Ty::FUN,
           {.box_pair={
             new Type(Ty::STR, {0}, TyFlag::IS_FIN),
             new Type(Ty::FUN,
@@ -314,8 +314,8 @@ namespace sel {
   struct Split1 : Fun {
     Split2* base;
     Str* arg;
-    Split1(Env& env, Split2* base, Str* arg)
-      : Fun(env, Type(Ty::FUN,
+    Split1(Split2* base, Str* arg)
+      : Fun(Type(Ty::FUN,
           {.box_pair={
             new Type(Ty::STR, {0}, TyFlag::IS_INF),
             new Type(Ty::LST,
@@ -334,8 +334,8 @@ namespace sel {
   struct Split0 : Lst {
     Split1* base;
     Str* arg;
-    Split0(Env& env, Split1* base, Str* arg)
-      : Lst(env, Type(Ty::LST,
+    Split0(Split1* base, Str* arg)
+      : Lst(Type(Ty::LST,
           {.box_has=
             types1(new Type(Ty::STR, {0}, TyFlag::IS_FIN))
           }, (TyFlag)(TyFlag::IS_INF & arg->type().flags)
@@ -352,8 +352,8 @@ namespace sel {
   };
 
   struct Sub2 : Fun {
-    Sub2(Env& env)
-      : Fun(env, Type(Ty::FUN,
+    Sub2()
+      : Fun(Type(Ty::FUN,
           {.box_pair={
             new Type(Ty::NUM, {0}, 0),
             new Type(Ty::FUN,
@@ -371,8 +371,8 @@ namespace sel {
   struct Sub1 : Fun {
     Sub2* base;
     Num* arg;
-    Sub1(Env& env, Sub2* base, Num* arg)
-      : Fun(env, Type(Ty::FUN,
+    Sub1(Sub2* base, Num* arg)
+      : Fun(Type(Ty::FUN,
           {.box_pair={
             new Type(Ty::NUM, {0}, 0),
             new Type(Ty::NUM, {0}, 0)
@@ -387,8 +387,8 @@ namespace sel {
   struct Sub0 : Num {
     Sub1* base;
     Num* arg;
-    Sub0(Env& env, Sub1* base, Num* arg)
-      : Num(env)
+    Sub0(Sub1* base, Num* arg)
+      : Num()
       , base(base)
       , arg(arg)
     { TRACE(Sub0, ":: " << ty); }
@@ -397,8 +397,8 @@ namespace sel {
   };
 
   struct Tonum1 : Fun {
-    Tonum1(Env& env)
-      : Fun(env, Type(Ty::FUN,
+    Tonum1()
+      : Fun(Type(Ty::FUN,
           {.box_pair={
             new Type(Ty::STR, {0}, TyFlag::IS_FIN),
             new Type(Ty::NUM, {0}, 0)
@@ -411,8 +411,8 @@ namespace sel {
   struct Tonum0 : Num {
     Tonum1* base;
     Str* arg;
-    Tonum0(Env& env, Tonum1* base, Str* arg)
-      : Num(env)
+    Tonum0(Tonum1* base, Str* arg)
+      : Num()
       , base(base)
       , arg(arg)
     { TRACE(Tonum0, ":: " << ty); }
@@ -421,8 +421,8 @@ namespace sel {
   };
 
   struct Tostr1 : Fun {
-    Tostr1(Env& env)
-      : Fun(env, Type(Ty::FUN,
+    Tostr1()
+      : Fun(Type(Ty::FUN,
           {.box_pair={
             new Type(Ty::NUM, {0}, 0),
             new Type(Ty::STR, {0}, TyFlag::IS_FIN)
@@ -436,8 +436,8 @@ namespace sel {
     Tostr1* base;
     Num* arg;
     bool read;
-    Tostr0(Env& env, Tostr1* base, Num* arg)
-      : Str(env, TyFlag::IS_FIN)
+    Tostr0(Tostr1* base, Num* arg)
+      : Str(TyFlag::IS_FIN)
       , base(base)
       , arg(arg)
     { TRACE(Tostr0, ":: " << ty); }

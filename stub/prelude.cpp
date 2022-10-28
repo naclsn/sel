@@ -5,21 +5,21 @@
 
 namespace sel {
 
-  Val* lookup_name(Env& env, std::string const& name) {
-    if ("abs"   == name) return new Abs1(env);
-    if ("add"   == name) return new Add2(env);
-    if ("flip"  == name) return new Flip2(env);
-    if ("join"  == name) return new Join2(env);
-    if ("map"   == name) return new Map2(env);
-    if ("split" == name) return new Split2(env);
-    if ("sub"   == name) return new Sub2(env);
-    if ("tonum" == name) return new Tonum1(env);
-    if ("tostr" == name) return new Tostr1(env);
+  Val* lookup_name(std::string const& name) {
+    if ("abs"   == name) return new Abs1();
+    if ("add"   == name) return new Add2();
+    if ("flip"  == name) return new Flip2();
+    if ("join"  == name) return new Join2();
+    if ("map"   == name) return new Map2();
+    if ("split" == name) return new Split2();
+    if ("sub"   == name) return new Sub2();
+    if ("tonum" == name) return new Tonum1();
+    if ("tostr" == name) return new Tostr1();
     return nullptr;
   }
 
 
-  Val* Abs1::operator()(Val* arg) { return new Abs0(env, this, coerse<Num>(arg)); }
+  Val* Abs1::operator()(Val* arg) { return new Abs0(this, coerse<Num>(arg)); }
   void Abs1::accept(Visitor& v) const { v.visitAbs1(ty); }
 
   double Abs0::value() {
@@ -28,10 +28,10 @@ namespace sel {
   void Abs0::accept(Visitor& v) const { v.visitAbs0(ty, base, arg); }
 
 
-  Val* Add2::operator()(Val* arg) { return new Add1(env, this, coerse<Num>(arg)); }
+  Val* Add2::operator()(Val* arg) { return new Add1(this, coerse<Num>(arg)); }
   void Add2::accept(Visitor& v) const { v.visitAdd2(ty); }
 
-  Val* Add1::operator()(Val* arg) { return new Add0(env, this, coerse<Num>(arg)); }
+  Val* Add1::operator()(Val* arg) { return new Add0(this, coerse<Num>(arg)); }
   void Add1::accept(Visitor& v) const { v.visitAdd1(ty, base, arg); }
 
   double Add0::value() {
@@ -40,10 +40,10 @@ namespace sel {
   void Add0::accept(Visitor& v) const { v.visitAdd0(ty, base, arg); }
 
 
-  Val* Flip2::operator()(Val* arg) { return new Flip1(env, this, coerse<Fun>(arg)); }
+  Val* Flip2::operator()(Val* arg) { return new Flip1(this, coerse<Fun>(arg)); }
   void Flip2::accept(Visitor& v) const { v.visitFlip2(ty); }
 
-  Val* Flip1::operator()(Val* arg) { return new Flip0(env, this, coerse<Fun>(arg)); }
+  Val* Flip1::operator()(Val* arg) { return new Flip0(this, coerse<Fun>(arg)); }
   void Flip1::accept(Visitor& v) const { v.visitFlip1(ty, base, arg); }
 
   Val* Flip0::operator()(Val* arg) {
@@ -55,10 +55,10 @@ namespace sel {
   void Flip0::accept(Visitor& v) const { v.visitFlip0(ty, base, arg); }
 
 
-  Val* Join2::operator()(Val* arg) { return new Join1(env, this, coerse<Str>(arg)); }
+  Val* Join2::operator()(Val* arg) { return new Join1(this, coerse<Str>(arg)); }
   void Join2::accept(Visitor& v) const { v.visitJoin2(ty); }
 
-  Val* Join1::operator()(Val* arg) { return new Join0(env, this, coerse<Lst>(arg)); }
+  Val* Join1::operator()(Val* arg) { return new Join0(this, coerse<Lst>(arg)); }
   void Join1::accept(Visitor& v) const { v.visitJoin1(ty, base, arg); }
 
   std::ostream& Join0::stream(std::ostream& out) {
@@ -93,10 +93,10 @@ namespace sel {
   void Join0::accept(Visitor& v) const { v.visitJoin0(ty, base, arg); }
 
 
-  Val* Map2::operator()(Val* arg) { return new Map1(env, this, coerse<Fun>(arg)); }
+  Val* Map2::operator()(Val* arg) { return new Map1(this, coerse<Fun>(arg)); }
   void Map2::accept(Visitor& v) const { v.visitMap2(ty); }
 
-  Val* Map1::operator()(Val* arg) { return new Map0(env, this, coerse<Lst>(arg)); }
+  Val* Map1::operator()(Val* arg) { return new Map0(this, coerse<Lst>(arg)); }
   void Map1::accept(Visitor& v) const { v.visitMap1(ty, base, arg); }
 
   Val* Map0::operator*() {
@@ -124,10 +124,10 @@ namespace sel {
   void Map0::accept(Visitor& v) const { v.visitMap0(ty, base, arg); }
 
 
-  Val* Split2::operator()(Val* arg) { return new Split1(env, this, coerse<Str>(arg)); }
+  Val* Split2::operator()(Val* arg) { return new Split1(this, coerse<Str>(arg)); }
   void Split2::accept(Visitor& v) const { v.visitSplit2(ty); }
 
-  Val* Split1::operator()(Val* arg) { return new Split0(env, this, coerse<Str>(arg)); }
+  Val* Split1::operator()(Val* arg) { return new Split0(this, coerse<Str>(arg)); }
   void Split1::accept(Visitor& v) const { v.visitSplit1(ty, base, arg); }
 
   Val* Split0::operator*() {
@@ -157,10 +157,10 @@ namespace sel {
   void Split0::accept(Visitor& v) const { v.visitSplit0(ty, base, arg); }
 
 
-  Val* Sub2::operator()(Val* arg) { return new Sub1(env, this, coerse<Num>(arg)); }
+  Val* Sub2::operator()(Val* arg) { return new Sub1(this, coerse<Num>(arg)); }
   void Sub2::accept(Visitor& v) const { v.visitSub2(ty); }
 
-  Val* Sub1::operator()(Val* arg) { return new Sub0(env, this, coerse<Num>(arg)); }
+  Val* Sub1::operator()(Val* arg) { return new Sub0(this, coerse<Num>(arg)); }
   void Sub1::accept(Visitor& v) const { v.visitSub1(ty, base, arg); }
 
   double Sub0::value() {
@@ -169,7 +169,7 @@ namespace sel {
   void Sub0::accept(Visitor& v) const { v.visitSub0(ty, base, arg); }
 
 
-  Val* Tonum1::operator()(Val* arg) { return new Tonum0(env, this, coerse<Str>(arg)); }
+  Val* Tonum1::operator()(Val* arg) { return new Tonum0(this, coerse<Str>(arg)); }
   void Tonum1::accept(Visitor& v) const { v.visitTonum1(ty); }
 
   double Tonum0::value() {
@@ -184,7 +184,7 @@ namespace sel {
   void Tonum0::accept(Visitor& v) const { v.visitTonum0(ty, base, arg); }
 
 
-  Val* Tostr1::operator()(Val* arg) { return new Tostr0(env, this, coerse<Num>(arg)); }
+  Val* Tostr1::operator()(Val* arg) { return new Tostr0(this, coerse<Num>(arg)); }
   void Tostr1::accept(Visitor& v) const { v.visitTostr1(ty); }
 
   std::ostream& Tostr0::stream(std::ostream& out) { read = true; return out << arg->value(); }
