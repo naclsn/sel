@@ -58,10 +58,19 @@ after_while: ;
 }
 
 int main() {
-  VisRepr repr(cerr);
+  VisRepr* repr = new VisRepr(cerr);
 
-  Val* a = bidoof();
-  repr(*a);
+  Val* add2 = lookup_name("add");
+  cerr << "add2: ";
+  (*repr)(*add2);
+
+  Val* add1 = (*(Fun*)add2)(new NumLiteral(1));
+  cerr << "add1: ";
+  (*repr)(*add1);
+
+  Val* add0 = (*(Fun*)add1)(new NumLiteral(2));
+  cerr << "add0: ";
+  (*repr)(*add0);
 
   return 0;
 }

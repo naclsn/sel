@@ -14,17 +14,6 @@
 
 #include "types.hpp"
 
-#include "builtins_visit_each"
-
-/// __do(__name, ...) .. __VA_ARGS__ ..
-#define VISIT_EACH(__do) BUILTINS_VISIT_EACH(__do)              \
-  __do(NumLiteral, Type const& type, double const)              \
-  __do(StrLiteral, Type const& type, std::string const&)        \
-  __do(LstLiteral, Type const& type, std::vector<Val*> const&)  \
-  __do(FunChain, Type const& type, std::vector<Fun*> const&)    \
-  __do(Input, Type const& type)                                 \
-  __do(Output, Type const& type)                                \
-
 namespace sel {
 
   class Val;
@@ -38,9 +27,15 @@ namespace sel {
     virtual ~Visitor() { }
     void operator()(Val const& val);
 
-#define DO(__n, ...) virtual void visit##__n(__VA_ARGS__) = 0;
-    VISIT_EACH(DO)
-#undef DO
+    virtual void visitNumLiteral(Type const& type, double n) = 0;
+    virtual void visitStrLiteral(Type const& type, std::string const& s) = 0;
+    virtual void visitLstLiteral(Type const& type, std::vector<Val*> const& v) = 0;
+    virtual void visitFunChain(Type const& type, std::vector<Fun*> const& f) = 0;
+    virtual void visitInput(Type const& type) = 0;
+    virtual void visitOutput(Type const& type) = 0;
+    virtual void visitHead(std::string some, Type const& type) = 0;
+    virtual void visitBody(std::string some, Type const& type, Val const* base, Val const* arg) = 0;
+    virtual void visitTail(std::string some, Type const& type, Val const* base, Val const* arg) = 0;
   };
 
   class VisRepr : public Visitor {
@@ -76,9 +71,15 @@ namespace sel {
     void reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields);
 
   public:
-#define DO(__n, ...) void visit##__n(__VA_ARGS__) override;
-    VISIT_EACH(DO)
-#undef DO
+    void visitNumLiteral(Type const& type, double n) override;
+    void visitStrLiteral(Type const& type, std::string const& s) override;
+    void visitLstLiteral(Type const& type, std::vector<Val*> const& v) override;
+    void visitFunChain(Type const& type, std::vector<Fun*> const& f) override;
+    void visitInput(Type const& type) override;
+    void visitOutput(Type const& type) override;
+    void visitHead(std::string some, Type const& type) override;
+    void visitBody(std::string some, Type const& type, Val const* base, Val const* arg) override;
+    void visitTail(std::string some, Type const& type, Val const* base, Val const* arg) override;
   };
 
 } // namespace sel

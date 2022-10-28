@@ -118,143 +118,19 @@ namespace sel {
     reprHelper(type, "Output", {});
   }
 
-
-  void VisRepr::visitAbs1(Type const& type) {
-    reprHelper(type, "Abs1", {});
+  void VisRepr::visitHead(std::string some, Type const& type) {
+    reprHelper(type, (some+"_head").c_str(), {});
   }
 
-  void VisRepr::visitAbs0(Type const& type, Val const* base, Val const* arg) {
-    reprHelper(type, "Abs0", {
+  void VisRepr::visitBody(std::string some, Type const& type, Val const* base, Val const* arg) {
+    reprHelper(type, (some+"_body").c_str(), {
       fi_val("base", base),
       fi_val("arg", arg),
     });
   }
 
-  void VisRepr::visitAdd2(Type const& type) {
-    reprHelper(type, "Add2", {});
-  }
-
-  void VisRepr::visitAdd1(Type const& type, Val const* base, Val const* arg) {
-    reprHelper(type, "Add1", {
-      fi_val("base", base),
-      fi_val("arg", arg),
-    });
-  }
-
-  void VisRepr::visitAdd0(Type const& type, Val const* base, Val const* arg) {
-    reprHelper(type, "Add0", {
-      fi_val("base", base),
-      fi_val("arg", arg),
-    });
-  }
-
-  void VisRepr::visitFlip2(Type const& type) {
-    reprHelper(type, "Flip2", {});
-  }
-
-  void VisRepr::visitFlip1(Type const& type, Val const* base, Val const* arg) {
-    reprHelper(type, "Flip1", {
-      fi_val("base", base),
-      fi_val("arg", arg),
-    });
-  }
-
-  void VisRepr::visitFlip0(Type const& type, Val const* base, Val const* arg) {
-    reprHelper(type, "Flip0", {
-      fi_val("base", base),
-      fi_val("arg", arg),
-    });
-  }
-
-  void VisRepr::visitJoin2(Type const& type) {
-    reprHelper(type, "Join2", {});
-  }
-
-  void VisRepr::visitJoin1(Type const& type, Val const* base, Val const* arg) {
-    reprHelper(type, "Join1", {
-      fi_val("base", base),
-      fi_val("arg", arg),
-    });
-  }
-
-  void VisRepr::visitJoin0(Type const& type, Val const* base, Val const* arg) {
-    reprHelper(type, "Join0", {
-      fi_val("base", base),
-      fi_val("arg", arg),
-    });
-  }
-
-  void VisRepr::visitMap2(Type const& type) {
-    reprHelper(type, "Map2", {});
-  }
-
-  void VisRepr::visitMap1(Type const& type, Val const* base, Val const* arg) {
-    reprHelper(type, "Map1", {
-      fi_val("base", base),
-      fi_val("arg", arg),
-    });
-  }
-
-  void VisRepr::visitMap0(Type const& type, Val const* base, Val const* arg) {
-    reprHelper(type, "Map0", {
-      fi_val("base", base),
-      fi_val("arg", arg),
-    });
-  }
-
-  void VisRepr::visitSplit2(Type const& type) {
-    reprHelper(type, "Split2", {});
-  }
-
-  void VisRepr::visitSplit1(Type const& type, Val const* base, Val const* arg) {
-    reprHelper(type, "Split1", {
-      fi_val("base", base),
-      fi_val("arg", arg),
-    });
-  }
-
-  void VisRepr::visitSplit0(Type const& type, Val const* base, Val const* arg) {
-    reprHelper(type, "Split0", {
-      fi_val("base", base),
-      fi_val("arg", arg),
-    });
-  }
-
-  void VisRepr::visitSub2(Type const& type) {
-    reprHelper(type, "Sub2", {});
-  }
-
-  void VisRepr::visitSub1(Type const& type, Val const* base, Val const* arg) {
-    reprHelper(type, "Sub1", {
-      fi_val("base", base),
-      fi_val("arg", arg),
-    });
-  }
-
-  void VisRepr::visitSub0(Type const& type, Val const* base, Val const* arg) {
-    reprHelper(type, "Sub0", {
-      fi_val("base", base),
-      fi_val("arg", arg),
-    });
-  }
-
-  void VisRepr::visitTonum1(Type const& type) {
-    reprHelper(type, "Tonum1", {});
-  }
-
-  void VisRepr::visitTonum0(Type const& type, Val const* base, Val const* arg) {
-    reprHelper(type, "Tonum0", {
-      fi_val("base", base),
-      fi_val("arg", arg),
-    });
-  }
-
-  void VisRepr::visitTostr1(Type const& type) {
-    reprHelper(type, "Tostr1", {});
-  }
-
-  void VisRepr::visitTostr0(Type const& type, Val const* base, Val const* arg) {
-    reprHelper(type, "Tostr0", {
+  void VisRepr::visitTail(std::string some, Type const& type, Val const* base, Val const* arg) {
+    reprHelper(type, (some+"_tail").c_str(), {
       fi_val("base", base),
       fi_val("arg", arg),
     });
