@@ -14,10 +14,10 @@
 
 #include "types.hpp"
 
-#include "prelude_visit_each"
+#include "builtins_visit_each"
 
 /// __do(__name, ...) .. __VA_ARGS__ ..
-#define VISIT_EACH(__do) PRELUDE_VISIT_EACH(__do)               \
+#define VISIT_EACH(__do) BUILTINS_VISIT_EACH(__do)              \
   __do(NumLiteral, Type const& type, double const)              \
   __do(StrLiteral, Type const& type, std::string const&)        \
   __do(LstLiteral, Type const& type, std::vector<Val*> const&)  \

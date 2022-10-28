@@ -12,7 +12,7 @@
 #include <vector>
 
 #include "engine.hpp"
-#include "prelude.hpp"
+#include "builtins.hpp"
 #include "visitors.hpp"
 
 namespace sel {
