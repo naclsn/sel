@@ -13,23 +13,6 @@
 
 namespace sel {
 
-  class App;
-
-  /**
-   * Implicitly passed through each functions. Used from
-   * an application.
-   */
-  // XXX: likely will not be used anymore, remove at some point
-  class Env {
-  private:
-    App const& app;
-  public:
-    Env();
-    Env(App const& app)
-      : app(app)
-    { }
-  };
-
   class Visitor;
 
   /**
@@ -41,12 +24,10 @@ namespace sel {
   class Val {
   protected:
     Type const ty;
-    Env& env;
     // virtual void eval() = 0; // more of a friendly reminder than actual contract
   public:
-    Val(Env& env, Type const& ty)
+    Val(Type const& ty)
       : ty(Type(ty))
-      , env(env)
     { }
     virtual ~Val() { }
     Type const& type() const { return ty; }
@@ -70,8 +51,8 @@ namespace sel {
    */
   class Num : public Val {
   public:
-    Num(Env& env)
-      : Val(env, Type(Ty::NUM, {0}, 0))
+    Num()
+      : Val(Type(Ty::NUM, {0}, 0))
     { }
     virtual double value() = 0;
   };
@@ -82,8 +63,8 @@ namespace sel {
    */
   class Str : public Val { //, public std::istream
   public:
-    Str(Env& env, TyFlag is_inf)
-      : Val(env, Type(Ty::STR, {0}, is_inf))
+    Str(TyFlag is_inf)
+      : Val(Type(Ty::STR, {0}, is_inf))
     { }
     friend std::ostream& operator<<(std::ostream& out, Str& val) { return val.stream(out); }
     /**
@@ -113,8 +94,8 @@ namespace sel {
    */
   class Lst : public Val { //, public std::iterator<std::input_iterator_tag, Val>
   public:
-    Lst(Env& env, Type const& type)
-      : Val(env, type)
+    Lst(Type const& type)
+      : Val(type)
     { }
     /**
      * Get (compute, etc..) the current value.
@@ -150,8 +131,8 @@ namespace sel {
    */
   class Fun : public Val {
   public:
-    Fun(Env& env, Type const& type)
-      : Val(env, type)
+    Fun(Type const& type)
+      : Val(type)
     { }
     virtual Val* operator()(Val* arg) = 0;
   };

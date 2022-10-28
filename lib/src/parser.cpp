@@ -222,11 +222,11 @@ namespace sel {
   }
 
   // internal
-  Val* parseAtom(Env& env, std::istream_iterator<Token>& lexer);
-  Val* parseElement(Env& env, std::istream_iterator<Token>& lexer);
+  Val* parseAtom(std::istream_iterator<Token>& lexer);
+  Val* parseElement(std::istream_iterator<Token>& lexer);
 
   // internal
-  Val* parseAtom(Env& env, std::istream_iterator<Token>& lexer) {
+  Val* parseAtom(std::istream_iterator<Token>& lexer) {
     TRACE(parseAtom, *lexer);
     static std::istream_iterator<Token> eos;
     if (eos == lexer) throw EOSError("atom", "- what -");
@@ -236,18 +236,18 @@ namespace sel {
 
     switch (t.type) {
       case Token::Type::NAME:
-        val = lookup_name(env, *t.as.name);
+        val = lookup_name(*t.as.name);
         if (!val) throw NameError(*t.as.name, "- what -");
         lexer++;
         break;
 
       case Token::Type::LIT_NUM:
-        val = new NumLiteral(env, t.as.num);
+        val = new NumLiteral(t.as.num);
         lexer++;
         break;
 
       case Token::Type::LIT_STR:
-        val = new StrLiteral(env, std::string(*t.as.str));
+        val = new StrLiteral(std::string(*t.as.str));
         lexer++;
         break;
 
@@ -256,7 +256,7 @@ namespace sel {
         {
           std::vector<Val*> elms;
           while (Token::Type::LIT_LST_CLOSE != (++lexer)->type) {
-            elms.push_back(parseElement(env, lexer));
+            elms.push_back(parseElement(lexer));
             if (Token::Type::LIT_LST_CLOSE != lexer->type
              && Token::Type::THEN != lexer->type)
               throw ParseError("token ',' or matching token '}'", std::string("got unexpected tokens ") + (char)((char)t.type+'0'), "- what -");
@@ -270,14 +270,14 @@ namespace sel {
           //   - `(Str, Num, Str, Num)`
           //   - `[Str, Num]`
 
-          val = new LstLiteral(env, elms);
+          val = new LstLiteral(elms);
         }
         break;
 
       case Token::Type::UN_OP: // TODO: will have a lookup_unop
         switch (t.as.chr) {
-          // case '@': val = lookup_name(env, ""); break;
-          case '%': val = lookup_name(env, "flip"); break;
+          // case '@': val = lookup_name(""); break;
+          case '%': val = lookup_name("flip"); break;
           // default unreachable
         }
         {
@@ -285,28 +285,28 @@ namespace sel {
           Token t = *++lexer;
           if (Token::Type::BIN_OP == t.type) { // ZZZ: yeah, code dup (as if that was the only problem)
             switch (t.as.chr) {
-              case '+': arg = lookup_name(env, "add"); break;
-              case '-': arg = lookup_name(env, "sub"); break;
-              case '.': arg = lookup_name(env, "mul"); break;
-              case '/': arg = lookup_name(env, "div"); break;
+              case '+': arg = lookup_name("add"); break;
+              case '-': arg = lookup_name("sub"); break;
+              case '.': arg = lookup_name("mul"); break;
+              case '/': arg = lookup_name("div"); break;
               // default unreachable
             }
-            arg = (*(Fun*)lookup_name(env, "flip"))(arg);
+            arg = (*(Fun*)lookup_name("flip"))(arg);
             lexer++;
-          } else arg = parseAtom(env, lexer);
+          } else arg = parseAtom(lexer);
           val = (*(Fun*)val)(arg);
         }
         break;
 
       case Token::Type::BIN_OP: // TODO: will have a lookup_unop
         switch (t.as.chr) {
-          case '+': val = lookup_name(env, "add"); break;
-          case '-': val = lookup_name(env, "sub"); break;
-          case '.': val = lookup_name(env, "mul"); break;
-          case '/': val = lookup_name(env, "div"); break;
+          case '+': val = lookup_name("add"); break;
+          case '-': val = lookup_name("sub"); break;
+          case '.': val = lookup_name("mul"); break;
+          case '/': val = lookup_name("div"); break;
           // default unreachable
         }
-        val = (*(Fun*)(*(Fun*)lookup_name(env, "flip"))(val))(parseAtom(env, ++lexer));
+        val = (*(Fun*)(*(Fun*)lookup_name("flip"))(val))(parseAtom(++lexer));
         break;
 
       case Token::Type::SUB_CLOSE: lexer++; break; // YYY: unreachable?
@@ -316,7 +316,7 @@ namespace sel {
             throw ParseError("element", "got empty sub-expression", "- what -");
 
           // early break: single value between []
-          val = parseElement(env, lexer);
+          val = parseElement(lexer);
           if (Token::Type::SUB_CLOSE == lexer->type) {
             lexer++;
             break;
@@ -330,13 +330,13 @@ namespace sel {
             elms.push_back(coerse<Fun>(val));
             if (Token::Type::THEN != lexer->type && eos != lexer)
               break;
-            val = parseElement(env, ++lexer);
+            val = parseElement(++lexer);
           } while (true);
 
           if (Token::Type::SUB_CLOSE != lexer++->type)
             throw ParseError("matching token ']'", std::string("got unexpected tokens ") + (char)((char)t.type+'0'), "- what -");
 
-          val = new FunChain(env, elms);
+          val = new FunChain(elms);
         }
         break;
 
@@ -348,18 +348,18 @@ namespace sel {
   }
 
   // internal
-  Val* parseElement(Env& env, std::istream_iterator<Token>& lexer) {
+  Val* parseElement(std::istream_iterator<Token>& lexer) {
     TRACE(parseElement, *lexer);
     static std::istream_iterator<Token> eos;
     if (eos == lexer) throw EOSError("element", "- what -");
-    Val* val = parseAtom(env, lexer);
+    Val* val = parseAtom(lexer);
 
     while (Token::Type::THEN != lexer->type
         && Token::Type::LIT_LST_CLOSE != lexer->type
         && Token::Type::SUB_CLOSE != lexer->type
         && eos != lexer) {
       Fun* base = coerse<Fun>(val);
-      Val* arg = parseAtom(env, lexer);
+      Val* arg = parseAtom(lexer);
       val = base->operator()(arg);
     }
 
@@ -402,14 +402,14 @@ namespace sel {
     static std::istream_iterator<Token> eos;
     if (eos == lexer) throw EOSError("script", "- what -");
 
-    app.fin = new Input(app.env);
+    app.fin = new Input();
 
     do {
-      Val* current = parseElement(app.env, lexer);
+      Val* current = parseElement(lexer);
       app.funcs.push_back(coerse<Fun>(current));
     } while (Token::Type::THEN == lexer->type && eos != ++lexer);
 
-    app.fout = new Output(app.env);
+    app.fout = new Output();
 
     return in;
   }
