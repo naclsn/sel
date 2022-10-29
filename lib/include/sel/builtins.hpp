@@ -32,6 +32,14 @@ namespace sel {
 
       Head and Body: extend from Fun
       Tail: extends from the last vat
+
+      `the`, for `bin_val`, is the base class for the actual implementation of the Tail
+      (for example with "add", `the` extends `Num`) because it is available at any level
+      of the chain, that:
+      - `T::the::args` is the arity of the function (so 2 for "add")
+      - `T::the::Head` it the Head type (so `F` such as `F()(some_num)(other_num)`)
+      - `T::the::Base::Next` is the actual implementation (so `Add` for "add")
+      - and so `T::the::Base::Next::name` is the name constexpr ("add")
     */
     // TODO: replace the use of raw Ty for types that hold more info
     // - need to be able to have eg. Type(Ty::LST, !!, !!)
@@ -39,10 +47,10 @@ namespace sel {
 
     template <typename NextT, Ty From, Ty... To>
     struct bin_val : Fun {
-      // constexpr static char const* name = Next::name;
       typedef NextT Next;
       typedef bin_val<bin_val, To...> Base;
       typedef typename Base::the the;
+      constexpr static unsigned args = Base::args + 1;
       // this is the ctor for body types
       bin_val()
         : Fun(Type(Ty::NUM, {0}, 0)) // ZZZ: wrong
@@ -64,23 +72,25 @@ namespace sel {
     template <typename NextT, Ty LastFrom, Ty LastTo>
     struct bin_val<NextT, LastFrom, LastTo> : Fun {
       typedef NextT Next;
-      // typedef no_base_marker Base;
       // this is the parent class for the tail type
       struct the : bin_vat<LastTo>::vat {
-        typedef Next Base;
+        typedef Next Base; // XXX: this may be wrong, I don't know anymore, but the way I understand it is: it works only because Add and Sub have a single Body (2 parameters) but may no longer be ok with more
         typedef bin_val Head;
+        constexpr static unsigned args = Base::args + 1;
         // this is the ctor for the tail type
         the()
           : bin_vat<LastTo>::vat() // ZZZ: wrong
         { }
         Base* base;
         Val* arg; // ZZZ: wrong
-        inline void _setup(Base* base, Val* arg) { // (this needed because wasn't able to inherit ctor)
+        inline void _setup(Base* base, Val* arg) { // (this needed because wasn't able to inherit ctor) but it will be needed to have at least the `Val* arg` in the ctor so it can build the proper `Type()`
           this->base = base;
           this->arg = arg;
         }
         void accept(Visitor& v) const override; // visitTail
       };
+      // head struct does not have `.arg`
+      constexpr static unsigned args = 0;
       // this is the ctor for the head type
       bin_val()
         : Fun(Type(Ty::NUM, {0}, 0)) // ZZZ: wrong
@@ -100,12 +110,14 @@ namespace sel {
     using bin_val_helpers::bin_val;
 
     struct Add : bin_val<Add, Ty::NUM, Ty::NUM, Ty::NUM>::the {
+      constexpr static char const* name = "add";
       double value() override {
         return ((Num*)base->arg)->value() + ((Num*)arg)->value();
       }
     };
 
-    struct Sub : bin_val<Add, Ty::NUM, Ty::NUM, Ty::NUM>::the {
+    struct Sub : bin_val<Sub, Ty::NUM, Ty::NUM, Ty::NUM>::the {
+      constexpr static char const* name = "sub";
       double value() override {
         return ((Num*)base->arg)->value() - ((Num*)arg)->value();
       }

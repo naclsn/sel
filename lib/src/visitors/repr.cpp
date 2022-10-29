@@ -118,22 +118,39 @@ namespace sel {
     reprHelper(type, "Output", {});
   }
 
-  void VisRepr::visit(bin::Add::Base::Base const& it) { // same as bin::Add::Head
-    reprHelper(it.type(), "add2", {});
-  }
-
-  void VisRepr::visit(bin::Add::Base const& it) {
-    reprHelper(it.type(), "add1", {
+  template <typename T>
+  void VisRepr::visitCommon(T const& it, std::false_type is_head) {
+    constexpr unsigned arity = T::the::args - T::args;
+    reprHelper(it.type(), (std::string(T::the::Base::Next::name) + std::to_string(arity)).c_str(), {
       fi_val("base", it.base),
       fi_val("arg", it.arg),
     });
+  }
+
+  template <typename T>
+  void VisRepr::visitCommon(T const& it, std::true_type is_head) {
+    constexpr unsigned arity = T::the::args - T::args;
+    reprHelper(it.type(), (std::string(T::the::Base::Next::name) + std::to_string(arity)).c_str(), {});
   }
 
   void VisRepr::visit(bin::Add const& it) {
-    reprHelper(it.type(), "add0", {
-      fi_val("base", it.base),
-      fi_val("arg", it.arg),
-    });
+    visitCommon(it, std::conditional<!bin::Add::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bin::Add::Base const& it) {
+    visitCommon(it, std::conditional<!bin::Add::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bin::Add::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bin::Add::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+
+  void VisRepr::visit(bin::Sub const& it) {
+    visitCommon(it, std::conditional<!bin::Sub::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bin::Sub::Base const& it) {
+    visitCommon(it, std::conditional<!bin::Sub::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bin::Sub::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bin::Sub::Base::Base::args, std::true_type, std::false_type>::type{});
   }
 
 } // namespace sel

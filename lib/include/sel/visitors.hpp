@@ -91,6 +91,11 @@ namespace sel {
     void reprHelper(Type const& type, char const* name, std::initializer_list<ReprField> const fields);
     void reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields);
 
+    template <typename T>
+    void visitCommon(T const&, std::false_type is_head);
+    template <typename T>
+    void visitCommon(T const&, std::true_type is_head);
+
   public:
     void visitNumLiteral(Type const& type, double n) override;
     void visitStrLiteral(Type const& type, std::string const& s) override;
@@ -100,10 +105,11 @@ namespace sel {
     void visitOutput(Type const& type) override;
 
     void visit(bin::Add const&) override;
-    void visit(bin::Add::Base const& it) override;
+    void visit(bin::Add::Base const&) override;
     void visit(bin::Add::Base::Base const&) override;
-    // void visit(bin::Sub const&) override;
-    //...
+    void visit(bin::Sub const&) override;
+    void visit(bin::Sub::Base const&) override;
+    void visit(bin::Sub::Base::Base const&) override;
   };
 
 } // namespace sel
