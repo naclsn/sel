@@ -118,21 +118,21 @@ namespace sel {
     reprHelper(type, "Output", {});
   }
 
-  void VisRepr::visitHead(std::string some, Type const& type) {
-    reprHelper(type, (some+"_head").c_str(), {});
+  void VisRepr::visit(bin::Add::Base::Base const& it) { // same as bin::Add::Head
+    reprHelper(it.type(), "add2", {});
   }
 
-  void VisRepr::visitBody(std::string some, Type const& type, Val const* base, Val const* arg) {
-    reprHelper(type, (some+"_body").c_str(), {
-      fi_val("base", base),
-      fi_val("arg", arg),
+  void VisRepr::visit(bin::Add::Base const& it) {
+    reprHelper(it.type(), "add1", {
+      fi_val("base", it.base),
+      fi_val("arg", it.arg),
     });
   }
 
-  void VisRepr::visitTail(std::string some, Type const& type, Val const* base, Val const* arg) {
-    reprHelper(type, (some+"_tail").c_str(), {
-      fi_val("base", base),
-      fi_val("arg", arg),
+  void VisRepr::visit(bin::Add const& it) {
+    reprHelper(it.type(), "add0", {
+      fi_val("base", it.base),
+      fi_val("arg", it.arg),
     });
   }
 

@@ -1,10 +1,6 @@
 #ifndef SEL_BUILTINS_HPP
 #define SEL_BUILTINS_HPP
 
-// #include <string>
-// #include <typeinfo>
-
-#include "sel/visitors.hpp"
 #include "sel/utils.hpp"
 #include "sel/engine.hpp"
 
@@ -41,11 +37,12 @@ namespace sel {
     // - need to be able to have eg. Type(Ty::LST, !!, !!)
     // - isn't there a weird syntax like `RetType(ParamType1, ..)` that could be used?
 
-    template <typename Next, Ty From, Ty... To>
+    template <typename NextT, Ty From, Ty... To>
     struct bin_val : Fun {
       // constexpr static char const* name = Next::name;
+      typedef NextT Next;
       typedef bin_val<bin_val, To...> Base;
-      typedef typename Base::Tail Tail;
+      typedef typename Base::the the;
       // this is the ctor for body types
       bin_val()
         : Fun(Type(Ty::NUM, {0}, 0)) // ZZZ: wrong
@@ -56,9 +53,7 @@ namespace sel {
         this->base = base;
         this->arg = arg;
       }
-      void accept(Visitor& v) const override {
-        v.visitBody("Next::name", this->ty, this->base, this->arg);
-      }
+      void accept(Visitor& v) const override; // visitBody
       Val* operator()(Val* arg) override {
         auto* r = new Next();
         r->_setup(this, arg);
@@ -66,15 +61,16 @@ namespace sel {
       }
     };
 
-    template <typename Next, Ty LastFrom, Ty LastTo>
-    struct bin_val<Next, LastFrom, LastTo> : Fun {
+    template <typename NextT, Ty LastFrom, Ty LastTo>
+    struct bin_val<NextT, LastFrom, LastTo> : Fun {
+      typedef NextT Next;
       // typedef no_base_marker Base;
       // this is the parent class for the tail type
-      struct Tail : bin_vat<LastTo>::vat {
+      struct the : bin_vat<LastTo>::vat {
         typedef Next Base;
         typedef bin_val Head;
         // this is the ctor for the tail type
-        Tail()
+        the()
           : bin_vat<LastTo>::vat() // ZZZ: wrong
         { }
         Base* base;
@@ -83,9 +79,7 @@ namespace sel {
           this->base = base;
           this->arg = arg;
         }
-        void accept(Visitor& v) const override {
-          v.visitTail("Next::name", this->ty, this->base, this->arg);
-        }
+        void accept(Visitor& v) const override; // visitTail
       };
       // this is the ctor for the head type
       bin_val()
@@ -96,9 +90,7 @@ namespace sel {
         r->_setup(this, arg);
         return r;
       }
-      void accept(Visitor& v) const override {
-        v.visitHead("Next::name", ty);
-      }
+      void accept(Visitor& v) const override; // visitHead
     };
 
   } // namespace bin_val_helpers
@@ -107,13 +99,13 @@ namespace sel {
 
     using bin_val_helpers::bin_val;
 
-    struct Add : bin_val<Add, Ty::NUM, Ty::NUM, Ty::NUM>::Tail {
+    struct Add : bin_val<Add, Ty::NUM, Ty::NUM, Ty::NUM>::the {
       double value() override {
         return ((Num*)base->arg)->value() + ((Num*)arg)->value();
       }
     };
 
-    struct Sub : bin_val<Add, Ty::NUM, Ty::NUM, Ty::NUM>::Tail {
+    struct Sub : bin_val<Add, Ty::NUM, Ty::NUM, Ty::NUM>::the {
       double value() override {
         return ((Num*)base->arg)->value() - ((Num*)arg)->value();
       }
@@ -172,23 +164,6 @@ namespace sel {
     typedef _make_bins_all<bins>::the bins_all;
 
   } // namespace bin_types
-
-
-  template <typename L>
-  class _make_BinsVisitorBase : public _make_BinsVisitorBase<typename L::cdr> {
-  public:
-    using _make_BinsVisitorBase<typename L::cdr>::visit;
-    virtual void visit(typename L::car& val) { std::cerr << "visiting: " << typeid(val).name() << '\n'; }
-  };
-  template <>
-  class _make_BinsVisitorBase<bin_types::nil> {
-  public:
-    virtual ~_make_BinsVisitorBase() { }
-    void visit() { } // YYY: because the 'using' statement (to silence warnings) needs it
-  };
-
-  typedef _make_BinsVisitorBase<bin_types::bins> VisitorBins;
-  typedef _make_BinsVisitorBase<bin_types::bins_all> VisitorBinsAll;
 
 } // namespace sel
 

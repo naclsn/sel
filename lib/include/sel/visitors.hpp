@@ -8,34 +8,55 @@
  * implemented where performance matters.
  */
 
+#include <iostream>
 #include <ostream>
 #include <string>
 #include <vector>
 
 #include "types.hpp"
+#include "builtins.hpp"
 
 namespace sel {
 
   class Val;
   class Fun; // YYY: for FunChain, but I would prefer without
 
-  /**
-   * Base class for the visitor pattern over every `Val`.
-   */
-  class Visitor {
+  class VisitorLits {
   public:
-    virtual ~Visitor() { }
-    void operator()(Val const& val);
-
+    virtual ~VisitorLits() { }
     virtual void visitNumLiteral(Type const& type, double n) = 0;
     virtual void visitStrLiteral(Type const& type, std::string const& s) = 0;
     virtual void visitLstLiteral(Type const& type, std::vector<Val*> const& v) = 0;
     virtual void visitFunChain(Type const& type, std::vector<Fun*> const& f) = 0;
+  //class VisitorSpec
     virtual void visitInput(Type const& type) = 0;
     virtual void visitOutput(Type const& type) = 0;
-    virtual void visitHead(std::string some, Type const& type) = 0;
-    virtual void visitBody(std::string some, Type const& type, Val const* base, Val const* arg) = 0;
-    virtual void visitTail(std::string some, Type const& type, Val const* base, Val const* arg) = 0;
+  };
+
+  template <typename L>
+  class _make_BinsVisitorBase : public _make_BinsVisitorBase<typename L::cdr> {
+  public:
+    using _make_BinsVisitorBase<typename L::cdr>::visit;
+    virtual void visit(typename L::car const& val) {
+      std::cerr << typeid(*this).name() << ": NIY: visiting " << typeid(val).name() << '\n'; // ZZZ
+    }
+  };
+  template <>
+  class _make_BinsVisitorBase<bin_types::nil> {
+  public:
+    virtual ~_make_BinsVisitorBase() { }
+    void visit() { } // YYY: because the 'using' statement (to silence warnings) needs it
+  };
+
+  typedef _make_BinsVisitorBase<bin_types::bins> VisitorBins;
+  typedef _make_BinsVisitorBase<bin_types::bins_all> VisitorBinsAll;
+
+  /**
+   * Base class for the visitor pattern over every `Val`.
+   */
+  class Visitor : public VisitorLits, public VisitorBinsAll {
+  public:
+    void operator()(Val const& val);
   };
 
   class VisRepr : public Visitor {
@@ -77,9 +98,12 @@ namespace sel {
     void visitFunChain(Type const& type, std::vector<Fun*> const& f) override;
     void visitInput(Type const& type) override;
     void visitOutput(Type const& type) override;
-    void visitHead(std::string some, Type const& type) override;
-    void visitBody(std::string some, Type const& type, Val const* base, Val const* arg) override;
-    void visitTail(std::string some, Type const& type, Val const* base, Val const* arg) override;
+
+    void visit(bin::Add const&) override;
+    void visit(bin::Add::Base const& it) override;
+    void visit(bin::Add::Base::Base const&) override;
+    // void visit(bin::Sub const&) override;
+    //...
   };
 
 } // namespace sel
