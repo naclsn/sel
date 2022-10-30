@@ -3,6 +3,7 @@
 
 #include "sel/utils.hpp"
 #include "sel/engine.hpp"
+#include "sel/_bin_helpers.tmp.hpp"
 
 namespace sel {
 
@@ -13,11 +14,17 @@ namespace sel {
 
   namespace bin_val_helpers {
 
-    template <Ty Type> struct bin_vat { typedef Val vat; };
-    template <> struct bin_vat<Ty::NUM> { typedef Num vat; };
-    template <> struct bin_vat<Ty::STR> { typedef Str vat; };
-    template <> struct bin_vat<Ty::LST> { typedef Lst vat; };
-    template <> struct bin_vat<Ty::FUN> { typedef Fun vat; };
+    // struct tmp_unk { };
+    // struct tmp_num { };
+    // struct tmp_str { };
+    // struct tmp_lst { };
+    // struct tmp_fun { };
+
+    template <typename Type> struct bin_vat { typedef Val vat; };
+    template <> struct bin_vat<num> { typedef Num vat; };
+    template <> struct bin_vat<str> { typedef Str vat; };
+    template <typename has> struct bin_vat<lst<has>> { typedef Lst vat; };
+    template <typename from, typename to> struct bin_vat<fun<from, to>> { typedef Fun vat; };
 
     /*
       vat: 'Val abstract type', so ex the class `Num` for Ty::NUM
@@ -42,7 +49,7 @@ namespace sel {
       - and so `T::the::Base::Next::name` is the name constexpr ("add")
     */
 
-    template <typename NextT, Ty From, Ty... To>
+    template <typename NextT, typename From, typename... To>
     struct bin_val : Fun {
       typedef NextT Next;
       typedef bin_val<bin_val, To...> Base;
@@ -72,14 +79,14 @@ namespace sel {
      * typedef typename Head::Next::Next Base; // when ternary, ... (recursive)
      */
     template <typename T> struct _one_to_nextmost;
-    template <typename N, Ty... Tys>
+    template <typename N, typename... Tys>
     struct _one_to_nextmost<bin_val<N, Tys...>> { typedef bin_val<N, Tys...> the; };
-    template <typename N, Ty... Tys1, Ty... Tys2>
+    template <typename N, typename... Tys1, typename... Tys2>
     struct _one_to_nextmost<bin_val<bin_val<N, Tys2...>, Tys1...>> { typedef bin_val<N, Tys2...> the; };
-    template <typename N, Ty... Tys1, Ty... Tys2, Ty... Tys3>
+    template <typename N, typename... Tys1, typename... Tys2, typename... Tys3>
     struct _one_to_nextmost<bin_val<bin_val<bin_val<N, Tys3...>, Tys2...>, Tys1...>> { typedef typename _one_to_nextmost<bin_val<bin_val<N, Tys3...>, Tys2...>>::the the; };
 
-    template <typename NextT, Ty LastFrom, Ty LastTo>
+    template <typename NextT, typename LastFrom, typename LastTo>
     struct bin_val<NextT, LastFrom, LastTo> : Fun {
       typedef NextT Next;
       // this is the parent class for the tail type
@@ -117,9 +124,15 @@ namespace sel {
 
   namespace bin {
 
+    // using bin_val_helpers::unk;
+    using bin_val_helpers::num;
+    // using bin_val_helpers::str;
+    // using bin_val_helpers::lst;
+    // using bin_val_helpers::fun;
+
     using bin_val_helpers::bin_val;
 
-    struct Add : bin_val<Add, Ty::NUM, Ty::NUM, Ty::NUM>::the {
+    struct Add : bin_val<Add, num, num, num>::the {
       constexpr static char const* name = "add";
       double value() override {
         return ((Num*)base->arg)->value() + ((Num*)arg)->value();
@@ -175,7 +188,7 @@ namespace sel {
         typename _make_bins_all<cons<typename TailL::car::Base, typename TailL::cdr>>::the
       > the;
     };
-    template <typename Next, Ty LastFrom, Ty LastTo, typename TailL>
+    template <typename Next, typename LastFrom, typename LastTo, typename TailL>
     struct _make_bins_all<cons<bin_val_helpers::bin_val<Next, LastFrom, LastTo>, TailL>> {
       typedef cons<
         bin_val_helpers::bin_val<Next, LastFrom, LastTo>,

@@ -17,17 +17,17 @@ namespace sel {
     return nullptr;
   }
 
-  template <typename NextT, Ty From, Ty... To>
+  template <typename NextT, typename From, typename... To>
   void bin_val_helpers::bin_val<NextT, From, To...>::accept(Visitor& v) const {
     v.visit(*this); // visitBody
   }
 
-  template <typename NextT, Ty LastFrom, Ty LastTo>
+  template <typename NextT, typename LastFrom, typename LastTo>
   void bin_val_helpers::bin_val<NextT, LastFrom, LastTo>::the::accept(Visitor& v) const {
     v.visit(*(typename Base::Next*)this); // visitTail
   };
 
-  template <typename NextT, Ty LastFrom, Ty LastTo>
+  template <typename NextT, typename LastFrom, typename LastTo>
   void bin_val_helpers::bin_val<NextT, LastFrom, LastTo>::accept(Visitor& v) const {
     v.visit(*this); // visitHead
   }
