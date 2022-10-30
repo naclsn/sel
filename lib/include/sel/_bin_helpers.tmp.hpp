@@ -1,63 +1,6 @@
+// ZZZ
 #ifndef BIDOOF
 #define BIDOOF
-
-#if 0
-map :: (a -> b) -> [a]* -> [b]*
-	a -> b  ==  Str -> Num  -- a==Str -> b==Num
-	[a]* -> [b]*  -- ...
-
-Type(Ty::FUN,
-  {.box_pair={
-    new Type(Ty::FUN,
-      {.box_pair={
-        new Type(Ty::UNK, {.name=new std::string("a")}, 0),
-        new Type(Ty::UNK, {.name=new std::string("b")}, 0)
-      }}, 0
-    ),
-    new Type(Ty::FUN,
-      {.box_pair={
-        new Type(Ty::LST,
-          {.box_has=
-            types1(new Type(Ty::UNK, {.name=new std::string("a")}, 0))
-          }, TyFlag::IS_INF
-        ),
-        new Type(Ty::LST,
-          {.box_has=
-            types1(new Type(Ty::UNK, {.name=new std::string("b")}, 0))
-          }, TyFlag::IS_INF
-        )
-      }}, 0
-    )
-  }}, 0
-)
-
-Type(Ty::FUN,
-  {.box_pair={
-    new Type(Ty::LST,
-      {.box_has=
-        types1(new Type(arg->type().from()))
-      }, TyFlag::IS_INF
-    ),
-    new Type(Ty::LST,
-      {.box_has=
-        types1(new Type(arg->type().to()))
-      }, TyFlag::IS_INF
-    )
-  }}, 0
-)
----
-
-
-unk_make_lookup :: with_unk -> known -> [(name, type)]
-
-
-template <with_unk, char name>
-struct _extract_type_for_name<with_unk, name> {
-  Type the(Val* arg) {
-    return ...;
-  }
-};
-#endif
 
 #include "sel/types.hpp"
 #include "sel/engine.hpp"

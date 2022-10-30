@@ -9,7 +9,7 @@ namespace sel {
     // if ("flip"  == name) return new Flip2();
     // if ("idk"   == name) return new bin::Idk::Head();
     // if ("join"  == name) return new Join2();
-    // if ("map"   == name) return new Map2();
+    // if ("map"   == name) return new bin::Map::Head();
     // if ("split" == name) return new Split2();
     // if ("sub"   == name) return new bin::Sub::Head();
     // if ("tonum" == name) return new Tonum1();

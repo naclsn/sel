@@ -97,7 +97,7 @@ namespace sel {
         { }
         Base* base;
         Val* arg; // ZZZ: wrong
-        inline void _setup(Base* base, Val* arg) { // (this needed because wasn't able to inherit ctor) but it will be needed to have at least the `Val* arg` in the ctor so it can build the proper `Type()`
+        inline void _setup(Base* base, Val* arg) { // ZZZ: TODO: move back to ctor
           this->base = base;
           this->arg = arg;
         }
@@ -121,7 +121,7 @@ namespace sel {
 
   namespace bin {
 
-    using bin_val_helpers::unk;
+    // using bin_val_helpers::unk;
     using bin_val_helpers::num;
     // using bin_val_helpers::str;
     // using bin_val_helpers::lst;
@@ -129,8 +129,10 @@ namespace sel {
 
     using bin_val_helpers::bin_val;
 
-    struct Add : bin_val<Add, num, unk<'b'>, unk<'a'>>::the {
+    // REM: XXX: backward: Num <- Num <- Num
+    struct Add : bin_val<Add, num, num, num>::the {
       constexpr static char const* name = "add";
+      using the::the; // Add(the::Base* base, Val* val): the() { _setup(base, val); }
       double value() override {
         return ((Num*)base->arg)->value() + ((Num*)arg)->value();
       }
@@ -141,6 +143,17 @@ namespace sel {
     //   double value() override {
     //     return 0;
     //   }
+    // };
+
+    // struct Map : bin_val<Map, lst<unk<'b'>>, lst<unk<'a'>>, fun<unk<'a'>, unk<'b'>>>::the {
+    // // struct Map : bin_val<Map, num, num, num>::the {
+    //   constexpr static char const* name = "map";
+    //   // double value() override { }
+    //   Val* operator*() override { return nullptr; }
+    //   Lst& operator++() override { return *this; }
+    //   bool end() const override { return true; }
+    //   void rewind() override { }
+    //   size_t count() override { return 0; }
     // };
 
     // struct Sub : bin_val<Sub, Ty::NUM, Ty::NUM, Ty::NUM>::the {
@@ -199,6 +212,7 @@ namespace sel {
 
     using namespace bin;
     // typedef cons_l<Add, Idk, Sub>::the bins;
+    // typedef cons_l<Add, Map>::the bins;
     typedef cons_l<Add>::the bins;
     typedef _make_bins_all<bins>::the bins_all;
 
