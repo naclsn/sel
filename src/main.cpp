@@ -57,7 +57,7 @@ after_while: ;
   return EXIT_SUCCESS;
 }
 
-int main() {
+int main1() {
   VisRepr* repr = new VisRepr(cerr);
 
   Val* add2 = lookup_name("add");
@@ -74,4 +74,8 @@ int main() {
 
   cerr << "result: " << (*(Num*)add0).value() << endl;
   return 0;
+}
+
+int main() {
+  bin_val_helpers::bidoof();
 }

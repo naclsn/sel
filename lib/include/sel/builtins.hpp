@@ -19,6 +19,8 @@ namespace sel {
     template <> struct bin_vat<Ty::LST> { typedef Lst vat; };
     template <> struct bin_vat<Ty::FUN> { typedef Fun vat; };
 
+    void bidoof();
+
     /*
       vat: 'Val abstract type', so ex the class `Num` for Ty::NUM
 
@@ -69,13 +71,26 @@ namespace sel {
       }
     };
 
+    /**
+     * typedef Head Base; // when unary,
+     * typedef typename Head::Next Base; // when binary,
+     * typedef typename Head::Next::Next Base; // when ternary, ... (recursive)
+     */
+    template <typename T> struct _one_to_nextmost;
+    template <typename N, Ty... Tys>
+    struct _one_to_nextmost<bin_val<N, Tys...>> { typedef bin_val<N, Tys...> the; };
+    template <typename N, Ty... Tys1, Ty... Tys2>
+    struct _one_to_nextmost<bin_val<bin_val<N, Tys2...>, Tys1...>> { typedef bin_val<N, Tys2...> the; };
+    template <typename N, Ty... Tys1, Ty... Tys2, Ty... Tys3>
+    struct _one_to_nextmost<bin_val<bin_val<bin_val<N, Tys3...>, Tys2...>, Tys1...>> { typedef typename _one_to_nextmost<bin_val<bin_val<N, Tys3...>, Tys2...>>::the the; };
+
     template <typename NextT, Ty LastFrom, Ty LastTo>
     struct bin_val<NextT, LastFrom, LastTo> : Fun {
       typedef NextT Next;
       // this is the parent class for the tail type
       struct the : bin_vat<LastTo>::vat {
-        typedef Next Base; // XXX: this may be wrong, I don't know anymore, but the way I understand it is: it works only because Add and Sub have a single Body (2 parameters) but may no longer be ok with more
         typedef bin_val Head;
+        typedef typename _one_to_nextmost<Head>::the Base;
         constexpr static unsigned args = Base::args + 1;
         // this is the ctor for the tail type
         the()
@@ -113,6 +128,13 @@ namespace sel {
       constexpr static char const* name = "add";
       double value() override {
         return ((Num*)base->arg)->value() + ((Num*)arg)->value();
+      }
+    };
+
+    struct Idk : bin_val<Idk, Ty::NUM, Ty::NUM, Ty::NUM, Ty::NUM>::the {
+      constexpr static char const* name = "idk";
+      double value() override {
+        return 0;
       }
     };
 
@@ -171,8 +193,7 @@ namespace sel {
     };
 
     using namespace bin;
-    // typedef cons<Add, cons<Sub, nil>> bins;
-    typedef cons_l<Add, Sub>::the bins;
+    typedef cons_l<Add, Idk, Sub>::the bins;
     typedef _make_bins_all<bins>::the bins_all;
 
   } // namespace bin_types
