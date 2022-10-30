@@ -104,12 +104,12 @@ namespace sel {
     void visitInput(Type const& type) override;
     void visitOutput(Type const& type) override;
 
-    void visit(bin::Add const&) override;
-    void visit(bin::Add::Base const&) override;
-    void visit(bin::Add::Base::Base const&) override;
-    void visit(bin::Sub const&) override;
-    void visit(bin::Sub::Base const&) override;
-    void visit(bin::Sub::Base::Base const&) override;
+    // void visit(bin::Add const&) override;
+    // void visit(bin::Add::Base const&) override;
+    // void visit(bin::Add::Base::Base const&) override;
+    // void visit(bin::Sub const&) override;
+    // void visit(bin::Sub::Base const&) override;
+    // void visit(bin::Sub::Base::Base const&) override;
   };
 
 } // namespace sel

@@ -19,8 +19,6 @@ namespace sel {
     template <> struct bin_vat<Ty::LST> { typedef Lst vat; };
     template <> struct bin_vat<Ty::FUN> { typedef Fun vat; };
 
-    void bidoof();
-
     /*
       vat: 'Val abstract type', so ex the class `Num` for Ty::NUM
 
@@ -43,9 +41,6 @@ namespace sel {
       - `T::the::Base::Next` is the actual implementation (so `Add` for "add")
       - and so `T::the::Base::Next::name` is the name constexpr ("add")
     */
-    // TODO: replace the use of raw Ty for types that hold more info
-    // - need to be able to have eg. Type(Ty::LST, !!, !!)
-    // - isn't there a weird syntax like `RetType(ParamType1, ..)` that could be used?
 
     template <typename NextT, Ty From, Ty... To>
     struct bin_val : Fun {
@@ -131,19 +126,19 @@ namespace sel {
       }
     };
 
-    struct Idk : bin_val<Idk, Ty::NUM, Ty::NUM, Ty::NUM, Ty::NUM>::the {
-      constexpr static char const* name = "idk";
-      double value() override {
-        return 0;
-      }
-    };
+    // struct Idk : bin_val<Idk, Ty::NUM, Ty::NUM, Ty::NUM, Ty::NUM>::the {
+    //   constexpr static char const* name = "idk";
+    //   double value() override {
+    //     return 0;
+    //   }
+    // };
 
-    struct Sub : bin_val<Sub, Ty::NUM, Ty::NUM, Ty::NUM>::the {
-      constexpr static char const* name = "sub";
-      double value() override {
-        return ((Num*)base->arg)->value() - ((Num*)arg)->value();
-      }
-    };
+    // struct Sub : bin_val<Sub, Ty::NUM, Ty::NUM, Ty::NUM>::the {
+    //   constexpr static char const* name = "sub";
+    //   double value() override {
+    //     return ((Num*)base->arg)->value() - ((Num*)arg)->value();
+    //   }
+    // };
 
   } // namespace bin
 
@@ -193,7 +188,8 @@ namespace sel {
     };
 
     using namespace bin;
-    typedef cons_l<Add, Idk, Sub>::the bins;
+    // typedef cons_l<Add, Idk, Sub>::the bins;
+    typedef cons_l<Add>::the bins;
     typedef _make_bins_all<bins>::the bins_all;
 
   } // namespace bin_types
