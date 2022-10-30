@@ -1,0 +1,215 @@
+
+#if 0
+map :: (a -> b) -> [a]* -> [b]*
+	a -> b  ==  Str -> Num  -- a==Str -> b==Num
+	[a]* -> [b]*  -- ...
+
+Type(Ty::FUN,
+  {.box_pair={
+    new Type(Ty::FUN,
+      {.box_pair={
+        new Type(Ty::UNK, {.name=new std::string("a")}, 0),
+        new Type(Ty::UNK, {.name=new std::string("b")}, 0)
+      }}, 0
+    ),
+    new Type(Ty::FUN,
+      {.box_pair={
+        new Type(Ty::LST,
+          {.box_has=
+            types1(new Type(Ty::UNK, {.name=new std::string("a")}, 0))
+          }, TyFlag::IS_INF
+        ),
+        new Type(Ty::LST,
+          {.box_has=
+            types1(new Type(Ty::UNK, {.name=new std::string("b")}, 0))
+          }, TyFlag::IS_INF
+        )
+      }}, 0
+    )
+  }}, 0
+)
+
+Type(Ty::FUN,
+  {.box_pair={
+    new Type(Ty::LST,
+      {.box_has=
+        types1(new Type(arg->type().from()))
+      }, TyFlag::IS_INF
+    ),
+    new Type(Ty::LST,
+      {.box_has=
+        types1(new Type(arg->type().to()))
+      }, TyFlag::IS_INF
+    )
+  }}, 0
+)
+---
+
+
+unk_make_lookup :: with_unk -> known -> [(name, type)]
+
+
+template <with_unk, char name>
+struct _extract_type_for_name<with_unk, name> {
+  Type the(Val* arg) {
+    return ...;
+  }
+};
+#endif
+
+#include "sel/types.hpp"
+#include "sel/engine.hpp"
+using namespace sel;
+
+template <char c> struct unk { inline static Type make() {
+  return Type(Ty::UNK, {.name=new std::string(1, c)}, 0);
+} };
+struct num { inline static Type make() {
+  return Type(Ty::NUM, {0}, 0);
+} };
+/*template <bool>*/ struct str { inline static Type make() {
+  return Type(Ty::STR, {0}, TyFlag::IS_FIN);
+} };
+template <typename has> struct lst { inline static Type make() {
+  return Type(Ty::LST, {.box_has=types1(new Type(has::make()))}, TyFlag::IS_FIN);
+} };
+template <typename from, typename to> struct fun { inline static Type make() {
+  return Type(Ty::FUN, {.box_pair={new Type(from::make()), new Type(to::make())}}, 0);
+} };
+
+
+/**
+ * for example:
+ *   c == 'a'
+ *   has_unknowns is "Num -> a"
+ *
+ * this will be a structure with an inline static function
+ * `Type find(Type ty)` that return the path to the nested
+ * that has the unknown named `c`
+ *
+ * `_<'a', "Num -> [a]">::find(ty) == ty.to().has()[0]`
+ *
+ * note: for function types, will prioritise `from`, ie.
+ * with "a -> a" it will be `ty.from()`
+ * (which should `== ty.to()` anyways)
+ */
+template <char c, typename has_unknowns>
+struct _find_unknown {
+  inline static Type find(Type ty) { } //{ return Type(Ty::UNK, {.name=new std::string(1, c)}, 0); }
+  constexpr static bool matches = false;
+};
+
+template <char c>
+struct _find_unknown<c, unk<c>> {
+  inline static Type find(Type ty) { return ty; }
+  constexpr static bool matches = true;
+};
+
+template <char c, typename has>
+struct _find_unknown<c, lst<has>> {
+  inline static Type find(Type ty) {
+    return _find_unknown<c, has>::find(ty.has()[0]);
+  }
+  constexpr static bool matches = _find_unknown<c, has>::matches;
+};
+
+template <char c, typename from, typename to>
+struct _find_unknown<c, fun<from, to>> {
+  template <bool is_in_from> inline static Type _get(Type ty) { return ty.from(); }
+  template <>                inline static Type _get<false>(Type ty) { return ty.to(); }
+  inline static Type find(Type ty) {
+    return std::conditional<
+        _find_unknown<c, from>::matches,
+        _find_unknown<c, from>,
+        _find_unknown<c, to>
+      >::find(_get<_find_unknown<c, from>::matches>(ty));
+  }
+  constexpr static bool matches
+    =  _find_unknown<c, from>::matches
+    || _find_unknown<c, to>::matches;
+};
+
+
+/**
+ * for example:
+ *   template_type is "a -> b"
+ *   has_unknowns is "[a -> b]"
+ *
+ * this will be a structure with an inline static function
+ * `Type make(Type ty)` that builds a new type following
+ * the template `template_type` with... wait, is this
+ * the same thing as `_now_known`?
+ */
+template <typename template_type, typename has_unknowns>
+struct _build_anew { inline static Type make(Type _) { return template_type::make(); } };
+
+template <char has, typename hu>
+struct _build_anew<lst<unk<has>>, hu> {
+  inline static Type make(Type ty) {
+    return Type(Ty::LST,
+      {.box_has=types1(
+        new Type(_find_unknown<has, hu>::find(ty))
+      )}, 0
+    );
+  }
+};
+
+template <char from, char to, typename hu>
+struct _build_anew<fun<unk<from>, unk<to>>, hu> {
+  inline static Type make(Type ty) {
+    return Type(Ty::FUN,
+      {.box_pair={
+        new Type(_find_unknown<from, hu>::find(ty)),
+        new Type(_find_unknown<to, hu>::find(ty))
+      }}, 0
+    );
+  }
+};
+
+
+/**
+ * for example:
+ *   template_type is "[a]"
+ *   has_unknowns is "a -> b"
+ *
+ * this will be a structure with an inline static function
+ * `Type make(Type ty)` that returns `template_type` filled
+ * with types found in `ty` at locations indicated by
+ * `has_unknown`
+ *
+ * `_<"[a]", "a -> b">::make(Type("Num -> Str")) == Type("[Num]")`
+ */
+template <typename template_type, typename has_unknowns>
+struct _now_known; // default impl?
+
+template <char a, typename hu>
+struct _now_known<lst<unk<a>>, hu> { // X<a> -> [a]
+  inline static Type make(Val* arg) {
+    return Type(Ty::LST,
+      {.box_has=
+        types1(new Type(
+          _find_unknown<a, hu>::find(arg->type())
+        ))
+      }, 0
+    );
+  }
+};
+
+template <char a, char b, typename hu>
+struct _now_known<lst<fun<unk<a>, unk<b>>>, hu> { // X<a> -> [a -> b]
+  inline static Type make(Val* arg) {
+    return Type(Ty::LST,
+      {.box_has=
+        types1(new Type(
+          _build_anew<fun<unk<a>, unk<b>>, hu>::make(arg->type())
+          // Type(Ty::FUN,
+          //   {.box_pair{
+          //     _find_unknown<a, has_unknowns>::find(arg->type()),
+          //     _find_unknown<b, has_unknowns>::find(arg->type())
+          //   }}, 0
+          // )
+        ))
+      }, 0
+    );
+  }
+};
