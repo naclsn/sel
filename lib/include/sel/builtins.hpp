@@ -43,28 +43,34 @@ namespace sel {
       - and so `T::the::Base::Next::name` is the name constexpr ("add")
     */
 
-    template <typename NextT, typename to, typename from, typename... from_more> // ZZZ: will need to explicide one more 'from' when adding the correct vat instead of `Val*`
+    // template <typename Implementation, typename... types> struct bin_val;
+    //
+    // template <typename Impl, typename one>
+    // struct bin_val<Impl, one> {
+    //   struct Base { typedef Impl Next; }; // YYY: for `the::Base::Next` trick...
+    //   struct the : bin_vat<one>::vat {
+    //     the()
+    //       : bin_vat<one>::vat() // ZZZ: wrong
+    //     { }
+    //   };
+    // };
+
+    template <typename NextT, typename to, typename from, typename... from_more> // ZZZ: will need to explicite one more 'from' when adding the correct vat instead of `Val*`
     struct bin_val : Fun {
       typedef NextT Next;
       typedef bin_val<bin_val, fun<from, to>, from_more...> Base;
       typedef typename Base::the the;
       constexpr static unsigned args = Base::args + 1;
-      // this is the ctor for body types
-      bin_val()
-        : Fun(fun<from, to>::make()) // ZZZ: wrong
-      { }
       Base* base;
       Val* arg; // ZZZ: wrong
-      inline void _setup(Base* base, Val* arg) {
-        this->base = base;
-        this->arg = arg;
-      }
+      // this is the ctor for body types
+      bin_val(Base* base, Val* arg)
+        : Fun(fun<from, to>::make()) // ZZZ: wrong
+        , base(base)
+        , arg(arg)
+      { }
+      Val* operator()(Val* arg) override { return new Next(this, arg); }
       void accept(Visitor& v) const override; // visitBody
-      Val* operator()(Val* arg) override {
-        auto* r = new Next();
-        r->_setup(this, arg);
-        return r;
-      }
     };
 
     template <typename other> struct _fun_last_ret_type { typedef other the; };
@@ -92,15 +98,13 @@ namespace sel {
         typedef typename _one_to_nextmost<Head>::the Base;
         constexpr static unsigned args = Base::args + 1;
         // this is the ctor for the tail type
-        the()
-          : bin_vat<typename _fun_last_ret_type<last_to>::the>::vat() // ZZZ: wrong
-        { }
         Base* base;
         Val* arg; // ZZZ: wrong
-        inline void _setup(Base* base, Val* arg) { // ZZZ: TODO: move back to ctor
-          this->base = base;
-          this->arg = arg;
-        }
+        the(Base* base, Val* arg)
+          : bin_vat<typename _fun_last_ret_type<last_to>::the>::vat() // ZZZ: wrong
+          , base(base)
+          , arg(arg)
+        { }
         void accept(Visitor& v) const override; // visitTail
       };
       // head struct does not have `.arg`
@@ -109,11 +113,7 @@ namespace sel {
       bin_val()
         : Fun(fun<last_from, last_to>::make())
       { }
-      Val* operator()(Val* arg) override {
-        auto* r = new Next();
-        r->_setup(this, arg);
-        return r;
-      }
+      Val* operator()(Val* arg) override { return new Next(this, arg); }
       void accept(Visitor& v) const override; // visitHead
     };
 
@@ -132,7 +132,7 @@ namespace sel {
     // REM: XXX: backward: Num <- Num <- Num
     struct Add : bin_val<Add, num, num, num>::the {
       constexpr static char const* name = "add";
-      using the::the; // Add(the::Base* base, Val* val): the() { _setup(base, val); }
+      using the::the;
       double value() override {
         return ((Num*)base->arg)->value() + ((Num*)arg)->value();
       }
