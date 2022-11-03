@@ -57,6 +57,15 @@ namespace sel {
       , v(v)
       , c(0)
     { }
+    LstLiteral(std::vector<Val*> v, std::vector<Type*>* has) // ZZZ
+      : Lst(Type(Ty::LST,
+          {.box_has=
+            has
+          }, TyFlag::IS_FIN
+        ))
+      , v(v)
+      , c(0)
+    { }
     Val* operator*() override;
     Lst& operator++() override;
     bool end() const override;

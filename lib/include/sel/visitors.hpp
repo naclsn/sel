@@ -107,9 +107,14 @@ namespace sel {
     void visit(bin::Add const&) override;
     void visit(bin::Add::Base const&) override;
     void visit(bin::Add::Base::Base const&) override;
+    void visit(bin::Map const&) override;
+    void visit(bin::Map::Base const&) override;
+    void visit(bin::Map::Base::Base const&) override;
     // void visit(bin::Sub const&) override;
     // void visit(bin::Sub::Base const&) override;
     // void visit(bin::Sub::Base::Base const&) override;
+    void visit(bin::Tonum const&) override;
+    void visit(bin::Tonum::Base const&) override;
   };
 
 } // namespace sel

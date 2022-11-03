@@ -1,6 +1,8 @@
 #ifndef SEL_BUILTINS_HPP
 #define SEL_BUILTINS_HPP
 
+#include <sstream>
+
 #include "sel/utils.hpp"
 #include "sel/engine.hpp"
 #include "sel/_bin_helpers.tmp.hpp"
@@ -14,11 +16,11 @@ namespace sel {
 
   namespace bin_val_helpers {
 
-    template <typename Type> struct bin_vat { typedef Val vat; };
-    template <> struct bin_vat<num> { typedef Num vat; };
-    template <> struct bin_vat<str> { typedef Str vat; };
-    template <typename has> struct bin_vat<lst<has>> { typedef Lst vat; };
-    template <typename from, typename to> struct bin_vat<fun<from, to>> { typedef Fun vat; };
+    // template <typename Type> struct bin_vat { typedef Val vat; };
+    // template <> struct bin_vat<num> { typedef Num vat; };
+    // template <> struct bin_vat<str> { typedef Str vat; };
+    // template <typename has> struct bin_vat<lst<has>> { typedef Lst vat; };
+    // template <typename from, typename to> struct bin_vat<fun<from, to>> { typedef Fun vat; };
 
     /*
       vat: 'Val abstract type', so ex the class `Num` for Ty::NUM
@@ -56,7 +58,7 @@ namespace sel {
     // };
 
     template <typename NextT, typename to, typename from, typename... from_more> // ZZZ: will need to explicite one more 'from' when adding the correct vat instead of `Val*`
-    struct bin_val : Fun {
+    struct bin_val : fun<from, to>::ctor {
       typedef NextT Next;
       typedef bin_val<bin_val, fun<from, to>, from_more...> Base;
       typedef typename Base::the the;
@@ -65,7 +67,8 @@ namespace sel {
       Val* arg; // ZZZ: wrong
       // this is the ctor for body types
       bin_val(Base* base, Val* arg)
-        : Fun(fun<from, to>::make()) // ZZZ: wrong
+        // : Fun(fun<from, to>::make()) // ZZZ: wrong
+        : fun<from, to>::ctor(base->type(), arg->type())
         , base(base)
         , arg(arg)
       { }
@@ -90,10 +93,10 @@ namespace sel {
     struct _one_to_nextmost<bin_val<bin_val<bin_val<N, tys3...>, tys2...>, tys1...>> { typedef typename _one_to_nextmost<bin_val<bin_val<N, tys3...>, tys2...>>::the the; };
 
     template <typename NextT, typename last_to, typename last_from>
-    struct bin_val<NextT, last_to, last_from> : Fun {
+    struct bin_val<NextT, last_to, last_from> : fun<last_from, last_to>::ctor {
       typedef NextT Next;
       // this is the parent class for the tail type
-      struct the : bin_vat<typename _fun_last_ret_type<last_to>::the>::vat {
+      struct the : _fun_last_ret_type<last_to>::the::ctor {
         typedef bin_val Head;
         typedef typename _one_to_nextmost<Head>::the Base;
         constexpr static unsigned args = Base::args + 1;
@@ -101,7 +104,7 @@ namespace sel {
         Base* base;
         Val* arg; // ZZZ: wrong
         the(Base* base, Val* arg)
-          : bin_vat<typename _fun_last_ret_type<last_to>::the>::vat() // ZZZ: wrong
+          : _fun_last_ret_type<last_to>::the::ctor(base->type(), arg->type()) // ZZZ: wrong
           , base(base)
           , arg(arg)
         { }
@@ -111,21 +114,25 @@ namespace sel {
       constexpr static unsigned args = 0;
       // this is the ctor for the head type
       bin_val()
-        : Fun(fun<last_from, last_to>::make())
+        // : Fun(fun<last_from, last_to>::make())
+        : fun<last_from, last_to>::ctor()
       { }
       Val* operator()(Val* arg) override { return new Next(this, arg); }
       void accept(Visitor& v) const override; // visitHead
     };
 
+    // TODO: template<>bin_val for when the last return type is of unknown
+    //       (for example "flip" ends on a `Fun`...)
+
   } // namespace bin_val_helpers
 
   namespace bin {
 
-    // using bin_val_helpers::unk;
+    using bin_val_helpers::unk;
     using bin_val_helpers::num;
-    // using bin_val_helpers::str;
-    // using bin_val_helpers::lst;
-    // using bin_val_helpers::fun;
+    using bin_val_helpers::str;
+    using bin_val_helpers::lst;
+    using bin_val_helpers::fun;
 
     using bin_val_helpers::bin_val;
 
@@ -145,16 +152,17 @@ namespace sel {
     //   }
     // };
 
-    // struct Map : bin_val<Map, lst<unk<'b'>>, lst<unk<'a'>>, fun<unk<'a'>, unk<'b'>>>::the {
-    // // struct Map : bin_val<Map, num, num, num>::the {
-    //   constexpr static char const* name = "map";
-    //   // double value() override { }
-    //   Val* operator*() override { return nullptr; }
-    //   Lst& operator++() override { return *this; }
-    //   bool end() const override { return true; }
-    //   void rewind() override { }
-    //   size_t count() override { return 0; }
-    // };
+    struct Map : bin_val<Map, lst<unk<'b'>>, lst<unk<'a'>>, fun<unk<'a'>, unk<'b'>>>::the {
+      constexpr static char const* name = "map";
+      using the::the;
+      Val* operator*() override { // ZZZ: place holder
+        return (*(Fun*)base->arg)(**(Lst*)arg);
+      }
+      Lst& operator++() override { return *this; }
+      bool end() const override { return true; }
+      void rewind() override { }
+      size_t count() override { return 0; }
+    };
 
     // struct Sub : bin_val<Sub, Ty::NUM, Ty::NUM, Ty::NUM>::the {
     //   constexpr static char const* name = "sub";
@@ -162,6 +170,18 @@ namespace sel {
     //     return ((Num*)base->arg)->value() - ((Num*)arg)->value();
     //   }
     // };
+
+    struct Tonum : bin_val<Tonum, num, str>::the {
+      constexpr static char const* name = "tonum";
+      using the::the;
+      double value() override {
+        double r;
+        std::stringstream ss;
+        ((Str*)arg)->entire(ss);
+        ss >> r;
+        return r;
+      }
+    };
 
   } // namespace bin
 
@@ -212,8 +232,8 @@ namespace sel {
 
     using namespace bin;
     // typedef cons_l<Add, Idk, Sub>::the bins;
-    // typedef cons_l<Add, Map>::the bins;
-    typedef cons_l<Add>::the bins;
+    typedef cons_l<Add, Map, Tonum>::the bins;
+    // typedef cons_l<Add>::the bins;
     typedef _make_bins_all<bins>::the bins_all;
 
   } // namespace bin_types

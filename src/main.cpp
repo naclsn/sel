@@ -57,21 +57,48 @@ after_while: ;
   return EXIT_SUCCESS;
 }
 
-int main() {
-  VisRepr* repr = new VisRepr(cerr);
+static VisRepr repr = VisRepr(cerr);
+#define showv(__ident) cerr << #__ident ": "; repr(*__ident)
 
+void test_tonum() {
+  Val* tonum1 = lookup_name("tonum");
+  showv(tonum1);
+
+  Val* tonum0 = (*(Fun*)tonum1)(new StrLiteral("3"));
+  showv(tonum0);
+
+  cerr << "result: " << (*(Num*)tonum0).value() << endl;
+}
+
+void test_add() {
   Val* add2 = lookup_name("add");
-  cerr << "add2: ";
-  (*repr)(*add2);
+  showv(add2);
 
   Val* add1 = (*(Fun*)add2)(new NumLiteral(1));
-  cerr << "add1: ";
-  (*repr)(*add1);
+  showv(add1);
 
   Val* add0 = (*(Fun*)add1)(new NumLiteral(2));
-  cerr << "add0: ";
-  (*repr)(*add0);
+  showv(add0);
 
   cerr << "result: " << (*(Num*)add0).value() << endl;
+}
+
+void test_map() {
+  Val* map2 = lookup_name("map");
+  showv(map2);
+
+  Val* map1 = (*(Fun*)map2)(lookup_name("tonum"));
+  showv(map1);
+
+  Val* map0 = (*(Fun*)map1)(new LstLiteral({new StrLiteral("4")}, types1(new Type(Ty::STR, {0}, 0))));
+  showv(map0);
+
+  cerr << "result: " << (*(Num*)*(*(Lst*)map0)).value() << endl;
+}
+
+int main() {
+  cerr << "{{{ test_tonum\n"; test_tonum(); cerr << "}}}\n";
+  cerr << "{{{ test_add\n";   test_add();   cerr << "}}}\n";
+  cerr << "{{{ test_map\n";   test_map();   cerr << "}}}\n";
   return 0;
 }

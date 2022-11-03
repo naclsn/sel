@@ -9,21 +9,46 @@
 namespace sel {
 namespace bin_val_helpers {
 
-template <char c> struct unk { inline static Type make() {
-  return Type(Ty::UNK, {.name=new std::string(1, c)}, 0);
-} };
-struct num { inline static Type make() {
-  return Type(Ty::NUM, {0}, 0);
-} };
-/*template <TyFlag is_inf> */struct str { inline static Type make() {
-  return Type(Ty::STR, {0}, TyFlag::IS_FIN/*is_inf*/);
-} };
-template <typename/*...*/ has/*, TyFlag is_inf*/> struct lst { inline static Type make() {
-  return Type(Ty::LST, {.box_has=types1(new Type(has::make()/*...*/))}, TyFlag::IS_FIN/*is_inf*/);
-} };
-template <typename from, typename to> struct fun { inline static Type make() {
-  return Type(Ty::FUN, {.box_pair={new Type(from::make()), new Type(to::make())}}, 0);
-} };
+template <char c> struct unk {
+  inline static Type make() {
+    return Type(Ty::UNK, {.name=new std::string(1, c)}, 0);
+  }
+  typedef void ctor; // YYY: probably should never
+};
+struct num {
+  inline static Type make() {
+    return Type(Ty::NUM, {0}, 0);
+  }
+  struct ctor : Num {
+    ctor(Type const& base_fty, Type const& ty): Num() { }
+  };
+};
+/*template <TyFlag is_inf> */struct str {
+  inline static Type make() {
+    return Type(Ty::STR, {0}, TyFlag::IS_FIN/*is_inf*/);
+  }
+  struct ctor : Str {
+    ctor(Type const& base_fty, Type const& ty): Str(TyFlag::IS_FIN) { } // ZZZ
+  };
+};
+template <typename/*...*/ has/*, TyFlag is_inf*/> struct lst {
+  inline static Type make() {
+    return Type(Ty::LST, {.box_has=types1(new Type(has::make()/*...*/))}, TyFlag::IS_FIN/*is_inf*/);
+  }
+  struct ctor : Lst {
+    ctor(Type const& base_fty, Type const& ty): Lst(make()) { } //: Fun(Type()) { } // ZZZ
+    ctor(): Lst(make()) { }
+  };
+};
+template <typename from, typename to> struct fun {
+  inline static Type make() {
+    return Type(Ty::FUN, {.box_pair={new Type(from::make()), new Type(to::make())}}, 0);
+  }
+  struct ctor : Fun {
+    ctor(Type const& base_fty, Type const& ty): Fun(make()) { } //: Fun(Type()) { } // ZZZ
+    ctor(): Fun(make()) { }
+  };
+};
 
 
 /**

@@ -143,6 +143,16 @@ namespace sel {
     visitCommon(it, std::conditional<!bin::Add::Base::Base::args, std::true_type, std::false_type>::type{});
   }
 
+  void VisRepr::visit(bin::Map const& it) {
+    visitCommon(it, std::conditional<!bin::Map::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bin::Map::Base const& it) {
+    visitCommon(it, std::conditional<!bin::Map::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bin::Map::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bin::Map::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+
   // void VisRepr::visit(bin::Sub const& it) {
   //   visitCommon(it, std::conditional<!bin::Sub::args, std::true_type, std::false_type>::type{});
   // }
@@ -152,5 +162,12 @@ namespace sel {
   // void VisRepr::visit(bin::Sub::Base::Base const& it) {
   //   visitCommon(it, std::conditional<!bin::Sub::Base::Base::args, std::true_type, std::false_type>::type{});
   // }
+
+  void VisRepr::visit(bin::Tonum const& it) {
+    visitCommon(it, std::conditional<!bin::Tonum::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bin::Tonum::Base const& it) {
+    visitCommon(it, std::conditional<!bin::Tonum::Base::args, std::true_type, std::false_type>::type{});
+  }
 
 } // namespace sel
