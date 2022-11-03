@@ -153,6 +153,13 @@ namespace sel {
     visitCommon(it, std::conditional<!bin::Map::Base::Base::args, std::true_type, std::false_type>::type{});
   }
 
+  void VisRepr::visit(bin::Repeat const& it) {
+    visitCommon(it, std::conditional<!bin::Repeat::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bin::Repeat::Base const& it) {
+    visitCommon(it, std::conditional<!bin::Repeat::Base::args, std::true_type, std::false_type>::type{});
+  }
+
   // void VisRepr::visit(bin::Sub const& it) {
   //   visitCommon(it, std::conditional<!bin::Sub::args, std::true_type, std::false_type>::type{});
   // }

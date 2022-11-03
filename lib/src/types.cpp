@@ -1,3 +1,4 @@
+#define TRACE(...)
 #include "sel/utils.hpp"
 #include "sel/types.hpp"
 #include "sel/errors.hpp"

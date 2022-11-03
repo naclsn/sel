@@ -57,8 +57,8 @@ after_while: ;
   return EXIT_SUCCESS;
 }
 
-static VisRepr repr = VisRepr(cerr);
-#define showv(__ident) cerr << #__ident ": "; repr(*__ident)
+static VisRepr repr = VisRepr(cout);
+#define showv(__ident) cout << #__ident ": "; repr(*__ident)
 
 void test_tonum() {
   Val* tonum1 = lookup_name("tonum");
@@ -67,7 +67,7 @@ void test_tonum() {
   Val* tonum0 = (*(Fun*)tonum1)(new StrLiteral("3"));
   showv(tonum0);
 
-  cerr << "result: " << (*(Num*)tonum0).value() << endl;
+  cout << "result: " << (*(Num*)tonum0).value() << endl;
 }
 
 void test_add() {
@@ -80,7 +80,7 @@ void test_add() {
   Val* add0 = (*(Fun*)add1)(new NumLiteral(2));
   showv(add0);
 
-  cerr << "result: " << (*(Num*)add0).value() << endl;
+  cout << "result: " << (*(Num*)add0).value() << endl;
 }
 
 void test_map() {
@@ -93,12 +93,23 @@ void test_map() {
   Val* map0 = (*(Fun*)map1)(new LstLiteral({new StrLiteral("4")}, types1(new Type(Ty::STR, {0}, 0))));
   showv(map0);
 
-  cerr << "result: " << (*(Num*)*(*(Lst*)map0)).value() << endl;
+  cout << "result: " << (*(Num*)*(*(Lst*)map0)).value() << endl;
+}
+
+void test_repeat() {
+  Val* repeat1 = lookup_name("repeat");
+  showv(repeat1);
+
+  Val* repeat0 = (*(Fun*)repeat1)(new NumLiteral(5));
+  showv(repeat0);
+
+  // cout << "result: " << (*(Num*)*(*(Lst*)repeat0)).value() << endl;
 }
 
 int main() {
-  cerr << "{{{ test_tonum\n"; test_tonum(); cerr << "}}}\n";
-  cerr << "{{{ test_add\n";   test_add();   cerr << "}}}\n";
-  cerr << "{{{ test_map\n";   test_map();   cerr << "}}}\n";
+  cout << "{{{ test_tonum\n";  test_tonum();  cout << "}}}\n";
+  cout << "{{{ test_add\n";    test_add();    cout << "}}}\n";
+  cout << "{{{ test_map\n";    test_map();    cout << "}}}\n";
+  cout << "{{{ test_repeat\n"; test_repeat(); cout << "}}}\n";
   return 0;
 }

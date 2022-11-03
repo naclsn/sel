@@ -16,12 +16,6 @@ namespace sel {
 
   namespace bin_val_helpers {
 
-    // template <typename Type> struct bin_vat { typedef Val vat; };
-    // template <> struct bin_vat<num> { typedef Num vat; };
-    // template <> struct bin_vat<str> { typedef Str vat; };
-    // template <typename has> struct bin_vat<lst<has>> { typedef Lst vat; };
-    // template <typename from, typename to> struct bin_vat<fun<from, to>> { typedef Fun vat; };
-
     /*
       vat: 'Val abstract type', so ex the class `Num` for Ty::NUM
 
@@ -45,8 +39,8 @@ namespace sel {
       - and so `T::the::Base::Next::name` is the name constexpr ("add")
     */
 
-    // template <typename Implementation, typename... types> struct bin_val;
-    //
+    template <typename Implementation, typename... types> struct bin_val;
+
     // template <typename Impl, typename one>
     // struct bin_val<Impl, one> {
     //   struct Base { typedef Impl Next; }; // YYY: for `the::Base::Next` trick...
@@ -57,10 +51,13 @@ namespace sel {
     //   };
     // };
 
-    template <typename NextT, typename to, typename from, typename... from_more> // ZZZ: will need to explicite one more 'from' when adding the correct vat instead of `Val*`
-    struct bin_val : fun<from, to>::ctor {
+    // TODO: need to explicite one more 'from'
+    // - to get the type of `arg` (eg. Num* rather than Val*)
+    // - to use it in ::ctor<here>(..) because it is the `has_unknown`
+    template <typename NextT, typename to, typename from, typename from_again, typename... from_more>
+    struct bin_val<NextT, to, from, from_again, from_more...> : fun<from, to>::ctor {
       typedef NextT Next;
-      typedef bin_val<bin_val, fun<from, to>, from_more...> Base;
+      typedef bin_val<bin_val, fun<from, to>, from_again, from_more...> Base;
       typedef typename Base::the the;
       constexpr static unsigned args = Base::args + 1;
       Base* base;
@@ -71,13 +68,22 @@ namespace sel {
         : fun<from, to>::ctor(base->type(), arg->type())
         , base(base)
         , arg(arg)
-      { }
+      {
+        TRACE(bin_val<body>
+          , "<from_again>: " << from_again::make()
+          , "<from>:       " << from::make()
+          , "<to>:         " << to::make()
+          );
+      }
       Val* operator()(Val* arg) override { return new Next(this, arg); }
       void accept(Visitor& v) const override; // visitBody
     };
 
     template <typename other> struct _fun_last_ret_type { typedef other the; };
     template <typename from, typename to> struct _fun_last_ret_type<fun<from, to>> { typedef typename _fun_last_ret_type<to>::the the; };
+
+    template <typename other> struct _fun_param_or_id { typedef other the; };
+    template <typename from, typename to> struct _fun_param_or_id<fun<from, to>> { typedef from the; };
 
     /**
      * typedef Head Base; // when unary,
@@ -107,7 +113,19 @@ namespace sel {
           : _fun_last_ret_type<last_to>::the::ctor(base->type(), arg->type()) // ZZZ: wrong
           , base(base)
           , arg(arg)
-        { }
+        {
+          Type xyz = last_to::make();
+          TRACE(bin_val<tail>
+            , "<last_to>:            " << xyz
+            , "<_fun_param_or_id>:   " << _fun_param_or_id<last_to>::the::make()
+            // ZZZ: Im lost, but I think I need something like `_fun_last_from<last_to>`
+            //      and that it should be `last_from` when `last_to` is not a `fun`
+            //      or maybe I can simply have a typedef to access `Base::from`?
+            //      that's probably the idea because it would be linked with the vat of its `arg`
+            , "<_fun_last_ret_type>: " << _fun_last_ret_type<last_to>::the::make()
+            , ("<last_to>.to:         " + (Ty::FUN == xyz.base ? (std::ostringstream()<<xyz.to()).str() : "(not function)"))
+            );
+        }
         void accept(Visitor& v) const override; // visitTail
       };
       // head struct does not have `.arg`
@@ -116,7 +134,12 @@ namespace sel {
       bin_val()
         // : Fun(fun<last_from, last_to>::make())
         : fun<last_from, last_to>::ctor()
-      { }
+      {
+        TRACE(bin_val<head>
+          , "<last_from>: " << last_from::make()
+          , "<last_to>:   " << last_to::make()
+          );
+      }
       Val* operator()(Val* arg) override { return new Next(this, arg); }
       void accept(Visitor& v) const override; // visitHead
     };
@@ -158,6 +181,16 @@ namespace sel {
       Val* operator*() override { // ZZZ: place holder
         return (*(Fun*)base->arg)(**(Lst*)arg);
       }
+      Lst& operator++() override { return *this; }
+      bool end() const override { return true; }
+      void rewind() override { }
+      size_t count() override { return 0; }
+    };
+
+    struct Repeat : bin_val<Repeat, lst<unk<'a'>>, unk<'a'>>::the {
+      constexpr static char const* name = "repeat";
+      using the::the;
+      Val* operator*() override { return nullptr; }
       Lst& operator++() override { return *this; }
       bool end() const override { return true; }
       void rewind() override { }
@@ -232,7 +265,7 @@ namespace sel {
 
     using namespace bin;
     // typedef cons_l<Add, Idk, Sub>::the bins;
-    typedef cons_l<Add, Map, Tonum>::the bins;
+    typedef cons_l<Add, Map, Repeat, Tonum>::the bins;
     // typedef cons_l<Add>::the bins;
     typedef _make_bins_all<bins>::the bins_all;
 

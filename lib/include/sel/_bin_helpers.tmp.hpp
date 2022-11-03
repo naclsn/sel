@@ -4,10 +4,14 @@
 
 #include "sel/types.hpp"
 #include "sel/engine.hpp"
+#include "sel/utils.hpp"
 
 // using namespace sel;
 namespace sel {
 namespace bin_val_helpers {
+
+template <typename template_type, typename has_unknowns>
+struct _now_known; // ZZZ: forward decl
 
 template <char c> struct unk {
   inline static Type make() {
@@ -36,7 +40,16 @@ template <typename/*...*/ has/*, TyFlag is_inf*/> struct lst {
     return Type(Ty::LST, {.box_has=types1(new Type(has::make()/*...*/))}, TyFlag::IS_FIN/*is_inf*/);
   }
   struct ctor : Lst {
-    ctor(Type const& base_fty, Type const& ty): Lst(make()) { } //: Fun(Type()) { } // ZZZ
+    ctor(Type const& base_fty, Type const& ty): Lst(make()) {
+      // TODO: ZZZ
+      TRACE(lst::ctor
+        , "<has>:            " << has::make()
+        , "template_type:    " << base_fty.to()
+        , "has_unknowns:     " << base_fty.from()
+        , "arg to now_known: " << ty
+        //, "magic:            " << (_now_known<lst, base_fty.from()>::make(ty))
+        );
+    }
     ctor(): Lst(make()) { }
   };
 };
@@ -45,7 +58,17 @@ template <typename from, typename to> struct fun {
     return Type(Ty::FUN, {.box_pair={new Type(from::make()), new Type(to::make())}}, 0);
   }
   struct ctor : Fun {
-    ctor(Type const& base_fty, Type const& ty): Fun(make()) { } //: Fun(Type()) { } // ZZZ
+    ctor(Type const& base_fty, Type const& ty): Fun(make()) {
+      // TODO: ZZZ
+      TRACE(fun::ctor
+        , "<from>:           " << from::make()
+        , "<to>:             " << to::make()
+        , "template_type:    " << base_fty.to()
+        , "has_unknowns:     " << base_fty.from()
+        , "arg to now_known: " << ty
+        //, "magic:            " << (_now_known<fun, base_fty.from()>::make(ty))
+        );
+    }
     ctor(): Fun(make()) { }
   };
 };

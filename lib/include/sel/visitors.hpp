@@ -110,6 +110,8 @@ namespace sel {
     void visit(bin::Map const&) override;
     void visit(bin::Map::Base const&) override;
     void visit(bin::Map::Base::Base const&) override;
+    void visit(bin::Repeat const&) override;
+    void visit(bin::Repeat::Base const&) override;
     // void visit(bin::Sub const&) override;
     // void visit(bin::Sub::Base const&) override;
     // void visit(bin::Sub::Base::Base const&) override;
