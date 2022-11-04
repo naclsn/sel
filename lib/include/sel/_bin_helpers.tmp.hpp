@@ -19,6 +19,7 @@ template <char c> struct unk {
     return Type(Ty::UNK, {.name=new std::string(1, c)}, 0);
   }
   typedef void ctor; // YYY: probably should never
+  typedef void now_known; // YYY: probably should never
 };
 struct num {
   typedef Num vat;
@@ -28,6 +29,10 @@ struct num {
   struct ctor : Num {
     ctor(Type const& base_fty, Type const& ty): Num() { }
   };
+  template <typename has_unknowns>
+  struct now_known : Num {
+    now_known(Type const& base_fty, Type const& ty): Num() { }
+  };
 };
 /*template <TyFlag is_inf> */struct str {
   typedef Str vat;
@@ -36,6 +41,10 @@ struct num {
   }
   struct ctor : Str {
     ctor(Type const& base_fty, Type const& ty): Str(TyFlag::IS_FIN) { } // ZZZ
+  };
+  template <typename has_unknowns>
+  struct now_known : Str {
+    now_known(Type const& base_fty, Type const& ty): Str(TyFlag::IS_FIN) { } // ZZZ
   };
 };
 template <typename/*...*/ has/*, TyFlag is_inf*/> struct lst {
@@ -49,12 +58,28 @@ template <typename/*...*/ has/*, TyFlag is_inf*/> struct lst {
       TRACE(lst::ctor
         , "<has>:            " << has::make()
         , "template_type:    " << base_fty.to()
+        , "<template_type>:  " << make()
         , "has_unknowns:     " << base_fty.from()
         , "arg to now_known: " << ty
         //, "magic:            " << (_now_known<lst, base_fty.from()>::make(ty))
         );
     }
     ctor(): Lst(make()) { }
+  };
+  template <typename has_unknowns>
+  struct now_known : Lst {
+    now_known(Type const& base_fty, Type const& ty): Lst(make()) {
+      // TODO: ZZZ
+      TRACE(lst::now_known
+        , "<has>:            " << has::make()
+        , "template_type:    " << base_fty.to()
+        , "<template_type>:  " << make()
+        , "has_unknowns:     " << base_fty.from()
+        , "<has_unknowns>:   " << has_unknowns::make()
+        , "arg to now_known: " << ty
+        //, "magic:            " << (_now_known<lst, base_fty.from()>::make(ty))
+        );
+    }
   };
 };
 template <typename from, typename to> struct fun {
@@ -69,12 +94,29 @@ template <typename from, typename to> struct fun {
         , "<from>:           " << from::make()
         , "<to>:             " << to::make()
         , "template_type:    " << base_fty.to()
+        , "<template_type>:  " << make()
         , "has_unknowns:     " << base_fty.from()
         , "arg to now_known: " << ty
         //, "magic:            " << (_now_known<fun, base_fty.from()>::make(ty))
         );
     }
     ctor(): Fun(make()) { }
+  };
+  template <typename has_unknowns>
+  struct now_known : Fun {
+    now_known(Type const& base_fty, Type const& ty): Fun(make()) {
+      // TODO: ZZZ
+      TRACE(fun::now_known
+        , "<from>:           " << from::make()
+        , "<to>:             " << to::make()
+        , "template_type:    " << base_fty.to()
+        , "<template_type>:  " << make()
+        , "has_unknowns:     " << base_fty.from()
+        , "<has_unknowns>:   " << has_unknowns::make()
+        , "arg to now_known: " << ty
+        //, "magic:            " << (_now_known<fun, base_fty.from()>::make(ty))
+        );
+    }
   };
 };
 

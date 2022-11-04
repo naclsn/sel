@@ -51,18 +51,18 @@ namespace sel {
     //   };
     // };
 
-    template <typename NextT, typename to, typename from, typename... from_more>
-    struct bin_val<NextT, to, from, from_more...> : fun<from, to>::ctor {
+    template <typename NextT, typename to, typename from, typename from_again, typename... from_more>
+    struct bin_val<NextT, to, from, from_again, from_more...> : fun<from, to>::template now_known<from_again> {
       typedef NextT Next;
-      typedef bin_val<bin_val, fun<from, to>, from_more...> Base;
+      typedef bin_val<bin_val, fun<from, to>, from_again, from_more...> Base;
       typedef typename Base::the the;
       constexpr static unsigned args = Base::args + 1;
-      typedef from next_arg_ty;
+      typedef from next_arg_ty; // YYY: may remove in favor of from_again
       Base* base;
       typename Base::next_arg_ty::vat* arg;
       // this is the ctor for body types
       bin_val(Base* base, typename Base::next_arg_ty::vat* arg)
-        : fun<from, to>::ctor/*<typename(?) Base::next_arg_ty>*/(base->type(), arg->type())
+        : fun<from, to>::template now_known<typename Base::next_arg_ty>(base->type(), arg->type())
         , base(base)
         , arg(arg)
       { TRACE(bin_val<body>
@@ -94,7 +94,7 @@ namespace sel {
     struct bin_val<NextT, last_to, last_from> : fun<last_from, last_to>::ctor {
       typedef NextT Next;
       // this is the parent class for the tail type
-      struct the : _fun_last_ret_type<last_to>::the::ctor {
+      struct the : _fun_last_ret_type<last_to>::the::template now_known<typename _one_to_nextmost<bin_val>::the::next_arg_ty> {
         typedef bin_val Head;
         typedef typename _one_to_nextmost<Head>::the Base;
         constexpr static unsigned args = Base::args + 1;
@@ -102,7 +102,7 @@ namespace sel {
         typename Base::next_arg_ty::vat* arg;
         // this is the ctor for the tail type
         the(Base* base, typename Base::next_arg_ty::vat* arg)
-          : _fun_last_ret_type<last_to>::the::ctor/*<typename(?) Base::next_arg_ty>*/(base->type(), arg->type())
+          : _fun_last_ret_type<last_to>::the::template now_known<typename Base::next_arg_ty>(base->type(), arg->type())
           , base(base)
           , arg(arg)
         { TRACE(bin_val<tail>

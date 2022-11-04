@@ -37,8 +37,8 @@ namespace sel {
   //   return nullptr;
   // }
 
-  template <typename NextT, typename to, typename from, typename... from_more>
-  void bin_val_helpers::bin_val<NextT, to, from, from_more...>::accept(Visitor& v) const {
+  template <typename NextT, typename to, typename from, typename from_again, typename... from_more>
+  void bin_val_helpers::bin_val<NextT, to, from, from_again, from_more...>::accept(Visitor& v) const {
     v.visit(*this); // visitBody
   }
 
