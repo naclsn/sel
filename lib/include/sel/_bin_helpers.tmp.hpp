@@ -68,7 +68,7 @@ template <typename/*...*/ has/*, TyFlag is_inf*/> struct lst {
   };
   template <typename has_unknowns>
   struct now_known : Lst {
-    now_known(Type const& base_fty, Type const& ty): Lst(make()) {
+    now_known(Type const& base_fty, Type const& ty): Lst(_now_known<lst, has_unknowns>::make(ty)) {
       // TODO: ZZZ
       TRACE(lst::now_known
         , "<has>:            " << has::make()
@@ -77,7 +77,7 @@ template <typename/*...*/ has/*, TyFlag is_inf*/> struct lst {
         , "has_unknowns:     " << base_fty.from()
         , "<has_unknowns>:   " << has_unknowns::make()
         , "arg to now_known: " << ty
-        //, "magic:            " << (_now_known<lst, base_fty.from()>::make(ty))
+        , "magic:            " << (_now_known<lst, has_unknowns>::make(ty))
         );
     }
   };
@@ -104,7 +104,7 @@ template <typename from, typename to> struct fun {
   };
   template <typename has_unknowns>
   struct now_known : Fun {
-    now_known(Type const& base_fty, Type const& ty): Fun(make()) {
+    now_known(Type const& base_fty, Type const& ty): Fun(_now_known<fun, has_unknowns>::make(ty)) {
       // TODO: ZZZ
       TRACE(fun::now_known
         , "<from>:           " << from::make()
@@ -114,7 +114,7 @@ template <typename from, typename to> struct fun {
         , "has_unknowns:     " << base_fty.from()
         , "<has_unknowns>:   " << has_unknowns::make()
         , "arg to now_known: " << ty
-        //, "magic:            " << (_now_known<fun, base_fty.from()>::make(ty))
+        , "magic:            " << (_now_known<fun, has_unknowns>::make(ty))
         );
     }
   };
@@ -151,7 +151,7 @@ struct _find_unknown<c, unk<c>> {
 template <char c, typename has>
 struct _find_unknown<c, lst<has>> {
   inline static Type find(Type ty) {
-    return _find_unknown<c, has>::find(ty.has()[0]);
+    return _find_unknown<c, has>::find(*ty.has()[0]); // TODO: remove this * with `Type const& ty`
   }
   constexpr static bool matches = _find_unknown<c, has>::matches;
 };
@@ -166,7 +166,7 @@ struct _find_unknown<c, fun<from, to>> {
         _find_unknown<c, from>::matches,
         _find_unknown<c, from>,
         _find_unknown<c, to>
-      >::find(_find_unknown_fun_get<_find_unknown<c, from>::matches>(ty));
+      >::type::find(_find_unknown_fun_get<_find_unknown<c, from>::matches>(ty));
   }
   constexpr static bool matches
     =  _find_unknown<c, from>::matches

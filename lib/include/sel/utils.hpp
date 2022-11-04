@@ -15,13 +15,14 @@
 #define __one(o) "\n|\t" << __single(o)
 #define __last(z) "\nL_\t" << __single(z)
 
-#define __l1(a)                   __single(a)
-#define __l2(a, b)                __one(a) << __last(b)
-#define __l3(a, b, c)             __one(a) << __one(b) << __last(c)
-#define __l4(a, b, c, d)          __one(a) << __one(b) << __one(c) << __last(d)
-#define __l5(a, b, c, d, e)       __one(a) << __one(b) << __one(c) << __one(d) << __last(e)
-#define __l6(a, b, c, d, e, f)    __one(a) << __one(b) << __one(c) << __one(d) << __one(e) << __last(f)
-#define __l7(a, b, c, d, e, f, g) __one(a) << __one(b) << __one(c) << __one(d) << __one(e) << __one(f) << __last(g)
+#define __l1(a)                      __single(a)
+#define __l2(a, b)                   __one(a) << __last(b)
+#define __l3(a, b, c)                __one(a) << __one(b) << __last(c)
+#define __l4(a, b, c, d)             __one(a) << __one(b) << __one(c) << __last(d)
+#define __l5(a, b, c, d, e)          __one(a) << __one(b) << __one(c) << __one(d) << __last(e)
+#define __l6(a, b, c, d, e, f)       __one(a) << __one(b) << __one(c) << __one(d) << __one(e) << __last(f)
+#define __l7(a, b, c, d, e, f, g)    __one(a) << __one(b) << __one(c) << __one(d) << __one(e) << __one(f) << __last(g)
+#define __l8(a, b, c, d, e, f, g, h) __one(a) << __one(b) << __one(c) << __one(d) << __one(e) << __one(f) << __one(g) << __last(h)
 
 #define TRACE(_f, ...) std::cerr << "\e[34m[" #_f "]\e[m " << __CRAP(__VA_COUNT(__VA_ARGS__))(__VA_ARGS__) << "\n"
 #endif
