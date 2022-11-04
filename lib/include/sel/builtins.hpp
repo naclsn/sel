@@ -59,9 +59,9 @@ namespace sel {
       constexpr static unsigned args = Base::args + 1;
       typedef from next_arg_ty;
       Base* base;
-      Val* arg; // typename Base::next_arg_ty::vat* arg;
+      typename Base::next_arg_ty::vat* arg;
       // this is the ctor for body types
-      bin_val(Base* base, Val* arg)
+      bin_val(Base* base, typename Base::next_arg_ty::vat* arg)
         : fun<from, to>::ctor/*<typename(?) Base::next_arg_ty>*/(base->type(), arg->type())
         , base(base)
         , arg(arg)
@@ -70,7 +70,7 @@ namespace sel {
           , "<from>:   " << from::make()
           , "<to>:     " << to::make()
           ); }
-      Val* operator()(Val* arg) override { return new Next(this, arg); }
+      Val* operator()(Val* arg) override { return new Next(this, coerse<typename next_arg_ty::vat>(arg)); }
       void accept(Visitor& v) const override; // visitBody
     };
 
@@ -99,9 +99,9 @@ namespace sel {
         typedef typename _one_to_nextmost<Head>::the Base;
         constexpr static unsigned args = Base::args + 1;
         Base* base;
-        Val* arg; // typename Base::next_arg_ty::vat* arg;
+        typename Base::next_arg_ty::vat* arg;
         // this is the ctor for the tail type
-        the(Base* base, Val* arg)
+        the(Base* base, typename Base::next_arg_ty::vat* arg)
           : _fun_last_ret_type<last_to>::the::ctor/*<typename(?) Base::next_arg_ty>*/(base->type(), arg->type())
           , base(base)
           , arg(arg)
@@ -121,7 +121,7 @@ namespace sel {
           , "<last_from>: " << last_from::make()
           , "<last_to>:   " << last_to::make()
           ); }
-      Val* operator()(Val* arg) override { return new Next(this, arg); }
+      Val* operator()(Val* arg) override { return new Next(this, coerse<typename next_arg_ty::vat>(arg)); }
       void accept(Visitor& v) const override; // visitHead
     };
 
@@ -140,12 +140,29 @@ namespace sel {
 
     using bin_val_helpers::bin_val;
 
+#define _depth(__depth) _depth_ ## __depth
+#define _depth_0 arg
+#define _depth_1 base->_depth_0
+#define _depth_2 base->_depth_1
+#define _depth_3 base->_depth_2
+
+#define _bind_some(__count) _bind_some_ ## __count
+#define _bind_some_1(a)          _bind_one(a, 0)
+#define _bind_some_2(a, b)       _bind_one(a, 1); _bind_some_1(b)
+#define _bind_some_3(a, b, c)    _bind_one(a, 2); _bind_some_2(b, c)
+#define _bind_some_4(a, b, c, d) _bind_one(a, 3); _bind_some_3(b, c, d)
+
+#define _bind_count(__count, ...) _bind_some(__count)(__VA_ARGS__)
+#define _bind_one(__name, __depth) auto& __name = *_depth(__depth)
+#define bind_args(...) _bind_count(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
+
     // REM: XXX: backward: Num <- Num <- Num
     struct Add : bin_val<Add, num, num, num>::the {
       constexpr static char const* name = "add";
       using the::the;
       double value() override {
-        return ((Num*)base->arg)->value() + ((Num*)arg)->value();
+        bind_args(a, b);
+        return a.value() + b.value();
       }
     };
 
@@ -160,7 +177,8 @@ namespace sel {
       constexpr static char const* name = "map";
       using the::the;
       Val* operator*() override { // ZZZ: place holder
-        return (*(Fun*)base->arg)(**(Lst*)arg);
+        bind_args(f, l);
+        return f(*l);
       }
       Lst& operator++() override { return *this; }
       bool end() const override { return true; }
@@ -189,9 +207,10 @@ namespace sel {
       constexpr static char const* name = "tonum";
       using the::the;
       double value() override {
+        bind_args(s);
         double r;
         std::stringstream ss;
-        ((Str*)arg)->entire(ss);
+        s.entire(ss);
         ss >> r;
         return r;
       }

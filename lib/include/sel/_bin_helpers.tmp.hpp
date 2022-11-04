@@ -14,12 +14,14 @@ template <typename template_type, typename has_unknowns>
 struct _now_known; // ZZZ: forward decl
 
 template <char c> struct unk {
+  typedef Val vat;
   inline static Type make() {
     return Type(Ty::UNK, {.name=new std::string(1, c)}, 0);
   }
   typedef void ctor; // YYY: probably should never
 };
 struct num {
+  typedef Num vat;
   inline static Type make() {
     return Type(Ty::NUM, {0}, 0);
   }
@@ -28,6 +30,7 @@ struct num {
   };
 };
 /*template <TyFlag is_inf> */struct str {
+  typedef Str vat;
   inline static Type make() {
     return Type(Ty::STR, {0}, TyFlag::IS_FIN/*is_inf*/);
   }
@@ -36,6 +39,7 @@ struct num {
   };
 };
 template <typename/*...*/ has/*, TyFlag is_inf*/> struct lst {
+  typedef Lst vat;
   inline static Type make() {
     return Type(Ty::LST, {.box_has=types1(new Type(has::make()/*...*/))}, TyFlag::IS_FIN/*is_inf*/);
   }
@@ -54,6 +58,7 @@ template <typename/*...*/ has/*, TyFlag is_inf*/> struct lst {
   };
 };
 template <typename from, typename to> struct fun {
+  typedef Fun vat;
   inline static Type make() {
     return Type(Ty::FUN, {.box_pair={new Type(from::make()), new Type(to::make())}}, 0);
   }
