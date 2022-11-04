@@ -2,7 +2,7 @@
 
 namespace sel {
 
-#define fi_chr(__name, __chr) {.name=__name, .data_ty=ReprField::CHR, .data={.chr=__chr}}
+#define fi_dbl(__name, __dbl) {.name=__name, .data_ty=ReprField::DBL, .data={.dbl=__dbl}}
 #define fi_str(__name, __str) {.name=__name, .data_ty=ReprField::STR, .data={.str=__str}}
 #define fi_val(__name, __val) {.name=__name, .data_ty=ReprField::VAL, .data={.val=__val}}
 
@@ -37,8 +37,8 @@ namespace sel {
       res << it.name << "=";
 
       switch (it.data_ty) {
-        case ReprField::CHR:
-          res << " \"" << it.data.chr << "\"";
+        case ReprField::DBL:
+          res << " " << it.data.dbl;
           break;
 
         case ReprField::STR:
@@ -74,9 +74,8 @@ namespace sel {
 
 
   void VisRepr::visitNumLiteral(Type const& type, double n) {
-    auto nn = std::to_string(n);
     reprHelper(type, "NumLiteral", {
-      fi_str("n", &nn),
+      fi_dbl("n", n),
     });
   }
 

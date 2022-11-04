@@ -76,14 +76,14 @@ namespace sel {
     struct ReprField {
       char const* name;
       enum {
-        CHR,
+        DBL,
         STR,
         VAL,
       } const data_ty;
       union {
         Val const* val;
         std::string const* str;
-        char const* chr;
+        double const dbl;
       } const data;
     };
     ReprCx cx;

@@ -12,7 +12,7 @@ TEST(VisRepr) {
   auto num = NumLiteral(42.1);
   doTestEq(
     num,
-    "<Num> NumLiteral { n= \"42.100000\" }"
+    "<Num> NumLiteral { n= 42.1 }"
   );
 
   auto str = StrLiteral("coucou");
@@ -26,6 +26,6 @@ TEST(VisRepr) {
   v.push_back(&str);
   doTestEq(
     LstLiteral(v),
-    "<[mixed]> LstLiteral { v[0]=<Num> NumLiteral { n= \"42.100000\" } v[1]=<Str> StrLiteral { s= \"coucou\" } }"
+    "<[mixed]> LstLiteral { v[0]=<Num> NumLiteral { n= 42.1 } v[1]=<Str> StrLiteral { s= \"coucou\" } }"
   );
 }
