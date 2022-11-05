@@ -140,6 +140,12 @@ template <char c, typename has_unknowns>
 struct _find_unknown {        // XXX v--- not quite sure about things, should do eg. for Num?
   // inline static Type find(Type ty) { return Type(Ty::UNK, {.name=new std::string(1, c)}, 0); }
   inline static Type find(Type fallback, Type ty) {
+    TRACE(find_unknown<_>
+      , "<'"<<c<<"'>"
+      , "<has_unknowns>: " << has_unknowns::make()
+      , "fallback:       " << fallback
+      , "ty:             " << ty
+      );
     return Type(fallback);
   }
   constexpr static bool matches = false;
@@ -147,14 +153,31 @@ struct _find_unknown {        // XXX v--- not quite sure about things, should do
 
 template <char c>
 struct _find_unknown<c, unk<c>> {
-  inline static Type find(Type fallback, Type ty) { return ty; }
+  inline static Type find(Type fallback, Type ty) {
+    TRACE(find_unknown<unk<c>>
+      , "<'"<<c<<"'>"
+      , "<unk<c>>: " << unk<c>::make()
+      , "fallback: " << fallback
+      , "ty:       " << ty
+      );
+    return ty;
+  }
   constexpr static bool matches = true;
 };
 
 template <char c, typename has>
 struct _find_unknown<c, lst<has>> {
   inline static Type find(Type fallback, Type ty) {
-    return _find_unknown<c, has>::find(fallback, *ty.has()[0]); // TODO: remove copying with `Type const& ty`
+    TRACE(find_unknown<lst<has>>
+      , "<'"<<c<<"'>"
+      , "<lst<has>>: " << lst<has>::make()
+      , "fallback:   " << fallback
+      , "ty:         " << ty
+      );
+    return _find_unknown<c, has>::find(
+      *fallback.has()[0],
+      *ty.has()[0]
+    ); // TODO: remove copying with `Type const& ty`
   }
   constexpr static bool matches = _find_unknown<c, has>::matches;
 };
@@ -165,11 +188,20 @@ template <>                inline Type _find_unknown_fun_get<false>(Type ty) { r
 template <char c, typename from, typename to>
 struct _find_unknown<c, fun<from, to>> {
   inline static Type find(Type fallback, Type ty) {
+    TRACE(find_unknown<fun<from to>>
+      , "<'"<<c<<"'>"
+      , "<fun<from, to>>: " << (fun<from, to>::make())
+      , "fallback:        " << fallback
+      , "ty:              " << ty
+      );
     return std::conditional<
         _find_unknown<c, from>::matches,
         _find_unknown<c, from>,
         _find_unknown<c, to>
-      >::type::find(fallback, _find_unknown_fun_get<_find_unknown<c, from>::matches>(ty));
+      >::type::find(
+        _find_unknown_fun_get<_find_unknown<c, from>::matches>(fallback),
+        _find_unknown_fun_get<_find_unknown<c, from>::matches>(ty)
+    );
   }
   constexpr static bool matches
     =  _find_unknown<c, from>::matches
@@ -192,6 +224,12 @@ struct _find_unknown<c, fun<from, to>> {
 template <typename template_type, typename has_unknowns>
 struct _now_known {
   inline static Type make(Type fallback, Type ty) {
+    TRACE(now_known<_>
+      , "<template_type>: " << template_type::make()
+      , "<has_unknowns>:  " << has_unknowns::make()
+      , "fallback:        " << fallback
+      , "ty:              " << ty
+      );
     return template_type::make();
   }
 };
@@ -199,6 +237,12 @@ struct _now_known {
 template <char c, typename hu>
 struct _now_known<unk<c>, hu> {
   inline static Type make(Type fallback, Type ty) {
+    TRACE(now_known<unk<c>>
+      , "<unk<c>>:       " << unk<c>::make()
+      , "<has_unknowns>: " << hu::make()
+      , "fallback:       " << fallback
+      , "ty:             " << ty
+      );
     return Type(_find_unknown<c, hu>::find(fallback, ty));
   }
 };
@@ -206,9 +250,15 @@ struct _now_known<unk<c>, hu> {
 template <typename has, typename hu>
 struct _now_known<lst<has>, hu> { // hu<has<?>> -> [has<?>] -- (eg. "a -> [a]")
   inline static Type make(Type fallback, Type ty) {
+    TRACE(now_known<lst<has>>
+      , "<lst<has>>:     " << lst<has>::make()
+      , "<has_unknowns>: " << hu::make()
+      , "fallback:       " << fallback
+      , "ty:             " << ty
+      );
     return Type(Ty::LST,
       {.box_has=types1(
-        new Type(_now_known<has, hu>::make(*fallback.has()[0], ty))
+        new Type(_now_known<has, hu>::make(fallback, ty))
       )}, 0
     );
   }
@@ -217,10 +267,16 @@ struct _now_known<lst<has>, hu> { // hu<has<?>> -> [has<?>] -- (eg. "a -> [a]")
 template <typename from, typename to, typename hu>
 struct _now_known<fun<from, to>, hu> {
   inline static Type make(Type fallback, Type ty) {
+    TRACE(now_known<fun<from to>>
+      , "<fun<from, to>>: " << (fun<from, to>::make())
+      , "<has_unknowns>:  " << hu::make()
+      , "fallback:        " << fallback
+      , "ty:              " << ty
+      );
     return Type(Ty::FUN,
       {.box_pair={
-        new Type(_now_known<from, hu>::make(fallback.from(), ty)),
-        new Type(_now_known<to, hu>::make(fallback.to(), ty))
+        new Type(_now_known<from, hu>::make(fallback, ty)),
+        new Type(_now_known<to, hu>::make(fallback, ty))
       }}, 0
     );
   }

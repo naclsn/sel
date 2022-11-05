@@ -216,6 +216,16 @@ namespace sel {
       }
     };
 
+    struct Zipwith : bin_val<Zipwith, lst<unk<'c'>>, lst<unk<'b'>>, lst<unk<'a'>>, fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>>::the {
+      constexpr static char const* name = "zipwith";
+      using the::the;
+      Val* operator*() override { return nullptr; }
+      Lst& operator++() override { return *this; }
+      bool end() const override { return true; }
+      void rewind() override { }
+      size_t count() override { return 0; }
+    };
+
   } // namespace bin
 
   namespace bin_types {
@@ -265,7 +275,7 @@ namespace sel {
 
     using namespace bin;
     // typedef cons_l<Add, Idk, Sub>::the bins;
-    typedef cons_l<Add, Map, Repeat, Tonum>::the bins;
+    typedef cons_l<Add, Map, Repeat, Tonum, Zipwith>::the bins;
     // typedef cons_l<Add>::the bins;
     typedef _make_bins_all<bins>::the bins_all;
 

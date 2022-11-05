@@ -176,4 +176,17 @@ namespace sel {
     visitCommon(it, std::conditional<!bin::Tonum::Base::args, std::true_type, std::false_type>::type{});
   }
 
+  void VisRepr::visit(bin::Zipwith const& it) {
+    visitCommon(it, std::conditional<!bin::Zipwith::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bin::Zipwith::Base const& it) {
+    visitCommon(it, std::conditional<!bin::Zipwith::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bin::Zipwith::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bin::Zipwith::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bin::Zipwith::Base::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bin::Zipwith::Base::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+
 } // namespace sel

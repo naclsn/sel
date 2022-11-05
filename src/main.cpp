@@ -106,10 +106,36 @@ void test_repeat() {
   // cout << "result: " << (*(Num*)*(*(Lst*)repeat0)).value() << endl;
 }
 
+void test_zipwith() { // zipwith map {repeat} {{1}}
+  Val* zipwith3 = lookup_name("zipwith");
+  showv(zipwith3);
+
+  // Val* zipwith2 = (*(Fun*)zipwith3)(lookup_name("add"));
+  Val* _map2 = lookup_name("map");
+  showv(_map2);
+  Val* zipwith2 = (*(Fun*)zipwith3)(_map2);
+  showv(zipwith2);
+
+  // Val* zipwith1 = (*(Fun*)zipwith2)(new LstLiteral({new NumLiteral(37)}, types1(new Type(Ty::NUM, {0}, 0))));
+  Val* _repeat1 = lookup_name("repeat");
+  showv(_repeat1);
+  Val* zipwith1 = (*(Fun*)zipwith2)(new LstLiteral({_repeat1}, types1(new Type(_repeat1->type()))));
+  showv(zipwith1);
+
+  // Val* zipwith0 = (*(Fun*)zipwith1)(new LstLiteral({new NumLiteral(42)}, types1(new Type(Ty::NUM, {0}, 0))));
+  Val* _lst_lst_num = new LstLiteral({
+    new LstLiteral({new NumLiteral(42)}, types1(new Type(Ty::NUM, {0}, 0)))
+  }, types1(new Type(Ty::LST, {.box_has=types1(new Type(Ty::NUM, {0}, 0))}, TyFlag::IS_FIN)));
+  showv(_lst_lst_num);
+  Val* zipwith0 = (*(Fun*)zipwith1)(_lst_lst_num);
+  showv(zipwith0);
+}
+
 int main() {
-  cout << "{{{ test_tonum\n";  test_tonum();  cout << "}}}\n";
-  cout << "{{{ test_add\n";    test_add();    cout << "}}}\n";
-  cout << "{{{ test_map\n";    test_map();    cout << "}}}\n";
-  cout << "{{{ test_repeat\n"; test_repeat(); cout << "}}}\n";
+  cout << "{{{ test_tonum\n";   test_tonum();   cout << "}}}\n";
+  cout << "{{{ test_add\n";     test_add();     cout << "}}}\n";
+  cout << "{{{ test_map\n";     test_map();     cout << "}}}\n";
+  cout << "{{{ test_repeat\n";  test_repeat();  cout << "}}}\n";
+  cout << "{{{ test_zipwith\n"; test_zipwith(); cout << "}}}\n";
   return 0;
 }

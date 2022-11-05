@@ -87,8 +87,9 @@ namespace sel {
         break;
 
       case Ty::LST:
-        for (auto const& it : *p.box_has)
-          delete it;
+        if (p.box_has)
+          for (auto const& it : *p.box_has)
+            delete it;
         delete p.box_has;
         p.box_has = nullptr;
         break;
