@@ -131,84 +131,11 @@ void test_zipwith() { // zipwith map {repeat} {{1}}
   showv(zipwith0);
 }
 
-int main1() {
+int main() {
   cout << "{{{ test_tonum\n";   test_tonum();   cout << "}}}\n";
   cout << "{{{ test_add\n";     test_add();     cout << "}}}\n";
   cout << "{{{ test_map\n";     test_map();     cout << "}}}\n";
   cout << "{{{ test_repeat\n";  test_repeat();  cout << "}}}\n";
   cout << "{{{ test_zipwith\n"; test_zipwith(); cout << "}}}\n";
-  return 0;
-}
-
-void doApplied(Type fun, vector<Type> args, vector<string> reprx) {
-  vector<Type> all;
-
-  all.push_back(fun);
-
-  ostringstream oss;
-  oss << all[all.size()-1];
-  cout << "---\t" << all[all.size()-1] << '\n';
-  if (oss.str() != reprx[0]) {
-    cerr << "not same (exp, got):\n\t" << reprx[0] << "\n\t" << oss.str() << "\n";
-  }
-
-  for (size_t k = 0; k < args.size(); k++) {
-    cout << all[all.size()-1].from() << "  <-  " << args[k] << '\n';
-
-    all.push_back(all[all.size()-1].applied(args[k]));
-
-    ostringstream oss;
-    oss << all[all.size()-1];
-    cout << '\t' << oss.str() << '\n';
-    if (oss.str() != reprx[k+1]) {
-      cerr << "not same (exp, got):\n\t" << reprx[k+1] << "\n\t" << oss.str() << "\n";
-    }
-  }
-}
-
-int main() {
-  Type map2_t = Type(Ty::FUN,
-    {.box_pair={
-      new Type(Ty::FUN,
-        {.box_pair={
-          new Type(Ty::UNK, {.name=new std::string("a_map")}, 0),
-          new Type(Ty::UNK, {.name=new std::string("b_map")}, 0)
-        }}, 0
-      ),
-      new Type(Ty::FUN,
-        {.box_pair={
-          new Type(Ty::LST,
-            {.box_has=new std::vector<Type*>({
-              new Type(Ty::UNK, {.name=new std::string("a_map")}, 0)
-            })}, TyFlag::IS_INF
-          ),
-          new Type(Ty::LST,
-            {.box_has=new std::vector<Type*>({
-              new Type(Ty::UNK, {.name=new std::string("b_map")}, 0)
-            })}, TyFlag::IS_INF
-          )
-        }}, 0
-      )
-    }}, 0
-  );
-
-  Type tonum1_t = Type(Ty::FUN,
-    {.box_pair={
-      new Type(Ty::STR, {0}, TyFlag::IS_FIN),
-      new Type(Ty::NUM, {0}, 0)
-    }}, 0
-  );
-  Type text0_t = Type(Ty::LST,
-    {.box_has=new std::vector<Type*>({
-      new Type(Ty::STR, {0}, TyFlag::IS_FIN)
-    })}, TyFlag::IS_FIN
-  );
-
-  doApplied(map2_t, {tonum1_t, text0_t}, {
-    "(a -> b) -> [a]* -> [b]*",
-    "[Str]* -> [Num]*",
-    "[Num]",
-  });
-
   return 0;
 }
