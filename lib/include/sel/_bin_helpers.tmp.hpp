@@ -104,7 +104,7 @@ template <typename from, typename to> struct fun {
   };
   template <typename has_unknowns>
   struct now_known : Fun {
-    now_known(Type const& base_fty, Type const& ty): Fun(_now_known<fun, has_unknowns>::make(base_fty.to(), ty)) {
+    now_known(Type const& base_fty, Type const& ty): Fun(_now_known<fun, has_unknowns>::make(PASS(base_fty.to()), PASS(ty))) {
       // TODO: ZZZ
       TRACE(fun::now_known
         , "<from>:           " << from::make()

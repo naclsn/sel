@@ -27,7 +27,11 @@
 
 #define TRACE(_f, ...) std::cerr << "\e[34m[" #_f "]\e[m " << __CRAP(__VA_COUNT(__VA_ARGS__))(__VA_ARGS__) << "\n"
 #endif
-// #define TRACE(...)
+
+// #define PASS
+#ifndef PASS
+#define PASS(_x) ((std::cerr << "\e[36m[" #_x "]\e[m " << (_x) << "\n"), _x)
+#endif
 
 namespace sel {
 
