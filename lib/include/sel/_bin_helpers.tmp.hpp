@@ -8,7 +8,7 @@
 
 // using namespace sel;
 namespace sel {
-namespace bin_val_helpers {
+namespace bins_helpers {
 
 template <typename template_type, typename has_unknowns>
 struct _now_known; // ZZZ: forward decl

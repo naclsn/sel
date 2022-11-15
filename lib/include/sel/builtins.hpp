@@ -14,7 +14,35 @@ namespace sel {
    */
   Val* lookup_name(std::string const& name);
 
-  namespace bin_val_helpers {
+  /**
+   * (mostly internal) namespace for TMP linked list
+   */
+  namespace ll {
+
+    /**
+     * empty list, see `bin_types::cons`
+     */
+    struct nil { };
+
+    /**
+     * linked lists of type (car,cdr) style, see `bin_types::nil`
+     */
+    template <typename A, typename D>
+    struct cons { typedef A car; typedef D cdr; };
+    template <typename O>
+    struct cons<O, nil> { typedef O car; typedef nil cdr; };
+
+    /**
+     * make a linked lists of types (car,cdr) style from pack (see `bin_types::cons`)
+     */
+    template <typename H, typename... T>
+    struct cons_l { typedef cons<H, typename cons_l<T...>::the> the; };
+    template <typename O>
+    struct cons_l<O> { typedef cons<O, nil> the; };
+
+  } // namespace ll
+
+  namespace bins_helpers {
 
     /*
       vat: 'Val abstract type', so ex the class `Num` for Ty::NUM
@@ -128,17 +156,20 @@ namespace sel {
     // TODO: template<>bin_val for when the last return type is of unknown
     //       (for example "flip" ends on a `Fun`...)
 
-  } // namespace bin_val_helpers
+  } // namespace bins_helpers
 
-  namespace bin {
+  /**
+   * namespace containing the actual buildins
+   */
+  namespace bins {
 
-    using bin_val_helpers::unk;
-    using bin_val_helpers::num;
-    using bin_val_helpers::str;
-    using bin_val_helpers::lst;
-    using bin_val_helpers::fun;
+    using bins_helpers::unk;
+    using bins_helpers::num;
+    using bins_helpers::str;
+    using bins_helpers::lst;
+    using bins_helpers::fun;
 
-    using bin_val_helpers::bin_val;
+    using bins_helpers::bin_val;
 
 #define _depth(__depth) _depth_ ## __depth
 #define _depth_0 arg
@@ -230,26 +261,7 @@ namespace sel {
 
   namespace bin_types {
 
-    /**
-     * empty list, see `bin_types::cons`
-     */
-    struct nil { };
-
-    /**
-     * linked lists of type (car,cdr) style, see `bin_types::nil`
-     */
-    template <typename A, typename D>
-    struct cons { typedef A car; typedef D cdr; };
-    template <typename O>
-    struct cons<O, nil> { typedef O car; typedef nil cdr; };
-
-    /**
-     * make a linked lists of types (car,cdr) style from pack (see `bin_types::cons`)
-     */
-    template <typename H, typename... T>
-    struct cons_l { typedef cons<H, typename cons_l<T...>::the> the; };
-    template <typename O>
-    struct cons_l<O> { typedef cons<O, nil> the; };
+    using namespace ll;
 
     /**
      * make a list from a list, by also unpacking every `::Base`s
@@ -262,9 +274,9 @@ namespace sel {
       > the;
     };
     template <typename Next, typename last_to, typename last_from, typename TailL>
-    struct _make_bins_all<cons<bin_val_helpers::bin_val<Next, last_to, last_from>, TailL>> {
+    struct _make_bins_all<cons<bins_helpers::bin_val<Next, last_to, last_from>, TailL>> {
       typedef cons<
-        bin_val_helpers::bin_val<Next, last_to, last_from>,
+        bins_helpers::bin_val<Next, last_to, last_from>,
         typename _make_bins_all<TailL>::the
       > the;
     };
@@ -273,7 +285,8 @@ namespace sel {
       typedef nil the;
     };
 
-    using namespace bin;
+    using namespace bins;
+
     // typedef cons_l<Add, Idk, Sub>::the bins;
     typedef cons_l<Add, Map, Repeat, Tonum, Zipwith>::the bins;
     // typedef cons_l<Add>::the bins;

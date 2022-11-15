@@ -38,17 +38,17 @@ namespace sel {
   // }
 
   template <typename NextT, typename to, typename from, typename from_again, typename... from_more>
-  void bin_val_helpers::bin_val<NextT, to, from, from_again, from_more...>::accept(Visitor& v) const {
+  void bins_helpers::bin_val<NextT, to, from, from_again, from_more...>::accept(Visitor& v) const {
     v.visit(*this); // visitBody
   }
 
   template <typename NextT, typename last_to, typename last_from>
-  void bin_val_helpers::bin_val<NextT, last_to, last_from>::the::accept(Visitor& v) const {
+  void bins_helpers::bin_val<NextT, last_to, last_from>::the::accept(Visitor& v) const {
     v.visit(*(typename Base::Next*)this); // visitTail
   };
 
   template <typename NextT, typename last_to, typename last_from>
-  void bin_val_helpers::bin_val<NextT, last_to, last_from>::accept(Visitor& v) const {
+  void bins_helpers::bin_val<NextT, last_to, last_from>::accept(Visitor& v) const {
     v.visit(*this); // visitHead
   }
 
