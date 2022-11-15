@@ -53,6 +53,7 @@ namespace sel {
     std::vector<Type*>& has() const { return *p.box_has; }
     Type const& from() const { return *p.box_pair[0]; }
     Type const& to() const { return *p.box_pair[1]; }
+    Type applied(Type const arg);
   };
 
   std::vector<Type*>* types1(Type* ty1);

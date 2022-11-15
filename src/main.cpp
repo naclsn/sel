@@ -140,26 +140,28 @@ int main1() {
   return 0;
 }
 
-void test_applied(Type fun, vector<Type> args, vector<string> reprx) {
-  Type acc = fun;
+void doApplied(Type fun, vector<Type> args, vector<string> reprx) {
+  vector<Type> all;
+
+  all.push_back(fun);
 
   ostringstream oss;
-  oss << acc;
-  cout << "---\n\t" << acc << '\n';
+  oss << all[all.size()-1];
+  cout << "---\t" << all[all.size()-1] << '\n';
   if (oss.str() != reprx[0]) {
-    cerr << "not same\n";
+    cerr << "not same (exp, got):\n\t" << reprx[0] << "\n\t" << oss.str() << "\n";
   }
 
   for (size_t k = 0; k < args.size(); k++) {
-    cout << acc.from() << "  <-  " << args[k] << '\n';
+    cout << all[all.size()-1].from() << "  <-  " << args[k] << '\n';
 
-    // acc = acc.applied(it);
+    all.push_back(all[all.size()-1].applied(args[k]));
 
     ostringstream oss;
-    oss << acc;
+    oss << all[all.size()-1];
     cout << '\t' << oss.str() << '\n';
     if (oss.str() != reprx[k+1]) {
-      cerr << "not same\n";
+      cerr << "not same (exp, got):\n\t" << reprx[k+1] << "\n\t" << oss.str() << "\n";
     }
   }
 }
@@ -202,9 +204,9 @@ int main() {
     })}, TyFlag::IS_FIN
   );
 
-  bidoof(map2_t, {tonum1_t, text0_t}, {
-    "(a -> b) -> [a] -> [b]",
-    "[Str] -> [Num]",
+  doApplied(map2_t, {tonum1_t, text0_t}, {
+    "(a -> b) -> [a]* -> [b]*",
+    "[Str]* -> [Num]*",
     "[Num]",
   });
 

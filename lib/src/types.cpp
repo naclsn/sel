@@ -105,6 +105,10 @@ namespace sel {
     }
   }
 
+  Type Type::applied(Type const arg) {
+    return to();
+  }
+
   std::vector<Type*>* types1(Type* ty1) {
     auto* r = new std::vector<Type*>();
     r->push_back(ty1);
