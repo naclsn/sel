@@ -131,11 +131,82 @@ void test_zipwith() { // zipwith map {repeat} {{1}}
   showv(zipwith0);
 }
 
-int main() {
+int main1() {
   cout << "{{{ test_tonum\n";   test_tonum();   cout << "}}}\n";
   cout << "{{{ test_add\n";     test_add();     cout << "}}}\n";
   cout << "{{{ test_map\n";     test_map();     cout << "}}}\n";
   cout << "{{{ test_repeat\n";  test_repeat();  cout << "}}}\n";
   cout << "{{{ test_zipwith\n"; test_zipwith(); cout << "}}}\n";
+  return 0;
+}
+
+void test_applied(Type fun, vector<Type> args, vector<string> reprx) {
+  Type acc = fun;
+
+  ostringstream oss;
+  oss << acc;
+  cout << "---\n\t" << acc << '\n';
+  if (oss.str() != reprx[0]) {
+    cerr << "not same\n";
+  }
+
+  for (size_t k = 0; k < args.size(); k++) {
+    cout << acc.from() << "  <-  " << args[k] << '\n';
+
+    // acc = acc.applied(it);
+
+    ostringstream oss;
+    oss << acc;
+    cout << '\t' << oss.str() << '\n';
+    if (oss.str() != reprx[k+1]) {
+      cerr << "not same\n";
+    }
+  }
+}
+
+int main() {
+  Type map2_t = Type(Ty::FUN,
+    {.box_pair={
+      new Type(Ty::FUN,
+        {.box_pair={
+          new Type(Ty::UNK, {.name=new std::string("a")}, 0),
+          new Type(Ty::UNK, {.name=new std::string("b")}, 0)
+        }}, 0
+      ),
+      new Type(Ty::FUN,
+        {.box_pair={
+          new Type(Ty::LST,
+            {.box_has=new std::vector<Type*>({
+              new Type(Ty::UNK, {.name=new std::string("a")}, 0)
+            })}, TyFlag::IS_INF
+          ),
+          new Type(Ty::LST,
+            {.box_has=new std::vector<Type*>({
+              new Type(Ty::UNK, {.name=new std::string("b")}, 0)
+            })}, TyFlag::IS_INF
+          )
+        }}, 0
+      )
+    }}, 0
+  );
+
+  Type tonum1_t = Type(Ty::FUN,
+    {.box_pair={
+      new Type(Ty::STR, {0}, TyFlag::IS_FIN),
+      new Type(Ty::NUM, {0}, 0)
+    }}, 0
+  );
+  Type text0_t = Type(Ty::LST,
+    {.box_has=new std::vector<Type*>({
+      new Type(Ty::STR, {0}, TyFlag::IS_FIN)
+    })}, TyFlag::IS_FIN
+  );
+
+  bidoof(map2_t, {tonum1_t, text0_t}, {
+    "(a -> b) -> [a] -> [b]",
+    "[Str] -> [Num]",
+    "[Num]",
+  });
+
   return 0;
 }
