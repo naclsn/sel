@@ -1,3 +1,5 @@
+#include <unordered_map>
+
 #define TRACE(...)
 #include "sel/utils.hpp"
 #include "sel/types.hpp"
@@ -105,10 +107,136 @@ namespace sel {
     }
   }
 
-  Type Type::applied(Type const arg) {
-    return to();
+  typedef std::unordered_map<std::string, Type const&> known_map;
+  /**
+   * now_known, has_unknowns;
+   * DSF through hu for unknowns, build mapping from names to corresponding in nk;
+   * both types must have the same kind ("shape")
+   */
+  // internal
+  void recurseFindUnkowns(known_map& map, Type const& nk, Type const& hu) {
+    TRACE(recurseNowKnown
+      , "nk: " << nk << ", hu: " << hu
+      , "in map: " << map.size() << " entries"
+      );
+    // assert nk.base == hu.base;
+
+    switch (hu.base) {
+      case Ty::UNK:
+        map.emplace(*hu.p.name, nk);
+        break;
+
+      case Ty::NUM:
+        break;
+
+      case Ty::STR:
+        // YYY: this is a (frustrating) hack, but it could be made into a real thing (named-bound'ed types)
+        if ((TyFlag::IS_INF & hu.flags) && (TyFlag::IS_INF & nk.flags) != (TyFlag::IS_INF & map.at("_*").flags)) {
+          map.erase("_*");
+          map.emplace("_*", Type(Ty::UNK, {0}, (TyFlag::IS_INF & nk.flags)));
+        }
+        break;
+
+      case Ty::LST:
+        // assert nk.has().size() == hu.has().size()
+        {
+          auto const& hu_has = hu.has();
+          auto const& nk_has = nk.has();
+          for (size_t k = 0; k < hu_has.size(); k++)
+            recurseFindUnkowns(map, *nk_has[k], *hu_has[k]);
+
+          // YYY: this is a (frustrating) hack, but it could be made into a real thing (named-bound'ed types)
+          if ((TyFlag::IS_INF & hu.flags) && (TyFlag::IS_INF & nk.flags) != (TyFlag::IS_INF & map.at("_*").flags)) {
+            map.erase("_*");
+            map.emplace("_*", Type(Ty::UNK, {0}, (TyFlag::IS_INF & nk.flags)));
+          }
+        }
+        break;
+
+      case Ty::FUN:
+        recurseFindUnkowns(map, nk.from(), hu.from());
+        recurseFindUnkowns(map, nk.to(), hu.to());
+        break;
+    }
+
+    // unreachable
   }
 
+  /**
+   * template_type
+   * deep copy of tt, filling unkowns by picking from map
+   */
+  // internal
+  Type recurseBuildKnown(known_map const& map, Type const& tt) {
+    TRACE(recurseBuildKnown
+      , "map: " << map.size() << " entries, tt: " << tt
+      );
+
+    switch (tt.base) {
+      case Ty::UNK:
+        {
+          auto const& iter = map.find(*tt.p.name);
+          return iter == map.end()
+            ? Type(tt)
+            : Type(iter->second);
+        }
+
+      case Ty::NUM:
+        return Type(Ty::NUM, {0}, 0);
+
+      case Ty::STR:
+        return Type(Ty::STR, {0}, map.at("_*").flags);
+
+      case Ty::LST:
+        {
+          auto* w = new std::vector<Type*>();
+          w->reserve(tt.has().size());
+          for (auto const& it : tt.has())
+            w->push_back(new Type(recurseBuildKnown(map, *it)));
+          return Type(Ty::LST, {.box_has=w}, map.at("_*").flags);
+        }
+
+      case Ty::FUN:
+        return Type(Ty::FUN,
+          {.box_pair={
+            new Type(recurseBuildKnown(map, tt.from())),
+            new Type(recurseBuildKnown(map, tt.to()))
+          }}, 0
+        );
+    }
+
+    return Type(); // unreachable
+  }
+
+  Type Type::applied(Type const& arg) {
+    // Arg and from() have same shape.
+    // In from(), there are UNK, also found in to().
+    // Goal is to find the corresponding types in arg and fill that in into to().
+    // This is basically doing a deep-clone of to(), swapping UNKs from from() with matching in arg.
+
+    known_map map;
+
+    // YYY: hack to propagate bounded-ness
+    map.emplace("_*", Type(Ty::UNK, {0}, TyFlag::IS_INF));
+
+    recurseFindUnkowns(map, arg, from());
+
+    TRACE(Type::applied
+      , "arg: " << arg
+      , [&map](){
+          std::cerr << "map of names:";
+          for (auto const& it : map)
+            if ("_*" != it.first)
+              std::cerr << "\n|\t   " << it.first << " <- " << it.second;
+          return "";
+        }()
+      , "_*: " << (TyFlag::IS_INF & map.at("_*").flags ? "INF" : "FIN")
+      );
+
+    return recurseBuildKnown(map, to());
+  }
+
+  // TODO: remove both
   std::vector<Type*>* types1(Type* ty1) {
     auto* r = new std::vector<Type*>();
     r->push_back(ty1);
@@ -434,7 +562,7 @@ unknown_token_push1:
   std::ostream& operator<<(std::ostream& out, Type const& ty) {
     switch (ty.base) {
       case Ty::UNK:
-        out << *ty.p.name;
+        out << ty.p.name->substr(0, ty.p.name->find('_'));
         break;
 
       case Ty::NUM:
@@ -448,7 +576,7 @@ unknown_token_push1:
       case Ty::LST:
         // early break: list with no types
         if (0 == ty.p.box_has->size()) {
-          out << "[mixed]"; // ZZZ: right...
+          out << "[_mixed]"; // ZZZ: right...
           break;
         }
         out << (TyFlag::IS_TPL & ty.flags

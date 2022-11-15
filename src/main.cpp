@@ -171,20 +171,20 @@ int main() {
     {.box_pair={
       new Type(Ty::FUN,
         {.box_pair={
-          new Type(Ty::UNK, {.name=new std::string("a")}, 0),
-          new Type(Ty::UNK, {.name=new std::string("b")}, 0)
+          new Type(Ty::UNK, {.name=new std::string("a_map")}, 0),
+          new Type(Ty::UNK, {.name=new std::string("b_map")}, 0)
         }}, 0
       ),
       new Type(Ty::FUN,
         {.box_pair={
           new Type(Ty::LST,
             {.box_has=new std::vector<Type*>({
-              new Type(Ty::UNK, {.name=new std::string("a")}, 0)
+              new Type(Ty::UNK, {.name=new std::string("a_map")}, 0)
             })}, TyFlag::IS_INF
           ),
           new Type(Ty::LST,
             {.box_has=new std::vector<Type*>({
-              new Type(Ty::UNK, {.name=new std::string("b")}, 0)
+              new Type(Ty::UNK, {.name=new std::string("b_map")}, 0)
             })}, TyFlag::IS_INF
           )
         }}, 0
