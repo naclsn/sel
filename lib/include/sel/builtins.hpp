@@ -44,29 +44,6 @@ namespace sel {
 
   namespace bins_helpers {
 
-    /*
-      vat: 'Val abstract type', so ex the class `Num` for Ty::NUM
-
-      ->: Next
-      <-: Base
-
-      Head <-> Body <..> Body <-> Tail
-
-      Head: empty struct
-      Body and Tail: struct with base and arg fields
-
-      Head and Body: extend from Fun
-      Tail: extends from the last vat
-
-      `the`, for `bin_val`, is the base class for the actual implementation of the Tail
-      (for example with "add", `the` extends `Num`) because it is available at any level
-      of the chain, that:
-      - `T::the::args` is the arity of the function (so 2 for "add")
-      - `T::the::Head` it the Head type (so `F` such as `F()(some_num)(other_num)`)
-      - `T::the::Base::Next` is the actual implementation (so `Add` for "add")
-      - and so `T::the::Base::Next::name` is the name constexpr ("add")
-    */
-
     template <char c> struct unk {
       inline static Type make() {
         return Type(Ty::UNK, {.name=new std::string(1, c)}, 0);
@@ -127,7 +104,28 @@ namespace sel {
       };
     };
 
-    /**
+    /*
+     * vat: 'Val abstract type', so ex the class `Num` for Ty::NUM
+     *
+     * ->: Next
+     * <-: Base
+     *
+     * Head <-> Body <..> Body <-> Tail
+     *
+     * Head: empty struct
+     * Body and Tail: struct with base and arg fields
+     *
+     * Head and Body: extend from Fun
+     * Tail: extends from the last vat
+     *
+     * `the`, for `bin_val`, is the base class for the actual implementation of the Tail
+     * (for example with "add", `the` extends `Num`) because it is available at any level
+     * of the chain, that:
+     * - `T::the::args` is the arity of the function (so 2 for "add")
+     * - `T::the::Head` it the Head type (so `F` such as `F()(some_num)(other_num)`)
+     * - `T::the::Base::Next` is the actual implementation (so `Add` for "add")
+     * - and so `T::the::Base::Next::name` is the name constexpr ("add")
+     *
      * type is expected to be one of unk/num/str/lst/fun
      * defined specialisations:
      *  - <Impl, only>                       // eg. "pi"
@@ -136,8 +134,17 @@ namespace sel {
      */
     template <typename Implementation, typename type> struct _bin_be;
 
-    // template <typename NextT, typename only>
-    // struct _bin<NextT, only> { }; // TODO: in template decl above
+    // TODO: in template decl above
+    // template <typename Impl, typename one>
+    // struct bin_val<Impl, one> {
+    //   struct Base { typedef Impl Next; }; // YYY: for `the::Base::Next` trick...
+    //   struct the : one::ctor {
+    //     typedef the Head;
+    //     the()
+    //       : one::ctor()
+    //     { }
+    //   };
+    // };
 
     /**
      * typedef Head Base; // when unary,
@@ -154,23 +161,24 @@ namespace sel {
 
     template <typename NextT, typename from, typename to>
     struct _bin_be<NextT, fun<from, to>> : fun<from, to>::ctor {
-      typedef NextT Next;
-      // typedef _ Base;
-      // typedef void Arg;
+      typedef NextT Next; // type `this` instantiates in `op()`
+
+      typedef typename from::vat _next_arg_ty;
 
       struct the : to::ctor {
-        typedef _bin_be Head;
-        typedef typename _one_to_nextmost<Head>::the Base;
-        // typedef typename Base::next_arg_ty::vat Arg;
-        typedef num::vat Arg; // XXX: ZZZ: (wrong)
+        typedef _bin_be Head; // type instanciated in looking up by name
+        typedef typename _one_to_nextmost<Head>::the Base; // type which instantiates `this`
+
+        typedef typename Base::_next_arg_ty Arg;
 
         constexpr static unsigned args = Base::args + 1;
 
         Base* base;
         Arg* arg;
 
+        // this is the (inherited) ctor for the tail type
         the(Base* base, Arg* arg)
-          : to::ctor() // ZZZ: (wrong)
+          : to::ctor(base->type(), arg->type())
           , base(base)
           , arg(arg)
         { }
@@ -181,20 +189,20 @@ namespace sel {
 
       // this is the ctor for the head type
       _bin_be()
-        : fun<from, to>::ctor() // ZZZ: (wrong)
+        : fun<from, to>::ctor()
       { }
 
-      Val* operator()(Val* arg) override {
-        return new Next(this, coerse<typename Next::Arg>(arg));
-      }
+      Val* operator()(Val* arg) override { return new Next(this, coerse<_next_arg_ty>(arg)); }
       void accept(Visitor& v) const override; // visitHead
     };
 
     template <typename NextT, typename from1, typename from2, typename to>
     struct _bin_be<NextT, fun<from1, fun<from2, to>>> : fun<from1, fun<from2, to>>::ctor {
-      typedef NextT Next; // type this instantiates in `op()`
-      typedef _bin_be<_bin_be, fun<from2, to>> Base; // type which instantiates this
-      typedef typename from2::vat Arg; // ZZZ: wrong?
+      typedef NextT Next; // type `this` instantiates in `op()`
+      typedef _bin_be<_bin_be, fun<from2, to>> Base; // type which instantiates `this`
+
+      typedef typename from1::vat _next_arg_ty;
+      typedef typename Base::_next_arg_ty Arg;
 
       typedef typename Base::the the; // bubble `the` up
 
@@ -202,19 +210,16 @@ namespace sel {
 
       Base* base;
       Arg* arg;
-      // typename Base::next_arg_ty::vat* arg;
 
       // this is the ctor for body types
       _bin_be(Base* base, Arg* arg)
-      // _bin_be(Base* base, typename Base::next_arg_ty::vat* arg)
-        : fun<from1, fun<from2, to>>::ctor()
+      // _bin_be(Base* base, typename Base::_next_arg_ty::vat* arg)
+        : fun<from1, fun<from2, to>>::ctor(base->type(), arg->type())
         , base(base)
         , arg(arg)
       { }
 
-      Val* operator()(Val* arg) override {
-        return new Next(this, coerse<typename Next::Arg>(arg));
-      }
+      Val* operator()(Val* arg) override { return new Next(this, coerse<_next_arg_ty>(arg)); }
       void accept(Visitor& v) const override; // visitBody
     };
 
