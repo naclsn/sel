@@ -2,6 +2,7 @@ all = [
   'parseApp',
   'parseType',
   'VisRepr',
+  'TypeMapplied',
 ]
 
 foreach name : all
