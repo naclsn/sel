@@ -134,7 +134,7 @@ void test_zipwith() { // zipwith map {repeat} {{1}}
 int main() {
   cout << "{{{ test_tonum\n";   test_tonum();   cout << "}}}\n";
   cout << "{{{ test_add\n";     test_add();     cout << "}}}\n";
-  // cout << "{{{ test_map\n";     test_map();     cout << "}}}\n";
+  cout << "{{{ test_map\n";     test_map();     cout << "}}}\n";
   // cout << "{{{ test_repeat\n";  test_repeat();  cout << "}}}\n";
   // cout << "{{{ test_zipwith\n"; test_zipwith(); cout << "}}}\n";
   return 0;

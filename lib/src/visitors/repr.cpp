@@ -142,15 +142,15 @@ namespace sel {
     visitCommon(it, std::conditional<!bins::Add::Base::Base::args, std::true_type, std::false_type>::type{});
   }
 
-  // void VisRepr::visit(bins::Map const& it) {
-  //   visitCommon(it, std::conditional<!bins::Map::args, std::true_type, std::false_type>::type{});
-  // }
-  // void VisRepr::visit(bins::Map::Base const& it) {
-  //   visitCommon(it, std::conditional<!bins::Map::Base::args, std::true_type, std::false_type>::type{});
-  // }
-  // void VisRepr::visit(bins::Map::Base::Base const& it) {
-  //   visitCommon(it, std::conditional<!bins::Map::Base::Base::args, std::true_type, std::false_type>::type{});
-  // }
+  void VisRepr::visit(bins::Map const& it) {
+    visitCommon(it, std::conditional<!bins::Map::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::Map::Base const& it) {
+    visitCommon(it, std::conditional<!bins::Map::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::Map::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::Map::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
 
   // void VisRepr::visit(bins::Repeat const& it) {
   //   visitCommon(it, std::conditional<!bins::Repeat::args, std::true_type, std::false_type>::type{});

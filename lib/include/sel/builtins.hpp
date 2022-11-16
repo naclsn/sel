@@ -44,6 +44,8 @@ namespace sel {
 
   namespace bins_helpers {
 
+    using namespace ll;
+
     template <char c> struct unk {
       inline static Type make() {
         return Type(Ty::UNK, {.name=new std::string(1, c)}, 0);
@@ -85,8 +87,7 @@ namespace sel {
       struct ctor : Lst {
         ctor(): Lst(make()) { }
         ctor(Type const& base_fty, Type const& ty)
-          : ctor()
-          // : Lst(base_fty.applied(ty))
+          : Lst(base_fty.applied(ty))
         { }
       };
     };
@@ -98,8 +99,7 @@ namespace sel {
       struct ctor : Fun {
         ctor(): Fun(make()) { }
         ctor(Type const& base_fty, Type const& ty)
-          : ctor()
-          // : Fun(base_fty.applied(ty))
+          : Fun(base_fty.applied(ty))
         { }
       };
     };
@@ -146,6 +146,9 @@ namespace sel {
     //   };
     // };
 
+    template <typename other> struct _fun_last_ret_type { typedef other the; };
+    template <typename from, typename to> struct _fun_last_ret_type<fun<from, to>> { typedef typename _fun_last_ret_type<to>::the the; };
+
     /**
      * typedef Head Base; // when unary,
      * typedef typename Head::Next Base; // when binary,
@@ -159,13 +162,13 @@ namespace sel {
     template <typename N, typename ty1, typename ty2, typename ty3>
     struct _one_to_nextmost<_bin_be<_bin_be<_bin_be<N, ty3>, ty2>, ty1>> { typedef typename _one_to_nextmost<_bin_be<_bin_be<N, ty3>, ty2>>::the the; };
 
-    template <typename NextT, typename from, typename to>
-    struct _bin_be<NextT, fun<from, to>> : fun<from, to>::ctor {
+    template <typename NextT, typename last_to, typename last_from>
+    struct _bin_be<NextT, cons<last_to, cons<last_from, nil>>> : fun<last_from, last_to>::ctor {
       typedef NextT Next; // type `this` instantiates in `op()`
 
-      typedef typename from::vat _next_arg_ty;
+      typedef typename last_from::vat _next_arg_ty;
 
-      struct the : to::ctor {
+      struct the : _fun_last_ret_type<last_to>::the::ctor {
         typedef _bin_be Head; // type instanciated in looking up by name
         typedef typename _one_to_nextmost<Head>::the Base; // type which instantiates `this`
 
@@ -178,7 +181,7 @@ namespace sel {
 
         // this is the (inherited) ctor for the tail type
         the(Base* base, Arg* arg)
-          : to::ctor(base->type(), arg->type())
+          : _fun_last_ret_type<last_to>::the::ctor(base->type(), arg->type())
           , base(base)
           , arg(arg)
         { }
@@ -189,19 +192,19 @@ namespace sel {
 
       // this is the ctor for the head type
       _bin_be()
-        : fun<from, to>::ctor()
+        : fun<last_from, last_to>::ctor()
       { }
 
       Val* operator()(Val* arg) override { return new Next(this, coerse<_next_arg_ty>(arg)); }
       void accept(Visitor& v) const override; // visitHead
     };
 
-    template <typename NextT, typename from1, typename from2, typename to>
-    struct _bin_be<NextT, fun<from1, fun<from2, to>>> : fun<from1, fun<from2, to>>::ctor {
+    template <typename NextT, typename to, typename from, typename from_again, typename from_more>
+    struct _bin_be<NextT, cons<to, cons<from, cons<from_again, from_more>>>> : fun<from, to>::ctor {
       typedef NextT Next; // type `this` instantiates in `op()`
-      typedef _bin_be<_bin_be, fun<from2, to>> Base; // type which instantiates `this`
+      typedef _bin_be<_bin_be, cons<fun<from, to>, cons<from_again, from_more>>> Base; // type which instantiates `this`
 
-      typedef typename from1::vat _next_arg_ty;
+      typedef typename from::vat _next_arg_ty;
       typedef typename Base::_next_arg_ty Arg;
 
       typedef typename Base::the the; // bubble `the` up
@@ -213,8 +216,7 @@ namespace sel {
 
       // this is the ctor for body types
       _bin_be(Base* base, Arg* arg)
-      // _bin_be(Base* base, typename Base::_next_arg_ty::vat* arg)
-        : fun<from1, fun<from2, to>>::ctor(base->type(), arg->type())
+        : fun<from, to>::ctor(base->type(), arg->type())
         , base(base)
         , arg(arg)
       { }
@@ -254,7 +256,7 @@ namespace sel {
 #define _bind_one(__name, __depth) auto& __name = *_depth(__depth)
 #define bind_args(...) _bind_count(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
 
-    struct Add : _bin_be<Add, fun<num, fun<num, num>>>::the {
+    struct Add : _bin_be<Add, ll::cons_l<num, num, num>::the>::the {
       constexpr static char const* name = "add";
       using the::the;
       double value() override {
@@ -270,18 +272,19 @@ namespace sel {
     //   }
     // };
 
-    // struct Map : bin_val<Map, lst<unk<'b'>>, lst<unk<'a'>>, fun<unk<'a'>, unk<'b'>>>::the {
-    //   constexpr static char const* name = "map";
-    //   using the::the;
-    //   Val* operator*() override { // ZZZ: place holder
-    //     bind_args(f, l);
-    //     return f(*l);
-    //   }
-    //   Lst& operator++() override { return *this; }
-    //   bool end() const override { return true; }
-    //   void rewind() override { }
-    //   size_t count() override { return 0; }
-    // };
+    // map :: (a -> b) -> [a] -> [b] (REM: XXX: still backward)
+    struct Map : _bin_be<Map, ll::cons_l<lst<unk<'b'>>, lst<unk<'a'>>, fun<unk<'a'>, unk<'b'>>>::the>::the {
+      constexpr static char const* name = "map";
+      using the::the;
+      Val* operator*() override { // ZZZ: place holder
+        bind_args(f, l);
+        return f(*l);
+      }
+      Lst& operator++() override { return *this; }
+      bool end() const override { return true; }
+      void rewind() override { }
+      size_t count() override { return 0; }
+    };
 
     // struct Repeat : bin_val<Repeat, lst<unk<'a'>>, unk<'a'>>::the {
     //   constexpr static char const* name = "repeat";
@@ -300,7 +303,7 @@ namespace sel {
     // //   }
     // // };
 
-    struct Tonum : _bin_be<Tonum, fun<str, num>>::the {
+    struct Tonum : _bin_be<Tonum, ll::cons_l<num, str>::the>::the {
       constexpr static char const* name = "tonum";
       using the::the;
       double value() override {
@@ -339,26 +342,10 @@ namespace sel {
         typename _make_bins_all<cons<typename TailL::car::Base, typename TailL::cdr>>::the
       > the;
     };
-    template <typename Next, typename from, typename to, typename to_more, typename TailL>
-    struct _make_bins_all<cons<
-        bins_helpers::_bin_be<Next, bins_helpers::fun<from, bins_helpers::fun<to, to_more>>>,
-        TailL
-    >> {
+    template <typename Next, typename last_to, typename last_from, typename TailL>
+    struct _make_bins_all<cons<bins_helpers::_bin_be<Next, cons<last_to, cons<last_from, nil>>>, TailL>> {
       typedef cons<
-        bins_helpers::_bin_be<Next, bins_helpers::fun<from, bins_helpers::fun<to, to_more>>>,
-        typename _make_bins_all<cons<
-          typename bins_helpers::_bin_be<Next, bins_helpers::fun<from, bins_helpers::fun<to, to_more>>>::Base,
-          TailL
-        >>::the
-      > the;
-    };
-    template <typename Next, typename from, typename to_not_fun, typename TailL>
-    struct _make_bins_all<cons<
-        bins_helpers::_bin_be<Next, bins_helpers::fun<from, to_not_fun>>,
-        TailL
-    >> {
-      typedef cons<
-        bins_helpers::_bin_be<Next, bins_helpers::fun<from, to_not_fun>>,
+        bins_helpers::_bin_be<Next, cons<last_to, cons<last_from, nil>>>,
         typename _make_bins_all<TailL>::the
       > the;
     };
@@ -370,7 +357,7 @@ namespace sel {
     using namespace bins;
 
     // typedef cons_l<Add, Map, Repeat, Tonum, Zipwith>::the bins;
-    typedef cons_l<Add, Tonum>::the bins;
+    typedef cons_l<Add, Map, Tonum>::the bins;
     typedef _make_bins_all<bins>::the bins_all;
 
   } // namespace bin_types

@@ -107,9 +107,9 @@ namespace sel {
     void visit(bins::Add const&) override;
     void visit(bins::Add::Base const&) override;
     void visit(bins::Add::Base::Base const&) override;
-    // void visit(bins::Map const&) override;
-    // void visit(bins::Map::Base const&) override;
-    // void visit(bins::Map::Base::Base const&) override;
+    void visit(bins::Map const&) override;
+    void visit(bins::Map::Base const&) override;
+    void visit(bins::Map::Base::Base const&) override;
     // void visit(bins::Repeat const&) override;
     // void visit(bins::Repeat::Base const&) override;
     // // void visit(bins::Sub const&) override;
