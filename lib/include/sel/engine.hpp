@@ -42,7 +42,7 @@ namespace sel {
    * it for `coerse(Val val, Type to)`.
    */
   template <typename To>
-  To* coerse(Val* from); // TODO: add `Type const& ty`
+  To* coerse(Val* from); // TODO: `Type const& to` [?]
 
   /**
    * Abstract class for `Num`-type compatible values.

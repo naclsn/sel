@@ -6,10 +6,10 @@ namespace sel {
 #define fi_str(__name, __str) {.name=__name, .data_ty=ReprField::STR, .data={.str=__str}}
 #define fi_val(__name, __val) {.name=__name, .data_ty=ReprField::VAL, .data={.val=__val}}
 
-  void VisRepr::reprHelper(Type const& type, char const* name, std::initializer_list<ReprField> const fields) {
-    std::vector<ReprField> tmp(fields);
-    reprHelper(type, name, tmp);
-  }
+  // void VisRepr::reprHelper(Type const& type, char const* name, std::initializer_list<ReprField> const fields) {
+  //   std::vector<ReprField> tmp(fields);
+  //   reprHelper(type, name, tmp);
+  // }
   void VisRepr::reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields) {
     bool isln = 1 < fields.size() && !cx.single_line;
 
@@ -142,32 +142,32 @@ namespace sel {
     visitCommon(it, std::conditional<!bins::Add::Base::Base::args, std::true_type, std::false_type>::type{});
   }
 
-  void VisRepr::visit(bins::Map const& it) {
-    visitCommon(it, std::conditional<!bins::Map::args, std::true_type, std::false_type>::type{});
-  }
-  void VisRepr::visit(bins::Map::Base const& it) {
-    visitCommon(it, std::conditional<!bins::Map::Base::args, std::true_type, std::false_type>::type{});
-  }
-  void VisRepr::visit(bins::Map::Base::Base const& it) {
-    visitCommon(it, std::conditional<!bins::Map::Base::Base::args, std::true_type, std::false_type>::type{});
-  }
+  // void VisRepr::visit(bins::Map const& it) {
+  //   visitCommon(it, std::conditional<!bins::Map::args, std::true_type, std::false_type>::type{});
+  // }
+  // void VisRepr::visit(bins::Map::Base const& it) {
+  //   visitCommon(it, std::conditional<!bins::Map::Base::args, std::true_type, std::false_type>::type{});
+  // }
+  // void VisRepr::visit(bins::Map::Base::Base const& it) {
+  //   visitCommon(it, std::conditional<!bins::Map::Base::Base::args, std::true_type, std::false_type>::type{});
+  // }
 
-  void VisRepr::visit(bins::Repeat const& it) {
-    visitCommon(it, std::conditional<!bins::Repeat::args, std::true_type, std::false_type>::type{});
-  }
-  void VisRepr::visit(bins::Repeat::Base const& it) {
-    visitCommon(it, std::conditional<!bins::Repeat::Base::args, std::true_type, std::false_type>::type{});
-  }
+  // void VisRepr::visit(bins::Repeat const& it) {
+  //   visitCommon(it, std::conditional<!bins::Repeat::args, std::true_type, std::false_type>::type{});
+  // }
+  // void VisRepr::visit(bins::Repeat::Base const& it) {
+  //   visitCommon(it, std::conditional<!bins::Repeat::Base::args, std::true_type, std::false_type>::type{});
+  // }
 
-  // void VisRepr::visit(bins::Sub const& it) {
-  //   visitCommon(it, std::conditional<!bins::Sub::args, std::true_type, std::false_type>::type{});
-  // }
-  // void VisRepr::visit(bins::Sub::Base const& it) {
-  //   visitCommon(it, std::conditional<!bins::Sub::Base::args, std::true_type, std::false_type>::type{});
-  // }
-  // void VisRepr::visit(bins::Sub::Base::Base const& it) {
-  //   visitCommon(it, std::conditional<!bins::Sub::Base::Base::args, std::true_type, std::false_type>::type{});
-  // }
+  // // void VisRepr::visit(bins::Sub const& it) {
+  // //   visitCommon(it, std::conditional<!bins::Sub::args, std::true_type, std::false_type>::type{});
+  // // }
+  // // void VisRepr::visit(bins::Sub::Base const& it) {
+  // //   visitCommon(it, std::conditional<!bins::Sub::Base::args, std::true_type, std::false_type>::type{});
+  // // }
+  // // void VisRepr::visit(bins::Sub::Base::Base const& it) {
+  // //   visitCommon(it, std::conditional<!bins::Sub::Base::Base::args, std::true_type, std::false_type>::type{});
+  // // }
 
   void VisRepr::visit(bins::Tonum const& it) {
     visitCommon(it, std::conditional<!bins::Tonum::args, std::true_type, std::false_type>::type{});
@@ -176,17 +176,17 @@ namespace sel {
     visitCommon(it, std::conditional<!bins::Tonum::Base::args, std::true_type, std::false_type>::type{});
   }
 
-  void VisRepr::visit(bins::Zipwith const& it) {
-    visitCommon(it, std::conditional<!bins::Zipwith::args, std::true_type, std::false_type>::type{});
-  }
-  void VisRepr::visit(bins::Zipwith::Base const& it) {
-    visitCommon(it, std::conditional<!bins::Zipwith::Base::args, std::true_type, std::false_type>::type{});
-  }
-  void VisRepr::visit(bins::Zipwith::Base::Base const& it) {
-    visitCommon(it, std::conditional<!bins::Zipwith::Base::Base::args, std::true_type, std::false_type>::type{});
-  }
-  void VisRepr::visit(bins::Zipwith::Base::Base::Base const& it) {
-    visitCommon(it, std::conditional<!bins::Zipwith::Base::Base::Base::args, std::true_type, std::false_type>::type{});
-  }
+  // void VisRepr::visit(bins::Zipwith const& it) {
+  //   visitCommon(it, std::conditional<!bins::Zipwith::args, std::true_type, std::false_type>::type{});
+  // }
+  // void VisRepr::visit(bins::Zipwith::Base const& it) {
+  //   visitCommon(it, std::conditional<!bins::Zipwith::Base::args, std::true_type, std::false_type>::type{});
+  // }
+  // void VisRepr::visit(bins::Zipwith::Base::Base const& it) {
+  //   visitCommon(it, std::conditional<!bins::Zipwith::Base::Base::args, std::true_type, std::false_type>::type{});
+  // }
+  // void VisRepr::visit(bins::Zipwith::Base::Base::Base const& it) {
+  //   visitCommon(it, std::conditional<!bins::Zipwith::Base::Base::Base::args, std::true_type, std::false_type>::type{});
+  // }
 
 } // namespace sel
