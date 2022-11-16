@@ -208,7 +208,7 @@ namespace sel {
     return Type(); // unreachable
   }
 
-  Type Type::applied(Type const& arg) {
+  Type Type::applied(Type const& arg) const {
     // Arg and from() have same shape.
     // In from(), there are UNK, also found in to().
     // Goal is to find the corresponding types in arg and fill that in into to().
