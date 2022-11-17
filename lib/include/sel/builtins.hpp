@@ -244,13 +244,13 @@ namespace sel {
 
     template <typename Implementation, typename type>
     struct builtin {
-      typedef _bin_be<Implementation, typename rev<type>::the> the;
+      typedef typename _bin_be<Implementation, typename rev<type>::the>::the the;
     };
 
   } // namespace bins_helpers
 
   /**
-   * namespace containing the actual buildins
+   * namespace containing the actual builtins
    */
   namespace bins {
 
@@ -259,8 +259,6 @@ namespace sel {
     using bins_helpers::str;
     using bins_helpers::lst;
     using bins_helpers::fun;
-
-    using bins_helpers::_bin_be; // TODO: front-end
 
 #define _depth(__depth) _depth_ ## __depth
 #define _depth_0 arg
@@ -278,7 +276,14 @@ namespace sel {
 #define _bind_one(__name, __depth) auto& __name = *_depth(__depth)
 #define bind_args(...) _bind_count(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
 
-    struct Add : _bin_be<Add, ll::cons_l<num, num, num>::the>::the {
+#define NAME(__ident) _##__ident
+#define DECL(__ident, ...) \
+    struct NAME(__ident) : bins_helpers::builtin<__ident, ll::cons_l<__VA_ARGS__>::the>::the
+#define BODY(__ident) \
+      constexpr static char const* name = #__ident; \
+      using the::the;
+
+    struct Add : bins_helpers::builtin<Add, ll::cons_l<num, num, num>::the>::the {
       constexpr static char const* name = "add";
       using the::the;
       double value() override {
@@ -287,15 +292,7 @@ namespace sel {
       }
     };
 
-    // struct Idk : bin_val<Idk, Ty::NUM, Ty::NUM, Ty::NUM, Ty::NUM>::the {
-    //   constexpr static char const* name = "idk";
-    //   double value() override {
-    //     return 0;
-    //   }
-    // };
-
-    // map :: (a -> b) -> [a] -> [b] (REM: XXX: still backward)
-    struct Map : _bin_be<Map, ll::cons_l<lst<unk<'b'>>, lst<unk<'a'>>, fun<unk<'a'>, unk<'b'>>>::the>::the {
+    struct Map : bins_helpers::builtin<Map, ll::cons_l<fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>>::the>::the {
       constexpr static char const* name = "map";
       using the::the;
       Val* operator*() override { // ZZZ: place holder
@@ -308,7 +305,7 @@ namespace sel {
       size_t count() override { return 0; }
     };
 
-    struct Repeat : _bin_be<Repeat, ll::cons_l<lst<unk<'a'>>, unk<'a'>>::the>::the {
+    struct Repeat : bins_helpers::builtin<Repeat, ll::cons_l<unk<'a'>, lst<unk<'a'>>>::the>::the {
       constexpr static char const* name = "repeat";
       using the::the;
       Val* operator*() override { return nullptr; }
@@ -325,7 +322,7 @@ namespace sel {
     // //   }
     // // };
 
-    struct Tonum : _bin_be<Tonum, ll::cons_l<num, str>::the>::the {
+    struct Tonum : bins_helpers::builtin<Tonum, ll::cons_l<str, num>::the>::the {
       constexpr static char const* name = "tonum";
       using the::the;
       double value() override {
@@ -338,7 +335,7 @@ namespace sel {
       }
     };
 
-    struct Tostr : _bin_be<Tostr, ll::cons_l<str, num>::the>::the {
+    struct Tostr : bins_helpers::builtin<Tostr, ll::cons_l<num, str>::the>::the {
       constexpr static char const* name = "tostr";
       using the::the;
       bool read = false;
@@ -348,7 +345,7 @@ namespace sel {
       std::ostream& entire(std::ostream& out) override { read = true; return out << arg->value(); }
     };
 
-    struct Zipwith : _bin_be<Zipwith, ll::cons_l<lst<unk<'c'>>, lst<unk<'b'>>, lst<unk<'a'>>, fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>>::the>::the {
+    struct Zipwith : bins_helpers::builtin<Zipwith, ll::cons_l<fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, lst<unk<'a'>>, lst<unk<'b'>>, lst<unk<'c'>>>::the>::the {
       constexpr static char const* name = "zipwith";
       using the::the;
       Val* operator*() override { return nullptr; }
