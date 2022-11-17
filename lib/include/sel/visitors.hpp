@@ -88,7 +88,7 @@ namespace sel {
     };
     ReprCx cx;
 
-    void reprHelper(Type const& type, char const* name, std::initializer_list<ReprField> const fields);
+    // void reprHelper(Type const& type, char const* name, std::initializer_list<ReprField> const fields);
     void reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields);
 
     template <typename T>
@@ -104,23 +104,23 @@ namespace sel {
     void visitInput(Type const& type) override;
     void visitOutput(Type const& type) override;
 
-    void visit(bin::Add const&) override;
-    void visit(bin::Add::Base const&) override;
-    void visit(bin::Add::Base::Base const&) override;
-    void visit(bin::Map const&) override;
-    void visit(bin::Map::Base const&) override;
-    void visit(bin::Map::Base::Base const&) override;
-    void visit(bin::Repeat const&) override;
-    void visit(bin::Repeat::Base const&) override;
-    // void visit(bin::Sub const&) override;
-    // void visit(bin::Sub::Base const&) override;
-    // void visit(bin::Sub::Base::Base const&) override;
-    void visit(bin::Tonum const&) override;
-    void visit(bin::Tonum::Base const&) override;
-    void visit(bin::Zipwith const&) override;
-    void visit(bin::Zipwith::Base const&) override;
-    void visit(bin::Zipwith::Base::Base const&) override;
-    void visit(bin::Zipwith::Base::Base::Base const&) override;
+    void visit(bins::Add const&) override;
+    void visit(bins::Add::Base const&) override;
+    void visit(bins::Add::Base::Base const&) override;
+    void visit(bins::Map const&) override;
+    void visit(bins::Map::Base const&) override;
+    void visit(bins::Map::Base::Base const&) override;
+    void visit(bins::Repeat const&) override;
+    void visit(bins::Repeat::Base const&) override;
+    // // void visit(bins::Sub const&) override;
+    // // void visit(bins::Sub::Base const&) override;
+    // // void visit(bins::Sub::Base::Base const&) override;
+    void visit(bins::Tonum const&) override;
+    void visit(bins::Tonum::Base const&) override;
+    void visit(bins::Zipwith const&) override;
+    void visit(bins::Zipwith::Base const&) override;
+    void visit(bins::Zipwith::Base::Base const&) override;
+    void visit(bins::Zipwith::Base::Base::Base const&) override;
   };
 
 } // namespace sel

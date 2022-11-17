@@ -1,9 +1,11 @@
+#include <typeinfo>
+
 #include "sel/builtins.hpp"
 #include "sel/visitors.hpp"
 
 namespace sel {
 
-  template <typename list> struct linear_search; // ZZZ
+  template <typename list> struct linear_search;
   template <typename car, typename cdr>
   struct linear_search<bin_types::cons<car, cdr>> {
     static inline Val* the(std::string const& name) {
@@ -37,18 +39,18 @@ namespace sel {
   //   return nullptr;
   // }
 
-  template <typename NextT, typename to, typename from, typename from_again, typename... from_more>
-  void bin_val_helpers::bin_val<NextT, to, from, from_again, from_more...>::accept(Visitor& v) const {
+  template <typename NextT, typename to, typename from, typename from_again, typename from_more>
+  void bins_helpers::_bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::accept(Visitor& v) const {
     v.visit(*this); // visitBody
   }
 
   template <typename NextT, typename last_to, typename last_from>
-  void bin_val_helpers::bin_val<NextT, last_to, last_from>::the::accept(Visitor& v) const {
+  void bins_helpers::_bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the::accept(Visitor& v) const{
     v.visit(*(typename Base::Next*)this); // visitTail
-  };
+  }
 
   template <typename NextT, typename last_to, typename last_from>
-  void bin_val_helpers::bin_val<NextT, last_to, last_from>::accept(Visitor& v) const {
+  void bins_helpers::_bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::accept(Visitor& v) const{
     v.visit(*this); // visitHead
   }
 

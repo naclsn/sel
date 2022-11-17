@@ -26,6 +26,6 @@ TEST(VisRepr) {
   v.push_back(&str);
   doTestEq(
     LstLiteral(v),
-    "<[mixed]> LstLiteral { v[0]=<Num> NumLiteral { n= 42.1 } v[1]=<Str> StrLiteral { s= \"coucou\" } }"
+    "<[_mixed]> LstLiteral { v[0]=<Num> NumLiteral { n= 42.1 } v[1]=<Str> StrLiteral { s= \"coucou\" } }"
   );
 }

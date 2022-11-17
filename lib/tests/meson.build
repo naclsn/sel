@@ -2,6 +2,8 @@ all = [
   'parseApp',
   'parseType',
   'VisRepr',
+  'Type_applied',
+  'bins_applied',
 ]
 
 foreach name : all
