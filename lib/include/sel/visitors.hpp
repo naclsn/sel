@@ -104,25 +104,26 @@ namespace sel {
     void visitInput(Type const& type) override;
     void visitOutput(Type const& type) override;
 
-    void visit(bins::Add const&) override;
-    void visit(bins::Add::Base const&) override;
-    void visit(bins::Add::Base::Base const&) override;
-    void visit(bins::Map const&) override;
-    void visit(bins::Map::Base const&) override;
-    void visit(bins::Map::Base::Base const&) override;
-    void visit(bins::Repeat const&) override;
-    void visit(bins::Repeat::Base const&) override;
-    // // void visit(bins::Sub const&) override;
-    // // void visit(bins::Sub::Base const&) override;
-    // // void visit(bins::Sub::Base::Base const&) override;
-    void visit(bins::Tonum const&) override;
-    void visit(bins::Tonum::Base const&) override;
-    void visit(bins::Tostr const&) override;
-    void visit(bins::Tostr::Base const&) override;
-    void visit(bins::Zipwith const&) override;
-    void visit(bins::Zipwith::Base const&) override;
-    void visit(bins::Zipwith::Base::Base const&) override;
-    void visit(bins::Zipwith::Base::Base::Base const&) override;
+    // XXX: would love any form of solution to this, but there might no be any du to the nature of the problem
+    void visit(bins::add_ const&) override;
+    void visit(bins::add_::Base const&) override;
+    void visit(bins::add_::Base::Base const&) override;
+    void visit(bins::map_ const&) override;
+    void visit(bins::map_::Base const&) override;
+    void visit(bins::map_::Base::Base const&) override;
+    void visit(bins::repeat_ const&) override;
+    void visit(bins::repeat_::Base const&) override;
+    void visit(bins::sub_ const&) override;
+    void visit(bins::sub_::Base const&) override;
+    void visit(bins::sub_::Base::Base const&) override;
+    void visit(bins::tonum_ const&) override;
+    void visit(bins::tonum_::Base const&) override;
+    void visit(bins::tostr_ const&) override;
+    void visit(bins::tostr_::Base const&) override;
+    void visit(bins::zipwith_ const&) override;
+    void visit(bins::zipwith_::Base const&) override;
+    void visit(bins::zipwith_::Base::Base const&) override;
+    void visit(bins::zipwith_::Base::Base::Base const&) override;
   };
 
 } // namespace sel

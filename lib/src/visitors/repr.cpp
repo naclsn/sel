@@ -132,68 +132,68 @@ namespace sel {
     reprHelper(it.type(), (std::string(T::the::Base::Next::name) + std::to_string(arity)).c_str(), {});
   }
 
-  void VisRepr::visit(bins::Add const& it) {
-    visitCommon(it, std::conditional<!bins::Add::args, std::true_type, std::false_type>::type{});
+  void VisRepr::visit(bins::add_ const& it) {
+    visitCommon(it, std::conditional<!bins::add_::args, std::true_type, std::false_type>::type{});
   }
-  void VisRepr::visit(bins::Add::Base const& it) {
-    visitCommon(it, std::conditional<!bins::Add::Base::args, std::true_type, std::false_type>::type{});
+  void VisRepr::visit(bins::add_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::add_::Base::args, std::true_type, std::false_type>::type{});
   }
-  void VisRepr::visit(bins::Add::Base::Base const& it) {
-    visitCommon(it, std::conditional<!bins::Add::Base::Base::args, std::true_type, std::false_type>::type{});
-  }
-
-  void VisRepr::visit(bins::Map const& it) {
-    visitCommon(it, std::conditional<!bins::Map::args, std::true_type, std::false_type>::type{});
-  }
-  void VisRepr::visit(bins::Map::Base const& it) {
-    visitCommon(it, std::conditional<!bins::Map::Base::args, std::true_type, std::false_type>::type{});
-  }
-  void VisRepr::visit(bins::Map::Base::Base const& it) {
-    visitCommon(it, std::conditional<!bins::Map::Base::Base::args, std::true_type, std::false_type>::type{});
+  void VisRepr::visit(bins::add_::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::add_::Base::Base::args, std::true_type, std::false_type>::type{});
   }
 
-  void VisRepr::visit(bins::Repeat const& it) {
-    visitCommon(it, std::conditional<!bins::Repeat::args, std::true_type, std::false_type>::type{});
+  void VisRepr::visit(bins::map_ const& it) {
+    visitCommon(it, std::conditional<!bins::map_::args, std::true_type, std::false_type>::type{});
   }
-  void VisRepr::visit(bins::Repeat::Base const& it) {
-    visitCommon(it, std::conditional<!bins::Repeat::Base::args, std::true_type, std::false_type>::type{});
+  void VisRepr::visit(bins::map_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::map_::Base::args, std::true_type, std::false_type>::type{});
   }
-
-  // // void VisRepr::visit(bins::Sub const& it) {
-  // //   visitCommon(it, std::conditional<!bins::Sub::args, std::true_type, std::false_type>::type{});
-  // // }
-  // // void VisRepr::visit(bins::Sub::Base const& it) {
-  // //   visitCommon(it, std::conditional<!bins::Sub::Base::args, std::true_type, std::false_type>::type{});
-  // // }
-  // // void VisRepr::visit(bins::Sub::Base::Base const& it) {
-  // //   visitCommon(it, std::conditional<!bins::Sub::Base::Base::args, std::true_type, std::false_type>::type{});
-  // // }
-
-  void VisRepr::visit(bins::Tonum const& it) {
-    visitCommon(it, std::conditional<!bins::Tonum::args, std::true_type, std::false_type>::type{});
-  }
-  void VisRepr::visit(bins::Tonum::Base const& it) {
-    visitCommon(it, std::conditional<!bins::Tonum::Base::args, std::true_type, std::false_type>::type{});
+  void VisRepr::visit(bins::map_::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::map_::Base::Base::args, std::true_type, std::false_type>::type{});
   }
 
-  void VisRepr::visit(bins::Tostr const& it) {
-    visitCommon(it, std::conditional<!bins::Tostr::args, std::true_type, std::false_type>::type{});
+  void VisRepr::visit(bins::repeat_ const& it) {
+    visitCommon(it, std::conditional<!bins::repeat_::args, std::true_type, std::false_type>::type{});
   }
-  void VisRepr::visit(bins::Tostr::Base const& it) {
-    visitCommon(it, std::conditional<!bins::Tostr::Base::args, std::true_type, std::false_type>::type{});
+  void VisRepr::visit(bins::repeat_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::repeat_::Base::args, std::true_type, std::false_type>::type{});
   }
 
-  void VisRepr::visit(bins::Zipwith const& it) {
-    visitCommon(it, std::conditional<!bins::Zipwith::args, std::true_type, std::false_type>::type{});
+  void VisRepr::visit(bins::sub_ const& it) {
+    visitCommon(it, std::conditional<!bins::sub_::args, std::true_type, std::false_type>::type{});
   }
-  void VisRepr::visit(bins::Zipwith::Base const& it) {
-    visitCommon(it, std::conditional<!bins::Zipwith::Base::args, std::true_type, std::false_type>::type{});
+  void VisRepr::visit(bins::sub_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::sub_::Base::args, std::true_type, std::false_type>::type{});
   }
-  void VisRepr::visit(bins::Zipwith::Base::Base const& it) {
-    visitCommon(it, std::conditional<!bins::Zipwith::Base::Base::args, std::true_type, std::false_type>::type{});
+  void VisRepr::visit(bins::sub_::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::sub_::Base::Base::args, std::true_type, std::false_type>::type{});
   }
-  void VisRepr::visit(bins::Zipwith::Base::Base::Base const& it) {
-    visitCommon(it, std::conditional<!bins::Zipwith::Base::Base::Base::args, std::true_type, std::false_type>::type{});
+
+  void VisRepr::visit(bins::tonum_ const& it) {
+    visitCommon(it, std::conditional<!bins::tonum_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::tonum_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::tonum_::Base::args, std::true_type, std::false_type>::type{});
+  }
+
+  void VisRepr::visit(bins::tostr_ const& it) {
+    visitCommon(it, std::conditional<!bins::tostr_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::tostr_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::tostr_::Base::args, std::true_type, std::false_type>::type{});
+  }
+
+  void VisRepr::visit(bins::zipwith_ const& it) {
+    visitCommon(it, std::conditional<!bins::zipwith_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::zipwith_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::zipwith_::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::zipwith_::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::zipwith_::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::zipwith_::Base::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::zipwith_::Base::Base::Base::args, std::true_type, std::false_type>::type{});
   }
 
 } // namespace sel

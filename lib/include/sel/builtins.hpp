@@ -276,25 +276,28 @@ namespace sel {
 #define _bind_one(__name, __depth) auto& __name = *_depth(__depth)
 #define bind_args(...) _bind_count(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
 
-#define NAME(__ident) _##__ident
+// YYY: C-pp cannot do case operations in stringify,
+// so to still have no conflict with the 65+ kw of C++,
+// strategy is `lower_` (eg. `add_`, has `::name = "add"`)
+// (na, couldn't get it with a constexpr tolower either...)
 #define DECL(__ident, ...) \
-    struct NAME(__ident) : bins_helpers::builtin<__ident, ll::cons_l<__VA_ARGS__>::the>::the
+    __ident##_ : bins_helpers::builtin<__ident##_, ll::cons_l<__VA_ARGS__>::the>::the
+// XXX: name is still repeated twice, which not cool, but
+// other approaches were making code more annoying to read,
+// worst for static tools (eg. sy highlight...)... (pb is:
+// the name must appear both outside and inside the struct)
 #define BODY(__ident) \
       constexpr static char const* name = #__ident; \
       using the::the;
 
-    struct Add : bins_helpers::builtin<Add, ll::cons_l<num, num, num>::the>::the {
-      constexpr static char const* name = "add";
-      using the::the;
+    struct DECL(add, num, num, num) { BODY(add);
       double value() override {
         bind_args(a, b);
         return a.value() + b.value();
       }
     };
 
-    struct Map : bins_helpers::builtin<Map, ll::cons_l<fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>>::the>::the {
-      constexpr static char const* name = "map";
-      using the::the;
+    struct DECL(map, fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>) { BODY(map);
       Val* operator*() override { // ZZZ: place holder
         bind_args(f, l);
         return f(*l);
@@ -305,9 +308,7 @@ namespace sel {
       size_t count() override { return 0; }
     };
 
-    struct Repeat : bins_helpers::builtin<Repeat, ll::cons_l<unk<'a'>, lst<unk<'a'>>>::the>::the {
-      constexpr static char const* name = "repeat";
-      using the::the;
+    struct DECL(repeat, unk<'a'>, lst<unk<'a'>>) { BODY(repeat);
       Val* operator*() override { return nullptr; }
       Lst& operator++() override { return *this; }
       bool end() const override { return true; }
@@ -315,16 +316,14 @@ namespace sel {
       size_t count() override { return 0; }
     };
 
-    // // struct Sub : bin_val<Sub, Ty::NUM, Ty::NUM, Ty::NUM>::the {
-    // //   constexpr static char const* name = "sub";
-    // //   double value() override {
-    // //     return ((Num*)base->arg)->value() - ((Num*)arg)->value();
-    // //   }
-    // // };
+    struct DECL(sub, num, num, num) { BODY(sub);
+      double value() override {
+        bind_args(a, b);
+        return a.value() - b.value();
+      }
+    };
 
-    struct Tonum : bins_helpers::builtin<Tonum, ll::cons_l<str, num>::the>::the {
-      constexpr static char const* name = "tonum";
-      using the::the;
+    struct DECL(tonum, str, num) { BODY(tonum);
       double value() override {
         bind_args(s);
         double r;
@@ -335,9 +334,7 @@ namespace sel {
       }
     };
 
-    struct Tostr : bins_helpers::builtin<Tostr, ll::cons_l<num, str>::the>::the {
-      constexpr static char const* name = "tostr";
-      using the::the;
+    struct DECL(tostr, num, str) { BODY(tostr);
       bool read = false;
       std::ostream& stream(std::ostream& out) override { read = true; return out << arg->value(); }
       bool end() const override { return read; }
@@ -345,9 +342,7 @@ namespace sel {
       std::ostream& entire(std::ostream& out) override { read = true; return out << arg->value(); }
     };
 
-    struct Zipwith : bins_helpers::builtin<Zipwith, ll::cons_l<fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, lst<unk<'a'>>, lst<unk<'b'>>, lst<unk<'c'>>>::the>::the {
-      constexpr static char const* name = "zipwith";
-      using the::the;
+    struct DECL(zipwith, fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, lst<unk<'a'>>, lst<unk<'b'>>, lst<unk<'c'>>) { BODY(zipwith);
       Val* operator*() override { return nullptr; }
       Lst& operator++() override { return *this; }
       bool end() const override { return true; }
@@ -390,7 +385,16 @@ namespace sel {
 
     using namespace bins;
 
-    typedef cons_l<Add, Map, Repeat, Tonum, Tostr, Zipwith>::the bins;
+    // XXX: still would love if this list could be built automatically
+    typedef cons_l
+      < add_
+      , map_
+      , repeat_
+      , sub_
+      , tonum_
+      , tostr_
+      , zipwith_
+      >::the bins;
     typedef _make_bins_all<bins>::the bins_all;
 
   } // namespace bin_types
