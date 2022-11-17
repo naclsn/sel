@@ -47,6 +47,7 @@ namespace sel {
     using namespace ll;
 
     template <char c> struct unk {
+      typedef Val vat;
       inline static Type make() {
         return Type(Ty::UNK, {.name=new std::string(1, c)}, 0);
       }
@@ -286,15 +287,15 @@ namespace sel {
       size_t count() override { return 0; }
     };
 
-    // struct Repeat : bin_val<Repeat, lst<unk<'a'>>, unk<'a'>>::the {
-    //   constexpr static char const* name = "repeat";
-    //   using the::the;
-    //   Val* operator*() override { return nullptr; }
-    //   Lst& operator++() override { return *this; }
-    //   bool end() const override { return true; }
-    //   void rewind() override { }
-    //   size_t count() override { return 0; }
-    // };
+    struct Repeat : _bin_be<Repeat, ll::cons_l<lst<unk<'a'>>, unk<'a'>>::the>::the {
+      constexpr static char const* name = "repeat";
+      using the::the;
+      Val* operator*() override { return nullptr; }
+      Lst& operator++() override { return *this; }
+      bool end() const override { return true; }
+      void rewind() override { }
+      size_t count() override { return 0; }
+    };
 
     // // struct Sub : bin_val<Sub, Ty::NUM, Ty::NUM, Ty::NUM>::the {
     // //   constexpr static char const* name = "sub";
@@ -316,15 +317,15 @@ namespace sel {
       }
     };
 
-    // struct Zipwith : bin_val<Zipwith, lst<unk<'c'>>, lst<unk<'b'>>, lst<unk<'a'>>, fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>>::the {
-    //   constexpr static char const* name = "zipwith";
-    //   using the::the;
-    //   Val* operator*() override { return nullptr; }
-    //   Lst& operator++() override { return *this; }
-    //   bool end() const override { return true; }
-    //   void rewind() override { }
-    //   size_t count() override { return 0; }
-    // };
+    struct Zipwith : _bin_be<Zipwith, ll::cons_l<lst<unk<'c'>>, lst<unk<'b'>>, lst<unk<'a'>>, fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>>::the>::the {
+      constexpr static char const* name = "zipwith";
+      using the::the;
+      Val* operator*() override { return nullptr; }
+      Lst& operator++() override { return *this; }
+      bool end() const override { return true; }
+      void rewind() override { }
+      size_t count() override { return 0; }
+    };
 
   } // namespace bin
 
@@ -356,8 +357,7 @@ namespace sel {
 
     using namespace bins;
 
-    // typedef cons_l<Add, Map, Repeat, Tonum, Zipwith>::the bins;
-    typedef cons_l<Add, Map, Tonum>::the bins;
+    typedef cons_l<Add, Map, Repeat, Tonum, Zipwith>::the bins;
     typedef _make_bins_all<bins>::the bins_all;
 
   } // namespace bin_types
