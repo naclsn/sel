@@ -22,7 +22,7 @@ void doApplied(Type fun, vector<Type> args, vector<string> reprx) {
   }
 }
 
-TEST(TypeMapplied) {
+TEST(Type_applied) {
   Type map2_t = Type(Ty::FUN,
     {.box_pair={
       new Type(Ty::FUN,
