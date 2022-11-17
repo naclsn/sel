@@ -117,6 +117,8 @@ namespace sel {
     // // void visit(bins::Sub::Base::Base const&) override;
     void visit(bins::Tonum const&) override;
     void visit(bins::Tonum::Base const&) override;
+    void visit(bins::Tostr const&) override;
+    void visit(bins::Tostr::Base const&) override;
     void visit(bins::Zipwith const&) override;
     void visit(bins::Zipwith::Base const&) override;
     void visit(bins::Zipwith::Base::Base const&) override;

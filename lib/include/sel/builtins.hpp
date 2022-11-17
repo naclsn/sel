@@ -40,8 +40,22 @@ namespace sel {
     template <typename O>
     struct cons_l<O> { typedef cons<O, nil> the; };
 
+    template <typename from, typename into> struct _rev_impl;
+    /**
+     * reverse a list of types
+     */
+    template <typename list>
+    struct rev { typedef typename _rev_impl<list, nil>::the the; };
+    template <typename into>
+    struct _rev_impl<nil, into> { typedef into the; };
+    template <typename H, typename T, typename into>
+    struct _rev_impl<cons<H, T>, into> { typedef typename _rev_impl<T, cons<H, into>>::the the; };
+
   } // namespace ll
 
+  /**
+   * namespace with types used to help constructing builtins
+   */
   namespace bins_helpers {
 
     using namespace ll;
@@ -119,7 +133,7 @@ namespace sel {
      * Head and Body: extend from Fun
      * Tail: extends from the last vat
      *
-     * `the`, for `bin_val`, is the base class for the actual implementation of the Tail
+     * `the`, for `_bin_be`, is the base class for the actual implementation of the Tail
      * (for example with "add", `the` extends `Num`) because it is available at any level
      * of the chain, that:
      * - `T::the::args` is the arity of the function (so 2 for "add")
@@ -127,17 +141,19 @@ namespace sel {
      * - `T::the::Base::Next` is the actual implementation (so `Add` for "add")
      * - and so `T::the::Base::Next::name` is the name constexpr ("add")
      *
-     * type is expected to be one of unk/num/str/lst/fun
+     * type is expected to be a ll of unk/num/str/lst/fun
      * defined specialisations:
-     *  - <Impl, only>                       // eg. "pi"
-     *  - <Impl, fun<from, to>>              // defines `the`
-     *  - <Impl, fun<from1, fun<from2, to>>> // recursion for above
+     *  - <Impl, cons<one, nil>>                                     // eg. "pi" (note that it's not `<Impl, one>`!)
+     *  - <Impl, cons<last_to, cons<last_from, nil>>>                // defines `the`
+     *  - <Impl, cons<to, cons<from, cons<from_again, from_more>>>>  // recursion for above
+     *
+     * not use directly, see `builtin`
      */
-    template <typename Implementation, typename type> struct _bin_be;
+    template <typename Implementation, typename reversed_type> struct _bin_be;
 
     // TODO: in template decl above
     // template <typename Impl, typename one>
-    // struct bin_val<Impl, one> {
+    // struct _bin_be<Impl, cons<one, nil>> {
     //   struct Base { typedef Impl Next; }; // YYY: for `the::Base::Next` trick...
     //   struct the : one::ctor {
     //     typedef the Head;
@@ -224,6 +240,11 @@ namespace sel {
 
       Val* operator()(Val* arg) override { return new Next(this, coerse<_next_arg_ty>(arg)); }
       void accept(Visitor& v) const override; // visitBody
+    };
+
+    template <typename Implementation, typename type>
+    struct builtin {
+      typedef _bin_be<Implementation, typename rev<type>::the> the;
     };
 
   } // namespace bins_helpers
@@ -317,6 +338,16 @@ namespace sel {
       }
     };
 
+    struct Tostr : _bin_be<Tostr, ll::cons_l<str, num>::the>::the {
+      constexpr static char const* name = "tostr";
+      using the::the;
+      bool read = false;
+      std::ostream& stream(std::ostream& out) override { read = true; return out << arg->value(); }
+      bool end() const override { return read; }
+      void rewind() override { read = false; }
+      std::ostream& entire(std::ostream& out) override { read = true; return out << arg->value(); }
+    };
+
     struct Zipwith : _bin_be<Zipwith, ll::cons_l<lst<unk<'c'>>, lst<unk<'b'>>, lst<unk<'a'>>, fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>>::the>::the {
       constexpr static char const* name = "zipwith";
       using the::the;
@@ -329,6 +360,11 @@ namespace sel {
 
   } // namespace bin
 
+  /**
+   * namespace with the types `bins` and `bins_all` which lists
+   *  - every builtin `Tail` types in alphabetical order
+   *  - every builtin types (inc. intermediary) (not in any order)
+   */
   namespace bin_types {
 
     using namespace ll;
@@ -357,7 +393,7 @@ namespace sel {
 
     using namespace bins;
 
-    typedef cons_l<Add, Map, Repeat, Tonum, Zipwith>::the bins;
+    typedef cons_l<Add, Map, Repeat, Tonum, Tostr, Zipwith>::the bins;
     typedef _make_bins_all<bins>::the bins_all;
 
   } // namespace bin_types
