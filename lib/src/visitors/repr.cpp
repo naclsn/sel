@@ -6,10 +6,6 @@ namespace sel {
 #define fi_str(__name, __str) {.name=__name, .data_ty=ReprField::STR, .data={.str=__str}}
 #define fi_val(__name, __val) {.name=__name, .data_ty=ReprField::VAL, .data={.val=__val}}
 
-  // void VisRepr::reprHelper(Type const& type, char const* name, std::initializer_list<ReprField> const fields) {
-  //   std::vector<ReprField> tmp(fields);
-  //   reprHelper(type, name, tmp);
-  // }
   void VisRepr::reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields) {
     bool isln = 1 < fields.size() && !cx.single_line;
 
@@ -119,8 +115,11 @@ namespace sel {
 
   template <typename T>
   void VisRepr::visitCommon(T const& it, std::false_type is_head) {
-    constexpr unsigned arity = T::the::args - T::args;
-    reprHelper(it.type(), (std::string(T::the::Base::Next::name) + std::to_string(arity)).c_str(), {
+    std::string normalized // capitalizes first letter and append arity
+      = (char)(T::the::Base::Next::name[0]+('A'-'a'))
+      + ((T::the::Base::Next::name+1)
+      + std::to_string(T::the::args-T::args));
+    reprHelper(it.type(), normalized.c_str(), {
       fi_val("base", it.base),
       fi_val("arg", it.arg),
     });
@@ -128,8 +127,18 @@ namespace sel {
 
   template <typename T>
   void VisRepr::visitCommon(T const& it, std::true_type is_head) {
-    constexpr unsigned arity = T::the::args - T::args;
-    reprHelper(it.type(), (std::string(T::the::Base::Next::name) + std::to_string(arity)).c_str(), {});
+    std::string normalized // capitalizes first letter and append arity
+      = (char)(T::the::Base::Next::name[0]+('A'-'a'))
+      + ((T::the::Base::Next::name+1)
+      + std::to_string(T::the::args-T::args));
+    reprHelper(it.type(), normalized.c_str(), {});
+  }
+
+  void VisRepr::visit(bins::abs_ const& it) {
+    visitCommon(it, std::conditional<!bins::abs_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::abs_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::abs_::Base::args, std::true_type, std::false_type>::type{});
   }
 
   void VisRepr::visit(bins::add_ const& it) {
@@ -140,6 +149,16 @@ namespace sel {
   }
   void VisRepr::visit(bins::add_::Base::Base const& it) {
     visitCommon(it, std::conditional<!bins::add_::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+
+  void VisRepr::visit(bins::join_ const& it) {
+    visitCommon(it, std::conditional<!bins::join_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::join_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::join_::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::join_::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::join_::Base::Base::args, std::true_type, std::false_type>::type{});
   }
 
   void VisRepr::visit(bins::map_ const& it) {
@@ -158,6 +177,17 @@ namespace sel {
   void VisRepr::visit(bins::repeat_::Base const& it) {
     visitCommon(it, std::conditional<!bins::repeat_::Base::args, std::true_type, std::false_type>::type{});
   }
+
+  void VisRepr::visit(bins::split_ const& it) {
+    visitCommon(it, std::conditional<!bins::split_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::split_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::split_::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::split_::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::split_::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+
 
   void VisRepr::visit(bins::sub_ const& it) {
     visitCommon(it, std::conditional<!bins::sub_::args, std::true_type, std::false_type>::type{});

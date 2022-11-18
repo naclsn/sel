@@ -4,8 +4,9 @@
 #include <sstream>
 #include <vector>
 
-#include "sel/utils.hpp"
-#include "sel/engine.hpp"
+#include "utils.hpp"
+#include "engine.hpp"
+#include "errors.hpp"
 
 namespace sel {
 
@@ -274,6 +275,9 @@ namespace sel {
 
 #define _bind_count(__count, ...) _bind_some(__count)(__VA_ARGS__)
 #define _bind_one(__name, __depth) auto& __name = *_depth(__depth)
+// YYY: could it somehow be moved into `BODY`? in a way
+// that it is only written once and the named arg refs
+// are available all throughout the struct
 #define bind_args(...) _bind_count(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
 
 // YYY: C-pp cannot do case operations in stringify,
@@ -289,6 +293,12 @@ namespace sel {
 #define BODY(__ident) \
       constexpr static char const* name = #__ident; \
       using the::the;
+
+    struct DECL(abs, num, num) { BODY(abs);
+      double value() override {
+        return std::abs(arg->value());
+      }
+    };
 
     struct DECL(add, num, num, num) { BODY(add);
       double value() override {
@@ -308,12 +318,69 @@ namespace sel {
       size_t count() override { return 0; }
     };
 
+    struct DECL(join, str, lst<str>, str) { BODY(join);
+      bool beginning = true;
+      std::ostream& stream(std::ostream& out) override {
+        bind_args(sep, lst);
+        if (beginning) beginning = false;
+        else sep.entire(out);
+        Str* it = (Str*)*lst++;
+        return it->entire(out);
+      }
+      bool end() const override {
+        Lst& lst = *arg;
+        return lst.end();
+      }
+      void rewind() override {
+        Lst& lst = *arg;
+        lst.rewind();
+        beginning = true;
+      }
+      std::ostream& entire(std::ostream& out) override {
+        bind_args(sep, lst);
+        if (lst.end()) return out;
+        out << *lst;
+        while (!lst.end()) {
+          sep.rewind();
+          sep.entire(out);
+          out << *(Str*)*(++lst);
+        }
+        return out;
+      }
+    };
+
     struct DECL(repeat, unk<'a'>, lst<unk<'a'>>) { BODY(repeat);
       Val* operator*() override { return nullptr; }
       Lst& operator++() override { return *this; }
       bool end() const override { return true; }
       void rewind() override { }
       size_t count() override { return 0; }
+    };
+
+    struct DECL(split, str, str, lst<str>) { BODY(split);
+      Val* operator*() override {
+        throw NIYError("Val* operator*()", "- what -");
+        // Str& sep = *base->arg;
+        // Str& str = *arg;
+        return nullptr;
+      }
+      Lst& operator++() override {
+        throw NIYError("Lst& operator++()", "- what -");
+        // Str& sep = *base->arg;
+        // Str& str = *arg;
+        return *this;
+      }
+      bool end() const override {
+        Str& str = *arg;
+        return str.end();
+      }
+      void rewind() override {
+        Str& str = *arg;
+        str.rewind();
+      }
+      size_t count() override {
+        throw NIYError("size_t count()", "- what -");
+      }
     };
 
     struct DECL(sub, num, num, num) { BODY(sub);
@@ -387,9 +454,13 @@ namespace sel {
 
     // XXX: still would love if this list could be built automatically
     typedef cons_l
-      < add_
+      < abs_
+      , add_
+      // , flip_
+      , join_
       , map_
       , repeat_
+      , split_
       , sub_
       , tonum_
       , tostr_

@@ -11,13 +11,13 @@
 void test_tonum() { // tonum :3:
   Val* tonum1 = lookup_name("tonum");
   showv_test(tonum1,
-    "<Str -> Num> tonum1 { }\n"
+    "<Str -> Num> Tonum1 { }\n"
     );
 
   Val* tonum0 = (*(Fun*)tonum1)(new StrLiteral("3"));
   showv_test(tonum0,
-    "<Num> tonum0 {\n"
-    "   base=<Str -> Num> tonum1 { }\n"
+    "<Num> Tonum0 {\n"
+    "   base=<Str -> Num> Tonum1 { }\n"
     "   arg=<Str> StrLiteral { s= \"3\" }\n"
     "}\n"
     );
@@ -26,22 +26,22 @@ void test_tonum() { // tonum :3:
 void test_add() { // add 1 2
   Val* add2 = lookup_name("add");
   showv_test(add2,
-    "<Num -> Num -> Num> add2 { }\n"
+    "<Num -> Num -> Num> Add2 { }\n"
     );
 
   Val* add1 = (*(Fun*)add2)(new NumLiteral(1));
   showv_test(add1,
-    "<Num -> Num> add1 {\n"
-    "   base=<Num -> Num -> Num> add2 { }\n"
+    "<Num -> Num> Add1 {\n"
+    "   base=<Num -> Num -> Num> Add2 { }\n"
     "   arg=<Num> NumLiteral { n= 1 }\n"
     "}\n"
     );
 
   Val* add0 = (*(Fun*)add1)(new NumLiteral(2));
   showv_test(add0,
-    "<Num> add0 {\n"
-    "   base=<Num -> Num> add1 {\n"
-    "      base=<Num -> Num -> Num> add2 { }\n"
+    "<Num> Add0 {\n"
+    "   base=<Num -> Num> Add1 {\n"
+    "      base=<Num -> Num -> Num> Add2 { }\n"
     "      arg=<Num> NumLiteral { n= 1 }\n"
     "   }\n"
     "   arg=<Num> NumLiteral { n= 2 }\n"
@@ -52,23 +52,23 @@ void test_add() { // add 1 2
 void test_map() { // map tonum 4
   Val* map2 = lookup_name("map");
   showv_test(map2,
-    "<(a -> b) -> [a] -> [b]> map2 { }\n"
+    "<(a -> b) -> [a] -> [b]> Map2 { }\n"
     );
 
   Val* map1 = (*(Fun*)map2)(lookup_name("tonum"));
   showv_test(map1,
-    "<[Str]* -> [Num]*> map1 {\n"
-    "   base=<(a -> b) -> [a] -> [b]> map2 { }\n"
-    "   arg=<Str -> Num> tonum1 { }\n"
+    "<[Str]* -> [Num]*> Map1 {\n"
+    "   base=<(a -> b) -> [a] -> [b]> Map2 { }\n"
+    "   arg=<Str -> Num> Tonum1 { }\n"
     "}\n"
     );
 
   Val* map0 = (*(Fun*)map1)(new LstLiteral({new StrLiteral("4")}, new vector<Type*>({new Type(Ty::STR, {0}, 0)})));
   showv_test(map0,
-    "<[Num]> map0 {\n"
-    "   base=<[Str]* -> [Num]*> map1 {\n"
-    "      base=<(a -> b) -> [a] -> [b]> map2 { }\n"
-    "      arg=<Str -> Num> tonum1 { }\n"
+    "<[Num]> Map0 {\n"
+    "   base=<[Str]* -> [Num]*> Map1 {\n"
+    "      base=<(a -> b) -> [a] -> [b]> Map2 { }\n"
+    "      arg=<Str -> Num> Tonum1 { }\n"
     "   }\n"
     "   arg=<[Str]> LstLiteral { v[0]=<Str> StrLiteral { s= \"4\" } }\n"
     "}\n"
@@ -78,13 +78,13 @@ void test_map() { // map tonum 4
 void test_repeat() { // repeat 5
   Val* repeat1 = lookup_name("repeat");
   showv_test(repeat1,
-    "<a -> [a]> repeat1 { }\n"
+    "<a -> [a]> Repeat1 { }\n"
     );
 
   Val* repeat0 = (*(Fun*)repeat1)(new NumLiteral(5));
   showv_test(repeat0,
-    "<[Num]*> repeat0 {\n"
-    "   base=<a -> [a]> repeat1 { }\n"
+    "<[Num]*> Repeat0 {\n"
+    "   base=<a -> [a]> Repeat1 { }\n"
     "   arg=<Num> NumLiteral { n= 5 }\n"
     "}\n"
     );
@@ -93,7 +93,7 @@ void test_repeat() { // repeat 5
 void test_zipwith() { // zipwith map {repeat} {{1}} // YYY: but most boundedness are wrong
   Val* zipwith3 = lookup_name("zipwith");
   showv_test(zipwith3,
-    "<(a -> b -> c) -> [a] -> [b] -> [c]> zipwith3 { }\n"
+    "<(a -> b -> c) -> [a] -> [b] -> [c]> Zipwith3 { }\n"
     );
 
   Val* zipwith2 = (*(Fun*)zipwith3)(lookup_name("map"));

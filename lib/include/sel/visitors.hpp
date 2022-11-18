@@ -88,7 +88,6 @@ namespace sel {
     };
     ReprCx cx;
 
-    // void reprHelper(Type const& type, char const* name, std::initializer_list<ReprField> const fields);
     void reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields);
 
     template <typename T>
@@ -105,14 +104,22 @@ namespace sel {
     void visitOutput(Type const& type) override;
 
     // XXX: would love any form of solution to this, but there might no be any du to the nature of the problem
+    void visit(bins::abs_ const&) override;
+    void visit(bins::abs_::Base const&) override;
     void visit(bins::add_ const&) override;
     void visit(bins::add_::Base const&) override;
     void visit(bins::add_::Base::Base const&) override;
+    void visit(bins::join_ const&) override;
+    void visit(bins::join_::Base const&) override;
+    void visit(bins::join_::Base::Base const&) override;
     void visit(bins::map_ const&) override;
     void visit(bins::map_::Base const&) override;
     void visit(bins::map_::Base::Base const&) override;
     void visit(bins::repeat_ const&) override;
     void visit(bins::repeat_::Base const&) override;
+    void visit(bins::split_ const&) override;
+    void visit(bins::split_::Base const&) override;
+    void visit(bins::split_::Base::Base const&) override;
     void visit(bins::sub_ const&) override;
     void visit(bins::sub_::Base const&) override;
     void visit(bins::sub_::Base::Base const&) override;
