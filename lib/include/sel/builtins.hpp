@@ -142,11 +142,14 @@ namespace sel {
      * - `T::the::Base::Next` is the actual implementation (so `Add` for "add")
      * - and so `T::the::Base::Next::name` is the name constexpr ("add")
      *
-     * type is expected to be a ll of unk/num/str/lst/fun
+     * `type` is expected to be a ll of unk/num/str/lst/fun
      * defined specialisations:
      *  - <Impl, cons<one, nil>>                                     // eg. "pi" (note that it's not `<Impl, one>`!)
      *  - <Impl, cons<last_to, cons<last_from, nil>>>                // defines `the`
      *  - <Impl, cons<to, cons<from, cons<from_again, from_more>>>>  // recursion for above
+     *
+     * when the last element of `type` is of unk, the implementation in the
+     * tail struct is done by overriding a method called `Val* impl()`
      *
      * not use directly, see `builtin`
      */
@@ -167,6 +170,9 @@ namespace sel {
     template <typename other> struct _fun_last_ret_type { typedef other the; };
     template <typename from, typename to> struct _fun_last_ret_type<fun<from, to>> { typedef typename _fun_last_ret_type<to>::the the; };
 
+    template <typename R> struct _is_unk { constexpr static bool the = false; };
+    template <char c> struct _is_unk<unk<c>> { constexpr static bool the = true; };
+
     /**
      * typedef Head Base; // when unary,
      * typedef typename Head::Next Base; // when binary,
@@ -186,7 +192,15 @@ namespace sel {
 
       typedef typename last_from::vat _next_arg_ty;
 
-      struct the : _fun_last_ret_type<last_to>::the::ctor {
+      typedef typename _fun_last_ret_type<last_to>::the _ty_tail;
+      constexpr static bool _is_unk_tail = _is_unk<_ty_tail>::the;
+
+      // is not used when `_is_unk_tail` (eg. 'X(a) -> a')
+      struct _the_when_not_unk : std::conditional<
+          _is_unk_tail,
+          num, // (YYY: anything that has `::ctor` with a fitting `virtual ::accept`)
+          _ty_tail
+      >::type::ctor {
         typedef _bin_be Head; // type instanciated in looking up by name
         typedef typename _one_to_nextmost<Head>::the Base; // type which instantiates `this`
 
@@ -198,11 +212,49 @@ namespace sel {
         Arg* arg;
 
         // this is the (inherited) ctor for the tail type
-        the(Base* base, Arg* arg)
-          : _fun_last_ret_type<last_to>::the::ctor(base->type(), arg->type())
+        _the_when_not_unk(Base* base, Arg* arg)
+          : _ty_tail::ctor(base->type(), arg->type())
           , base(base)
           , arg(arg)
         { }
+        // void accept(Visitor& v) const override; // visitTail
+      };
+
+      // is used when `_is_unk_tail` (eg. 'X(a) -> a')
+      struct _the_when_is_unk : _the_when_not_unk::Base {
+        typedef typename _the_when_not_unk::Head Head;
+        typedef typename _the_when_not_unk::Base::Base Base;
+
+        typedef typename _the_when_not_unk::Base::_next_arg_ty Arg;
+
+        constexpr static unsigned args = Base::args;
+
+        // tldr: inserts the arg as this own `arg`, and push back `base` once
+        struct {
+          typename _the_when_not_unk::Base* super;
+          typename _the_when_not_unk::Base* operator->() { return super; }
+        } base;
+        Arg* arg;
+
+        // to be overriden in `Implementation`
+        virtual Val* impl();
+
+        Val* operator()(Val* arg) override {
+          this->base.super = _the_when_not_unk::Base::base;
+          this->arg = arg;
+          return impl();
+        }
+      };
+
+      typedef typename std::conditional<
+          _is_unk_tail,
+          _the_when_is_unk,
+          _the_when_not_unk
+      >::type _the;
+      struct the : _the {
+        typedef typename _the::Head Head;
+        typedef typename _the::Base Base;
+        constexpr static unsigned args = _the::args;
         void accept(Visitor& v) const override; // visitTail
       };
 
@@ -274,7 +326,7 @@ namespace sel {
 #define _bind_some_4(a, b, c, d) _bind_one(a, 3); _bind_some_3(b, c, d)
 
 #define _bind_count(__count, ...) _bind_some(__count)(__VA_ARGS__)
-#define _bind_one(__name, __depth) auto& __name = *_depth(__depth)
+#define _bind_one(__name, __depth) auto& __name = *this->_depth(__depth)
 // YYY: could it somehow be moved into `BODY`? in a way
 // that it is only written once and the named arg refs
 // are available all throughout the struct
@@ -316,6 +368,13 @@ namespace sel {
       bool end() const override { return true; }
       void rewind() override { }
       size_t count() override { return 0; }
+    };
+
+    struct DECL(flip, fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>) { BODY(flip);
+      Val* impl() override {
+        bind_args(fun, b, a);
+        return (*(Fun*)fun(&a))(&b);
+      }
     };
 
     struct DECL(join, str, lst<str>, str) { BODY(join);
@@ -456,7 +515,7 @@ namespace sel {
     typedef cons_l
       < abs_
       , add_
-      // , flip_
+      , flip_
       , join_
       , map_
       , repeat_
