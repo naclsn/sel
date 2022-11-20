@@ -167,8 +167,18 @@ namespace sel {
     //   };
     // };
 
+    template <typename other> struct _fun_first_par_type { typedef void the; }; // ZZZ
+    template <typename from, typename to> struct _fun_first_par_type<fun<from, to>> { typedef from the; };
+
     template <typename other> struct _fun_last_ret_type { typedef other the; };
     template <typename from, typename to> struct _fun_last_ret_type<fun<from, to>> { typedef typename _fun_last_ret_type<to>::the the; };
+
+    template <typename other>
+    struct _one_to_fun_last_ret_type { typedef void the; };
+    template <typename from, typename to>
+    struct _one_to_fun_last_ret_type<fun<from, to>> { typedef fun<from, to> the; };
+    template <typename from, typename to_from, typename to_to>
+    struct _one_to_fun_last_ret_type<fun<from, fun<to_from, to_to>>> { typedef typename _one_to_fun_last_ret_type<fun<to_from, to_to>>::the the; };
 
     template <typename R> struct _is_unk { constexpr static bool the = false; };
     template <char c> struct _is_unk<unk<c>> { constexpr static bool the = true; };
@@ -193,7 +203,20 @@ namespace sel {
       typedef typename last_from::vat _next_arg_ty;
 
       typedef typename _fun_last_ret_type<last_to>::the _ty_tail;
+      typedef typename _one_to_fun_last_ret_type<fun<last_from, last_to>>::the _ty_one_to_tail;
+
       constexpr static bool _is_unk_tail = _is_unk<_ty_tail>::the;
+
+  // static_assert(std::is_same<_ty_true_ret, unk<'c'>>(), "");
+  // static_assert(std::is_same<_ty_oneto_true_ret, fun<unk<'a'>, unk<'c'>>>(), "");
+
+      // typedef typename std::conditional<
+      //   _is_unk<_ty_true_ret>::the,
+      //   _ty_oneto_true_ret,
+      //   _ty_true_ret
+      // >::type _ty_tail;
+
+  // static_assert(std::is_same<_ty_tail, fun<unk<'a'>, unk<'c'>>>(), "");
 
       // is not used when `_is_unk_tail` (eg. 'X(a) -> a')
       struct _the_when_not_unk : std::conditional<
@@ -221,27 +244,40 @@ namespace sel {
       };
 
       // is used when `_is_unk_tail` (eg. 'X(a) -> a')
-      struct _the_when_is_unk : _the_when_not_unk::Base {
-        typedef typename _the_when_not_unk::Head Head;
-        typedef typename _the_when_not_unk::Base::Base Base;
+      struct _the_when_is_unk : _ty_one_to_tail::ctor {
+        typedef _bin_be Head; // type instanciated in looking up by name
+        typedef typename _one_to_nextmost<Head>::the Base; // type which instantiates `this`
 
-        typedef typename _the_when_not_unk::Base::_next_arg_ty Arg;
+        typedef typename Base::_next_arg_ty Arg;
 
-        constexpr static unsigned args = Base::args;
+        constexpr static unsigned args = Base::args + 1; // YYY: ?
 
         // tldr: inserts the arg as this own `arg`, and push back `base` once
-        struct {
-          typename _the_when_not_unk::Base* super;
-          typename _the_when_not_unk::Base* operator->() { return super; }
-        } base;
-        Arg* arg;
+        struct _ProxyBase {
+          Base* base;
+          Arg* arg;
+          _ProxyBase(Base* base, Arg* arg)
+            : base(base)
+            , arg(arg)
+          { }
+        } _base;
+        _ProxyBase* base;
+        typedef typename _fun_first_par_type<_ty_one_to_tail>::the::vat _LastArg;
+        _LastArg* arg;
+
+        // this is the (inherited) ctor for the tail type when ends on unk
+        _the_when_is_unk(Base* base, Arg* arg)
+          : _ty_one_to_tail::ctor(base->type(), arg->type())
+          , _base(base, arg)
+          , arg(nullptr)
+        { }
+        // void accept(Visitor& v) const override; // visitTail
 
         // to be overriden in `Implementation`
-        virtual Val* impl();
+        virtual Val* impl() = 0;
 
         Val* operator()(Val* arg) override {
-          this->base.super = _the_when_not_unk::Base::base;
-          this->arg = arg;
+          this->arg = coerse<_LastArg>(arg);
           return impl();
         }
       };
@@ -255,6 +291,7 @@ namespace sel {
         typedef typename _the::Head Head;
         typedef typename _the::Base Base;
         constexpr static unsigned args = _the::args;
+        using _the::_the;
         void accept(Visitor& v) const override; // visitTail
       };
 
@@ -370,7 +407,10 @@ namespace sel {
       size_t count() override { return 0; }
     };
 
-    struct DECL(flip, fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>) { BODY(flip);
+    // TODO: dont know how, but would like to static_assert that this   vvv
+    //       is `fun` when the decl type ends in `unk` (or add it..?)   vvv
+    struct DECL(flip, fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, fun<unk<'a'>, unk<'c'>>) { BODY(flip);
+    // struct DECL(flip, fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>) { BODY(flip);
       Val* impl() override {
         bind_args(fun, b, a);
         return (*(Fun*)fun(&a))(&b);
