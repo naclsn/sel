@@ -64,6 +64,9 @@ namespace sel {
     template <char c> struct unk {
       typedef Val vat;
       inline static Type make() {
+        // TODO: will need to grab the `::name` of the
+        // function somehow so the name of the type can
+        // be <char>_<function>
         return Type(Ty::UNK, {.name=new std::string(1, c)}, 0);
       }
     };

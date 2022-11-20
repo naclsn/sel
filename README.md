@@ -8,11 +8,12 @@ Yet an other `awk`-ish command line tool, with a
 - [Details](#Details)
   - [Syntax](#Syntax)
   - [Type System](#Type%20System)
+    - [Tuples and Pattern Lists](#Tuples%20and%20Pattern%20Lists)
     - [Coersion](#Coersion)
     - [Infinity](#Infinity)
   - [Operators](#Operators)
   - [Literals](#Literals)
-  - [Prelude](#Prelude)
+  - [Builtins](#Builtins)
 - [Library](#Library)
 
 # Overview
@@ -39,26 +40,13 @@ $ seq 17 42 | build/sel [...idk...]
 
 ### Setting Up for Development
 
-This project contains a few generated files (notably
-for the prelude) The files are generated at build time,
-in the build tree (eg. `build/`, depending on the `meson
-setup ..` command). More recent versions of clangd may be
-able to pick up on this, otherwise adding the following
-`compile_flags.txt` to the project root may help:
-```plain
--Ibuild/lib
--Ilib/include
-```
-
-Again, the generated file are made at build time. It may be
-needed to run the build command once (eg. `ninja -C build`,
-depending on the build tool).
+Project uses the meson build system (so ninja is assumed).
 
 To enable coverage:
 ```console
 $ meson configure build -Db_coverage=true
 $ pip install gcovr # for example
-$ ninja -C build test # needed by messon
+$ ninja -C build test # needed by meson
 $ ninja -C build coverage
 ```
 
@@ -70,20 +58,16 @@ $ ninja -C build coverage
 
 # Details
 
-The provided script defines an operation which is applied
-on each line (by default, see [recurse]()). As such,
-the input and output are strings of (Unicode) characters.
-Note that the ending newline character (`\n` most of the
-time) is removed before input and re-appended to the output
-if not already present.
+In its most basic form, the script given to `sel` is a
+serie of functions separated by `,` (comma). Each function
+transforms its input and passes its output to the next
+in line.
 
 ## Syntax
 
-Comments span from the first `#` of a line to the end of
-the line (`\n` character).
-
-A script is an expression usually describing a function
-from a string (eg. line) to another string.
+Comments span from the first `#` of a line to the end
+of the line (`\n` character). (TODO: not implemented in
+current version...)
 
 A main idea behind the language it to not be botherd with
 quoting when issuing a command through a POSIX shell. For
@@ -95,8 +79,7 @@ will often contain spaces).
 
 Operators are presented [here](#Operators). An exeptions
 to the syntax is the `,` binary operator in that it is
-the only one that is written with both its operand on
-its sides.
+written with both its operands on its sides.
 
 The `,` operator is used to chain functions. It is
 equivalent in Haskell to `flip (.)` or the Unix shell pipe
@@ -104,14 +87,17 @@ equivalent in Haskell to `flip (.)` or the Unix shell pipe
 is passed to the function to the right.
 
 Literals are presented [here](#Literals). Notably, strings
-are delimited with `{` and `}` and negative numbers cannot
-be expressed directly. As such, "negative 1" would have to
-be expressed as eg. `[sub 0 1]`. There is also no way to
-write a string literal containing an unmatched `{` or `}`.
+are delimited within `:` (which can be escaped with `::`)
+and negative numbers cannot be expressed directly. As such,
+"negative 1" would have to be expressed as eg. `[sub 0 1]`.
+Lists are expressed using matching `{`-`}` (C-like).
+<!-- TODO: other escape sequences (\n, \t, ..)
+((and thus maybe change for \:)) -->
 
 Finally words are made of the 26 lower case letters from
-a to z included. A word will always be looked up for its
-value in the [prelude](#Prelude).
+`a` to `z` included. A word will always be looked up for
+its value in the [builtins](#Builtins).
+<!-- TODO/MAYBE: `def <word> <value>` pseudo-function -->
 
 ## Type System
 
@@ -123,7 +109,7 @@ The types are:
  - number (`Num`)
  - list (`[has]` eg. `[Str]` for list of strings)
  - function (for example `Num -> Str`)
- - <!-- tuples are list, there --> (`(fst, snd)`)
+ - tuples (`(Num, Str)`) and pattern lists (`[Num, Str]`)
 
 Some examples of type definitions:
 ```hs
@@ -132,9 +118,22 @@ map :: (a -> b) -> [a]* -> [b]*
 ```
 
 In type definitions, lower case words mean the type may
-be any, only known at run time.
+be any, only known at run time (like `a` and `b` above).
+
+### Tuples and Pattern Lists
+
+(todo)
+
+tuples are backed by lists of known finite size (equal to how many types it has)
+
+pattern lists (name may change) are lists in wich a pattern is repeated (like unfolding a list of tuples)
+
+none of this is properly implemented and used yet and thus subject to change
 
 ### Coersion
+
+(TODO: although the infrastructure for it is present,
+this is not implemented in the current version)
 
 <!--
 Implicit coersion is provided for convenience. It is
@@ -151,11 +150,9 @@ Note the following implicit coersions:
  `Str`     | `[Num]`      | list of the Unicode codepoints
  `Str`     | `[Str]`      | list of the Unicode graphemes
  `[Str]`   | `Str`        | joined with empty separator
-<!--
- `Num`     | `(Num, Num)` | integer and fractional part -->
 
 These rules apply recursively on complex data structures
-(eg. `[Str]` to `[Num]`).
+(eg. `[Str]` to `[Num]` is valid).
 
 For example the two following scripts are effectively
 equivalent (because the script input type is of `Str`
@@ -168,8 +165,12 @@ seq 5 | sel map +1
 Conditions (boolean values) may be represented with the
 `Num` type. In that case 0 means false, any other value
 means true.
+<!-- TODO/TBD: Str -> Int when invalid.. 0? (current behavior due to stub implementation) -->
 
 ### Infinity
+
+(TODO: although the infrastructure for it is present,
+this is not implemented in the current version)
 
 Akin to Haskell, everything is lazy which enables working
 with potentially infinite data structure without always
@@ -204,10 +205,10 @@ join "-" "abcd" :: Str -- = "a-b-c-d"
 ## Operators
 
 A set of "binary" and "unary" operators is defined.
-Although they are just aliases to functions in the prelude,
+Although they are just aliases to builtin functions,
 an operator will bind tighter to the next atom to make
 a new single atom. These operators cannot appear without
-one argument.
+their argument.
 
 See the difference of interpretation in:
  script       | desugared
@@ -215,10 +216,10 @@ See the difference of interpretation in:
  `map sub 1`  | `map sub 1` (type error)
  `map %sub 1` | `map [flip sub] 1` (but still type error)
  `map -1`     | `map [[flip sub] 1]` (ie. x-1 for each x)
- `map %-1`    | `map [[flip [flip sub]] 1]` (ie. 1-x)
+ `map %-1`    | `map [[flip [flip sub]] 1]` (ie. 1-x fe.)
 
-> If confused about the first 2 lines, remember that it
-> could also be written as: `[map sub] 1`.
+> If confused about the first 2 lines being type errors,
+> remember that it could also be written as: `[map sub] 1`.
 
 The following tokens are used as operators:
  token | kind   | equivalent
@@ -230,10 +231,10 @@ The following tokens are used as operators:
  `=`   | binary | `` // eq
  `_`   | binary | `index`
  `%`   | unary  | `flip`
- `@`   | unary  | `` // (parse)
- `^`   |        | `` // ((reserved))
- `:`   |        | `` // ((reserved - maybe char literal))
- `~`   |        | `` // ((reserved - not safe as unary))
+ `@`   | unary  | `` // ((reserved))
+ `^`   |        | `` // ((reserved - maybe about currying))
+ `~`   |        | `` // ((reserved - not always safe character in shell))
+ `!`   |        | `` // ((reserved - not always safe character in shell))
 
 The difference between an unary operator and a binary
 operator is that an unary operator will first check
@@ -258,35 +259,24 @@ desugared as `[flip mul] 5`. It is not possible to express
 a negative value literally. To obtain such a value, the
 `sub 0` function can be used.
 
-String literals are written between matching `{` and
-`}`. A string literal can contain matched pairs of these
-characters; for example `{a {b} c}` is a valid string
-contaning exactly `a {b} c`.
+String literals are written between matching `:` and
+`:`. To write a string containing the character `:`,
+it must be doubled.
+<!-- MAYBE: could change for traditional \. (or even have both) -->
 
 <!--
 A character literal is a simpler way to represent a string
 literal of a single character (grapheme). It is written by
-prefixing the character with a `:`. Note that the character
-can even be a space, so `: ` is the same as `{ }`. -->
+prefixing the character with a `(idk yet)`. Note that the character
+can even be a space, so `(idk yet) ` is the same as `: :`. -->
 
-There is no direct way to represent lists. To obtain a
-list, the `@` operator (or [the underlying function]())
-can be used. Here are some examples:
- expression                | yields (represented as JSON)
----------------------------|------------------------------
- `@{1, 2, 3}`              | [1, 2, 3]
- `@{1, 5:9}`               | [1, 5, 6, 7, 8]
- `@{1, 9:5}`               | [1, 9, 8, 7, 6]
- `@{this, is, some, text}` | ["this", "is", "some", "text"]
- `@{{1, 2}, {1:3}}`        | [[1, 2], [1, 2]]
- `@{text, 42, more}`       | ["text", "42", "more"]
+Lists are written as values within matching `{`-`}`,
+separated by `,`. Thus for a list to contain a chain of
+function separated by the `,` operator, it is needed to use
+`[`-`]`. As in `{add 1, [sub 1, mul 5], sub 1}` is a list
+of type `[Num -> Num]` and of length 3.
 
-As shown in the examples, when parsing an list, coersion
-to `Num` is attempted for each entrie. If a single fails,
-the list is kept as an list of `Str` (see also: [coersion
-rules](#Coersion)).
-
-## Prelude
+## Builtins
 
 (naming rules?)
 
@@ -299,11 +289,10 @@ rules](#Coersion)).
 - better errors
 - update doc comments
 - update README.md
-- primer or temlates
 #### Feature Goals
-- lazy and infinite data structures
-- lib interface
-- broad prelude
-- proper unicode (eg. graphems and word)
-- REPL
-- interactive (based on REPL)
+- [x] lazy and infinite data structures (still todo: type flag for this)
+- [ ] lib interface
+- [ ] broad prelude
+- [ ] proper unicode (eg. graphems and word)
+- [ ] REPL
+- [ ] interactive (based on REPL)
