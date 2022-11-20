@@ -85,9 +85,11 @@ TEST(parseApp) {
     "%map"
     ,
     "<Str*> Input { }\n"
-    "<[a]* -> (a -> b) -> [b]*> Flip1 {\n"
+    "<[a] -> (a -> b) -> [b]> Flip1 {\n"
+    // "<[a]* -> (a -> b) -> [b]*> Flip1 {\n"
     "   base=<(a -> b -> c) -> b -> a -> c> Flip2 { }\n"
-    "   arg=<(a -> b) -> [a]* -> [b]*> Map2 { }\n"
+    "   arg=<(a -> b) -> [a] -> [b]> Map2 { }\n"
+    // "   arg=<(a -> b) -> [a]* -> [b]*> Map2 { }\n"
     "}\n"
     "<Str* -> ()> Output { }\n"
   );

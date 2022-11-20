@@ -9,7 +9,7 @@ all = [
 foreach name : all
   filename = 'test_' + name + '.cpp'
   test(name,
-    executable(filename,
+    executable('test_' + name,
       filename,
       include_directories : [inc],
       link_with : [lib],
