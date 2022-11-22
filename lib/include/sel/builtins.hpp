@@ -10,6 +10,35 @@
 
 namespace sel {
 
+  class StrChunks : public Str {
+    typedef std::vector<std::string> ch_t;
+    ch_t chunks;
+    ch_t::size_type at;
+  public:
+    StrChunks(std::vector<std::string> chunks)
+      : Str(TyFlag::IS_FIN)
+      , chunks(chunks)
+      , at(0)
+    { }
+    StrChunks(std::string single)
+      : StrChunks(std::vector<std::string>({single}))
+    { }
+    std::ostream& stream(std::ostream& out) override {
+      return out << chunks[at++];
+    }
+    bool end() const override {
+      return chunks.size() <= at;
+    }
+    void rewind() override {
+      at = 0;
+    }
+    std::ostream& entire(std::ostream& out) override {
+      for (auto const& it : chunks)
+        out << it;
+      return out;
+    }
+  };
+
   /**
    * Seach for a value by name, return nullptr if not found.
    */
@@ -226,6 +255,8 @@ namespace sel {
         Base* base;
         Arg* arg;
 
+        virtual void once() { }
+
         // this is the (inherited) ctor for the tail type
         _the_when_not_unk(Base* base, Arg* arg)
           : _ty_tail::ctor(base->type(), arg->type())
@@ -259,6 +290,8 @@ namespace sel {
         _ProxyBase* base;
         typedef typename _fun_first_par_type<_ty_one_to_tail>::the::vat _LastArg;
         _LastArg* arg;
+
+        virtual void once() { }
 
         // this is the (inherited) ctor for the tail type when ends on unk
         _the_when_is_unk(Base* base, Arg* arg)
@@ -369,6 +402,8 @@ namespace sel {
 // are available all throughout the struct
 #define bind_args(...) _bind_count(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
 
+#define USL(__ident) (__attribute__((unused))__ident)
+
 // YYY: C-pp cannot do case operations in stringify,
 // so to still have no conflict with the 65+ kw of C++,
 // strategy is `lower_` (eg. `add_`, has `::name = "add"`)
@@ -379,6 +414,7 @@ namespace sel {
 // other approaches were making code more annoying to read,
 // worst for static tools (eg. sy highlight...)... (pb is:
 // the name must appear both outside and inside the struct)
+// SEE: https://stackoverflow.com/a/4225302
 #define BODY(__ident) \
       constexpr static char const* name = #__ident; \
       using the::the;
@@ -454,25 +490,55 @@ namespace sel {
     };
 
     struct DECL(split, str, str, lst<str>) { BODY(split);
+      std::string sep;
+      std::ostringstream acc = std::ostringstream(std::ios_base::ate);
+      std::string curr;
+      bool at_end = false;
+      // std::vector<Val*> cache;
+      bool init = false;
+      void once() override {
+        bind_args(sep, USL(str));
+        std::ostringstream oss;
+        sep.entire(oss);
+        this->sep = oss.str();
+      }
+      void next() {
+        bind_args(USL(sep), str);
+        std::string buf = acc.str();
+        std::string::size_type at = buf.find(this->sep);
+        if (std::string::npos != at) {
+          // found in current acc, pop(0)
+          curr = buf.substr(0, at);
+          acc = std::ostringstream(buf.substr(at));
+          return;
+        }
+        if (str.end()) {
+          // send the rest of acc, set end
+          curr = buf;
+          at_end = true;
+          return;
+        }
+        acc << str;
+        return next();
+      }
       Val* operator*() override {
-        throw NIYError("Val* operator*()", "- what -");
-        // Str& sep = *base->arg;
-        // Str& str = *arg;
-        return nullptr;
+        if (!init) { next(); init = true; }
+        return new StrChunks(curr);
       }
       Lst& operator++() override {
-        throw NIYError("Lst& operator++()", "- what -");
-        // Str& sep = *base->arg;
-        // Str& str = *arg;
+        if (!init) { next(); init = true; }
+        next();
         return *this;
       }
       bool end() const override {
-        Str& str = *arg;
-        return str.end();
+        return at_end;
       }
       void rewind() override {
         Str& str = *arg;
         str.rewind();
+        acc = std::ostringstream(std::ios_base::ate);
+        at_end = false;
+        init = false;
       }
       size_t count() override {
         throw NIYError("size_t count()", "- what -");
