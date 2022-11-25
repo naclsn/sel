@@ -4,6 +4,7 @@ all = [
   'VisRepr',
   'Type_applied',
   'bins_applied',
+  'runApp',
 ]
 
 foreach name : all

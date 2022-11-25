@@ -32,7 +32,12 @@ namespace sel {
   }
   void FunChain::accept(Visitor& v) const { v.visitFunChain(ty, f); }
 
-  std::ostream& Input::stream(std::ostream& out) { return out << in->get(); } // ZZZ: ?
+  std::ostream& Input::stream(std::ostream& out) { // YYY: should it/not be reading c/c?
+    char c = in->get();
+    if (std::char_traits<char>::eof() != c)
+      out.put(c);
+    return out;
+  }
   bool Input::end() const { return in->eof(); }
   void Input::rewind() { throw NIYError("rewinding input", "- what -"); }
   std::ostream& Input::entire(std::ostream& out) { return out << in->rdbuf(); } // ZZZ: ?

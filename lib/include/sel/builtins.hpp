@@ -255,8 +255,6 @@ namespace sel {
         Base* base;
         Arg* arg;
 
-        virtual void once() { }
-
         // this is the (inherited) ctor for the tail type
         _the_when_not_unk(Base* base, Arg* arg)
           : _ty_tail::ctor(base->type(), arg->type())
@@ -290,8 +288,6 @@ namespace sel {
         _ProxyBase* base;
         typedef typename _fun_first_par_type<_ty_one_to_tail>::the::vat _LastArg;
         _LastArg* arg;
-
-        virtual void once() { }
 
         // this is the (inherited) ctor for the tail type when ends on unk
         _the_when_is_unk(Base* base, Arg* arg)
@@ -396,13 +392,11 @@ namespace sel {
 #define _bind_some_4(a, b, c, d) _bind_one(a, 3); _bind_some_3(b, c, d)
 
 #define _bind_count(__count, ...) _bind_some(__count)(__VA_ARGS__)
-#define _bind_one(__name, __depth) auto& __name = *this->_depth(__depth)
+#define _bind_one(__name, __depth) auto& __name = *this->_depth(__depth); (void)__name
 // YYY: could it somehow be moved into `BODY`? in a way
 // that it is only written once and the named arg refs
 // are available all throughout the struct
 #define bind_args(...) _bind_count(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
-
-#define USL(__ident) (__attribute__((unused))__ident)
 
 // YYY: C-pp cannot do case operations in stringify,
 // so to still have no conflict with the 65+ kw of C++,
@@ -433,14 +427,29 @@ namespace sel {
     };
 
     struct DECL(map, fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>) { BODY(map);
-      Val* operator*() override { // ZZZ: place holder
+      Val* curr = nullptr;
+      Val* operator*() override {
         bind_args(f, l);
-        return f(*l);
+        if (!curr) curr = f(*l);
+        return curr;
       }
-      Lst& operator++() override { return *this; }
-      bool end() const override { return true; }
-      void rewind() override { }
-      size_t count() override { return 0; }
+      Lst& operator++() override {
+        bind_args(f, l);
+        curr = nullptr;
+        return ++l;
+      }
+      bool end() const override {
+        bind_args(f, l);
+        return l.end();
+      }
+      void rewind() override {
+        bind_args(f, l);
+        l.rewind();
+      }
+      size_t count() override {
+        bind_args(f, l);
+        return l.count();
+      }
     };
 
     struct DECL(flip, fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>) { BODY(flip);
@@ -460,22 +469,23 @@ namespace sel {
         return it->entire(out);
       }
       bool end() const override {
-        Lst& lst = *arg;
+        bind_args(sep, lst);
         return lst.end();
       }
       void rewind() override {
-        Lst& lst = *arg;
+        bind_args(sep, lst);
         lst.rewind();
         beginning = true;
       }
       std::ostream& entire(std::ostream& out) override {
         bind_args(sep, lst);
         if (lst.end()) return out;
-        out << *lst;
+        out << *(Str*)(*lst);
         while (!lst.end()) {
           sep.rewind();
           sep.entire(out);
-          out << *(Str*)*(++lst);
+          ++lst;
+          out << *(Str*)(*lst);
         }
         return out;
       }
@@ -490,26 +500,29 @@ namespace sel {
     };
 
     struct DECL(split, str, str, lst<str>) { BODY(split);
-      std::string sep;
+      bool did_once = false;
+      std::string ssep;
       std::ostringstream acc = std::ostringstream(std::ios_base::ate);
       std::string curr;
       bool at_end = false;
       // std::vector<Val*> cache;
       bool init = false;
-      void once() override {
-        bind_args(sep, USL(str));
+      void once() {
+        bind_args(sep, str);
         std::ostringstream oss;
         sep.entire(oss);
-        this->sep = oss.str();
+        ssep = oss.str();
+        did_once = true;
       }
       void next() {
-        bind_args(USL(sep), str);
+        if (!did_once) once();
+        bind_args(sep, str);
         std::string buf = acc.str();
-        std::string::size_type at = buf.find(this->sep);
+        std::string::size_type at = buf.find(ssep);
         if (std::string::npos != at) {
           // found in current acc, pop(0)
           curr = buf.substr(0, at);
-          acc = std::ostringstream(buf.substr(at));
+          acc = std::ostringstream(buf.substr(at+ssep.size()));
           return;
         }
         if (str.end()) {
@@ -534,7 +547,7 @@ namespace sel {
         return at_end;
       }
       void rewind() override {
-        Str& str = *arg;
+        bind_args(sep, str);
         str.rewind();
         acc = std::ostringstream(std::ios_base::ate);
         at_end = false;
