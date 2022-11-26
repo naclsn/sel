@@ -465,8 +465,10 @@ namespace sel {
         bind_args(sep, lst);
         if (beginning) beginning = false;
         else sep.entire(out);
-        Str* it = (Str*)*lst++;
-        return it->entire(out);
+        Str* it = (Str*)*lst;
+        it->entire(out);
+        ++lst;
+        return out;
       }
       bool end() const override {
         bind_args(sep, lst);

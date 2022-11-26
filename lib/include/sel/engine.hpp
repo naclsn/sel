@@ -120,8 +120,6 @@ namespace sel {
      * a size hint than actual count. [?]]
      */
     virtual size_t count() = 0;
-    // virtual Val& operator[](size_t n) { rewind(); for (;;); return ...; }
-    Lst& operator++(int) { ++*this; return *this; } // ZZZ: i dont even anymore
   };
 
   /**
