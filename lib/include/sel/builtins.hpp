@@ -50,12 +50,12 @@ namespace sel {
   namespace ll {
 
     /**
-     * empty list, see `bin_types::cons`
+     * empty list, see `ll::cons`
      */
     struct nil { };
 
     /**
-     * linked lists of type (car,cdr) style, see `bin_types::nil`
+     * linked lists of type (car,cdr) style, see `ll::nil`
      */
     template <typename A, typename D>
     struct cons { typedef A car; typedef D cdr; };
@@ -63,7 +63,7 @@ namespace sel {
     struct cons<O, nil> { typedef O car; typedef nil cdr; };
 
     /**
-     * make a linked lists of types (car,cdr) style from pack (see `bin_types::cons`)
+     * make a linked lists of types (car,cdr) style from pack (see `ll::cons`)
      */
     template <typename H, typename... T>
     struct cons_l { typedef cons<H, typename cons_l<T...>::the> the; };
@@ -594,14 +594,14 @@ namespace sel {
       size_t count() override { return 0; }
     };
 
-  } // namespace bin
+  } // namespace bins
 
   /**
    * namespace with the types `bins` and `bins_all` which lists
    *  - every builtin `Tail` types in alphabetical order
    *  - every builtin types (inc. intermediary) (not in any order)
    */
-  namespace bin_types {
+  namespace bins_ll {
 
     using namespace ll;
 
@@ -645,7 +645,7 @@ namespace sel {
       >::the bins;
     typedef _make_bins_all<bins>::the bins_all;
 
-  } // namespace bin_types
+  } // namespace bins_ll
 
 } // namespace sel
 

@@ -42,14 +42,14 @@ namespace sel {
     }
   };
   template <>
-  class _make_BinsVisitorBase<bin_types::nil> {
+  class _make_BinsVisitorBase<bins_ll::nil> {
   public:
     virtual ~_make_BinsVisitorBase() { }
     void visit() { } // YYY: because the 'using' statement (to silence warnings) needs it
   };
 
-  typedef _make_BinsVisitorBase<bin_types::bins> VisitorBins;
-  typedef _make_BinsVisitorBase<bin_types::bins_all> VisitorBinsAll;
+  typedef _make_BinsVisitorBase<bins_ll::bins> VisitorBins;
+  typedef _make_BinsVisitorBase<bins_ll::bins_all> VisitorBinsAll;
 
   /**
    * Base class for the visitor pattern over every `Val`.
