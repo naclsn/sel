@@ -368,6 +368,45 @@ namespace sel {
 
   } // namespace bins_helpers
 
+#define _BIN_num \
+      double value() override;
+#define _BIN_str \
+      std::ostream& stream(std::ostream& out) override; \
+      bool end() const override; \
+      void rewind() override; \
+      std::ostream& entire(std::ostream& out) override;
+#define _BIN_lst \
+      Val* operator*() override; \
+      Lst& operator++() override; \
+      bool end() const override; \
+      void rewind() override; \
+      size_t count() override;
+#define _BIN_unk \
+      Val* impl() override;
+
+// used to remove the parenthesis from `__decl` and `__body`
+#define __rem_par(...) __VA_ARGS__
+
+// YYY: C-pp cannot do case operations in stringify,
+// so to still have no conflict with the 65+ kw of C++,
+// strategy is `lower_` (eg. `add_`, has `::name = "add"`)
+// (couldn't get it with a constexpr tolower either...)
+// SEE: https://stackoverflow.com/a/4225302
+#define BIN(__ident, __decl, __body) \
+    struct __ident##_ \
+        : bins_helpers::builtin<__ident##_, ll::cons_l<__rem_par __decl>::the>::the { \
+      constexpr static char const* name = #__ident; \
+      using the::the; \
+      __rem_par __body \
+    }
+
+// YYY: could not find a reliable way to infer base solely on _d
+// because `macro(templt<a, b>)` has 2 arguments...
+#define BIN_num(_i, _d, _b) BIN(_i, _d, (_BIN_num; __rem_par _b))
+#define BIN_str(_i, _d, _b) BIN(_i, _d, (_BIN_str; __rem_par _b))
+#define BIN_lst(_i, _d, _b) BIN(_i, _d, (_BIN_lst; __rem_par _b))
+#define BIN_unk(_i, _d, _b) BIN(_i, _d, (_BIN_unk; __rem_par _b))
+
   /**
    * namespace containing the actual builtins
    */
@@ -379,105 +418,23 @@ namespace sel {
     using bins_helpers::lst;
     using bins_helpers::fun;
 
-#define _BIN_num \
-      double value() override; \
-      using ___ = void
-#define _BIN_str \
-      std::ostream& stream(std::ostream& out) override; \
-      bool end() const override; \
-      void rewind() override; \
-      std::ostream& entire(std::ostream& out) override; \
-      using ___ = void //___discard // TODO: (when proper handling of ty flags)
-#define _BIN_lst \
-      Val* operator*() override; \
-      Lst& operator++() override; \
-      bool end() const override; \
-      void rewind() override; \
-      size_t count() override; \
-      using ___ = ___discard
-#define _BIN_fun \
-      Val* impl() override; \
-      using ___ = ___discard
-#define _BIN_(__ty) _BIN_ ## __ty
+    BIN_num(abs, (num, num), ());
 
-#define _nth_(__nth) _nth_ ## __nth
-#define _nth_1(a)             a
-#define _nth_2(b, a)          a
-#define _nth_3(c, b, a)       a
-#define _nth_4(d, c, b, a)    a
-#define _nth_5(e, d, c, b, a) a
-#define _nth_count(__count, ...) _nth_(__count)(__VA_ARGS__)
+    BIN_num(add, (num, num, num), ());
 
-#define _LAST(...) _nth_count(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
-
-#define _BIN(__ty) _BIN_(__ty)
-// for types like `lst<something>`, this used to discard the `something`
-template <typename... _> struct ___discard;
-// used to remove the parenthesis from `__decl` and `__body`
-#define _rem_par(...) __VA_ARGS__
-
-#define BIN(__ident, __decl, __body) \
-    struct __ident##_ \
-        : bins_helpers::builtin<__ident##_, ll::cons_l<_rem_par __decl>::the>::the { \
-      constexpr static char const* name = #__ident; \
-      using the::the; \
-      _BIN(_LAST __decl); \
-      _rem_par __body \
-    }
-
-// YYY: C-pp cannot do case operations in stringify,
-// so to still have no conflict with the 65+ kw of C++,
-// strategy is `lower_` (eg. `add_`, has `::name = "add"`)
-// (na, couldn't get it with a constexpr tolower either...)
-#define DECL(__ident, ...) \
-    __ident##_ : bins_helpers::builtin<__ident##_, ll::cons_l<__VA_ARGS__>::the>::the
-// XXX: name is still repeated twice, which not cool, but
-// other approaches were making code more annoying to read,
-// worst for static tools (eg. sy highlight...)... (pb is:
-// the name must appear both outside and inside the struct)
-// SEE: https://stackoverflow.com/a/4225302
-#define BODY(__ident) \
-      constexpr static char const* name = #__ident; \
-      using the::the;
-
-    struct DECL(abs, num, num) { BODY(abs);
-      double value() override;
-    };
-
-    struct DECL(add, num, num, num) { BODY(add);
-      double value() override;
-    };
-
-    struct DECL(map, fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>) { BODY(map);
+    BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>), (
       Val* curr = nullptr;
-      Val* operator*() override;
-      Lst& operator++() override;
-      bool end() const override;
-      void rewind() override;
-      size_t count() override;
-    };
+    ));
 
-    struct DECL(flip, fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>) { BODY(flip);
-      Val* impl() override;
-    };
+    BIN_unk(flip, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>), ());
 
-    struct DECL(join, str, lst<str>, str) { BODY(join);
+    BIN_str(join, (str, lst<str>, str), (
       bool beginning = true;
-      std::ostream& stream(std::ostream& out) override;
-      bool end() const override;
-      void rewind() override;
-      std::ostream& entire(std::ostream& out) override;
-    };
+    ));
 
-    struct DECL(repeat, unk<'a'>, lst<unk<'a'>>) { BODY(repeat);
-      Val* operator*() override;
-      Lst& operator++() override;
-      bool end() const override;
-      void rewind() override;
-      size_t count() override;
-    };
+    BIN_lst(repeat, (unk<'a'>, lst<unk<'a'>>), ());
 
-    struct DECL(split, str, str, lst<str>) { BODY(split);
+    BIN_lst(split, (str, str, lst<str>), (
       bool did_once = false;
       std::string ssep;
       std::ostringstream acc = std::ostringstream(std::ios_base::ate);
@@ -487,36 +444,17 @@ template <typename... _> struct ___discard;
       bool init = false;
       void once();
       void next();
-      Val* operator*() override;
-      Lst& operator++() override;
-      bool end() const override;
-      void rewind() override;
-      size_t count() override;
-    };
+    ));
 
-    struct DECL(sub, num, num, num) { BODY(sub);
-      double value() override;
-    };
+    BIN_num(sub, (num, num, num), ());
 
-    struct DECL(tonum, str, num) { BODY(tonum);
-      double value() override;
-    };
+    BIN_num(tonum, (str, num), ());
 
-    struct DECL(tostr, num, str) { BODY(tostr);
+    BIN_str(tostr, (num, str), (
       bool read = false;
-      std::ostream& stream(std::ostream& out) override;
-      bool end() const override;
-      void rewind() override;
-      std::ostream& entire(std::ostream& out) override;
-    };
+    ));
 
-    struct DECL(zipwith, fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, lst<unk<'a'>>, lst<unk<'b'>>, lst<unk<'c'>>) { BODY(zipwith);
-      Val* operator*() override;
-      Lst& operator++() override;
-      bool end() const override;
-      void rewind() override;
-      size_t count() override;
-    };
+    BIN_lst(zipwith, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, lst<unk<'a'>>, lst<unk<'b'>>, lst<unk<'c'>>), ());
 
   } // namespace bins
 

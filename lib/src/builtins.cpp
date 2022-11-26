@@ -56,7 +56,7 @@ namespace sel {
 
 #define _bind_count(__count, ...) _bind_some(__count)(__VA_ARGS__)
 #define _bind_one(__name, __depth) auto& __name = *this->_depth(__depth); (void)__name
-// YYY: could it somehow be moved into `BODY`? in a way
+// YYY: could it somehow be moved into `BIN_...`? in a way
 // that it is only written once and the named arg refs
 // are available all throughout the struct
 #define bind_args(...) _bind_count(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
