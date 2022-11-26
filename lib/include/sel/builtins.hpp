@@ -379,24 +379,51 @@ namespace sel {
     using bins_helpers::lst;
     using bins_helpers::fun;
 
-#define _depth(__depth) _depth_ ## __depth
-#define _depth_0 arg
-#define _depth_1 base->_depth_0
-#define _depth_2 base->_depth_1
-#define _depth_3 base->_depth_2
+#define _BIN_num \
+      double value() override; \
+      using ___ = void
+#define _BIN_str \
+      std::ostream& stream(std::ostream& out) override; \
+      bool end() const override; \
+      void rewind() override; \
+      std::ostream& entire(std::ostream& out) override; \
+      using ___ = void //___discard // TODO: (when proper handling of ty flags)
+#define _BIN_lst \
+      Val* operator*() override; \
+      Lst& operator++() override; \
+      bool end() const override; \
+      void rewind() override; \
+      size_t count() override; \
+      using ___ = ___discard
+#define _BIN_fun \
+      Val* impl() override; \
+      using ___ = ___discard
+#define _BIN_(__ty) _BIN_ ## __ty
 
-#define _bind_some(__count) _bind_some_ ## __count
-#define _bind_some_1(a)          _bind_one(a, 0)
-#define _bind_some_2(a, b)       _bind_one(a, 1); _bind_some_1(b)
-#define _bind_some_3(a, b, c)    _bind_one(a, 2); _bind_some_2(b, c)
-#define _bind_some_4(a, b, c, d) _bind_one(a, 3); _bind_some_3(b, c, d)
+#define _nth_(__nth) _nth_ ## __nth
+#define _nth_1(a)             a
+#define _nth_2(b, a)          a
+#define _nth_3(c, b, a)       a
+#define _nth_4(d, c, b, a)    a
+#define _nth_5(e, d, c, b, a) a
+#define _nth_count(__count, ...) _nth_(__count)(__VA_ARGS__)
 
-#define _bind_count(__count, ...) _bind_some(__count)(__VA_ARGS__)
-#define _bind_one(__name, __depth) auto& __name = *this->_depth(__depth); (void)__name
-// YYY: could it somehow be moved into `BODY`? in a way
-// that it is only written once and the named arg refs
-// are available all throughout the struct
-#define bind_args(...) _bind_count(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
+#define _LAST(...) _nth_count(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
+
+#define _BIN(__ty) _BIN_(__ty)
+// for types like `lst<something>`, this used to discard the `something`
+template <typename... _> struct ___discard;
+// used to remove the parenthesis from `__decl` and `__body`
+#define _rem_par(...) __VA_ARGS__
+
+#define BIN(__ident, __decl, __body) \
+    struct __ident##_ \
+        : bins_helpers::builtin<__ident##_, ll::cons_l<_rem_par __decl>::the>::the { \
+      constexpr static char const* name = #__ident; \
+      using the::the; \
+      _BIN(_LAST __decl); \
+      _rem_par __body \
+    }
 
 // YYY: C-pp cannot do case operations in stringify,
 // so to still have no conflict with the 65+ kw of C++,
@@ -414,91 +441,40 @@ namespace sel {
       using the::the;
 
     struct DECL(abs, num, num) { BODY(abs);
-      double value() override {
-        return std::abs(arg->value());
-      }
+      double value() override;
     };
 
     struct DECL(add, num, num, num) { BODY(add);
-      double value() override {
-        bind_args(a, b);
-        return a.value() + b.value();
-      }
+      double value() override;
     };
 
     struct DECL(map, fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>) { BODY(map);
       Val* curr = nullptr;
-      Val* operator*() override {
-        bind_args(f, l);
-        if (!curr) curr = f(*l);
-        return curr;
-      }
-      Lst& operator++() override {
-        bind_args(f, l);
-        curr = nullptr;
-        return ++l;
-      }
-      bool end() const override {
-        bind_args(f, l);
-        return l.end();
-      }
-      void rewind() override {
-        bind_args(f, l);
-        l.rewind();
-      }
-      size_t count() override {
-        bind_args(f, l);
-        return l.count();
-      }
+      Val* operator*() override;
+      Lst& operator++() override;
+      bool end() const override;
+      void rewind() override;
+      size_t count() override;
     };
 
     struct DECL(flip, fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>) { BODY(flip);
-      Val* impl() override {
-        bind_args(fun, b, a);
-        return (*(Fun*)fun(&a))(&b);
-      }
+      Val* impl() override;
     };
 
     struct DECL(join, str, lst<str>, str) { BODY(join);
       bool beginning = true;
-      std::ostream& stream(std::ostream& out) override {
-        bind_args(sep, lst);
-        if (beginning) beginning = false;
-        else sep.entire(out);
-        Str* it = (Str*)*lst;
-        it->entire(out);
-        ++lst;
-        return out;
-      }
-      bool end() const override {
-        bind_args(sep, lst);
-        return lst.end();
-      }
-      void rewind() override {
-        bind_args(sep, lst);
-        lst.rewind();
-        beginning = true;
-      }
-      std::ostream& entire(std::ostream& out) override {
-        bind_args(sep, lst);
-        if (lst.end()) return out;
-        out << *(Str*)(*lst);
-        while (!lst.end()) {
-          sep.rewind();
-          sep.entire(out);
-          ++lst;
-          out << *(Str*)(*lst);
-        }
-        return out;
-      }
+      std::ostream& stream(std::ostream& out) override;
+      bool end() const override;
+      void rewind() override;
+      std::ostream& entire(std::ostream& out) override;
     };
 
     struct DECL(repeat, unk<'a'>, lst<unk<'a'>>) { BODY(repeat);
-      Val* operator*() override { return nullptr; }
-      Lst& operator++() override { return *this; }
-      bool end() const override { return true; }
-      void rewind() override { }
-      size_t count() override { return 0; }
+      Val* operator*() override;
+      Lst& operator++() override;
+      bool end() const override;
+      void rewind() override;
+      size_t count() override;
     };
 
     struct DECL(split, str, str, lst<str>) { BODY(split);
@@ -509,89 +485,37 @@ namespace sel {
       bool at_end = false;
       // std::vector<Val*> cache;
       bool init = false;
-      void once() {
-        bind_args(sep, str);
-        std::ostringstream oss;
-        sep.entire(oss);
-        ssep = oss.str();
-        did_once = true;
-      }
-      void next() {
-        if (!did_once) once();
-        bind_args(sep, str);
-        std::string buf = acc.str();
-        std::string::size_type at = buf.find(ssep);
-        if (std::string::npos != at) {
-          // found in current acc, pop(0)
-          curr = buf.substr(0, at);
-          acc = std::ostringstream(buf.substr(at+ssep.size()));
-          return;
-        }
-        if (str.end()) {
-          // send the rest of acc, set end
-          curr = buf;
-          at_end = true;
-          return;
-        }
-        acc << str;
-        return next();
-      }
-      Val* operator*() override {
-        if (!init) { next(); init = true; }
-        return new StrChunks(curr);
-      }
-      Lst& operator++() override {
-        if (!init) { next(); init = true; }
-        next();
-        return *this;
-      }
-      bool end() const override {
-        return at_end;
-      }
-      void rewind() override {
-        bind_args(sep, str);
-        str.rewind();
-        acc = std::ostringstream(std::ios_base::ate);
-        at_end = false;
-        init = false;
-      }
-      size_t count() override {
-        throw NIYError("size_t count()", "- what -");
-      }
+      void once();
+      void next();
+      Val* operator*() override;
+      Lst& operator++() override;
+      bool end() const override;
+      void rewind() override;
+      size_t count() override;
     };
 
     struct DECL(sub, num, num, num) { BODY(sub);
-      double value() override {
-        bind_args(a, b);
-        return a.value() - b.value();
-      }
+      double value() override;
     };
 
     struct DECL(tonum, str, num) { BODY(tonum);
-      double value() override {
-        bind_args(s);
-        double r;
-        std::stringstream ss;
-        s.entire(ss);
-        ss >> r;
-        return r;
-      }
+      double value() override;
     };
 
     struct DECL(tostr, num, str) { BODY(tostr);
       bool read = false;
-      std::ostream& stream(std::ostream& out) override { read = true; return out << arg->value(); }
-      bool end() const override { return read; }
-      void rewind() override { read = false; }
-      std::ostream& entire(std::ostream& out) override { read = true; return out << arg->value(); }
+      std::ostream& stream(std::ostream& out) override;
+      bool end() const override;
+      void rewind() override;
+      std::ostream& entire(std::ostream& out) override;
     };
 
     struct DECL(zipwith, fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, lst<unk<'a'>>, lst<unk<'b'>>, lst<unk<'c'>>) { BODY(zipwith);
-      Val* operator*() override { return nullptr; }
-      Lst& operator++() override { return *this; }
-      bool end() const override { return true; }
-      void rewind() override { }
-      size_t count() override { return 0; }
+      Val* operator*() override;
+      Lst& operator++() override;
+      bool end() const override;
+      void rewind() override;
+      size_t count() override;
     };
 
   } // namespace bins
