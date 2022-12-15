@@ -119,12 +119,13 @@ namespace sel {
     std::ostream& join_::entire(std::ostream& out) {
       bind_args(sep, lst);
       if (lst.end()) return out;
-      out << *(Str*)(*lst);
+      Str* it = (Str*)(*lst);
+      it->entire(out);
       while (!lst.end()) {
-        sep.rewind();
         sep.entire(out);
         ++lst;
-        out << *(Str*)(*lst);
+        it = (Str*)(*lst);
+        it->entire(out);
       }
       return out;
     }
@@ -152,10 +153,9 @@ namespace sel {
       return l.count();
     }
 
-    // TODO: lol
-    Val* repeat_::operator*() { return nullptr; }
+    Val* repeat_::operator*() { return arg; }
     Lst& repeat_::operator++() { return *this; }
-    bool repeat_::end() const { return true; }
+    bool repeat_::end() const { return false; }
     void repeat_::rewind() { }
     size_t repeat_::count() { return 0; }
 
@@ -215,11 +215,13 @@ namespace sel {
     }
 
     double tonum_::value() {
-      bind_args(s);
-      double r;
-      std::stringstream ss;
-      s.entire(ss);
-      ss >> r;
+      if (!done) {
+        bind_args(s);
+        std::stringstream ss;
+        s.entire(ss);
+        ss >> r;
+        done = true;
+      }
       return r;
     }
 

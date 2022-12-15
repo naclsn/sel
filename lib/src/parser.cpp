@@ -33,14 +33,44 @@ namespace sel {
   void FunChain::accept(Visitor& v) const { v.visitFunChain(ty, f); }
 
   std::ostream& Input::stream(std::ostream& out) { // YYY: should it/not be reading c/c?
+    // already read up to `upto`, so take from cache starting at `nowat`
+    if (nowat < upto) {
+      out << cache.str().substr(nowat, upto-nowat);
+      nowat = upto;
+      return out;
+    }
+    // at the end of cache, fetch for more
     char c = in->get();
-    if (std::char_traits<char>::eof() != c)
+    if (std::char_traits<char>::eof() != c) {
+      nowat++;
+      upto++;
       out.put(c);
+      cache.put(c);
+    }
     return out;
   }
-  bool Input::end() const { return in->eof(); }
-  void Input::rewind() { throw NIYError("rewinding input", "- what -"); }
-  std::ostream& Input::entire(std::ostream& out) { return out << in->rdbuf(); } // ZZZ: ?
+  bool Input::end() const { return nowat == upto && in->eof(); }
+  void Input::rewind() { nowat = 0; }
+  std::ostream& Input::entire(std::ostream& out) {
+    // not at the end, get the rest
+    if (!in->eof()) {
+      char buffer[4096];
+      while (in->read(buffer, sizeof(buffer))) {
+        upto+= 4096;
+        out << buffer;
+        cache << buffer;
+      }
+      auto end = in->gcount();
+      buffer[end] = '\0';
+      upto+= end;
+      out << buffer;
+      cache << buffer;
+      nowat = upto;
+      return out;
+    }
+    nowat = upto;
+    return out << cache.str();
+  }
   void Input::accept(Visitor& v) const { v.visitInput(ty); }
 
   Val* Output::operator()(Val* arg) {

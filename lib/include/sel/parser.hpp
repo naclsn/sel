@@ -92,6 +92,8 @@ namespace sel {
 
   class Input : public Str {
     std::istream* in;
+    std::ostringstream cache;
+    std::streamsize nowat = 0, upto = 0;
   public:
     Input()
       : Str(TyFlag::IS_INF)

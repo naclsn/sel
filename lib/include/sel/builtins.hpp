@@ -472,7 +472,10 @@ namespace sel {
       "substract the second number from the first", ());
 
     BIN_num(tonum, (str, num),
-      "convert a string into number", ());
+      "convert a string into number", (
+      double r;
+      bool done;
+    ));
 
     BIN_str(tostr, (num, str),
       "convert a number into string", (

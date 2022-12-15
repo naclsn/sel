@@ -290,6 +290,7 @@ of type `[Num -> Num]` and of length 3.
 - auto coersion (will require utf-8)
 #### Feature Goals
 - [x] lazy and infinite data structures (still todo: type flag for this)
+- ([ ] only cache when not proved not needed)
 - [ ] lib interface
 - [ ] broad prelude
 - [ ] proper unicode (eg. graphems and word)
