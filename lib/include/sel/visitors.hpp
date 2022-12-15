@@ -22,15 +22,17 @@ namespace sel {
   class Fun; // YYY: for FunChain, but I would prefer without
 
   class VisitorLits {
+  private:
+    void ni(char const* waai) { std::cerr << "This visitor does not handle '" << waai << "'\n"; } // YYY: proper throw?
   public:
     virtual ~VisitorLits() { }
-    virtual void visitNumLiteral(Type const& type, double n) = 0;
-    virtual void visitStrLiteral(Type const& type, std::string const& s) = 0;
-    virtual void visitLstLiteral(Type const& type, std::vector<Val*> const& v) = 0;
-    virtual void visitFunChain(Type const& type, std::vector<Fun*> const& f) = 0;
+    virtual void visitNumLiteral(Type const& type, double n) { ni("NumLiteral"); }
+    virtual void visitStrLiteral(Type const& type, std::string const& s) { ni("StrLiteral"); }
+    virtual void visitLstLiteral(Type const& type, std::vector<Val*> const& v) { ni("LstLiteral"); }
+    virtual void visitFunChain(Type const& type, std::vector<Fun*> const& f) { ni("FunChain"); }
   //class VisitorSpec
-    virtual void visitInput(Type const& type) = 0;
-    virtual void visitOutput(Type const& type) = 0;
+    virtual void visitInput(Type const& type) { ni("Input"); }
+    virtual void visitOutput(Type const& type) { ni("Output"); }
   };
 
   template <typename L>
@@ -38,7 +40,7 @@ namespace sel {
   public:
     using _make_BinsVisitorBase<typename L::cdr>::visit;
     virtual void visit(typename L::car const& val) {
-      std::cerr << typeid(*this).name() << ": NIY: visiting " << typeid(val).name() << '\n'; // ZZZ
+      std::cerr << typeid(*this).name() << ": NIY: visiting " << typeid(val).name() << '\n'; // YYY: proper throw?
     }
   };
   template <>
@@ -134,6 +136,31 @@ namespace sel {
     void visit(bins::zipwith_::Base const&) override;
     void visit(bins::zipwith_::Base::Base const&) override;
     void visit(bins::zipwith_::Base::Base::Base const&) override;
+  };
+
+  class VisHelp : public Visitor {
+  public:
+    VisHelp(std::ostream& res)
+      : res(res)
+    { }
+
+  private:
+    std::ostream& res;
+
+  public:
+    using Visitor::visit;
+    // XXX: would love any form of solution to this
+    void visit(bins::abs_::Head const&) override;
+    void visit(bins::add_::Head const&) override;
+    void visit(bins::flip_::Head const&) override;
+    void visit(bins::join_::Head const&) override;
+    void visit(bins::map_::Head const&) override;
+    void visit(bins::repeat_::Head const&) override;
+    void visit(bins::split_::Head const&) override;
+    void visit(bins::sub_::Head const&) override;
+    void visit(bins::tonum_::Head const&) override;
+    void visit(bins::tostr_::Head const&) override;
+    void visit(bins::zipwith_::Head const&) override;
   };
 
 } // namespace sel

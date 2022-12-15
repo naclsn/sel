@@ -45,6 +45,11 @@ namespace sel {
   Val* lookup_name(std::string const& name);
 
   /**
+   * Seach for a value by name, return nullptr if not found.
+   */
+  unsigned list_names(std::vector<std::string>& names);
+
+  /**
    * (mostly internal) namespace for TMP linked list
    */
   namespace ll {
@@ -80,6 +85,15 @@ namespace sel {
     struct _rev_impl<nil, into> { typedef into the; };
     template <typename H, typename T, typename into>
     struct _rev_impl<cons<H, T>, into> { typedef typename _rev_impl<T, cons<H, into>>::the the; };
+
+    /**
+     * count the number of element
+     */
+    template <typename list> struct count;
+    template <typename head, typename tail>
+    struct count<cons<head, tail>> { static constexpr unsigned the = count<tail>::the+1; };
+    template <typename only>
+    struct count<cons<only, nil>> { static constexpr unsigned the = 1; };
 
   } // namespace ll
 
@@ -392,20 +406,21 @@ namespace sel {
 // strategy is `lower_` (eg. `add_`, has `::name = "add"`)
 // (couldn't get it with a constexpr tolower either...)
 // SEE: https://stackoverflow.com/a/4225302
-#define BIN(__ident, __decl, __body) \
+#define BIN(__ident, __decl, __docstr, __body) \
     struct __ident##_ \
         : bins_helpers::builtin<__ident##_, ll::cons_l<__rem_par __decl>::the>::the { \
       constexpr static char const* name = #__ident; \
+      constexpr static char const* doc = __docstr; \
       using the::the; \
       __rem_par __body \
     }
 
 // YYY: could not find a reliable way to infer base solely on _d
 // because `macro(templt<a, b>)` has 2 arguments...
-#define BIN_num(_i, _d, _b) BIN(_i, _d, (_BIN_num; __rem_par _b))
-#define BIN_str(_i, _d, _b) BIN(_i, _d, (_BIN_str; __rem_par _b))
-#define BIN_lst(_i, _d, _b) BIN(_i, _d, (_BIN_lst; __rem_par _b))
-#define BIN_unk(_i, _d, _b) BIN(_i, _d, (_BIN_unk; __rem_par _b))
+#define BIN_num(_i, _d, _s, _b) BIN(_i, _d, _s, (_BIN_num; __rem_par _b))
+#define BIN_str(_i, _d, _s, _b) BIN(_i, _d, _s, (_BIN_str; __rem_par _b))
+#define BIN_lst(_i, _d, _s, _b) BIN(_i, _d, _s, (_BIN_lst; __rem_par _b))
+#define BIN_unk(_i, _d, _s, _b) BIN(_i, _d, _s, (_BIN_unk; __rem_par _b))
 
   /**
    * namespace containing the actual builtins
@@ -418,23 +433,30 @@ namespace sel {
     using bins_helpers::lst;
     using bins_helpers::fun;
 
-    BIN_num(abs, (num, num), ());
+    BIN_num(abs, (num, num),
+      "return the absolute value of a number", ());
 
-    BIN_num(add, (num, num, num), ());
+    BIN_num(add, (num, num, num),
+      "add two numbers", ());
 
-    BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>), (
+    BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>),
+      "make a new list by applying a function to each value from a list", (
       Val* curr = nullptr;
     ));
 
-    BIN_unk(flip, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>), ());
+    BIN_unk(flip, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>),
+      "niy: docstr for 'flip'", ());
 
-    BIN_str(join, (str, lst<str>, str), (
+    BIN_str(join, (str, lst<str>, str),
+      "niy: docstr for 'join'", (
       bool beginning = true;
     ));
 
-    BIN_lst(repeat, (unk<'a'>, lst<unk<'a'>>), ());
+    BIN_lst(repeat, (unk<'a'>, lst<unk<'a'>>),
+      "niy: docstr for 'repeat'", ());
 
-    BIN_lst(split, (str, str, lst<str>), (
+    BIN_lst(split, (str, str, lst<str>),
+      "niy: docstr for 'split'", (
       bool did_once = false;
       std::string ssep;
       std::ostringstream acc = std::ostringstream(std::ios_base::ate);
@@ -446,15 +468,19 @@ namespace sel {
       void next();
     ));
 
-    BIN_num(sub, (num, num, num), ());
+    BIN_num(sub, (num, num, num),
+      "niy: docstr for 'sub'", ());
 
-    BIN_num(tonum, (str, num), ());
+    BIN_num(tonum, (str, num),
+      "niy: docstr for 'tonum'", ());
 
-    BIN_str(tostr, (num, str), (
+    BIN_str(tostr, (num, str),
+      "niy: docstr for 'tostr'", (
       bool read = false;
     ));
 
-    BIN_lst(zipwith, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, lst<unk<'a'>>, lst<unk<'b'>>, lst<unk<'c'>>), ());
+    BIN_lst(zipwith, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, lst<unk<'a'>>, lst<unk<'b'>>, lst<unk<'c'>>),
+      "niy: docstr for 'zipwith'", ());
 
   } // namespace bins
 

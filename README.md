@@ -287,8 +287,7 @@ of type `[Num -> Num]` and of length 3.
 ### Notepad
 #### TODO/WIP
 - better errors
-- update doc comments
-- update README.md
+- auto coersion (will require utf-8)
 #### Feature Goals
 - [x] lazy and infinite data structures (still todo: type flag for this)
 - [ ] lib interface

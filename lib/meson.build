@@ -10,6 +10,7 @@ lib = library('sel',
   'src/parser.cpp',
   'src/visitors.cpp',
   'src/visitors/repr.cpp',
+  'src/visitors/help.cpp',
   include_directories : [inc],
   install : true,
 )

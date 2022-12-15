@@ -23,6 +23,27 @@ namespace sel {
     return linear_search<bins_ll::bins>::the(name);
   }
 
+  // internal
+  template <typename list> struct push_names_into;
+  template <typename car, typename cdr>
+  struct push_names_into<bins_ll::cons<car, cdr>> {
+    static inline void the(std::vector<std::string>& name) {
+      name.push_back(car::name);
+      push_names_into<cdr>::the(name);
+    }
+  };
+  template <>
+  struct push_names_into<bins_ll::nil> {
+    static inline void the(std::vector<std::string>& _) { }
+  };
+
+  unsigned list_names(std::vector<std::string>& names) {
+    constexpr unsigned count = ll::count<bins_ll::bins>::the;
+    names.reserve(count);
+    push_names_into<bins_ll::bins>::the(names);
+    return count;
+  }
+
   namespace bins_helpers {
 
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
