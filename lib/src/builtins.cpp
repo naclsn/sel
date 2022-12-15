@@ -93,29 +93,6 @@ namespace sel {
       return a.value() + b.value();
     }
 
-    Val* map_::operator*() {
-      bind_args(f, l);
-      if (!curr) curr = f(*l);
-      return curr;
-    }
-    Lst& map_::operator++() {
-      bind_args(f, l);
-      curr = nullptr;
-      return ++l;
-    }
-    bool map_::end() const {
-      bind_args(f, l);
-      return l.end();
-    }
-    void map_::rewind() {
-      bind_args(f, l);
-      l.rewind();
-    }
-    size_t map_::count() {
-      bind_args(f, l);
-      return l.count();
-    }
-
     Val* flip_::impl() {
       bind_args(fun, b, a);
       return (*(Fun*)fun(&a))(&b);
@@ -150,6 +127,29 @@ namespace sel {
         out << *(Str*)(*lst);
       }
       return out;
+    }
+
+    Val* map_::operator*() {
+      bind_args(f, l);
+      if (!curr) curr = f(*l);
+      return curr;
+    }
+    Lst& map_::operator++() {
+      bind_args(f, l);
+      curr = nullptr;
+      return ++l;
+    }
+    bool map_::end() const {
+      bind_args(f, l);
+      return l.end();
+    }
+    void map_::rewind() {
+      bind_args(f, l);
+      l.rewind();
+    }
+    size_t map_::count() {
+      bind_args(f, l);
+      return l.count();
     }
 
     // TODO: lol

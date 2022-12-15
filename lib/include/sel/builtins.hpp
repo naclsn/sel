@@ -439,24 +439,24 @@ namespace sel {
     BIN_num(add, (num, num, num),
       "add two numbers", ());
 
+    BIN_unk(flip, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>),
+      "flip the two parameters by passing the first given after the second one", ());
+
+    BIN_str(join, (str, lst<str>, str),
+      "join a list of string with a separator between entries", (
+      bool beginning = true;
+    ));
+
     BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>),
       "make a new list by applying a function to each value from a list", (
       Val* curr = nullptr;
     ));
 
-    BIN_unk(flip, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>),
-      "niy: docstr for 'flip'", ());
-
-    BIN_str(join, (str, lst<str>, str),
-      "niy: docstr for 'join'", (
-      bool beginning = true;
-    ));
-
     BIN_lst(repeat, (unk<'a'>, lst<unk<'a'>>),
-      "niy: docstr for 'repeat'", ());
+      "repeat an infinite amount of copies of the same value", ());
 
     BIN_lst(split, (str, str, lst<str>),
-      "niy: docstr for 'split'", (
+      "break a string into pieces separated by the argument, consuming the delimiter; note that an empty delimiter does not split the input on every character, but rather is equivalent to `const [repeat ::]`", ( // YYY: .. i think..?
       bool did_once = false;
       std::string ssep;
       std::ostringstream acc = std::ostringstream(std::ios_base::ate);
@@ -469,13 +469,13 @@ namespace sel {
     ));
 
     BIN_num(sub, (num, num, num),
-      "niy: docstr for 'sub'", ());
+      "substract the second number from the first", ());
 
     BIN_num(tonum, (str, num),
-      "niy: docstr for 'tonum'", ());
+      "convert a string into number", ());
 
     BIN_str(tostr, (num, str),
-      "niy: docstr for 'tostr'", (
+      "convert a number into string", (
       bool read = false;
     ));
 
