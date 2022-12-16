@@ -227,6 +227,17 @@ namespace sel {
           if (':' == c) {
             if (':' != in.peek()) break;
             in.ignore(1);
+          } else if ('\\' == c) { // YYY: not sure I like it, but this sure is convenient and more habitual
+            switch (in.get()) {
+              case 'a': c = '\a'; break;
+              case 'b': c = '\b'; break;
+              case 't': c = '\t'; break;
+              case 'n': c = '\n'; break;
+              case 'v': c = '\v'; break;
+              case 'f': c = '\f'; break;
+              case 'r': c = '\r'; break;
+              case 'e': c = '\e'; break;
+            }
           }
           t.as.str->push_back(c);
         } while (!in.eof());
