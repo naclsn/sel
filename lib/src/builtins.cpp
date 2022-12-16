@@ -110,6 +110,34 @@ namespace sel {
       return &take;
     }
 
+    Val* filter_::operator*() {
+      bind_args(p, l);
+      if (!curr) {
+        while (!((Num*)p(*l))->value()) ++l;
+        curr = *l;
+      }
+      return *l;
+    }
+    Lst& filter_::operator++() {
+      bind_args(p, l);
+      ++l;
+      while (!((Num*)p(*l))->value()) ++l;
+      curr = *l;
+      return *this;
+    }
+    bool filter_::end() const {
+      bind_args(p, l);
+      return l.end();
+    }
+    void filter_::rewind() {
+      bind_args(p, l);
+      l.rewind();
+    }
+    size_t filter_::count() {
+      bind_args(p, l);
+      return l.count();
+    }
+
     Val* flip_::impl() {
       bind_args(fun, b, a);
       return (*(Fun*)fun(&a))(&b);
@@ -119,6 +147,19 @@ namespace sel {
       bind_args(take);
       return &take;
     }
+
+    Val* iterate_::operator*() {
+      bind_args(f, o);
+      return !curr ? &o : curr;
+    }
+    Lst& iterate_::operator++() {
+      bind_args(f, o);
+      curr = f(!curr ? &o : curr);
+      return *this;
+    }
+    bool iterate_::end() const { return false; }
+    void iterate_::rewind() { curr = nullptr; }
+    size_t iterate_::count() { return 0; }
 
     std::ostream& join_::stream(std::ostream& out) {
       bind_args(sep, lst);
@@ -160,7 +201,8 @@ namespace sel {
     Lst& map_::operator++() {
       bind_args(f, l);
       curr = nullptr;
-      return ++l;
+      ++l;
+      return *this;
     }
     bool map_::end() const {
       bind_args(f, l);
@@ -198,6 +240,63 @@ namespace sel {
     bool repeat_::end() const { return false; }
     void repeat_::rewind() { }
     size_t repeat_::count() { return 0; }
+
+    Val* replicate_::operator*() {
+      if (!did) did++;
+      bind_args(n, o);
+      return &o;
+    }
+    Lst& replicate_::operator++() {
+      did++;
+      return *this;
+    }
+    bool replicate_::end() const {
+      bind_args(n, o);
+      return did >= n.value();
+    }
+    void replicate_::rewind() { did = 0; }
+    size_t replicate_::count() {
+      bind_args(n, o);
+      return n.value();
+    }
+
+    void reverse_::once() {
+      bind_args(l);
+      if (!l.end()) {
+        cache.push_back(*l);
+        while (!l.end())
+          cache.push_back(*(++l));
+      }
+      did_once = true;
+      curr = cache.size()-1;
+    }
+    Val* reverse_::operator*() {
+      if (!did_once) once();
+      return cache[curr];
+    }
+    Lst& reverse_::operator++() {
+      curr--;
+      return *this;
+    }
+    bool reverse_::end() const {
+      if (did_once) return 0 == curr;
+      bind_args(l);
+      return l.end();
+    }
+    void reverse_::rewind() { curr = cache.size()-1; }
+    size_t reverse_::count() { return cache.size(); }
+
+    Val* singleton_::operator*() {
+      done = true;
+      return arg;
+    }
+    Lst& singleton_::operator++() {
+      done = true;
+      return *this;
+    }
+    bool singleton_::end() const { return done; }
+    void singleton_::rewind() { done = false; }
+    size_t singleton_::count() { return 1; }
 
     void split_::once() {
       bind_args(sep, str);
@@ -270,11 +369,31 @@ namespace sel {
     void tostr_::rewind() { read = false; }
     std::ostream& tostr_::entire(std::ostream& out) { read = true; return out << arg->value(); }
 
-    Val* zipwith_::operator*() { return nullptr; }
-    Lst& zipwith_::operator++() { return *this; }
-    bool zipwith_::end() const { return true; }
-    void zipwith_::rewind() { }
-    size_t zipwith_::count() { return 0; }
+    Val* zipwith_::operator*() {
+      bind_args(f, l1, l2);
+      if (!curr) curr = (*(Fun*)f(*l1))(*l2);
+      return curr;
+    }
+    Lst& zipwith_::operator++() {
+      bind_args(f, l1, l2);
+      curr = nullptr;
+      ++l1;
+      ++l2;
+      return *this;
+    }
+    bool zipwith_::end() const {
+      bind_args(f, l1, l2);
+      return l1.end() || l2.end();
+    }
+    void zipwith_::rewind() {
+      bind_args(f, l1, l2);
+      l1.rewind();
+      l2.rewind();
+    }
+    size_t zipwith_::count() {
+      bind_args(f, l1, l2);
+      return std::min(l1.count(), l2.count());
+    }
 
   } // namespace bins
 

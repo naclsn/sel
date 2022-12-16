@@ -159,6 +159,16 @@ namespace sel {
     visitCommon(it, std::conditional<!bins::const_::Base::args, std::true_type, std::false_type>::type{});
   }
 
+  void VisRepr::visit(bins::filter_ const& it) {
+    visitCommon(it, std::conditional<!bins::filter_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::filter_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::filter_::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::filter_::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::filter_::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+
   void VisRepr::visit(bins::flip_ const& it) {
     // YYY: `_base`, because `it` itself does not have `arg` yet and its `base` is an awkward proxy
     visitCommon(it._base, std::conditional<!bins::flip_::args, std::true_type, std::false_type>::type{});
@@ -175,6 +185,16 @@ namespace sel {
     //      it uses the specialization of the template that says 'visitOne2'
     //      tbh, it would be better to rather not use `_base` anywhere (see eg. const, flip, ...)
     visitCommon(it, std::conditional<!bins::id_::args, std::true_type, std::false_type>::type{});
+  }
+
+  void VisRepr::visit(bins::iterate_ const& it) {
+    visitCommon(it, std::conditional<!bins::iterate_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::iterate_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::iterate_::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::iterate_::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::iterate_::Base::Base::args, std::true_type, std::false_type>::type{});
   }
 
   void VisRepr::visit(bins::join_ const& it) {
@@ -215,6 +235,30 @@ namespace sel {
     visitCommon(it, std::conditional<!bins::repeat_::Base::args, std::true_type, std::false_type>::type{});
   }
 
+  void VisRepr::visit(bins::replicate_ const& it) {
+    visitCommon(it, std::conditional<!bins::replicate_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::replicate_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::replicate_::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::replicate_::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::replicate_::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+
+  void VisRepr::visit(bins::reverse_ const& it) {
+    visitCommon(it, std::conditional<!bins::reverse_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::reverse_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::reverse_::Base::args, std::true_type, std::false_type>::type{});
+  }
+
+  void VisRepr::visit(bins::singleton_ const& it) {
+    visitCommon(it, std::conditional<!bins::singleton_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::singleton_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::singleton_::Base::args, std::true_type, std::false_type>::type{});
+  }
+
   void VisRepr::visit(bins::split_ const& it) {
     visitCommon(it, std::conditional<!bins::split_::args, std::true_type, std::false_type>::type{});
   }
@@ -224,7 +268,6 @@ namespace sel {
   void VisRepr::visit(bins::split_::Base::Base const& it) {
     visitCommon(it, std::conditional<!bins::split_::Base::Base::args, std::true_type, std::false_type>::type{});
   }
-
 
   void VisRepr::visit(bins::sub_ const& it) {
     visitCommon(it, std::conditional<!bins::sub_::args, std::true_type, std::false_type>::type{});

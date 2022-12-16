@@ -10,6 +10,7 @@
 
 namespace sel {
 
+  // XXX: visitor not implemented anywhere
   class StrChunks : public Str {
     typedef std::vector<std::string> ch_t;
     ch_t chunks;
@@ -475,11 +476,21 @@ namespace sel {
     BIN_unk(const, (unk<'a'>, unk<'b'>, unk<'a'>),
       "always evaluate to its first argument, ignoring its second argument", ());
 
+    BIN_lst(filter, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),
+      "return the list of elements which satisfy the predicate", (
+      Val* curr = nullptr;
+    ));
+
     BIN_unk(flip, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>),
       "flip the two parameters by passing the first given after the second one", ());
 
     BIN_unk(id, (unk<'a'>, unk<'a'>),
       "the identity function, returns its input", ());
+
+    BIN_lst(iterate, (fun<unk<'a'>, unk<'a'>>, unk<'a'>, lst<unk<'a'>>),
+      "return an infinite list of repeated applications of the function to the input", (
+      Val* curr = nullptr;
+    ));
 
     BIN_str(join, (str, lst<str>, str),
       "join a list of string with a separator between entries", (
@@ -487,7 +498,7 @@ namespace sel {
     ));
 
     BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>),
-      "make a new list by applying a function to each value from a list", (
+      "make a new list by applying an unary operation to each value from a list", (
       Val* curr = nullptr;
     ));
 
@@ -501,6 +512,24 @@ namespace sel {
 
     BIN_lst(repeat, (unk<'a'>, lst<unk<'a'>>),
       "repeat an infinite amount of copies of the same value", ());
+
+    BIN_lst(replicate, (num, unk<'a'>, lst<unk<'a'>>),
+      "replicate a finite amount of copies of the same value", (
+      size_t did = 0;
+    ));
+
+    BIN_lst(reverse, (lst<unk<'a'>>, lst<unk<'a'>>),
+      "reverse the order of the elements in the list", (
+      std::vector<Val*> cache;
+      bool did_once = false;
+      size_t curr;
+      void once();
+    ));
+
+    BIN_lst(singleton, (unk<'a'>, lst<unk<'a'>>),
+      "make a list of a single item", (
+      bool done = false;
+    ));
 
     BIN_lst(split, (str, str, lst<str>),
       "break a string into pieces separated by the argument, consuming the delimiter; note that an empty delimiter does not split the input on every character, but rather is equivalent to `const [repeat ::]`", ( // YYY: .. i think..?
@@ -530,7 +559,9 @@ namespace sel {
     ));
 
     BIN_lst(zipwith, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, lst<unk<'a'>>, lst<unk<'b'>>, lst<unk<'c'>>),
-      "niy: docstr for 'zipwith'", ());
+      "make a new list by applying an binary operation to each corresponding value from each lists; stops when either list ends", (
+      Val* curr = nullptr;
+    ));
 
   } // namespace bins
 
@@ -577,12 +608,17 @@ namespace sel {
       , add_
       , const_
       , flip_
+      , filter_
       , id_
+      , iterate_
       , join_
       , map_
       , nl_
       , pi_
       , repeat_
+      , replicate_
+      , reverse_
+      , singleton_
       , split_
       , sub_
       , tonum_

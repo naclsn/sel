@@ -288,11 +288,14 @@ of type `[Num -> Num]` and of length 3.
 #### TODO/WIP
 - better errors
 - auto coersion (will require utf-8)
+#### FIXMEs
+- `echo 1 2 3 | ./sel split: :, reverse, join: :`
+- `./sel -D const {:a:, :b:, :c:}, reverse, join: :`
+- `printf '1 2 3\n4 5 6' | ./sel split:\\n:, map [split: :, map tonum], zipwith add, map tostr, join:\\n:`
 #### Feature Goals
 - [x] lazy and infinite data structures (still todo: type flag for this)
 - ([ ] only cache when not proved not needed)
 - [ ] lib interface
-- [ ] broad prelude
 - [ ] proper unicode (eg. graphems and word)
 - [ ] REPL
 - [ ] interactive (based on REPL)
