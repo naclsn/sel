@@ -175,6 +175,20 @@ namespace sel {
       return l.count();
     }
 
+    std::ostream& nl_::stream(std::ostream& out) {
+      bind_args(s);
+      // return !s.end() ? out << s : (done = true, out << '\n');
+      done = true;
+      return s.entire(out) << '\n';
+    }
+    bool nl_::end() const { return done; }
+    void nl_::rewind() { done = false; }
+    std::ostream& nl_::entire(std::ostream& out) {
+      bind_args(s);
+      done = true;
+      return s.entire(out) << '\n';
+    }
+
     double pi_::value() {
       return M_PI;
     }

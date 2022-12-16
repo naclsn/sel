@@ -123,6 +123,8 @@ namespace sel {
     void visit(bins::map_ const&) override;
     void visit(bins::map_::Base const&) override;
     void visit(bins::map_::Base::Base const&) override;
+    void visit(bins::nl_ const&) override;
+    void visit(bins::nl_::Base const&) override;
     void visit(bins::pi_ const&) override;
     void visit(bins::repeat_ const&) override;
     void visit(bins::repeat_::Base const&) override;
@@ -161,6 +163,7 @@ namespace sel {
     void visit(bins::id_::Head const&) override;
     void visit(bins::join_::Head const&) override;
     void visit(bins::map_::Head const&) override;
+    void visit(bins::nl_::Head const&) override;
     void visit(bins::pi_::Head const&) override;
     void visit(bins::repeat_::Head const&) override;
     void visit(bins::split_::Head const&) override;

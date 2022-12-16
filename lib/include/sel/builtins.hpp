@@ -201,11 +201,13 @@ namespace sel {
      */
     template <typename Implementation, typename reversed_type> struct _bin_be;
 
+    template <typename Impl> struct _fake_bin_be { typedef Impl Next; };
+
     template <typename Impl, typename one>
     struct _bin_be<Impl, cons<one, nil>> {
       struct the : one::ctor {
         typedef Impl Head;
-        struct Base { typedef Impl Next; }; // YYY: for `the::Base::Next` trick...
+        typedef _fake_bin_be<Impl> Base;
 
         constexpr static unsigned args = 0;
 
@@ -221,7 +223,7 @@ namespace sel {
     struct _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>> {
       struct the : fun<last_arg, unk<b>>::ctor {
         typedef Impl Head;
-        struct Base { typedef Impl Next; }; // YYY: for `the::Base::Next` trick...
+        typedef _fake_bin_be<Impl> Base;
 
         constexpr static unsigned args = 0;
 
@@ -489,6 +491,11 @@ namespace sel {
       Val* curr = nullptr;
     ));
 
+    BIN_str(nl, (str, str),
+      "append a new line to a string", (
+      bool done = false;
+    ));
+
     BIN_num(pi, (num),
       "pi, what did you expect", ());
 
@@ -557,13 +564,8 @@ namespace sel {
     struct _make_bins_all<nil> {
       typedef nil the;
     };
-    // FIXME: uh...
-    template <typename cdr>
-    struct _make_bins_all<cons<bins::pi_::Base, cdr>> {
-      typedef typename _make_bins_all<cdr>::the the;
-    };
-    template <typename cdr>
-    struct _make_bins_all<cons<bins::id_::Base, cdr>> {
+    template <typename Impl, typename cdr>
+    struct _make_bins_all<cons<bins_helpers::_fake_bin_be<Impl>, cdr>> {
       typedef typename _make_bins_all<cdr>::the the;
     };
 
@@ -578,6 +580,7 @@ namespace sel {
       , id_
       , join_
       , map_
+      , nl_
       , pi_
       , repeat_
       , split_
