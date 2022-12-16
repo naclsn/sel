@@ -111,15 +111,19 @@ namespace sel {
     void visit(bins::add_ const&) override;
     void visit(bins::add_::Base const&) override;
     void visit(bins::add_::Base::Base const&) override;
+    void visit(bins::const_ const&) override;
+    void visit(bins::const_::Base const&) override;
     void visit(bins::flip_ const&) override;
     void visit(bins::flip_::Base const&) override;
     void visit(bins::flip_::Base::Base const&) override;
+    void visit(bins::id_ const&) override;
     void visit(bins::join_ const&) override;
     void visit(bins::join_::Base const&) override;
     void visit(bins::join_::Base::Base const&) override;
     void visit(bins::map_ const&) override;
     void visit(bins::map_::Base const&) override;
     void visit(bins::map_::Base::Base const&) override;
+    void visit(bins::pi_ const&) override;
     void visit(bins::repeat_ const&) override;
     void visit(bins::repeat_::Base const&) override;
     void visit(bins::split_ const&) override;
@@ -152,9 +156,12 @@ namespace sel {
     // XXX: would love any form of solution to this
     void visit(bins::abs_::Head const&) override;
     void visit(bins::add_::Head const&) override;
+    void visit(bins::const_::Head const&) override;
     void visit(bins::flip_::Head const&) override;
+    void visit(bins::id_::Head const&) override;
     void visit(bins::join_::Head const&) override;
     void visit(bins::map_::Head const&) override;
+    void visit(bins::pi_::Head const&) override;
     void visit(bins::repeat_::Head const&) override;
     void visit(bins::split_::Head const&) override;
     void visit(bins::sub_::Head const&) override;

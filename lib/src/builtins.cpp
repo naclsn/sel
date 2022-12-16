@@ -1,6 +1,8 @@
 #include "sel/builtins.hpp"
 #include "sel/visitors.hpp"
 
+#include <cmath>
+
 namespace sel {
 
   // internal
@@ -45,6 +47,16 @@ namespace sel {
   }
 
   namespace bins_helpers {
+
+    template <typename Impl, typename one>
+    void _bin_be<Impl, ll::cons<one, ll::nil>>::the::accept(Visitor& v) const {
+      v.visit(*(Impl*)this); // visitOne
+    }
+
+    template <typename Impl, typename last_arg, char b>
+    void _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::accept(Visitor& v) const {
+      v.visit(*(Impl*)this); // visitOne2
+    }
 
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
     void _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::accept(Visitor& v) const {
@@ -93,9 +105,19 @@ namespace sel {
       return a.value() + b.value();
     }
 
+    Val* const_::impl() {
+      bind_args(take, ignore);
+      return &take;
+    }
+
     Val* flip_::impl() {
       bind_args(fun, b, a);
       return (*(Fun*)fun(&a))(&b);
+    }
+
+    Val* id_::impl() {
+      bind_args(take);
+      return &take;
     }
 
     std::ostream& join_::stream(std::ostream& out) {
@@ -151,6 +173,10 @@ namespace sel {
     size_t map_::count() {
       bind_args(f, l);
       return l.count();
+    }
+
+    double pi_::value() {
+      return M_PI;
     }
 
     Val* repeat_::operator*() { return arg; }

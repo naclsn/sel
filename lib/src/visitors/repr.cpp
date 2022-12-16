@@ -151,6 +151,14 @@ namespace sel {
     visitCommon(it, std::conditional<!bins::add_::Base::Base::args, std::true_type, std::false_type>::type{});
   }
 
+  void VisRepr::visit(bins::const_ const& it) {
+    // YYY: `_base`, because `it` itself does not have `arg` yet and its `base` is an awkward proxy
+    visitCommon(it._base, std::conditional<!bins::const_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::const_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::const_::Base::args, std::true_type, std::false_type>::type{});
+  }
+
   void VisRepr::visit(bins::flip_ const& it) {
     // YYY: `_base`, because `it` itself does not have `arg` yet and its `base` is an awkward proxy
     visitCommon(it._base, std::conditional<!bins::flip_::args, std::true_type, std::false_type>::type{});
@@ -160,6 +168,13 @@ namespace sel {
   }
   void VisRepr::visit(bins::flip_::Base::Base const& it) {
     visitCommon(it, std::conditional<!bins::flip_::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+
+  void VisRepr::visit(bins::id_ const& it) {
+    // YYY: NOT `_base`, because this time its not a function but a value (well its value is a function, but.. if that makes sense..?)
+    //      it uses the specialization of the template that says 'visitOne2'
+    //      tbh, it would be better to rather not use `_base` anywhere (see eg. const, flip, ...)
+    visitCommon(it, std::conditional<!bins::id_::args, std::true_type, std::false_type>::type{});
   }
 
   void VisRepr::visit(bins::join_ const& it) {
@@ -180,6 +195,10 @@ namespace sel {
   }
   void VisRepr::visit(bins::map_::Base::Base const& it) {
     visitCommon(it, std::conditional<!bins::map_::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+
+  void VisRepr::visit(bins::pi_ const& it) {
+    visitCommon(it, std::conditional<!bins::pi_::args, std::true_type, std::false_type>::type{});
   }
 
   void VisRepr::visit(bins::repeat_ const& it) {

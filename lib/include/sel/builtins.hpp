@@ -201,17 +201,48 @@ namespace sel {
      */
     template <typename Implementation, typename reversed_type> struct _bin_be;
 
-    // TODO: in template decl above
-    // template <typename Impl, typename one>
-    // struct _bin_be<Impl, cons<one, nil>> {
-    //   struct Base { typedef Impl Next; }; // YYY: for `the::Base::Next` trick...
-    //   struct the : one::ctor {
-    //     typedef the Head;
-    //     the()
-    //       : one::ctor()
-    //     { }
-    //   };
-    // };
+    template <typename Impl, typename one>
+    struct _bin_be<Impl, cons<one, nil>> {
+      struct the : one::ctor {
+        typedef Impl Head;
+        struct Base { typedef Impl Next; }; // YYY: for `the::Base::Next` trick...
+
+        constexpr static unsigned args = 0;
+
+        the()
+          : one::ctor()
+        { }
+
+        void accept(Visitor& v) const override; // visitOne
+      };
+    };
+
+    template <typename Impl, typename last_arg, char b>
+    struct _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>> {
+      struct the : fun<last_arg, unk<b>>::ctor {
+        typedef Impl Head;
+        struct Base { typedef Impl Next; }; // YYY: for `the::Base::Next` trick...
+
+        constexpr static unsigned args = 0;
+
+        typedef typename last_arg::vat _LastArg;
+        _LastArg* arg;
+
+        the()
+          : fun<last_arg, unk<b>>::ctor()
+          , arg(nullptr)
+        { }
+
+        // to be overriden in `Implementation`
+        virtual Val* impl() = 0;
+
+        Val* operator()(Val* arg) override {
+          this->arg = coerse<_LastArg>(arg);
+          return impl();
+        }
+        void accept(Visitor& v) const override; // visitOne2
+      };
+    };
 
     template <typename other> struct _fun_first_par_type { typedef void the; }; // ZZZ
     template <typename from, typename to> struct _fun_first_par_type<fun<from, to>> { typedef from the; };
@@ -439,8 +470,14 @@ namespace sel {
     BIN_num(add, (num, num, num),
       "add two numbers", ());
 
+    BIN_unk(const, (unk<'a'>, unk<'b'>, unk<'a'>),
+      "always evaluate to its first argument, ignoring its second argument", ());
+
     BIN_unk(flip, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>),
       "flip the two parameters by passing the first given after the second one", ());
+
+    BIN_unk(id, (unk<'a'>, unk<'a'>),
+      "the identity function, returns its input", ());
 
     BIN_str(join, (str, lst<str>, str),
       "join a list of string with a separator between entries", (
@@ -451,6 +488,9 @@ namespace sel {
       "make a new list by applying a function to each value from a list", (
       Val* curr = nullptr;
     ));
+
+    BIN_num(pi, (num),
+      "pi, what did you expect", ());
 
     BIN_lst(repeat, (unk<'a'>, lst<unk<'a'>>),
       "repeat an infinite amount of copies of the same value", ());
@@ -517,6 +557,15 @@ namespace sel {
     struct _make_bins_all<nil> {
       typedef nil the;
     };
+    // FIXME: uh...
+    template <typename cdr>
+    struct _make_bins_all<cons<bins::pi_::Base, cdr>> {
+      typedef typename _make_bins_all<cdr>::the the;
+    };
+    template <typename cdr>
+    struct _make_bins_all<cons<bins::id_::Base, cdr>> {
+      typedef typename _make_bins_all<cdr>::the the;
+    };
 
     using namespace bins;
 
@@ -524,9 +573,12 @@ namespace sel {
     typedef cons_l
       < abs_
       , add_
+      , const_
       , flip_
+      , id_
       , join_
       , map_
+      , pi_
       , repeat_
       , split_
       , sub_
