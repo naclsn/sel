@@ -13,15 +13,15 @@ using namespace sel;
 #define GREEN "\e[32m"
 #define RESET "\e[m"
 
-#define fail(__msg) {                    \
+#define fail(__msg) do {                 \
   cerr                                   \
     << "failed with:\n"                  \
     << "   " RED << __msg << RESET "\n"  \
   ;                                      \
   exit(EXIT_FAILURE);                    \
-}
+} while (0)
 
-#define assert(__expr, __msg) {          \
+#define assert(__expr, __msg) do {       \
   if (__expr) return;                    \
   cerr                                   \
     << RED #__expr "\n"                  \
@@ -29,9 +29,9 @@ using namespace sel;
     << "   " RED << __msg << RESET "\n"  \
   ;                                      \
   exit(EXIT_FAILURE);                    \
-}
+} while (0)
 
-#define assert_eq(__should, __have) {                         \
+#define assert_eq(__should, __have) do {                      \
   if (__should == __have) return;                             \
   cerr                                                        \
     << GREEN #__should RESET "  ==  " RED #__have RESET "\n"  \
@@ -40,7 +40,7 @@ using namespace sel;
     << "    but got: " RED   << __have   << RESET "\n"        \
   ;                                                           \
   exit(EXIT_FAILURE);                                         \
-}
+} while (0)
 
 #define assert_cmp assert_eq
 // #define assert_cmp(__should, __have) _assert_cmp(#__should, #__have, __should, __have)

@@ -1,12 +1,12 @@
 #include "common.hpp"
 
-#define showv_test(__ident, __expct) {  \
-  ostringstream oss;                    \
-  VisRepr repr = VisRepr(oss);          \
-  repr(*__ident);                       \
-  cout << #__ident ": " << oss.str();   \
-  assert_cmp(__expct, oss.str())        \
-}
+#define showv_test(__ident, __expct) do {  \
+  ostringstream oss;                       \
+  VisRepr repr = VisRepr(oss);             \
+  repr(*__ident);                          \
+  cout << #__ident ": " << oss.str();      \
+  assert_cmp(__expct, oss.str());          \
+} while (0)
 
 void test_tonum() { // tonum :3:
   Val* tonum1 = lookup_name("tonum");

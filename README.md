@@ -288,6 +288,7 @@ of type `[Num -> Num]` and of length 3.
 #### TODO/WIP
 - better errors
 - auto coersion (will require utf-8)
+- memory
 #### FIXMEs
 - `echo 1 2 3 | ./sel split: :, reverse, join: :`
 - `./sel -D const {:a:, :b:, :c:}, reverse, join: :`
