@@ -107,61 +107,61 @@ namespace sel {
 
     template <char c> struct unk {
       typedef Val vat;
-      inline static Type make() {
-        // TODO: will need to grab the `::name` of the
-        // function somehow so the name of the type can
-        // be <char>_<function>
-        return Type(Ty::UNK, {.name=new std::string(1, c)}, 0);
+      inline static Type make(char const* fname) {
+        std::string* vname = new std::string(1, c);
+        vname->push_back('_');
+        vname->append(fname);
+        return Type(Ty::UNK, {.name=vname}, 0);
       }
     };
     struct num {
       typedef Num vat;
-      inline static Type make() {
+      inline static Type make(char const* fname) {
         return Type(Ty::NUM, {0}, 0);
       }
       struct ctor : Num {
-        ctor()
+        ctor(char const* fname)
           : Num()
         { }
-        ctor(Type const& base_fty, Type const& ty)
+        ctor(char const* fname, Type const& base_fty, Type const& ty)
           : Num()
         { }
       };
     };
     /*template <TyFlag is_inf> */struct str {
       typedef Str vat;
-      inline static Type make() {
+      inline static Type make(char const* fname) {
         return Type(Ty::STR, {0}, TyFlag::IS_FIN/*is_inf*/);
       }
       struct ctor : Str {
-        ctor()
+        ctor(char const* fname)
           : Str(TyFlag::IS_FIN) // ZZZ: from template param
         { }
-        ctor(Type const& base_fty, Type const& ty)
+        ctor(char const* fname, Type const& base_fty, Type const& ty)
           : Str(TyFlag::IS_FIN) // ZZZ: from base_fty.applied(ty)
         { }
       };
     };
     template <typename/*...*/ has/*, TyFlag is_inf*/> struct lst {
       typedef Lst vat;
-      inline static Type make() {
-        return Type(Ty::LST, {.box_has=types1(new Type(has::make()/*...*/))}, TyFlag::IS_FIN/*is_inf*/);
+      inline static Type make(char const* fname) {
+        return Type(Ty::LST, {.box_has=types1(new Type(has::make(fname)/*...*/))}, TyFlag::IS_FIN/*is_inf*/);
       }
       struct ctor : Lst {
-        ctor(): Lst(make()) { }
-        ctor(Type const& base_fty, Type const& ty)
+        ctor(char const* fname): Lst(make(fname)) { }
+        ctor(char const* fname, Type const& base_fty, Type const& ty)
           : Lst(base_fty.applied(ty))
         { }
       };
     };
     template <typename from, typename to> struct fun {
       typedef Fun vat;
-      inline static Type make() {
-        return Type(Ty::FUN, {.box_pair={new Type(from::make()), new Type(to::make())}}, 0);
+      inline static Type make(char const* fname) {
+        return Type(Ty::FUN, {.box_pair={new Type(from::make(fname)), new Type(to::make(fname))}}, 0);
       }
       struct ctor : Fun {
-        ctor(): Fun(make()) { }
-        ctor(Type const& base_fty, Type const& ty)
+        ctor(char const* fname): Fun(make(fname)) { }
+        ctor(char const* fname, Type const& base_fty, Type const& ty)
           : Fun(base_fty.applied(ty))
         { }
       };
@@ -213,7 +213,7 @@ namespace sel {
         constexpr static unsigned args = 0;
 
         the()
-          : one::ctor()
+          : one::ctor(Impl::name)
         { }
 
         void accept(Visitor& v) const override; // visitOne
@@ -232,7 +232,7 @@ namespace sel {
         _LastArg* arg;
 
         the()
-          : fun<last_arg, unk<b>>::ctor()
+          : fun<last_arg, unk<b>>::ctor(Impl::name)
           , arg(nullptr)
         { }
 
@@ -305,7 +305,7 @@ namespace sel {
 
         // this is the (inherited) ctor for the tail type
         _the_when_not_unk(Base* base, Arg* arg)
-          : _ty_tail::ctor(base->type(), arg->type())
+          : _ty_tail::ctor(Base::Next::name, base->type(), arg->type())
           , base(base)
           , arg(arg)
         { }
@@ -327,7 +327,7 @@ namespace sel {
           Base* base;
           Arg* arg;
           _ProxyBase(Base* base, Arg* arg)
-            : _ty_one_to_tail::ctor(base->type(), arg->type()) // YYY: too hacky?
+            : _ty_one_to_tail::ctor(Base::Next::name, base->type(), arg->type()) // YYY: too hacky?
             , base(base)
             , arg(arg)
           { }
@@ -339,7 +339,7 @@ namespace sel {
 
         // this is the (inherited) ctor for the tail type when ends on unk
         _the_when_is_unk(Base* base, Arg* arg)
-          : _ty_one_to_tail::ctor(base->type(), arg->type())
+          : _ty_one_to_tail::ctor(Base::Next::name, base->type(), arg->type())
           , _base(base, arg)
           , base(&_base)
           , arg(nullptr)
@@ -371,7 +371,7 @@ namespace sel {
 
       // this is the ctor for the head type
       _bin_be()
-        : fun<last_from, last_to>::ctor()
+        : fun<last_from, last_to>::ctor(the::Base::Next::name)
       { }
 
       Val* operator()(Val* arg) override { return new Next(this, coerse<_next_arg_ty>(arg)); }
@@ -395,7 +395,7 @@ namespace sel {
 
       // this is the ctor for body types
       _bin_be(Base* base, Arg* arg)
-        : fun<from, to>::ctor(base->type(), arg->type())
+        : fun<from, to>::ctor(the::Base::Next::name, base->type(), arg->type())
         , base(base)
         , arg(arg)
       { }
