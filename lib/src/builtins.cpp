@@ -110,6 +110,64 @@ namespace sel {
       return &take;
     }
 
+    Val* drop_::operator*() {
+      bind_args(n, l);
+      if (!done) {
+        for (size_t k = 0; k < n.value() && !l.end(); k++)
+          ++l;
+        done = true;
+      }
+      return *l;
+    }
+    Lst& drop_::operator++() {
+      bind_args(n, l);
+      if (!done) {
+        for (size_t k = 0; k < n.value() && !l.end(); k++)
+          ++l;
+        done = true;
+      }
+      ++l;
+      return *this;
+    }
+    bool drop_::end() const { // XXX
+      bind_args(n, l);
+      return done && l.end();
+    }
+    void drop_::rewind() {
+      bind_args(n, l);
+      done = false;
+      l.rewind();
+    }
+
+    Val* dropwhile_::operator*() {
+      bind_args(p, l);
+      if (!done) {
+        while (!l.end() && p(*l))
+          ++l;
+        done = true;
+      }
+      return *l;
+    }
+    Lst& dropwhile_::operator++() {
+      bind_args(p, l);
+      if (!done) {
+        while (!l.end() && p(*l))
+          ++l;
+        done = true;
+      }
+      ++l;
+      return *this;
+    }
+    bool dropwhile_::end() const {
+      bind_args(p, l);
+      return done && l.end();
+    }
+    void dropwhile_::rewind() {
+      bind_args(p, l);
+      done = false;
+      l.rewind();
+    }
+
     Val* filter_::operator*() {
       bind_args(p, l);
       if (!curr) {
@@ -133,10 +191,6 @@ namespace sel {
       bind_args(p, l);
       l.rewind();
     }
-    size_t filter_::count() {
-      bind_args(p, l);
-      return l.count();
-    }
 
     Val* flip_::impl() {
       bind_args(fun, b, a);
@@ -159,7 +213,6 @@ namespace sel {
     }
     bool iterate_::end() const { return false; }
     void iterate_::rewind() { curr = nullptr; }
-    size_t iterate_::count() { return 0; }
 
     std::ostream& join_::stream(std::ostream& out) {
       bind_args(sep, lst);
@@ -212,10 +265,6 @@ namespace sel {
       bind_args(f, l);
       l.rewind();
     }
-    size_t map_::count() {
-      bind_args(f, l);
-      return l.count();
-    }
 
     std::ostream& nl_::stream(std::ostream& out) {
       bind_args(s);
@@ -239,7 +288,6 @@ namespace sel {
     Lst& repeat_::operator++() { return *this; }
     bool repeat_::end() const { return false; }
     void repeat_::rewind() { }
-    size_t repeat_::count() { return 0; }
 
     Val* replicate_::operator*() {
       if (!did) did++;
@@ -255,10 +303,6 @@ namespace sel {
       return did >= n.value();
     }
     void replicate_::rewind() { did = 0; }
-    size_t replicate_::count() {
-      bind_args(n, o);
-      return n.value();
-    }
 
     void reverse_::once() {
       bind_args(l);
@@ -284,7 +328,6 @@ namespace sel {
       return l.end();
     }
     void reverse_::rewind() { curr = cache.size()-1; }
-    size_t reverse_::count() { return cache.size(); }
 
     Val* singleton_::operator*() {
       done = true;
@@ -296,7 +339,6 @@ namespace sel {
     }
     bool singleton_::end() const { return done; }
     void singleton_::rewind() { done = false; }
-    size_t singleton_::count() { return 1; }
 
     void split_::once() {
       bind_args(sep, str);
@@ -344,13 +386,49 @@ namespace sel {
       at_end = false;
       init = false;
     }
-    size_t split_::count() {
-      throw NIYError("size_t count()", "- what -");
-    }
 
     double sub_::value() {
       bind_args(a, b);
       return a.value() - b.value();
+    }
+
+    Val* take_::operator*() {
+      if (!did) did++;
+      bind_args(n, l);
+      return *l;
+    }
+    Lst& take_::operator++() {
+      bind_args(n, l);
+      did++;
+      ++l;
+      return *this;
+    }
+    bool take_::end() const {
+      bind_args(n, l);
+      return did >= n.value() || l.end();
+    }
+    void take_::rewind() {
+      bind_args(n, l);
+      did = 0;
+      l.rewind();
+    }
+
+    Val* takewhile_::operator*() {
+      bind_args(p, l);
+      return *l;
+    }
+    Lst& takewhile_::operator++() {
+      bind_args(p, l);
+      ++l;
+      return *this;
+    }
+    bool takewhile_::end() const {
+      bind_args(p, l);
+      return l.end() || !p(*l);
+    }
+    void takewhile_::rewind() {
+      bind_args(p, l);
+      l.rewind();
     }
 
     double tonum_::value() {
@@ -389,10 +467,6 @@ namespace sel {
       bind_args(f, l1, l2);
       l1.rewind();
       l2.rewind();
-    }
-    size_t zipwith_::count() {
-      bind_args(f, l1, l2);
-      return std::min(l1.count(), l2.count());
     }
 
   } // namespace bins

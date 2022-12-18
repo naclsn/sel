@@ -115,12 +115,6 @@ namespace sel {
      * interated again.
      */
     virtual void rewind() = 0;
-    /**
-     * Only valid for a finite list of course. [More like
-     * a size hint than actual count. [?]]
-     * TODO: remove
-     */
-    virtual size_t count() = 0;
   };
 
   /**

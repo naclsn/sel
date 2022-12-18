@@ -70,7 +70,6 @@ namespace sel {
     Lst& operator++() override;
     bool end() const override;
     void rewind() override;
-    size_t count() override;
     void accept(Visitor& v) const override;
   };
 

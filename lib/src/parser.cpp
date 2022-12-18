@@ -21,7 +21,6 @@ namespace sel {
   Lst& LstLiteral::operator++() { c++; return *this; }
   bool LstLiteral::end() const { return v.size()-1 <= c; }
   void LstLiteral::rewind() { c = 0; }
-  size_t LstLiteral::count() { return v.size(); }
   void LstLiteral::accept(Visitor& v) const { v.visitLstLiteral(ty, this->v); }
 
   Val* FunChain::operator()(Val* arg) {

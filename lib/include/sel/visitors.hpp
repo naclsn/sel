@@ -113,6 +113,12 @@ namespace sel {
     void visit(bins::add_::Base::Base const&) override;
     void visit(bins::const_ const&) override;
     void visit(bins::const_::Base const&) override;
+    void visit(bins::drop_ const&) override;
+    void visit(bins::drop_::Base const&) override;
+    void visit(bins::drop_::Base::Base const&) override;
+    void visit(bins::dropwhile_ const&) override;
+    void visit(bins::dropwhile_::Base const&) override;
+    void visit(bins::dropwhile_::Base::Base const&) override;
     void visit(bins::filter_ const&) override;
     void visit(bins::filter_::Base const&) override;
     void visit(bins::filter_::Base::Base const&) override;
@@ -147,6 +153,12 @@ namespace sel {
     void visit(bins::sub_ const&) override;
     void visit(bins::sub_::Base const&) override;
     void visit(bins::sub_::Base::Base const&) override;
+    void visit(bins::take_ const&) override;
+    void visit(bins::take_::Base const&) override;
+    void visit(bins::take_::Base::Base const&) override;
+    void visit(bins::takewhile_ const&) override;
+    void visit(bins::takewhile_::Base const&) override;
+    void visit(bins::takewhile_::Base::Base const&) override;
     void visit(bins::tonum_ const&) override;
     void visit(bins::tonum_::Base const&) override;
     void visit(bins::tostr_ const&) override;
@@ -172,6 +184,8 @@ namespace sel {
     void visit(bins::abs_::Head const&) override;
     void visit(bins::add_::Head const&) override;
     void visit(bins::const_::Head const&) override;
+    void visit(bins::drop_::Head const&) override;
+    void visit(bins::dropwhile_::Head const&) override;
     void visit(bins::filter_::Head const&) override;
     void visit(bins::flip_::Head const&) override;
     void visit(bins::id_::Head const&) override;
@@ -186,6 +200,8 @@ namespace sel {
     void visit(bins::singleton_::Head const&) override;
     void visit(bins::split_::Head const&) override;
     void visit(bins::sub_::Head const&) override;
+    void visit(bins::take_::Head const&) override;
+    void visit(bins::takewhile_::Head const&) override;
     void visit(bins::tonum_::Head const&) override;
     void visit(bins::tostr_::Head const&) override;
     void visit(bins::zipwith_::Head const&) override;

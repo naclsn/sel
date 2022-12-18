@@ -165,6 +165,26 @@ namespace sel {
     visitCommon(it, std::conditional<!bins::const_::Base::args, std::true_type, std::false_type>::type{});
   }
 
+  void VisRepr::visit(bins::drop_ const& it) {
+    visitCommon(it, std::conditional<!bins::drop_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::drop_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::drop_::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::drop_::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::drop_::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+
+  void VisRepr::visit(bins::dropwhile_ const& it) {
+    visitCommon(it, std::conditional<!bins::dropwhile_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::dropwhile_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::dropwhile_::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::dropwhile_::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::dropwhile_::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+
   void VisRepr::visit(bins::filter_ const& it) {
     visitCommon(it, std::conditional<!bins::filter_::args, std::true_type, std::false_type>::type{});
   }
@@ -283,6 +303,26 @@ namespace sel {
   }
   void VisRepr::visit(bins::sub_::Base::Base const& it) {
     visitCommon(it, std::conditional<!bins::sub_::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+
+  void VisRepr::visit(bins::take_ const& it) {
+    visitCommon(it, std::conditional<!bins::take_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::take_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::take_::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::take_::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::take_::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+
+  void VisRepr::visit(bins::takewhile_ const& it) {
+    visitCommon(it, std::conditional<!bins::takewhile_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::takewhile_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::takewhile_::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::takewhile_::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::takewhile_::Base::Base::args, std::true_type, std::false_type>::type{});
   }
 
   void VisRepr::visit(bins::tonum_ const& it) {

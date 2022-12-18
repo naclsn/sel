@@ -427,8 +427,7 @@ namespace sel {
       Val* operator*() override; \
       Lst& operator++() override; \
       bool end() const override; \
-      void rewind() override; \
-      size_t count() override;
+      void rewind() override;
 #define _BIN_unk \
       Val* impl() override;
 
@@ -475,6 +474,16 @@ namespace sel {
 
     BIN_unk(const, (unk<'a'>, unk<'b'>, unk<'a'>),
       "always evaluate to its first argument, ignoring its second argument", ());
+
+    BIN_lst(drop, (num, lst<unk<'a'>>, lst<unk<'a'>>),
+      "return the suffix past a given count, or the empty list if it is shorter", (
+      bool done;
+    ));
+
+    BIN_lst(dropwhile, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),
+      "return the suffix remaining from the first element not verifying the predicate onward", (
+      bool done = false;
+    ));
 
     BIN_lst(filter, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),
       "return the list of elements which satisfy the predicate", (
@@ -547,6 +556,14 @@ namespace sel {
     BIN_num(sub, (num, num, num),
       "substract the second number from the first", ());
 
+    BIN_lst(take, (num, lst<unk<'a'>>, lst<unk<'a'>>),
+      "return the prefix of a given length, or the entire list if it is shorter", (
+      size_t did;
+    ));
+
+    BIN_lst(takewhile, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),
+      "return the longest prefix of elements statisfying the predicate", ());
+
     BIN_num(tonum, (str, num),
       "convert a string into number", (
       double r;
@@ -607,11 +624,16 @@ namespace sel {
       < abs_
       , add_
       , const_
+      , drop_
+      , dropwhile_
       , flip_
       , filter_
+      // , head_
       , id_
+      // , init_
       , iterate_
       , join_
+      // , last_
       , map_
       , nl_
       , pi_
@@ -621,6 +643,9 @@ namespace sel {
       , singleton_
       , split_
       , sub_
+      // , tail_
+      , take_
+      , takewhile_
       , tonum_
       , tostr_
       , zipwith_
