@@ -10,7 +10,6 @@
 
 namespace sel {
 
-  // XXX: visitor not implemented anywhere
   class StrChunks : public Str {
     typedef std::vector<std::string> ch_t;
     ch_t chunks;
@@ -38,6 +37,7 @@ namespace sel {
         out << it;
       return out;
     }
+    void accept(Visitor& v) const override;
   };
 
   /**
@@ -477,7 +477,7 @@ namespace sel {
 
     BIN_lst(drop, (num, lst<unk<'a'>>, lst<unk<'a'>>),
       "return the suffix past a given count, or the empty list if it is shorter", (
-      bool done;
+      mutable bool done;
     ));
 
     BIN_lst(dropwhile, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),

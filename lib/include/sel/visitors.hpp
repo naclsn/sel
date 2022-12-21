@@ -30,6 +30,7 @@ namespace sel {
     virtual void visitStrLiteral(Type const& type, std::string const& s) { ni("StrLiteral"); }
     virtual void visitLstLiteral(Type const& type, std::vector<Val*> const& v) { ni("LstLiteral"); }
     virtual void visitFunChain(Type const& type, std::vector<Fun*> const& f) { ni("FunChain"); }
+    virtual void visitStrChunks(Type const& type, std::vector<std::string> const& vs) { ni("StrChunks"); }
   //class VisitorSpec
     virtual void visitInput(Type const& type) { ni("Input"); }
     virtual void visitOutput(Type const& type) { ni("Output"); }
@@ -101,6 +102,7 @@ namespace sel {
     void visitNumLiteral(Type const& type, double n) override;
     void visitStrLiteral(Type const& type, std::string const& s) override;
     void visitLstLiteral(Type const& type, std::vector<Val*> const& v) override;
+    void visitStrChunks(Type const& type, std::vector<std::string> const& vs) override;
     void visitFunChain(Type const& type, std::vector<Fun*> const& f) override;
     void visitInput(Type const& type) override;
     void visitOutput(Type const& type) override;

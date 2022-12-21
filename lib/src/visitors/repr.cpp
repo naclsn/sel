@@ -111,6 +111,18 @@ namespace sel {
     reprHelper(type, "FunChain", a);
   }
 
+  void VisRepr::visitStrChunks(Type const& type, std::vector<std::string> const& vs) {
+    size_t c = vs.size();
+    std::vector<char[16]> b(c);
+    std::vector<ReprField> a;
+    a.reserve(c);
+    for (size_t k = 0; k < c; k++) {
+      std::sprintf(b[k], "v[%zu]", k);
+      a.push_back(fi_str(b[k], &vs[k]));
+    }
+    reprHelper(type, "StrChunks", a);
+  }
+
   void VisRepr::visitInput(Type const& type) {
     reprHelper(type, "Input", {});
   }

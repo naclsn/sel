@@ -5,6 +5,10 @@
 
 namespace sel {
 
+  void StrChunks::accept(Visitor& v) const {
+    v.visitStrChunks(type(), this->chunks);
+  }
+
   // internal
   template <typename list> struct linear_search;
   template <typename car, typename cdr>
@@ -129,9 +133,19 @@ namespace sel {
       ++l;
       return *this;
     }
-    bool drop_::end() const { // XXX
+    bool drop_::end() const {
       bind_args(n, l);
-      return done && l.end();
+      if (done) return l.end();
+      // tldw: it should still be `false` when we just
+      // reached `l.end()`, because that means there is
+      // a value to deref (end just means there is no
+      // iterating anymore)
+      bool wasnt_end = true;
+      size_t k;
+      for (k = 0; k < n.value() && (wasnt_end = !l.end()); k++)
+        ++l;
+      done = true;
+      return l.end() && (!wasnt_end || n.value() != k);
     }
     void drop_::rewind() {
       bind_args(n, l);
