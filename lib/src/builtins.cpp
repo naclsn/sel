@@ -174,6 +174,7 @@ namespace sel {
     }
     bool dropwhile_::end() const {
       bind_args(p, l);
+      // TODO: update (no proper way to make predicates for now..)
       return done && l.end();
     }
     void dropwhile_::rewind() {
