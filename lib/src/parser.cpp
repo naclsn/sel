@@ -309,9 +309,6 @@ namespace sel {
         lexer++;
         break;
 
-      case Token::Type::DEF: // YYY: unreachable?
-        break;
-
       case Token::Type::LIT_NUM:
         val = new NumLiteral(t.as.num);
         lexer++;
@@ -322,7 +319,6 @@ namespace sel {
         lexer++;
         break;
 
-      case Token::Type::LIT_LST_CLOSE: lexer++; break; // YYY: unreachable?
       case Token::Type::LIT_LST_OPEN:
         {
           std::vector<Val*> elms;
@@ -380,7 +376,6 @@ namespace sel {
         val = (*(Fun*)(*(Fun*)lookup_name("flip"))(val))(parseAtom(app, ++lexer));
         break;
 
-      case Token::Type::SUB_CLOSE: lexer++; break; // YYY: unreachable?
       case Token::Type::SUB_OPEN:
         {
           if (Token::Type::SUB_CLOSE == (++lexer)->type)
@@ -411,8 +406,12 @@ namespace sel {
         }
         break;
 
-      case Token::Type::THEN: break; // YYY: unreachable?
-      case Token::Type::PASS: lexer++; break; // YYY: unreachable?
+      case Token::Type::DEF:
+      case Token::Type::LIT_LST_CLOSE:
+      case Token::Type::SUB_CLOSE:
+      case Token::Type::THEN:
+      case Token::Type::PASS:
+        break;
     }
 
     if (!val) throw ParseError("atom", std::string("got unexpected tokens ") + (char)((char)t.type+'0'), "- what -");
