@@ -45,7 +45,7 @@ void do_run(initializer_list<char const*> script_args, string given, string expe
 }
 
 TEST(run) {
-  do_run({"tonum," "add 1," "tostr"}, "42\n", "43");
+  do_run({"tonum,", "add", "1,", "tostr"}, "42\n", "43");
   do_run({"split", ":_:,", "map", "[tonum,", "-1,", "tostr],", "join", ":#:"}, "42_37", "41#36");
   // XXX: it it not possible to test script that would never finish
   //      idealy it would be possible to simulate a `| head`
