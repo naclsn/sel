@@ -225,6 +225,20 @@ namespace sel {
     visitCommon(it, std::conditional<!bins::id_::args, std::true_type, std::false_type>::type{});
   }
 
+  void VisRepr::visit(bins::if_ const& it) {
+    // YYY: `_base`, because `it` itself does not have `arg` yet and its `base` is an awkward proxy
+    visitCommon(it._base, std::conditional<!bins::if_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::if_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::if_::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::if_::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::if_::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::if_::Base::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::if_::Base::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+
   void VisRepr::visit(bins::iterate_ const& it) {
     visitCommon(it, std::conditional<!bins::iterate_::args, std::true_type, std::false_type>::type{});
   }

@@ -477,7 +477,7 @@ namespace sel {
 
     BIN_lst(drop, (num, lst<unk<'a'>>, lst<unk<'a'>>),
       "return the suffix past a given count, or the empty list if it is shorter", (
-      mutable bool done;
+      mutable bool done = false;
     ));
 
     BIN_lst(dropwhile, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),
@@ -495,6 +495,9 @@ namespace sel {
 
     BIN_unk(id, (unk<'a'>, unk<'a'>),
       "the identity function, returns its input", ());
+
+    BIN_unk(if, (fun<unk<'a'>, num>, unk<'b'>, unk<'b'>, unk<'a'>, unk<'b'>),
+      "take a condition, a consequence and an alternative; return consequence if the argument verifies the condition, alternative otherwise", ());
 
     BIN_lst(iterate, (fun<unk<'a'>, unk<'a'>>, unk<'a'>, lst<unk<'a'>>),
       "return an infinite list of repeated applications of the function to the input", (
@@ -630,6 +633,7 @@ namespace sel {
       , filter_
       // , head_
       , id_
+      , if_
       // , init_
       , iterate_
       , join_

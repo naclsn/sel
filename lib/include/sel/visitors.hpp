@@ -128,6 +128,10 @@ namespace sel {
     void visit(bins::flip_::Base const&) override;
     void visit(bins::flip_::Base::Base const&) override;
     void visit(bins::id_ const&) override;
+    void visit(bins::if_ const&) override;
+    void visit(bins::if_::Base const&) override;
+    void visit(bins::if_::Base::Base const&) override;
+    void visit(bins::if_::Base::Base::Base const&) override;
     void visit(bins::iterate_ const&) override;
     void visit(bins::iterate_::Base const&) override;
     void visit(bins::iterate_::Base::Base const&) override;
@@ -191,6 +195,7 @@ namespace sel {
     void visit(bins::filter_::Head const&) override;
     void visit(bins::flip_::Head const&) override;
     void visit(bins::id_::Head const&) override;
+    void visit(bins::if_::Head const&) override;
     void visit(bins::iterate_::Head const&) override;
     void visit(bins::join_::Head const&) override;
     void visit(bins::map_::Head const&) override;

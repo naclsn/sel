@@ -217,6 +217,13 @@ namespace sel {
       return &take;
     }
 
+    Val* if_::impl() {
+      bind_args(condition, consequence, alternative, argument);
+      return ((Num*)condition(&argument))->value()
+        ? &consequence
+        : &alternative;
+    }
+
     Val* iterate_::operator*() {
       bind_args(f, o);
       return !curr ? &o : curr;
