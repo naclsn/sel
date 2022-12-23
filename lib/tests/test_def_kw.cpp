@@ -41,5 +41,5 @@ TEST(run) {
     "def", "ltostr", "[map", "tostr];\n",
     "def", "mappp", "[map", "+1];\n",
     "lines,", "ltonum,", "mappp,", "ltostr,", "unlines,", "nl",
-  }, "1\na\n2\nb\n3\nc\n", "2\n1\n3\n1\n4\n1\n");
+  }, "1\na\n2\nb\n3\nc", "2\n1\n3\n1\n4\n1\n");
 }
