@@ -93,6 +93,7 @@ namespace sel {
       SUB_OPEN,
       SUB_CLOSE,
       THEN,
+      PASS,
       DEF,
     } type;
     union {
@@ -158,6 +159,7 @@ namespace sel {
       case Token::Type::SUB_OPEN:      out << "SUB_OPEN";      break;
       case Token::Type::SUB_CLOSE:     out << "SUB_CLOSE";     break;
       case Token::Type::THEN:          out << "THEN";          break;
+      case Token::Type::PASS:          out << "PASS";          break;
       case Token::Type::DEF:           out << "DEF";           break;
     }
     out << ", ";
@@ -181,8 +183,10 @@ namespace sel {
       case Token::Type::SUB_OPEN:
       case Token::Type::SUB_CLOSE:
       case Token::Type::THEN:
+      case Token::Type::PASS:
         out << ".chr='" << t.as.chr << "'";
         break;
+
       case Token::Type::DEF:
         break;
     }
@@ -198,6 +202,7 @@ namespace sel {
       // case -1: // trait::eof()
 
       case ',': t.type = Token::Type::THEN;          t.as.chr = c; in.ignore(1); break;
+      case ';': t.type = Token::Type::PASS;          t.as.chr = c; in.ignore(1); break;
 
       case '[': t.type = Token::Type::SUB_OPEN;      t.as.chr = c; in.ignore(1); break;
       case ']': t.type = Token::Type::SUB_CLOSE;     t.as.chr = c; in.ignore(1); break;
@@ -304,17 +309,7 @@ namespace sel {
         lexer++;
         break;
 
-      case Token::Type::DEF:
-        {
-          t = *++lexer;
-          if (Token::Type::NAME != t.type)
-            throw ParseError("name", std::string("got unexpected tokens ") + (char)((char)t.type+'0'), "- what -");
-          if (lookup(app, *t.as.name))
-            throw ParseError("new name", "got known name " + *t.as.name, "- what -");
-          lexer++;
-          val = parseAtom(app, lexer);
-          app.define_name_user(*t.as.name, val);
-        }
+      case Token::Type::DEF: // YYY: unreachable?
         break;
 
       case Token::Type::LIT_NUM:
@@ -374,7 +369,7 @@ namespace sel {
         }
         break;
 
-      case Token::Type::BIN_OP: // TODO: will have a lookup_unop
+      case Token::Type::BIN_OP: // TODO: will have a lookup_binop
         switch (t.as.chr) {
           case '+': val = lookup_name("add"); break;
           case '-': val = lookup_name("sub"); break;
@@ -416,7 +411,8 @@ namespace sel {
         }
         break;
 
-      case Token::Type::THEN: break;
+      case Token::Type::THEN: break; // YYY: unreachable?
+      case Token::Type::PASS: lexer++; break; // YYY: unreachable?
     }
 
     if (!val) throw ParseError("atom", std::string("got unexpected tokens ") + (char)((char)t.type+'0'), "- what -");
@@ -428,9 +424,25 @@ namespace sel {
     TRACE(parseElement, *lexer);
     static std::istream_iterator<Token> eos;
     if (eos == lexer) throw EOSError("element", "- what -");
-    Val* val = parseAtom(app, lexer);
+
+    Val* val;
+
+    if (Token::Type::DEF == lexer->type) {
+      Token t = *++lexer;
+
+      if (Token::Type::NAME != t.type)
+        throw ParseError("name", std::string("got unexpected tokens ") + (char)((char)t.type+'0'), "- what -");
+      if (lookup(app, *t.as.name))
+        throw ParseError("new name", "got known name " + *t.as.name, "- what -");
+
+      lexer++;
+      val = parseAtom(app, lexer);
+      app.define_name_user(*t.as.name, val);
+
+    } else val = parseAtom(app, lexer);
 
     while (Token::Type::THEN != lexer->type
+        && Token::Type::PASS != lexer->type
         && Token::Type::LIT_LST_CLOSE != lexer->type
         && Token::Type::SUB_CLOSE != lexer->type
         && eos != lexer) {
@@ -439,13 +451,17 @@ namespace sel {
       val = base->operator()(arg);
     }
 
+    if (Token::Type::PASS == lexer->type) {
+      lexer++;
+      return parseElement(app, lexer);
+    }
+
     return val;
   }
 
   Val* App::lookup_name_user(std::string const& name) {
     return user[name];
   }
-
   void App::define_name_user(std::string const& name, Val* v) {
     user[name] = v;
   }
