@@ -10,6 +10,7 @@
 #include <istream>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include "engine.hpp"
 #include "builtins.hpp"
@@ -133,11 +134,15 @@ namespace sel {
     std::vector<Fun*> funcs;
     Input* fin;
     Output* fout;
+    std::unordered_map<std::string, Val*> user;
 
   public:
     App()
       : funcs()
     { }
+
+    Val* lookup_name_user(std::string const& name);
+    void define_name_user(std::string const& name, Val* v);
 
     void run(std::istream& in, std::ostream& out);
 
