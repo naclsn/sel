@@ -338,13 +338,11 @@ namespace sel {
           std::vector<Val*> elms;
           while (Token::Type::LIT_LST_CLOSE != (++lexer)->type) {
             elms.push_back(parseElement(app, lexer));
+            if (Token::Type::LIT_LST_CLOSE == lexer->type) break;
             // TODO: interestingly `t` is still the '{'
             // which can be used in diagnostic ("opened at..")
-            if (Token::Type::LIT_LST_CLOSE != lexer->type
-             && Token::Type::THEN != lexer->type) {
-              if (eos == lexer) expected("list element", Token(/*END*/));
-              expected("token ',' or matching token '}'", *lexer);
-            }
+            if (eos == lexer) expected("list element", Token(/*END*/));
+            if (Token::Type::THEN != lexer->type) expected("token ',' or matching token '}'", *lexer);
           }
 
           // TODO: for the type, need to know if the list

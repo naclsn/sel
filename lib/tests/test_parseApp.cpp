@@ -87,7 +87,42 @@ TEST(parseApp) {
     "<Str*> Input { }\n"
     "<b -> [_mixed]> Const0 {\n"
     "   base=<a -> b -> a> Const1 { }\n"
-    "   arg=<[_mixed]> LstLiteral { }\n"
+    "   arg=<[_mixed]> LstLiteral { }\n" // XXX: _mixed
+    "}\n"
+    "<[a] -> [a]> Reverse1 { }\n"
+    "<[Str*]* -> Str*> Join1 {\n"
+    "   base=<Str -> [Str] -> Str> Join2 { }\n"
+    "   arg=<Str> StrLiteral { s= \" \" }\n"
+    "}\n"
+    "<Str* -> ()> Output { }\n"
+  );
+
+  doTestEq(
+    "const {1}, reverse, join : :"
+    ,
+    "<Str*> Input { }\n"
+    "<b -> [_mixed]> Const0 {\n"
+    "   base=<a -> b -> a> Const1 { }\n"
+    "   arg=<[_mixed]> LstLiteral { v[0]=<Num> NumLiteral { n= 1 } }\n" // XXX: _mixed -> Num
+    "}\n"
+    "<[a] -> [a]> Reverse1 { }\n"
+    "<[Str*]* -> Str*> Join1 {\n"
+    "   base=<Str -> [Str] -> Str> Join2 { }\n"
+    "   arg=<Str> StrLiteral { s= \" \" }\n"
+    "}\n"
+    "<Str* -> ()> Output { }\n"
+  );
+
+  doTestEq(
+    "const {1, 2}, reverse, join : :"
+    ,
+    "<Str*> Input { }\n"
+    "<b -> [_mixed]> Const0 {\n"
+    "   base=<a -> b -> a> Const1 { }\n"
+    "   arg=<[_mixed]> LstLiteral {\n" // XXX: _mixed -> Num
+    "      v[0]=<Num> NumLiteral { n= 1 }\n"
+    "      v[1]=<Num> NumLiteral { n= 2 }\n"
+    "   }\n"
     "}\n"
     "<[a] -> [a]> Reverse1 { }\n"
     "<[Str*]* -> Str*> Join1 {\n"
