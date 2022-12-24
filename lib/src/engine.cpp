@@ -6,7 +6,7 @@
 namespace sel {
 
   void Val::accept(Visitor& v) const {
-    throw NIYError(std::string("visitor pattern for this class: ") + typeid(*this).name(), "- what -");
+    throw NIYError(std::string("'accept' of visitor pattern for this class: ") + typeid(*this).name());
   }
 
   template <typename To>

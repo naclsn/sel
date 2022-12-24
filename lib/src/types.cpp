@@ -276,6 +276,7 @@ namespace sel {
 
   // internal
   enum class TyTokenType {
+    END,
     UNKNOWN,
     TY_EQ,
     P_OPEN, P_CLOSE,
@@ -296,6 +297,7 @@ namespace sel {
   std::ostream& operator<<(std::ostream& out, TyToken const& tt) {
     out << "TyToken { .type=";
     switch (tt.type) {
+      case TyTokenType::END:     out << "END";     break;
       case TyTokenType::UNKNOWN: out << "UNKNOWN"; break;
       case TyTokenType::TY_EQ:   out << "TY_EQ";   break;
       case TyTokenType::P_OPEN:  out << "P_OPEN";  break;
@@ -309,6 +311,13 @@ namespace sel {
       case TyTokenType::TY_NAME: out << "TY_NAME"; break;
     }
     return out << ", .text=\"" << tt.text << "\" }";
+  }
+
+  // internal
+  void expected(char const* should, TyToken const& got) { // + tts->text + "..."
+    std::ostringstream oss;
+    oss << "expected " << should << " but got " << got << " instead";
+    throw ParseError(oss.str());
   }
 
   // internal
@@ -398,10 +407,7 @@ unknown_token_push1:
     //        | type*
     switch (first.type) {
       case TyTokenType::UNKNOWN:
-        throw ParseError("type expression",
-          ( std::string("got unknown tokens")
-          + " '" + first.text + " " + tts->text + " ...'"
-          ), "- what -");
+        expected("type expression", first);
 
       case TyTokenType::NAME:
         res.base = Ty::UNK;
@@ -414,14 +420,14 @@ unknown_token_push1:
         else if ("Str" == first.text)
           res.base = Ty::STR;
         else
-          throw NameError(first.text, "- what -");
+          expected("type name", first);
         break;
 
       case TyTokenType::P_OPEN:
-        if (eos == tts) throw EOSError("type expression after '('", "- what -");
+        if (eos == tts) expected("type expression after '('", TyToken());
         new_first = *tts;
         parseTypeImpl(new_first, ++tts, res);
-        if (eos == tts) throw EOSError("token ',' or matching token ')'", "- what -");
+        if (eos == tts) expected("token ',' or matching token ')'", TyToken());
         //        | (type, type)
         if (TyTokenType::COMMA == tts->type) {
           auto* v = new std::vector<Type*>();
@@ -429,7 +435,7 @@ unknown_token_push1:
           res.p.box_has = v;
           do {
             new_first = *++tts;
-            if (eos == tts) throw EOSError("type expression after ','", "- what -");
+            if (eos == tts) expected("type expression after ','", TyToken());
             Type* it = new Type();
             parseTypeImpl(new_first, ++tts, *it);
             res.p.box_has->push_back(it);
@@ -437,17 +443,13 @@ unknown_token_push1:
           res.base = Ty::LST;
           res.flags = TyFlag::IS_TPL;
         }
-        if (eos == tts) throw EOSError("matching token ')'", "- what -");
-        if (TyTokenType::P_CLOSE != tts->type)
-          throw ParseError("matching token ')'",
-            ( std::string("got unexpected tokens")
-            + " '" + tts++->text + " " + tts->text + " ...'"
-            ), "- what -");
+        if (eos == tts) expected("matching token ')'", TyToken());
+        if (TyTokenType::P_CLOSE != tts->type) expected("matching token ')'", *tts);
         tts++;
         break;
 
       case TyTokenType::B_OPEN:
-        if (eos == tts) throw EOSError("type expression after '['", "- what -");
+        if (eos == tts) expected("type expression after '['", TyToken());
         res.p.box_has = new std::vector<Type*>();
         do {
           new_first = *tts;
@@ -457,22 +459,15 @@ unknown_token_push1:
           if (TyTokenType::COMMA != tts->type) break;
           tts++;
         } while (eos != tts);
-        if (eos == tts) throw EOSError("matching token ']'", "- what -");
-        if (TyTokenType::B_CLOSE != tts->type)
-          throw ParseError("matching token ']'",
-            ( std::string("got unexpected tokens")
-            + " '" + tts++->text + " " + tts->text + " ...'"
-            ), "- what -");
+        if (eos == tts) expected("matching token ']'", TyToken());
+        if (TyTokenType::B_CLOSE != tts->type) expected("matching token ']'", *tts);
         res.base = Ty::LST;
         res.flags = 0;
         tts++;
         break;
 
       default:
-        throw ParseError("type expression",
-          ( std::string("got unexpected tokens")
-          + " '" + first.text + " " + tts->text + " ...'"
-          ), "- what -");
+        expected("type expression", first);
     }
 
     if (eos == tts) return;

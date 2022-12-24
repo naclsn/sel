@@ -78,11 +78,11 @@ namespace sel {
   }
   void Output::accept(Visitor& v) const { v.visitOutput(ty); }
 
-
   // internal
   struct Token {
     size_t loc;
     enum class Type {
+      END,
       NAME,
       LIT_NUM,
       LIT_STR,
@@ -149,6 +149,7 @@ namespace sel {
   std::ostream& operator<<(std::ostream& out, Token const& t) {
     out << "Token { .type=";
     switch (t.type) {
+      case Token::Type::END:           out << "END";           break;
       case Token::Type::NAME:          out << "NAME";          break;
       case Token::Type::LIT_NUM:       out << "LIT_NUM";       break;
       case Token::Type::LIT_STR:       out << "LIT_STR";       break;
@@ -164,6 +165,9 @@ namespace sel {
     }
     out << ", ";
     switch (t.type) {
+      case Token::Type::END:
+        break;
+
       case Token::Type::NAME:
         out << ".name=" << (t.as.name ? *t.as.name : "-nil-");
         break;
@@ -191,6 +195,13 @@ namespace sel {
         break;
     }
     return out << ", loc=" << t.loc << " }";
+  }
+
+  // internal
+  void expected(char const* should, Token const& got) {
+    std::ostringstream oss;
+    oss << "expected " << should << " but got " << got << " instead";
+    throw ParseError(oss.str());
   }
 
   // internal
@@ -249,8 +260,7 @@ namespace sel {
           }
           t.as.str->push_back(c);
         } while (!in.eof());
-        if (':' != c && in.eof())
-          throw EOSError("matching token ':'", "- what -");
+        if (':' != c && in.eof()) expected("matching token ':'", Token(/*END*/));
         break;
 
       default:
@@ -297,15 +307,18 @@ namespace sel {
   Val* parseAtom(App& app, std::istream_iterator<Token>& lexer) {
     TRACE(parseAtom, *lexer);
     static std::istream_iterator<Token> eos;
-    if (eos == lexer) throw EOSError("atom", "- what -");
+    if (eos == lexer) expected("atom", Token(/*END*/));
 
     Val* val = nullptr;
     Token t = *lexer;
 
     switch (t.type) {
+      case Token::Type::END: // unreachable
+        break;
+
       case Token::Type::NAME:
         val = lookup(app, *t.as.name);
-        if (!val) throw NameError(*t.as.name, "- what -");
+        if (!val) throw ParseError("unknown name '" + *t.as.name + "'");
         lexer++;
         break;
 
@@ -326,7 +339,7 @@ namespace sel {
             elms.push_back(parseElement(app, lexer));
             if (Token::Type::LIT_LST_CLOSE != lexer->type
              && Token::Type::THEN != lexer->type)
-              throw ParseError("token ',' or matching token '}'", std::string("got unexpected tokens ") + (char)((char)t.type+'0'), "- what -");
+              expected("token ',' or matching token '}'", t);
           }
 
           // TODO: for the type, need to know if the list
@@ -379,7 +392,7 @@ namespace sel {
       case Token::Type::SUB_OPEN:
         {
           if (Token::Type::SUB_CLOSE == (++lexer)->type)
-            throw ParseError("element", "got empty sub-expression", "- what -");
+            throw ParseError("expected element, got empty sub-expression");
 
           // early break: single value between []
           val = parseElement(app, lexer);
@@ -389,7 +402,7 @@ namespace sel {
           }
 
           if (Token::Type::THEN != lexer->type)
-            throw ParseError("token ',' or matching token ']'", std::string("got unexpected tokens ") + (char)((char)t.type+'0'), "- what -");
+            expected("token ',' or matching token ']'", t);
 
           std::vector<Fun*> elms;
           do {
@@ -400,7 +413,7 @@ namespace sel {
           } while (true);
 
           if (Token::Type::SUB_CLOSE != lexer++->type)
-            throw ParseError("matching token ']'", std::string("got unexpected tokens ") + (char)((char)t.type+'0'), "- what -");
+            expected("matching token ']'", t);
 
           val = new FunChain(elms);
         }
@@ -414,7 +427,7 @@ namespace sel {
         break;
     }
 
-    if (!val) throw ParseError("atom", std::string("got unexpected tokens ") + (char)((char)t.type+'0'), "- what -");
+    if (!val) expected("atom", t);
     return val;
   }
 
@@ -422,17 +435,15 @@ namespace sel {
   Val* parseElement(App& app, std::istream_iterator<Token>& lexer) {
     TRACE(parseElement, *lexer);
     static std::istream_iterator<Token> eos;
-    if (eos == lexer) throw EOSError("element", "- what -");
+    if (eos == lexer) expected("element", Token(/*END*/));
 
     Val* val;
 
     if (Token::Type::DEF == lexer->type) {
       Token t = *++lexer;
 
-      if (Token::Type::NAME != t.type)
-        throw ParseError("name", std::string("got unexpected tokens ") + (char)((char)t.type+'0'), "- what -");
-      if (lookup(app, *t.as.name))
-        throw ParseError("new name", "got known name " + *t.as.name, "- what -");
+      if (Token::Type::NAME != t.type) expected("name", t);
+      if (lookup(app, *t.as.name)) throw TypeError("cannot redefine already known name '" + *t.as.name + "'");
 
       lexer++;
       val = parseAtom(app, lexer);
@@ -499,7 +510,7 @@ namespace sel {
   std::istream& operator>>(std::istream& in, App& app) {
     std::istream_iterator<Token> lexer(in);
     static std::istream_iterator<Token> eos;
-    if (eos == lexer) throw EOSError("script", "- what -");
+    if (eos == lexer) expected("script", Token(/*END*/));
 
     app.fin = new Input();
 

@@ -12,6 +12,7 @@
 #include <ostream>
 #include <string>
 #include <vector>
+#include <typeinfo>
 
 #include "types.hpp"
 #include "builtins.hpp"
@@ -41,7 +42,8 @@ namespace sel {
   public:
     using _make_BinsVisitorBase<typename L::cdr>::visit;
     virtual void visit(typename L::car const& val) {
-      std::cerr << typeid(*this).name() << ": NIY: visiting " << typeid(val).name() << '\n'; // YYY: proper throw?
+      throw TypeError(std::string("operation not supported: ") + typeid(*this).name() + "(" + typeid(val).name() + ")");
+      // throw NIYError(std::string("'visit' of visitor pattern for this class: ") + typeid(val).name() + " (visitor class: " + typeid(*this).name() + ")");
     }
   };
   template <>

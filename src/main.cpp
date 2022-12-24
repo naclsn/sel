@@ -83,7 +83,7 @@ after_while: ;
   }
 
   if (cla_typecheck) {
-    throw NIYError("type checking of user script", "- what -");
+    throw NIYError("type checking of user script");
     return argc & 1;
   }
 
