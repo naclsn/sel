@@ -131,6 +131,7 @@ namespace sel {
 
       case Ty::STR:
         // YYY: this is a (frustrating) hack, but it could be made into a real thing (named-bound'ed types)
+        // XXX: this segfaults with `nk` null in `if [repeat :1:]` (MRE)
         if ((TyFlag::IS_INF & hu.flags) && (TyFlag::IS_INF & nk.flags) != (TyFlag::IS_INF & map.at("_*").flags)) {
           map.erase("_*");
           map.emplace("_*", Type(Ty::UNK, {0}, (TyFlag::IS_INF & nk.flags)));

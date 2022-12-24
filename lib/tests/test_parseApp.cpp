@@ -82,6 +82,22 @@ TEST(parseApp) {
   );
 
   doTestEq(
+    "const {}, reverse, join : :"
+    ,
+    "<Str*> Input { }\n"
+    "<b -> [_mixed]> Const0 {\n"
+    "   base=<a -> b -> a> Const1 { }\n"
+    "   arg=<[_mixed]> LstLiteral { }\n"
+    "}\n"
+    "<[a] -> [a]> Reverse1 { }\n"
+    "<[Str*]* -> Str*> Join1 {\n"
+    "   base=<Str -> [Str] -> Str> Join2 { }\n"
+    "   arg=<Str> StrLiteral { s= \" \" }\n"
+    "}\n"
+    "<Str* -> ()> Output { }\n"
+  );
+
+  doTestEq(
     "%map"
     ,
     "<Str*> Input { }\n"

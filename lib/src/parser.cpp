@@ -162,6 +162,7 @@ namespace sel {
       case Token::Type::THEN:          out << "THEN";          break;
       case Token::Type::PASS:          out << "PASS";          break;
       case Token::Type::DEF:           out << "DEF";           break;
+      default: out << "END"; // ZZZ
     }
     out << ", ";
     switch (t.type) {
@@ -337,9 +338,13 @@ namespace sel {
           std::vector<Val*> elms;
           while (Token::Type::LIT_LST_CLOSE != (++lexer)->type) {
             elms.push_back(parseElement(app, lexer));
+            // TODO: interestingly `t` is still the '{'
+            // which can be used in diagnostic ("opened at..")
             if (Token::Type::LIT_LST_CLOSE != lexer->type
-             && Token::Type::THEN != lexer->type)
-              expected("token ',' or matching token '}'", t);
+             && Token::Type::THEN != lexer->type) {
+              if (eos == lexer) expected("list element", Token(/*END*/));
+              expected("token ',' or matching token '}'", *lexer);
+            }
           }
 
           // TODO: for the type, need to know if the list
@@ -349,8 +354,15 @@ namespace sel {
           // :blabla:, 12}` could be:
           //   - `(Str, Num, Str, Num)`
           //   - `[Str, Num]`
+          // will probably only consider tuples up to 2~3
+          // len, with len 1 also defaulting to list
+          // could also apply some rules accounting for
+          // auto cohersion (eg. list of mixed Num&Str ->
+          // [Str]) / look at surrounding (this would have
+          // to be done at element-s level...)
 
           val = new LstLiteral(elms);
+          lexer++;
         }
         break;
 
@@ -412,13 +424,18 @@ namespace sel {
             val = parseElement(app, ++lexer);
           } while (true);
 
-          if (Token::Type::SUB_CLOSE != lexer++->type)
-            expected("matching token ']'", t);
+          // TODO: interestingly `t` is still the '{'
+          // which can be used in diagnostic ("opened at..")
+          if (Token::Type::SUB_CLOSE != lexer++->type) {
+            if (eos == lexer) expected("sub-script element", Token(/*END*/));
+            expected("matching token ']'", *lexer);
+          }
 
           val = new FunChain(elms);
         }
         break;
 
+      // YYY: (probly) unreachables
       case Token::Type::DEF:
       case Token::Type::LIT_LST_CLOSE:
       case Token::Type::SUB_CLOSE:
