@@ -364,6 +364,7 @@ namespace sel {
         }
         break;
 
+      // YYY: hard-coded lookups could be hard-coded
       case Token::Type::UN_OP: // TODO: will have a lookup_unop
         switch (t.as.chr) {
           // case '@': val = lookup_name(""); break;

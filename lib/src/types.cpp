@@ -140,6 +140,7 @@ namespace sel {
 
       case Ty::LST:
         // assert nk.has().size() == hu.has().size()
+        // XXX: apparently this is not always the case (probly a bug): `const {}, reverse, join: :` (MRE) -- could have to do with '_mixed'?
         {
           auto const& hu_has = hu.has();
           auto const& nk_has = nk.has();
