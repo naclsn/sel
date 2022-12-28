@@ -3,6 +3,7 @@
 
 #include <sstream>
 #include <vector>
+#include <unordered_set>
 
 #include "utils.hpp"
 #include "engine.hpp"
@@ -472,6 +473,13 @@ namespace sel {
     BIN_num(add, (num, num, num),
       "add two numbers", ());
 
+    BIN_lst(conjunction, (lst<unk<'a'>>, lst<unk<'a'>>, lst<unk<'a'>>),
+      "logical conjunction between two lists treated as sets; it is right-lazy and the list order is taken from the right argument (for now items are expected to be strings, until arbitraty value comparison)", (
+      bool did_once = false;
+      std::unordered_set<std::string> inleft;
+      void once();
+    ));
+
     BIN_unk(const, (unk<'a'>, unk<'b'>, unk<'a'>),
       "always evaluate to its first argument, ignoring its second argument", ());
 
@@ -578,6 +586,9 @@ namespace sel {
       bool read = false;
     ));
 
+    BIN_unk(uncurry, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, lst<unk<'w'/* TODO: tuple */>>, unk<'c'>),
+      "convert a curried function to a function on pairs", ());
+
     BIN_lst(zipwith, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, lst<unk<'a'>>, lst<unk<'b'>>, lst<unk<'c'>>),
       "make a new list by applying an binary operation to each corresponding value from each lists; stops when either list ends", (
       Val* curr = nullptr;
@@ -626,6 +637,7 @@ namespace sel {
     typedef cons_l
       < abs_
       , add_
+      , conjunction_
       , const_
       , drop_
       , dropwhile_
@@ -652,6 +664,7 @@ namespace sel {
       , takewhile_
       , tonum_
       , tostr_
+      , uncurry_
       , zipwith_
       >::the bins;
     typedef _make_bins_all<bins>::the bins_all;

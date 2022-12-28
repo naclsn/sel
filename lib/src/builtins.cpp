@@ -109,6 +109,48 @@ namespace sel {
       return a.value() + b.value();
     }
 
+    void conjunction_::once() {
+      bind_args(l, r);
+      while (!l.end()) {
+        std::ostringstream oss;
+        ((Str*)*l)->entire(oss);
+        inleft.insert(oss.str());
+        ++l;
+      }
+      while (!r.end()) {
+        std::ostringstream oss;
+        ((Str*)*r)->entire(oss);
+        if (inleft.end() != inleft.find(oss.str())) break;
+        ++r;
+      }
+      did_once = true;
+    }
+    Val* conjunction_::operator*() {
+      bind_args(l, r);
+      if (!did_once) once();
+      return *r;
+    }
+    Lst& conjunction_::operator++() {
+      bind_args(l, r);
+      if (!did_once) once();
+      ++r;
+      while (!r.end()) {
+        std::ostringstream oss;
+        ((Str*)*r)->entire(oss);
+        if (inleft.end() != inleft.find(oss.str())) break;
+        ++r;
+      }
+      return *this;
+    }
+    bool conjunction_::end() const {
+      bind_args(l, r);
+      return (did_once ? inleft.empty() : l.end()) || r.end();
+    }
+    void conjunction_::rewind() {
+      bind_args(l, r);
+      r.rewind();
+    }
+
     Val* const_::impl() {
       bind_args(take, ignore);
       return &take;
@@ -468,6 +510,11 @@ namespace sel {
     bool tostr_::end() const { return read; }
     void tostr_::rewind() { read = false; }
     std::ostream& tostr_::entire(std::ostream& out) { read = true; return out << arg->value(); }
+
+    Val* uncurry_::impl() {
+      bind_args(f, pair);
+      return (*(Fun*)f(*pair))(*++pair);
+    }
 
     Val* zipwith_::operator*() {
       bind_args(f, l1, l2);

@@ -169,6 +169,16 @@ namespace sel {
     visitCommon(it, std::conditional<!bins::add_::Base::Base::args, std::true_type, std::false_type>::type{});
   }
 
+  void VisRepr::visit(bins::conjunction_ const& it) {
+    visitCommon(it, std::conditional<!bins::conjunction_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::conjunction_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::conjunction_::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::conjunction_::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::conjunction_::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+
   void VisRepr::visit(bins::const_ const& it) {
     // YYY: `_base`, because `it` itself does not have `arg` yet and its `base` is an awkward proxy
     visitCommon(it._base, std::conditional<!bins::const_::args, std::true_type, std::false_type>::type{});
@@ -363,6 +373,13 @@ namespace sel {
   }
   void VisRepr::visit(bins::tostr_::Base const& it) {
     visitCommon(it, std::conditional<!bins::tostr_::Base::args, std::true_type, std::false_type>::type{});
+  }
+
+  void VisRepr::visit(bins::uncurry_ const& it) {
+    visitCommon(it._base, std::conditional<!bins::uncurry_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::uncurry_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::uncurry_::Base::args, std::true_type, std::false_type>::type{});
   }
 
   void VisRepr::visit(bins::zipwith_ const& it) {

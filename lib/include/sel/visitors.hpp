@@ -115,6 +115,9 @@ namespace sel {
     void visit(bins::add_ const&) override;
     void visit(bins::add_::Base const&) override;
     void visit(bins::add_::Base::Base const&) override;
+    void visit(bins::conjunction_ const&) override;
+    void visit(bins::conjunction_::Base const&) override;
+    void visit(bins::conjunction_::Base::Base const&) override;
     void visit(bins::const_ const&) override;
     void visit(bins::const_::Base const&) override;
     void visit(bins::drop_ const&) override;
@@ -171,6 +174,8 @@ namespace sel {
     void visit(bins::tonum_::Base const&) override;
     void visit(bins::tostr_ const&) override;
     void visit(bins::tostr_::Base const&) override;
+    void visit(bins::uncurry_ const&) override;
+    void visit(bins::uncurry_::Base const&) override;
     void visit(bins::zipwith_ const&) override;
     void visit(bins::zipwith_::Base const&) override;
     void visit(bins::zipwith_::Base::Base const&) override;
@@ -191,6 +196,7 @@ namespace sel {
     // XXX: would love any form of solution to this
     void visit(bins::abs_::Head const&) override;
     void visit(bins::add_::Head const&) override;
+    void visit(bins::conjunction_::Head const&) override;
     void visit(bins::const_::Head const&) override;
     void visit(bins::drop_::Head const&) override;
     void visit(bins::dropwhile_::Head const&) override;
@@ -213,6 +219,7 @@ namespace sel {
     void visit(bins::takewhile_::Head const&) override;
     void visit(bins::tonum_::Head const&) override;
     void visit(bins::tostr_::Head const&) override;
+    void visit(bins::uncurry_::Head const&) override;
     void visit(bins::zipwith_::Head const&) override;
   };
 

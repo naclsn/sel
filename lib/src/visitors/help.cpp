@@ -4,6 +4,7 @@ namespace sel {
 
     void VisHelp::visit(bins::abs_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }
     void VisHelp::visit(bins::add_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }
+    void VisHelp::visit(bins::conjunction_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }
     void VisHelp::visit(bins::const_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }
     void VisHelp::visit(bins::drop_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }
     void VisHelp::visit(bins::dropwhile_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }
@@ -26,6 +27,7 @@ namespace sel {
     void VisHelp::visit(bins::takewhile_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }
     void VisHelp::visit(bins::tonum_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }
     void VisHelp::visit(bins::tostr_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }
+    void VisHelp::visit(bins::uncurry_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }
     void VisHelp::visit(bins::zipwith_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }
 
 }
