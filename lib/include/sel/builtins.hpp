@@ -29,9 +29,6 @@ namespace sel {
     bool end() const override {
       return chunks.size() <= at;
     }
-    void rewind() override {
-      at = 0;
-    }
     std::ostream& entire(std::ostream& out) override {
       for (auto const& it : chunks)
         out << it;
@@ -421,13 +418,11 @@ namespace sel {
 #define _BIN_str \
       std::ostream& stream(std::ostream& out) override; \
       bool end() const override; \
-      void rewind() override; \
       std::ostream& entire(std::ostream& out) override;
 #define _BIN_lst \
       Val* operator*() override; \
       Lst& operator++() override; \
-      bool end() const override; \
-      void rewind() override;
+      bool end() const override;
 #define _BIN_unk \
       Val* impl() override;
 
@@ -482,7 +477,7 @@ namespace sel {
 
     BIN_lst(dropwhile, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),
       "return the suffix remaining from the first element not verifying the predicate onward", (
-      bool done = false;
+      mutable bool done = false;
     ));
 
     BIN_lst(filter, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),
@@ -506,13 +501,12 @@ namespace sel {
 
     BIN_str(join, (str, lst<str>, str),
       "join a list of string with a separator between entries", (
+      std::string ssep;
       bool beginning = true;
     ));
 
     BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>),
-      "make a new list by applying an unary operation to each value from a list", (
-      Val* curr = nullptr;
-    ));
+      "make a new list by applying an unary operation to each value from a list", ());
 
     BIN_str(nl, (str, str),
       "append a new line to a string", (
@@ -550,6 +544,7 @@ namespace sel {
       std::ostringstream acc = std::ostringstream(std::ios_base::ate);
       std::string curr;
       bool at_end = false;
+      bool at_past_end = false;
       // std::vector<Val*> cache;
       bool init = false;
       void once();

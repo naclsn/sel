@@ -40,7 +40,6 @@ namespace sel {
     { }
     std::ostream& stream(std::ostream& out) override;
     bool end() const override;
-    void rewind() override;
     std::ostream& entire(std::ostream& out) override;
     void accept(Visitor& v) const override;
   };
@@ -70,7 +69,6 @@ namespace sel {
     Val* operator*() override;
     Lst& operator++() override;
     bool end() const override;
-    void rewind() override;
     void accept(Visitor& v) const override;
   };
 
@@ -80,8 +78,8 @@ namespace sel {
     FunChain(std::vector<Fun*> f)
       : Fun(Type(Ty::FUN,
           {.box_pair={
-              new Type(f[0]->type().from()),
-              new Type(f[f.size()-1]->type().to())
+            new Type(f[0]->type().from()),
+            new Type(f[f.size() ? f.size()-1 : 0]->type().to()) // YYY: size-1
           }}, 0
         ))
       , f(f)
@@ -101,7 +99,6 @@ namespace sel {
     { }
     std::ostream& stream(std::ostream& out) override;
     bool end() const override;
-    void rewind() override;
     std::ostream& entire(std::ostream& out) override;
     void accept(Visitor& v) const override;
     void setIn(std::istream* in) { this->in = in; }

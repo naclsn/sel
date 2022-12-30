@@ -6,6 +6,7 @@ all = [
   'bins_applied',
   'runApp',
   'def_kw',
+  'end',
 ]
 
 foreach name : all

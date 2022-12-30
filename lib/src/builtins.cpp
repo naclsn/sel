@@ -136,21 +136,11 @@ namespace sel {
     bool drop_::end() const {
       bind_args(n, l);
       if (done) return l.end();
-      // tldw: it should still be `false` when we just
-      // reached `l.end()`, because that means there is
-      // a value to deref (end just means there is no
-      // iterating anymore)
-      bool wasnt_end = true;
       size_t k;
-      for (k = 0; k < n.value() && (wasnt_end = !l.end()); k++)
+      for (k = 0; k < n.value() && !l.end(); k++)
         ++l;
       done = true;
-      return l.end() && (!wasnt_end || n.value() != k);
-    }
-    void drop_::rewind() {
-      bind_args(n, l);
-      done = false;
-      l.rewind();
+      return l.end() && n.value() != k;
     }
 
     Val* dropwhile_::operator*() {
@@ -174,19 +164,18 @@ namespace sel {
     }
     bool dropwhile_::end() const {
       bind_args(p, l);
-      // TODO: update (no proper way to make predicates for now..)
-      return done && l.end();
-    }
-    void dropwhile_::rewind() {
-      bind_args(p, l);
-      done = false;
-      l.rewind();
+      if (done) return l.end();
+      // XXX: untested (still no proper predicate to facilitate)
+      while (!l.end() && p(*l))
+        ++l;
+      done = true;
+      return l.end();
     }
 
     Val* filter_::operator*() {
       bind_args(p, l);
       if (!curr) {
-        while (!((Num*)p(*l))->value()) ++l;
+        while (!l.end() && !((Num*)p(*l))->value()) ++l;
         curr = *l;
       }
       return *l;
@@ -194,17 +183,17 @@ namespace sel {
     Lst& filter_::operator++() {
       bind_args(p, l);
       ++l;
-      while (!((Num*)p(*l))->value()) ++l;
+      while (!l.end() && !((Num*)p(*l))->value()) ++l;
       curr = *l;
       return *this;
     }
     bool filter_::end() const {
       bind_args(p, l);
+      // TODO/FIXME/...
+      // XXX: still dont like this model: no way to tell
+      // if we are at the end without scanning but then
+      // this is no lazy at all..?
       return l.end();
-    }
-    void filter_::rewind() {
-      bind_args(p, l);
-      l.rewind();
     }
 
     Val* flip_::impl() {
@@ -234,12 +223,15 @@ namespace sel {
       return *this;
     }
     bool iterate_::end() const { return false; }
-    void iterate_::rewind() { curr = nullptr; }
 
     std::ostream& join_::stream(std::ostream& out) {
       bind_args(sep, lst);
-      if (beginning) beginning = false;
-      else sep.entire(out);
+      if (beginning) {
+        std::ostringstream oss;
+        sep.entire(oss);
+        ssep = oss.str();
+        beginning = false;
+      } else out << ssep;
       Str* it = (Str*)*lst;
       it->entire(out);
       ++lst;
@@ -249,33 +241,30 @@ namespace sel {
       bind_args(sep, lst);
       return lst.end();
     }
-    void join_::rewind() {
-      bind_args(sep, lst);
-      lst.rewind();
-      beginning = true;
-    }
     std::ostream& join_::entire(std::ostream& out) {
       bind_args(sep, lst);
       if (lst.end()) return out;
-      Str* it = (Str*)(*lst);
-      it->entire(out);
-      while (!lst.end()) {
-        sep.entire(out);
-        ++lst;
-        it = (Str*)(*lst);
-        it->entire(out);
+      if (beginning) {
+        std::ostringstream oss;
+        sep.entire(oss);
+        ssep = oss.str();
+        beginning = false;
+      }
+      // first iteration unrolled (because no separator)
+      ((Str*)*lst)->entire(out);
+      ++lst;
+      for (; !lst.end(); ++lst) {
+        ((Str*)*lst)->entire(out << ssep);
       }
       return out;
     }
 
     Val* map_::operator*() {
       bind_args(f, l);
-      if (!curr) curr = f(*l);
-      return curr;
+      return f(*l);
     }
     Lst& map_::operator++() {
       bind_args(f, l);
-      curr = nullptr;
       ++l;
       return *this;
     }
@@ -283,19 +272,12 @@ namespace sel {
       bind_args(f, l);
       return l.end();
     }
-    void map_::rewind() {
-      bind_args(f, l);
-      l.rewind();
-    }
 
     std::ostream& nl_::stream(std::ostream& out) {
       bind_args(s);
-      // return !s.end() ? out << s : (done = true, out << '\n');
-      done = true;
-      return s.entire(out) << '\n';
+      return !s.end() ? out << s : (done = true, out << '\n');
     }
     bool nl_::end() const { return done; }
-    void nl_::rewind() { done = false; }
     std::ostream& nl_::entire(std::ostream& out) {
       bind_args(s);
       done = true;
@@ -309,7 +291,6 @@ namespace sel {
     Val* repeat_::operator*() { return arg; }
     Lst& repeat_::operator++() { return *this; }
     bool repeat_::end() const { return false; }
-    void repeat_::rewind() { }
 
     Val* replicate_::operator*() {
       if (!did) did++;
@@ -322,9 +303,8 @@ namespace sel {
     }
     bool replicate_::end() const {
       bind_args(n, o);
-      return did >= n.value();
+      return 0 == n.value() || n.value() < did;
     }
-    void replicate_::rewind() { did = 0; }
 
     void reverse_::once() {
       bind_args(l);
@@ -334,11 +314,11 @@ namespace sel {
           cache.push_back(*(++l));
       }
       did_once = true;
-      curr = cache.size()-1;
+      curr = cache.size();
     }
     Val* reverse_::operator*() {
       if (!did_once) once();
-      return cache[curr];
+      return cache[curr-1];
     }
     Lst& reverse_::operator++() {
       curr--;
@@ -349,18 +329,10 @@ namespace sel {
       bind_args(l);
       return l.end();
     }
-    void reverse_::rewind() { curr = cache.size()-1; }
 
-    Val* singleton_::operator*() {
-      done = true;
-      return arg;
-    }
-    Lst& singleton_::operator++() {
-      done = true;
-      return *this;
-    }
+    Val* singleton_::operator*() { return arg; }
+    Lst& singleton_::operator++() { done = true; return *this; }
     bool singleton_::end() const { return done; }
-    void singleton_::rewind() { done = false; }
 
     void split_::once() {
       bind_args(sep, str);
@@ -370,6 +342,10 @@ namespace sel {
       did_once = true;
     }
     void split_::next() {
+      if (at_end) {
+        at_past_end = true;
+        return;
+      }
       if (!did_once) once();
       bind_args(sep, str);
       std::string buf = acc.str();
@@ -399,14 +375,7 @@ namespace sel {
       return *this;
     }
     bool split_::end() const {
-      return at_end;
-    }
-    void split_::rewind() {
-      bind_args(sep, str);
-      str.rewind();
-      acc = std::ostringstream(std::ios_base::ate);
-      at_end = false;
-      init = false;
+      return at_past_end;
     }
 
     double sub_::value() {
@@ -427,12 +396,7 @@ namespace sel {
     }
     bool take_::end() const {
       bind_args(n, l);
-      return did >= n.value() || l.end();
-    }
-    void take_::rewind() {
-      bind_args(n, l);
-      did = 0;
-      l.rewind();
+      return n.value() < did || l.end();
     }
 
     Val* takewhile_::operator*() {
@@ -446,11 +410,7 @@ namespace sel {
     }
     bool takewhile_::end() const {
       bind_args(p, l);
-      return l.end() || !p(*l);
-    }
-    void takewhile_::rewind() {
-      bind_args(p, l);
-      l.rewind();
+      return l.end() || !((Num*)p(*l))->value();
     }
 
     double tonum_::value() {
@@ -466,7 +426,6 @@ namespace sel {
 
     std::ostream& tostr_::stream(std::ostream& out) { read = true; return out << arg->value(); }
     bool tostr_::end() const { return read; }
-    void tostr_::rewind() { read = false; }
     std::ostream& tostr_::entire(std::ostream& out) { read = true; return out << arg->value(); }
 
     Val* zipwith_::operator*() {
@@ -484,11 +443,6 @@ namespace sel {
     bool zipwith_::end() const {
       bind_args(f, l1, l2);
       return l1.end() || l2.end();
-    }
-    void zipwith_::rewind() {
-      bind_args(f, l1, l2);
-      l1.rewind();
-      l2.rewind();
     }
 
   } // namespace bins
