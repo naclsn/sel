@@ -98,21 +98,21 @@ void test_zipwith() { // zipwith map {repeat} {{1}} // YYY: but most boundedness
 
   Val* zipwith2 = (*(Fun*)zipwith3)(lookup_name("map"));
   showv_test(zipwith2,
-    "<[a -> b]* -> [[a]]* -> [[b]]*> zipwith2 {\n"
-    "   base=<(a -> b -> c) -> [a] -> [b] -> [c]> zipwith3 { }\n"
-    "   arg=<(a -> b) -> [a] -> [b]> map2 { }\n"
+    "<[a -> b]* -> [[a]]* -> [[b]]*> Zipwith2 {\n"
+    "   base=<(a -> b -> c) -> [a] -> [b] -> [c]> Zipwith3 { }\n"
+    "   arg=<(a -> b) -> [a] -> [b]> Map2 { }\n"
     "}\n"
     );
 
   Val* _repeat1 = lookup_name("repeat");
   Val* zipwith1 = (*(Fun*)zipwith2)(new LstLiteral({_repeat1}, new vector<Type*>({new Type(_repeat1->type())})));
   showv_test(zipwith1,
-    "<[[a]] -> [[[a]]]> zipwith1 {\n"
-    "   base=<[a -> b]* -> [[a]]* -> [[b]]*> zipwith2 {\n"
-    "      base=<(a -> b -> c) -> [a] -> [b] -> [c]> zipwith3 { }\n"
-    "      arg=<(a -> b) -> [a] -> [b]> map2 { }\n"
+    "<[[a]] -> [[[a]]]> Zipwith1 {\n"
+    "   base=<[a -> b]* -> [[a]]* -> [[b]]*> Zipwith2 {\n"
+    "      base=<(a -> b -> c) -> [a] -> [b] -> [c]> Zipwith3 { }\n"
+    "      arg=<(a -> b) -> [a] -> [b]> Map2 { }\n"
     "   }\n"
-    "   arg=<[a -> [a]]> LstLiteral { v[0]=<a -> [a]> repeat1 { } }\n"
+    "   arg=<[a -> [a]]> LstLiteral { v[0]=<a -> [a]> Repeat1 { } }\n"
     "}\n"
     );
 
@@ -121,13 +121,13 @@ void test_zipwith() { // zipwith map {repeat} {{1}} // YYY: but most boundedness
   }, new vector<Type*>({new Type(Ty::LST, {.box_has=new vector<Type*>({new Type(Ty::NUM, {0}, 0)})}, TyFlag::IS_FIN)}));
   Val* zipwith0 = (*(Fun*)zipwith1)(_lst_lst_num);
   showv_test(zipwith0,
-    "<[[[Num]*]*]*> zipwith0 {\n"
-    "   base=<[[a]] -> [[[a]]]> zipwith1 {\n"
-    "      base=<[a -> b]* -> [[a]]* -> [[b]]*> zipwith2 {\n"
-    "         base=<(a -> b -> c) -> [a] -> [b] -> [c]> zipwith3 { }\n"
-    "         arg=<(a -> b) -> [a] -> [b]> map2 { }\n"
+    "<[[[Num]*]*]*> Zipwith0 {\n"
+    "   base=<[[a]] -> [[[a]]]> Zipwith1 {\n"
+    "      base=<[a -> b]* -> [[a]]* -> [[b]]*> Zipwith2 {\n"
+    "         base=<(a -> b -> c) -> [a] -> [b] -> [c]> Zipwith3 { }\n"
+    "         arg=<(a -> b) -> [a] -> [b]> Map2 { }\n"
     "      }\n"
-    "      arg=<[a -> [a]]> LstLiteral { v[0]=<a -> [a]> repeat1 { } }\n"
+    "      arg=<[a -> [a]]> LstLiteral { v[0]=<a -> [a]> Repeat1 { } }\n"
     "   }\n"
     "   arg=<[[Num]]> LstLiteral { v[0]=<[Num]> LstLiteral { v[0]=<Num> NumLiteral { n= 42 } } }\n"
     "}\n"

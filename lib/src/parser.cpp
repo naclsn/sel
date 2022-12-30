@@ -13,14 +13,12 @@ namespace sel {
 
   std::ostream& StrLiteral::stream(std::ostream& out) { read = true; return out << s; }
   bool StrLiteral::end() const { return read; }
-  void StrLiteral::rewind() { read = false; }
   std::ostream& StrLiteral::entire(std::ostream& out) { read = true; return out << s; }
   void StrLiteral::accept(Visitor& v) const { v.visitStrLiteral(ty, s); }
 
   Val* LstLiteral::operator*() { return v[c]; }
   Lst& LstLiteral::operator++() { c++; return *this; }
-  bool LstLiteral::end() const { return v.size()-1 <= c; }
-  void LstLiteral::rewind() { c = 0; }
+  bool LstLiteral::end() const { return v.size() <= c; }
   void LstLiteral::accept(Visitor& v) const { v.visitLstLiteral(ty, this->v); }
 
   Val* FunChain::operator()(Val* arg) {
@@ -49,7 +47,6 @@ namespace sel {
     return out;
   }
   bool Input::end() const { return nowat == upto && in->eof(); }
-  void Input::rewind() { nowat = 0; }
   std::ostream& Input::entire(std::ostream& out) {
     // not at the end, get the rest
     if (!in->eof()) {
