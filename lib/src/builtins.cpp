@@ -307,7 +307,7 @@ namespace sel {
           cache.push_back(*(++l));
       }
       did_once = true;
-      curr = cache.size()-1;
+      curr = cache.size()-1; // YYY: size-1: ok because 'normally' unreachable with a size 0 (end true)
     }
     Val* reverse_::operator*() {
       if (!did_once) once();

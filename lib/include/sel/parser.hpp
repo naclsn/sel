@@ -78,8 +78,8 @@ namespace sel {
     FunChain(std::vector<Fun*> f)
       : Fun(Type(Ty::FUN,
           {.box_pair={
-              new Type(f[0]->type().from()),
-              new Type(f[f.size()-1]->type().to())
+            new Type(f[0]->type().from()),
+            new Type(f[f.size() ? f.size()-1 : 0]->type().to()) // YYY: size-1
           }}, 0
         ))
       , f(f)
