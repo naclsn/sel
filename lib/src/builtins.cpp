@@ -146,10 +146,6 @@ namespace sel {
       bind_args(l, r);
       return (did_once ? inleft.empty() : l.end()) || r.end();
     }
-    void conjunction_::rewind() {
-      bind_args(l, r);
-      r.rewind();
-    }
 
     Val* const_::impl() {
       bind_args(take, ignore);
