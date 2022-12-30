@@ -226,8 +226,12 @@ namespace sel {
 
     std::ostream& join_::stream(std::ostream& out) {
       bind_args(sep, lst);
-      if (beginning) beginning = false;
-      else sep.entire(out);
+      if (beginning) {
+        std::ostringstream oss;
+        sep.entire(oss);
+        ssep = oss.str();
+        beginning = false;
+      } else out << ssep;
       Str* it = (Str*)*lst;
       it->entire(out);
       ++lst;
@@ -240,12 +244,17 @@ namespace sel {
     std::ostream& join_::entire(std::ostream& out) {
       bind_args(sep, lst);
       if (lst.end()) return out;
+      if (beginning) {
+        std::ostringstream oss;
+        sep.entire(oss);
+        ssep = oss.str();
+        beginning = false;
+      }
       // first iteration unrolled (because no separator)
       ((Str*)*lst)->entire(out);
       ++lst;
       for (; !lst.end(); ++lst) {
-        sep.entire(out);
-        ((Str*)*lst)->entire(out);
+        ((Str*)*lst)->entire(out << ssep);
       }
       return out;
     }
@@ -333,6 +342,10 @@ namespace sel {
       did_once = true;
     }
     void split_::next() {
+      if (at_end) {
+        at_past_end = true;
+        return;
+      }
       if (!did_once) once();
       bind_args(sep, str);
       std::string buf = acc.str();
@@ -362,7 +375,7 @@ namespace sel {
       return *this;
     }
     bool split_::end() const {
-      return at_end;
+      return at_past_end;
     }
 
     double sub_::value() {
@@ -383,7 +396,7 @@ namespace sel {
     }
     bool take_::end() const {
       bind_args(n, l);
-      return did >= n.value() || l.end();
+      return n.value() < did || l.end();
     }
 
     Val* takewhile_::operator*() {
@@ -397,7 +410,7 @@ namespace sel {
     }
     bool takewhile_::end() const {
       bind_args(p, l);
-      return l.end() || !p(*l);
+      return l.end() || !((Num*)p(*l))->value();
     }
 
     double tonum_::value() {

@@ -501,6 +501,7 @@ namespace sel {
 
     BIN_str(join, (str, lst<str>, str),
       "join a list of string with a separator between entries", (
+      std::string ssep;
       bool beginning = true;
     ));
 
@@ -543,6 +544,7 @@ namespace sel {
       std::ostringstream acc = std::ostringstream(std::ios_base::ate);
       std::string curr;
       bool at_end = false;
+      bool at_past_end = false;
       // std::vector<Val*> cache;
       bool init = false;
       void once();
