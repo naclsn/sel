@@ -29,9 +29,6 @@ namespace sel {
     bool end() const override {
       return chunks.size() <= at;
     }
-    void rewind() override {
-      at = 0;
-    }
     std::ostream& entire(std::ostream& out) override {
       for (auto const& it : chunks)
         out << it;
@@ -421,13 +418,11 @@ namespace sel {
 #define _BIN_str \
       std::ostream& stream(std::ostream& out) override; \
       bool end() const override; \
-      void rewind() override; \
       std::ostream& entire(std::ostream& out) override;
 #define _BIN_lst \
       Val* operator*() override; \
       Lst& operator++() override; \
-      bool end() const override; \
-      void rewind() override;
+      bool end() const override;
 #define _BIN_unk \
       Val* impl() override;
 

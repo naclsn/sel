@@ -147,11 +147,6 @@ namespace sel {
       done = true;
       return l.end() && (!wasnt_end || n.value() != k);
     }
-    void drop_::rewind() {
-      bind_args(n, l);
-      done = false;
-      l.rewind();
-    }
 
     Val* dropwhile_::operator*() {
       bind_args(p, l);
@@ -177,11 +172,6 @@ namespace sel {
       // TODO: update (no proper way to make predicates for now..)
       return done && l.end();
     }
-    void dropwhile_::rewind() {
-      bind_args(p, l);
-      done = false;
-      l.rewind();
-    }
 
     Val* filter_::operator*() {
       bind_args(p, l);
@@ -201,10 +191,6 @@ namespace sel {
     bool filter_::end() const {
       bind_args(p, l);
       return l.end();
-    }
-    void filter_::rewind() {
-      bind_args(p, l);
-      l.rewind();
     }
 
     Val* flip_::impl() {
@@ -234,7 +220,6 @@ namespace sel {
       return *this;
     }
     bool iterate_::end() const { return false; }
-    void iterate_::rewind() { curr = nullptr; }
 
     std::ostream& join_::stream(std::ostream& out) {
       bind_args(sep, lst);
@@ -248,11 +233,6 @@ namespace sel {
     bool join_::end() const {
       bind_args(sep, lst);
       return lst.end();
-    }
-    void join_::rewind() {
-      bind_args(sep, lst);
-      lst.rewind();
-      beginning = true;
     }
     std::ostream& join_::entire(std::ostream& out) {
       bind_args(sep, lst);
@@ -283,10 +263,6 @@ namespace sel {
       bind_args(f, l);
       return l.end();
     }
-    void map_::rewind() {
-      bind_args(f, l);
-      l.rewind();
-    }
 
     std::ostream& nl_::stream(std::ostream& out) {
       bind_args(s);
@@ -295,7 +271,6 @@ namespace sel {
       return s.entire(out) << '\n';
     }
     bool nl_::end() const { return done; }
-    void nl_::rewind() { done = false; }
     std::ostream& nl_::entire(std::ostream& out) {
       bind_args(s);
       done = true;
@@ -309,7 +284,6 @@ namespace sel {
     Val* repeat_::operator*() { return arg; }
     Lst& repeat_::operator++() { return *this; }
     bool repeat_::end() const { return false; }
-    void repeat_::rewind() { }
 
     Val* replicate_::operator*() {
       if (!did) did++;
@@ -324,7 +298,6 @@ namespace sel {
       bind_args(n, o);
       return did >= n.value();
     }
-    void replicate_::rewind() { did = 0; }
 
     void reverse_::once() {
       bind_args(l);
@@ -349,7 +322,6 @@ namespace sel {
       bind_args(l);
       return l.end();
     }
-    void reverse_::rewind() { curr = cache.size()-1; }
 
     Val* singleton_::operator*() {
       done = true;
@@ -360,7 +332,6 @@ namespace sel {
       return *this;
     }
     bool singleton_::end() const { return done; }
-    void singleton_::rewind() { done = false; }
 
     void split_::once() {
       bind_args(sep, str);
@@ -401,13 +372,6 @@ namespace sel {
     bool split_::end() const {
       return at_end;
     }
-    void split_::rewind() {
-      bind_args(sep, str);
-      str.rewind();
-      acc = std::ostringstream(std::ios_base::ate);
-      at_end = false;
-      init = false;
-    }
 
     double sub_::value() {
       bind_args(a, b);
@@ -429,11 +393,6 @@ namespace sel {
       bind_args(n, l);
       return did >= n.value() || l.end();
     }
-    void take_::rewind() {
-      bind_args(n, l);
-      did = 0;
-      l.rewind();
-    }
 
     Val* takewhile_::operator*() {
       bind_args(p, l);
@@ -447,10 +406,6 @@ namespace sel {
     bool takewhile_::end() const {
       bind_args(p, l);
       return l.end() || !p(*l);
-    }
-    void takewhile_::rewind() {
-      bind_args(p, l);
-      l.rewind();
     }
 
     double tonum_::value() {
@@ -466,7 +421,6 @@ namespace sel {
 
     std::ostream& tostr_::stream(std::ostream& out) { read = true; return out << arg->value(); }
     bool tostr_::end() const { return read; }
-    void tostr_::rewind() { read = false; }
     std::ostream& tostr_::entire(std::ostream& out) { read = true; return out << arg->value(); }
 
     Val* zipwith_::operator*() {
@@ -484,11 +438,6 @@ namespace sel {
     bool zipwith_::end() const {
       bind_args(f, l1, l2);
       return l1.end() || l2.end();
-    }
-    void zipwith_::rewind() {
-      bind_args(f, l1, l2);
-      l1.rewind();
-      l2.rewind();
     }
 
   } // namespace bins

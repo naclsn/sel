@@ -23,7 +23,7 @@ void do_run(initializer_list<char const*> script_args, string given, string expe
   assert_cmp(expect, got);
 }
 
-TEST(run) {
+TEST(def_kw) {
   do_run({
     "split", ":", ":,",
       "map", "tonum,",

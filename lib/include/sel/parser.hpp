@@ -40,7 +40,6 @@ namespace sel {
     { }
     std::ostream& stream(std::ostream& out) override;
     bool end() const override;
-    void rewind() override;
     std::ostream& entire(std::ostream& out) override;
     void accept(Visitor& v) const override;
   };
@@ -70,7 +69,6 @@ namespace sel {
     Val* operator*() override;
     Lst& operator++() override;
     bool end() const override;
-    void rewind() override;
     void accept(Visitor& v) const override;
   };
 
@@ -101,7 +99,6 @@ namespace sel {
     { }
     std::ostream& stream(std::ostream& out) override;
     bool end() const override;
-    void rewind() override;
     std::ostream& entire(std::ostream& out) override;
     void accept(Visitor& v) const override;
     void setIn(std::istream* in) { this->in = in; }

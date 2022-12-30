@@ -32,12 +32,14 @@ using namespace sel;
 } while (0)
 
 #define assert_eq(__should, __have) do {                      \
-  if (__should == __have) return;                             \
+  auto _should = (__should);                                  \
+  auto _have = (__have);                                      \
+  if (_should == _have) break;                                \
   cerr                                                        \
     << GREEN #__should RESET "  ==  " RED #__have RESET "\n"  \
     << "assertion failed with:\n"                             \
-    << "   expected: " GREEN << __should << RESET "\n"        \
-    << "    but got: " RED   << __have   << RESET "\n"        \
+    << "   expected: " GREEN << _should << RESET "\n"         \
+    << "    but got: " RED   << _have   << RESET "\n"         \
   ;                                                           \
   exit(EXIT_FAILURE);                                         \
 } while (0)

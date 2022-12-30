@@ -24,7 +24,6 @@ namespace sel {
   class Val {
   protected:
     Type const ty;
-    // virtual void eval() = 0; // more of a friendly reminder than actual contract
   public:
     Val(Type const& ty)
       : ty(Type(ty))
@@ -77,11 +76,6 @@ namespace sel {
      */
     virtual bool end() const = 0;
     /**
-     * Reset the internal state so the string may be
-     * streamed again.
-     */
-    virtual void rewind() = 0;
-    /**
      * Stream the whole string of bytes.
      */
     virtual std::ostream& entire(std::ostream& out) = 0;
@@ -108,13 +102,14 @@ namespace sel {
     /**
      * `true` if there is no next value to get. Calling
      * `next` at this point is probably undefined.
+     * so a list can go 'one-past-end', that is it is ok
+     * to call ++ and * when end is false, as soon as end
+     * is true, the previous value (if any) was the last
+     * one; it is in a 'one-past-end' state (ie. likely
+     * invalid for any operation)
+     * this means an empty list will be end true right away
      */
     virtual bool end() const = 0;
-    /**
-     * Resets the internal state so the list may be
-     * interated again.
-     */
-    virtual void rewind() = 0;
   };
 
   /**
