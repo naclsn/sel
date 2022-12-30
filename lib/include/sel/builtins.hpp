@@ -477,7 +477,7 @@ namespace sel {
 
     BIN_lst(dropwhile, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),
       "return the suffix remaining from the first element not verifying the predicate onward", (
-      bool done = false;
+      mutable bool done = false;
     ));
 
     BIN_lst(filter, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),
@@ -505,9 +505,7 @@ namespace sel {
     ));
 
     BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>),
-      "make a new list by applying an unary operation to each value from a list", (
-      Val* curr = nullptr;
-    ));
+      "make a new list by applying an unary operation to each value from a list", ());
 
     BIN_str(nl, (str, str),
       "append a new line to a string", (

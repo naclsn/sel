@@ -136,16 +136,11 @@ namespace sel {
     bool drop_::end() const {
       bind_args(n, l);
       if (done) return l.end();
-      // tldw: it should still be `false` when we just
-      // reached `l.end()`, because that means there is
-      // a value to deref (end just means there is no
-      // iterating anymore)
-      bool wasnt_end = true;
       size_t k;
-      for (k = 0; k < n.value() && (wasnt_end = !l.end()); k++)
+      for (k = 0; k < n.value() && !l.end(); k++)
         ++l;
       done = true;
-      return l.end() && (!wasnt_end || n.value() != k);
+      return l.end() && n.value() != k;
     }
 
     Val* dropwhile_::operator*() {
@@ -169,14 +164,18 @@ namespace sel {
     }
     bool dropwhile_::end() const {
       bind_args(p, l);
-      // TODO: update (no proper way to make predicates for now..)
-      return done && l.end();
+      if (done) return l.end();
+      // XXX: untested (still no proper predicate to facilitate)
+      while (!l.end() && p(*l))
+        ++l;
+      done = true;
+      return l.end();
     }
 
     Val* filter_::operator*() {
       bind_args(p, l);
       if (!curr) {
-        while (!((Num*)p(*l))->value()) ++l;
+        while (!l.end() && !((Num*)p(*l))->value()) ++l;
         curr = *l;
       }
       return *l;
@@ -184,12 +183,16 @@ namespace sel {
     Lst& filter_::operator++() {
       bind_args(p, l);
       ++l;
-      while (!((Num*)p(*l))->value()) ++l;
+      while (!l.end() && !((Num*)p(*l))->value()) ++l;
       curr = *l;
       return *this;
     }
     bool filter_::end() const {
       bind_args(p, l);
+      // TODO/FIXME/...
+      // XXX: still dont like this model: no way to tell
+      // if we are at the end without scanning but then
+      // this is no lazy at all..?
       return l.end();
     }
 
@@ -237,25 +240,22 @@ namespace sel {
     std::ostream& join_::entire(std::ostream& out) {
       bind_args(sep, lst);
       if (lst.end()) return out;
-      Str* it = (Str*)(*lst);
-      it->entire(out);
-      while (!lst.end()) {
+      // first iteration unrolled (because no separator)
+      ((Str*)*lst)->entire(out);
+      ++lst;
+      for (; !lst.end(); ++lst) {
         sep.entire(out);
-        ++lst;
-        it = (Str*)(*lst);
-        it->entire(out);
+        ((Str*)*lst)->entire(out);
       }
       return out;
     }
 
     Val* map_::operator*() {
       bind_args(f, l);
-      if (!curr) curr = f(*l);
-      return curr;
+      return f(*l);
     }
     Lst& map_::operator++() {
       bind_args(f, l);
-      curr = nullptr;
       ++l;
       return *this;
     }
@@ -266,9 +266,7 @@ namespace sel {
 
     std::ostream& nl_::stream(std::ostream& out) {
       bind_args(s);
-      // return !s.end() ? out << s : (done = true, out << '\n');
-      done = true;
-      return s.entire(out) << '\n';
+      return !s.end() ? out << s : (done = true, out << '\n');
     }
     bool nl_::end() const { return done; }
     std::ostream& nl_::entire(std::ostream& out) {
@@ -296,7 +294,7 @@ namespace sel {
     }
     bool replicate_::end() const {
       bind_args(n, o);
-      return did >= n.value();
+      return 0 == n.value() || n.value() < did;
     }
 
     void reverse_::once() {
@@ -307,11 +305,11 @@ namespace sel {
           cache.push_back(*(++l));
       }
       did_once = true;
-      curr = cache.size()-1; // YYY: size-1: ok because 'normally' unreachable with a size 0 (end true)
+      curr = cache.size();
     }
     Val* reverse_::operator*() {
       if (!did_once) once();
-      return cache[curr];
+      return cache[curr-1];
     }
     Lst& reverse_::operator++() {
       curr--;
@@ -323,14 +321,8 @@ namespace sel {
       return l.end();
     }
 
-    Val* singleton_::operator*() {
-      done = true;
-      return arg;
-    }
-    Lst& singleton_::operator++() {
-      done = true;
-      return *this;
-    }
+    Val* singleton_::operator*() { return arg; }
+    Lst& singleton_::operator++() { done = true; return *this; }
     bool singleton_::end() const { return done; }
 
     void split_::once() {
