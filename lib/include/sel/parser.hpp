@@ -143,7 +143,7 @@ namespace sel {
 
     void run(std::istream& in, std::ostream& out);
 
-    void repr(std::ostream& out/*, VisRepr::ReprCx cx={.top_level=true}*/) const;
+    void repr(std::ostream& out, VisRepr::ReprCx cx={.top_level=true}) const;
 
     friend std::ostream& operator<<(std::ostream& out, App const& ty);
     friend std::istream& operator>>(std::istream& in, App& tt);
