@@ -559,6 +559,11 @@ namespace sel {
       void next();
     ));
 
+    BIN_num(startswith, (str, str, num),
+      "true if the string starts with the given prefix", (
+      bool done, does;
+    ));
+
     BIN_num(sub, (num, num, num),
       "substract the second number from the first", ());
 
@@ -653,6 +658,7 @@ namespace sel {
       , reverse_
       , singleton_
       , split_
+      , startswith_
       , sub_
       // , tail_
       , take_

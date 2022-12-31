@@ -416,6 +416,23 @@ namespace sel {
       return at_past_end;
     }
 
+    double startswith_::value() {
+      if (!done) {
+        bind_args(prefix, str);
+        std::ostringstream osspx;
+        osspx << prefix;
+        std::string px = osspx.str();
+        std::ostringstream oss;
+        // BOF: copies! copies everywhere~! (or does it? sais its a temporary object...)
+        while (oss.str().length() < px.length() && 0 == px.compare(0, oss.str().length(), oss.str()) && !str.end()) {
+          oss << str;
+        }
+        does = 0 == oss.str().compare(0, px.length(), px);
+        done = true;
+      }
+      return does;
+    }
+
     double sub_::value() {
       bind_args(a, b);
       return a.value() - b.value();
