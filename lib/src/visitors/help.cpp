@@ -22,6 +22,7 @@ namespace sel {
     void VisHelp::visit(bins::reverse_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }
     void VisHelp::visit(bins::singleton_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }
     void VisHelp::visit(bins::split_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }
+    void VisHelp::visit(bins::startswith_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }
     void VisHelp::visit(bins::sub_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }
     void VisHelp::visit(bins::take_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }
     void VisHelp::visit(bins::takewhile_::Head const& it) { res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc; }

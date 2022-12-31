@@ -331,6 +331,16 @@ namespace sel {
     visitCommon(it, std::conditional<!bins::split_::Base::Base::args, std::true_type, std::false_type>::type{});
   }
 
+  void VisRepr::visit(bins::startswith_ const& it) {
+    visitCommon(it, std::conditional<!bins::startswith_::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::startswith_::Base const& it) {
+    visitCommon(it, std::conditional<!bins::startswith_::Base::args, std::true_type, std::false_type>::type{});
+  }
+  void VisRepr::visit(bins::startswith_::Base::Base const& it) {
+    visitCommon(it, std::conditional<!bins::startswith_::Base::Base::args, std::true_type, std::false_type>::type{});
+  }
+
   void VisRepr::visit(bins::sub_ const& it) {
     visitCommon(it, std::conditional<!bins::sub_::args, std::true_type, std::false_type>::type{});
   }

@@ -161,6 +161,9 @@ namespace sel {
     void visit(bins::split_ const&) override;
     void visit(bins::split_::Base const&) override;
     void visit(bins::split_::Base::Base const&) override;
+    void visit(bins::startswith_ const&) override;
+    void visit(bins::startswith_::Base const&) override;
+    void visit(bins::startswith_::Base::Base const&) override;
     void visit(bins::sub_ const&) override;
     void visit(bins::sub_::Base const&) override;
     void visit(bins::sub_::Base::Base const&) override;
@@ -214,6 +217,7 @@ namespace sel {
     void visit(bins::reverse_::Head const&) override;
     void visit(bins::singleton_::Head const&) override;
     void visit(bins::split_::Head const&) override;
+    void visit(bins::startswith_::Head const&) override;
     void visit(bins::sub_::Head const&) override;
     void visit(bins::take_::Head const&) override;
     void visit(bins::takewhile_::Head const&) override;
