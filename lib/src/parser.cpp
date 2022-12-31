@@ -504,12 +504,12 @@ namespace sel {
     fout->setOut(nullptr);
   }
 
-  void App::repr(std::ostream& out, VisRepr::ReprCx cx) const {
-    VisRepr repr(out, cx);
-    repr(*fin);
-    for (auto const& it : funcs)
-      repr(*it);
-    repr(*fout);
+  void App::repr(std::ostream& out/*, VisRepr::ReprCx cx*/) const {
+    // VisRepr repr(out, cx);
+    // repr(*fin);
+    // for (auto const& it : funcs)
+    //   repr(*it);
+    // repr(*fout);
   }
 
   std::ostream& operator<<(std::ostream& out, App const& app) {

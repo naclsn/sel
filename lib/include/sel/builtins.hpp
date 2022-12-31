@@ -631,36 +631,36 @@ namespace sel {
     // XXX: still would love if this list could be built automatically
     typedef cons_l
       < abs_
-      , add_
-      , conjunction_
-      , const_
-      , drop_
-      , dropwhile_
-      , flip_
-      , filter_
-      // , head_
-      , id_
-      , if_
-      // , init_
-      , iterate_
-      , join_
-      // , last_
-      , map_
-      , nl_
-      , pi_
-      , repeat_
-      , replicate_
-      , reverse_
-      , singleton_
-      , split_
-      , sub_
-      // , tail_
-      , take_
-      , takewhile_
-      , tonum_
-      , tostr_
-      , uncurry_
-      , zipwith_
+      // , add_
+      // , conjunction_
+      // , const_
+      // , drop_
+      // , dropwhile_
+      // , flip_
+      // , filter_
+      // // , head_
+      // , id_
+      // , if_
+      // // , init_
+      // , iterate_
+      // , join_
+      // // , last_
+      // , map_
+      // , nl_
+      // , pi_
+      // , repeat_
+      // , replicate_
+      // , reverse_
+      // , singleton_
+      // , split_
+      // , sub_
+      // // , tail_
+      // , take_
+      // , takewhile_
+      // , tonum_
+      // , tostr_
+      // , uncurry_
+      // , zipwith_
       >::the bins;
     typedef _make_bins_all<bins>::the bins_all;
 

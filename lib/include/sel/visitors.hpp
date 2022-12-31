@@ -64,163 +64,145 @@ namespace sel {
     void operator()(Val const& val);
   };
 
-  class VisRepr : public Visitor {
-  public:
-    struct ReprCx {
-      unsigned indents;
-      bool top_level;
-      bool single_line;
-    };
-    VisRepr(std::ostream& res, ReprCx cx={.top_level=true})
-      : res(res)
-      , cx(cx)
-    { }
+  // class VisRepr : public Visitor {
+  // public:
+  //   struct ReprCx {
+  //     unsigned indents;
+  //     bool top_level;
+  //     bool single_line;
+  //   };
+  //   VisRepr(std::ostream& res, ReprCx cx={.top_level=true})
+  //     : res(res)
+  //     , cx(cx)
+  //   { }
 
-  private:
+  // private:
+  //   std::ostream& res;
+  //   struct ReprField {
+  //     char const* name;
+  //     enum {
+  //       DBL,
+  //       STR,
+  //       VAL,
+  //     } const data_ty;
+  //     union {
+  //       Val const* val;
+  //       std::string const* str;
+  //       double const dbl;
+  //     } const data;
+  //   };
+  //   ReprCx cx;
+
+  //   void reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields);
+
+  //   template <typename T>
+  //   void visitCommon(T const&, std::false_type is_head);
+  //   template <typename T>
+  //   void visitCommon(T const&, std::true_type is_head);
+
+  // public:
+  //   void visitNumLiteral(Type const& type, double n) override;
+  //   void visitStrLiteral(Type const& type, std::string const& s) override;
+  //   void visitLstLiteral(Type const& type, std::vector<Val*> const& v) override;
+  //   void visitStrChunks(Type const& type, std::vector<std::string> const& vs) override;
+  //   void visitFunChain(Type const& type, std::vector<Fun*> const& f) override;
+  //   void visitInput(Type const& type) override;
+  //   void visitOutput(Type const& type) override;
+
+  //   // XXX: would love any form of solution to this, but there might no be any du to the nature of the problem
+  //   void visit(bins::abs_ const&) override;
+  //   void visit(bins::abs_::Base const&) override;
+  //   // void visit(bins::add_ const&) override;
+  //   // void visit(bins::add_::Base const&) override;
+  //   // void visit(bins::add_::Base::Base const&) override;
+  //   // void visit(bins::conjunction_ const&) override;
+  //   // void visit(bins::conjunction_::Base const&) override;
+  //   // void visit(bins::conjunction_::Base::Base const&) override;
+  //   // void visit(bins::const_ const&) override;
+  //   // void visit(bins::const_::Base const&) override;
+  //   // void visit(bins::drop_ const&) override;
+  //   // void visit(bins::drop_::Base const&) override;
+  //   // void visit(bins::drop_::Base::Base const&) override;
+  //   // void visit(bins::dropwhile_ const&) override;
+  //   // void visit(bins::dropwhile_::Base const&) override;
+  //   // void visit(bins::dropwhile_::Base::Base const&) override;
+  //   // void visit(bins::filter_ const&) override;
+  //   // void visit(bins::filter_::Base const&) override;
+  //   // void visit(bins::filter_::Base::Base const&) override;
+  //   // void visit(bins::flip_ const&) override;
+  //   // void visit(bins::flip_::Base const&) override;
+  //   // void visit(bins::flip_::Base::Base const&) override;
+  //   // void visit(bins::id_ const&) override;
+  //   // void visit(bins::if_ const&) override;
+  //   // void visit(bins::if_::Base const&) override;
+  //   // void visit(bins::if_::Base::Base const&) override;
+  //   // void visit(bins::if_::Base::Base::Base const&) override;
+  //   // void visit(bins::iterate_ const&) override;
+  //   // void visit(bins::iterate_::Base const&) override;
+  //   // void visit(bins::iterate_::Base::Base const&) override;
+  //   // void visit(bins::join_ const&) override;
+  //   // void visit(bins::join_::Base const&) override;
+  //   // void visit(bins::join_::Base::Base const&) override;
+  //   // void visit(bins::map_ const&) override;
+  //   // void visit(bins::map_::Base const&) override;
+  //   // void visit(bins::map_::Base::Base const&) override;
+  //   // void visit(bins::nl_ const&) override;
+  //   // void visit(bins::nl_::Base const&) override;
+  //   // void visit(bins::pi_ const&) override;
+  //   // void visit(bins::repeat_ const&) override;
+  //   // void visit(bins::repeat_::Base const&) override;
+  //   // void visit(bins::replicate_ const&) override;
+  //   // void visit(bins::replicate_::Base const&) override;
+  //   // void visit(bins::replicate_::Base::Base const&) override;
+  //   // void visit(bins::reverse_ const&) override;
+  //   // void visit(bins::reverse_::Base const&) override;
+  //   // void visit(bins::singleton_ const&) override;
+  //   // void visit(bins::singleton_::Base const&) override;
+  //   // void visit(bins::split_ const&) override;
+  //   // void visit(bins::split_::Base const&) override;
+  //   // void visit(bins::split_::Base::Base const&) override;
+  //   // void visit(bins::sub_ const&) override;
+  //   // void visit(bins::sub_::Base const&) override;
+  //   // void visit(bins::sub_::Base::Base const&) override;
+  //   // void visit(bins::take_ const&) override;
+  //   // void visit(bins::take_::Base const&) override;
+  //   // void visit(bins::take_::Base::Base const&) override;
+  //   // void visit(bins::takewhile_ const&) override;
+  //   // void visit(bins::takewhile_::Base const&) override;
+  //   // void visit(bins::takewhile_::Base::Base const&) override;
+  //   // void visit(bins::tonum_ const&) override;
+  //   // void visit(bins::tonum_::Base const&) override;
+  //   // void visit(bins::tostr_ const&) override;
+  //   // void visit(bins::tostr_::Base const&) override;
+  //   // void visit(bins::uncurry_ const&) override;
+  //   // void visit(bins::uncurry_::Base const&) override;
+  //   // void visit(bins::zipwith_ const&) override;
+  //   // void visit(bins::zipwith_::Base const&) override;
+  //   // void visit(bins::zipwith_::Base::Base const&) override;
+  //   // void visit(bins::zipwith_::Base::Base::Base const&) override;
+  // };
+
+  template <typename L>
+  class _VisHelp : public _VisHelp<typename L::cdr> {
+  protected:
+    _VisHelp(std::ostream& res): _VisHelp<typename L::cdr>(res) { }
+  public:
+    using _VisHelp<typename L::cdr>::visit;
+    void visit(typename L::car::Head const& it) override {
+      this->res << std::remove_reference<decltype(it)>::type::the::Base::Next::doc;
+    }
+  };
+  template <>
+  class _VisHelp<bins_ll::nil> : public Visitor {
+  protected:
+    _VisHelp(std::ostream& res): res(res) { }
     std::ostream& res;
-    struct ReprField {
-      char const* name;
-      enum {
-        DBL,
-        STR,
-        VAL,
-      } const data_ty;
-      union {
-        Val const* val;
-        std::string const* str;
-        double const dbl;
-      } const data;
-    };
-    ReprCx cx;
-
-    void reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields);
-
-    template <typename T>
-    void visitCommon(T const&, std::false_type is_head);
-    template <typename T>
-    void visitCommon(T const&, std::true_type is_head);
-
-  public:
-    void visitNumLiteral(Type const& type, double n) override;
-    void visitStrLiteral(Type const& type, std::string const& s) override;
-    void visitLstLiteral(Type const& type, std::vector<Val*> const& v) override;
-    void visitStrChunks(Type const& type, std::vector<std::string> const& vs) override;
-    void visitFunChain(Type const& type, std::vector<Fun*> const& f) override;
-    void visitInput(Type const& type) override;
-    void visitOutput(Type const& type) override;
-
-    // XXX: would love any form of solution to this, but there might no be any du to the nature of the problem
-    void visit(bins::abs_ const&) override;
-    void visit(bins::abs_::Base const&) override;
-    void visit(bins::add_ const&) override;
-    void visit(bins::add_::Base const&) override;
-    void visit(bins::add_::Base::Base const&) override;
-    void visit(bins::conjunction_ const&) override;
-    void visit(bins::conjunction_::Base const&) override;
-    void visit(bins::conjunction_::Base::Base const&) override;
-    void visit(bins::const_ const&) override;
-    void visit(bins::const_::Base const&) override;
-    void visit(bins::drop_ const&) override;
-    void visit(bins::drop_::Base const&) override;
-    void visit(bins::drop_::Base::Base const&) override;
-    void visit(bins::dropwhile_ const&) override;
-    void visit(bins::dropwhile_::Base const&) override;
-    void visit(bins::dropwhile_::Base::Base const&) override;
-    void visit(bins::filter_ const&) override;
-    void visit(bins::filter_::Base const&) override;
-    void visit(bins::filter_::Base::Base const&) override;
-    void visit(bins::flip_ const&) override;
-    void visit(bins::flip_::Base const&) override;
-    void visit(bins::flip_::Base::Base const&) override;
-    void visit(bins::id_ const&) override;
-    void visit(bins::if_ const&) override;
-    void visit(bins::if_::Base const&) override;
-    void visit(bins::if_::Base::Base const&) override;
-    void visit(bins::if_::Base::Base::Base const&) override;
-    void visit(bins::iterate_ const&) override;
-    void visit(bins::iterate_::Base const&) override;
-    void visit(bins::iterate_::Base::Base const&) override;
-    void visit(bins::join_ const&) override;
-    void visit(bins::join_::Base const&) override;
-    void visit(bins::join_::Base::Base const&) override;
-    void visit(bins::map_ const&) override;
-    void visit(bins::map_::Base const&) override;
-    void visit(bins::map_::Base::Base const&) override;
-    void visit(bins::nl_ const&) override;
-    void visit(bins::nl_::Base const&) override;
-    void visit(bins::pi_ const&) override;
-    void visit(bins::repeat_ const&) override;
-    void visit(bins::repeat_::Base const&) override;
-    void visit(bins::replicate_ const&) override;
-    void visit(bins::replicate_::Base const&) override;
-    void visit(bins::replicate_::Base::Base const&) override;
-    void visit(bins::reverse_ const&) override;
-    void visit(bins::reverse_::Base const&) override;
-    void visit(bins::singleton_ const&) override;
-    void visit(bins::singleton_::Base const&) override;
-    void visit(bins::split_ const&) override;
-    void visit(bins::split_::Base const&) override;
-    void visit(bins::split_::Base::Base const&) override;
-    void visit(bins::sub_ const&) override;
-    void visit(bins::sub_::Base const&) override;
-    void visit(bins::sub_::Base::Base const&) override;
-    void visit(bins::take_ const&) override;
-    void visit(bins::take_::Base const&) override;
-    void visit(bins::take_::Base::Base const&) override;
-    void visit(bins::takewhile_ const&) override;
-    void visit(bins::takewhile_::Base const&) override;
-    void visit(bins::takewhile_::Base::Base const&) override;
-    void visit(bins::tonum_ const&) override;
-    void visit(bins::tonum_::Base const&) override;
-    void visit(bins::tostr_ const&) override;
-    void visit(bins::tostr_::Base const&) override;
-    void visit(bins::uncurry_ const&) override;
-    void visit(bins::uncurry_::Base const&) override;
-    void visit(bins::zipwith_ const&) override;
-    void visit(bins::zipwith_::Base const&) override;
-    void visit(bins::zipwith_::Base::Base const&) override;
-    void visit(bins::zipwith_::Base::Base::Base const&) override;
   };
 
-  class VisHelp : public Visitor {
+  class VisHelp : public _VisHelp<bins_ll::bins> {
   public:
-    VisHelp(std::ostream& res)
-      : res(res)
-    { }
-
-  private:
-    std::ostream& res;
-
-  public:
-    using Visitor::visit;
-    // XXX: would love any form of solution to this
-    void visit(bins::abs_::Head const&) override;
-    void visit(bins::add_::Head const&) override;
-    void visit(bins::conjunction_::Head const&) override;
-    void visit(bins::const_::Head const&) override;
-    void visit(bins::drop_::Head const&) override;
-    void visit(bins::dropwhile_::Head const&) override;
-    void visit(bins::filter_::Head const&) override;
-    void visit(bins::flip_::Head const&) override;
-    void visit(bins::id_::Head const&) override;
-    void visit(bins::if_::Head const&) override;
-    void visit(bins::iterate_::Head const&) override;
-    void visit(bins::join_::Head const&) override;
-    void visit(bins::map_::Head const&) override;
-    void visit(bins::nl_::Head const&) override;
-    void visit(bins::pi_::Head const&) override;
-    void visit(bins::repeat_::Head const&) override;
-    void visit(bins::replicate_::Head const&) override;
-    void visit(bins::reverse_::Head const&) override;
-    void visit(bins::singleton_::Head const&) override;
-    void visit(bins::split_::Head const&) override;
-    void visit(bins::sub_::Head const&) override;
-    void visit(bins::take_::Head const&) override;
-    void visit(bins::takewhile_::Head const&) override;
-    void visit(bins::tonum_::Head const&) override;
-    void visit(bins::tostr_::Head const&) override;
-    void visit(bins::uncurry_::Head const&) override;
-    void visit(bins::zipwith_::Head const&) override;
+    VisHelp(std::ostream& res): _VisHelp(res) { }
+  //   using Visitor::visit;
   };
 
 } // namespace sel

@@ -54,22 +54,22 @@ namespace sel {
 
     template <typename Impl, typename one>
     void _bin_be<Impl, ll::cons<one, ll::nil>>::the::accept(Visitor& v) const {
-      v.visit(*(Impl*)this); // visitOne
+      // v.visit(*(Impl*)this); // visitOne
     }
 
     template <typename Impl, typename last_arg, char b>
     void _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::accept(Visitor& v) const {
-      v.visit(*(Impl*)this); // visitOne2
+      // v.visit(*(Impl*)this); // visitOne2
     }
 
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
     void _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::accept(Visitor& v) const {
-      v.visit(*this); // visitBody
+      // v.visit(*this); // visitBody
     }
 
     template <typename NextT, typename last_to, typename last_from>
     void _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the::accept(Visitor& v) const {
-      v.visit(*(typename Base::Next*)this); // visitTail
+      // v.visit(*(typename Base::Next*)this); // visitTail
     }
 
     template <typename NextT, typename last_to, typename last_from>
