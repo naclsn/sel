@@ -3,7 +3,7 @@
 
 /**
  * The various types of errors that can occure:
- * BaseError, ParseError, TypeError.
+ * BaseError, ParseError, TypeError, RuntimeError.
  * NIYError is kept for now as a wildcard
  */
 
@@ -36,6 +36,12 @@ namespace sel {
 
   struct TypeError : BaseError {
     TypeError(std::string const& msg)
+      : BaseError(msg)
+    { }
+  };
+
+  struct RuntimeError : BaseError {
+    RuntimeError(std::string const& msg)
       : BaseError(msg)
     { }
   };

@@ -199,6 +199,18 @@ namespace sel {
   void expected(char const* should, Token const& got) {
     std::ostringstream oss;
     oss << "expected " << should << " but got " << got << " instead";
+    // range of the error: got.loc..got.log+(depends on got.type)
+    throw ParseError(oss.str());
+  }
+  void expectedMatching(Token const& open, Token const& got) {
+    std::ostringstream oss;
+    oss << "expected closing match for " << open << " but got " << got << " instead";
+    // range of the error: same as `expected`, or open.loc..got.loc
+    throw ParseError(oss.str());
+  }
+  void expectedContinuation(char const* whiledotdotdot) {
+    std::ostringstream oss;
+    oss << "Reached end of script while " << whiledotdotdot;
     throw ParseError(oss.str());
   }
 
@@ -258,7 +270,7 @@ namespace sel {
           }
           t.as.str->push_back(c);
         } while (!in.eof());
-        if (':' != c && in.eof()) expected("matching token ':'", Token(/*END*/));
+        if (':' != c && in.eof()) expectedContinuation("scanning string literal");
         break;
 
       default:
@@ -305,7 +317,7 @@ namespace sel {
   Val* parseAtom(App& app, std::istream_iterator<Token>& lexer) {
     TRACE(parseAtom, *lexer);
     static std::istream_iterator<Token> eos;
-    if (eos == lexer) expected("atom", Token(/*END*/));
+    if (eos == lexer) expectedContinuation("scanning atom");
 
     Val* val = nullptr;
     Token t = *lexer;
@@ -316,7 +328,10 @@ namespace sel {
 
       case Token::Type::NAME:
         val = lookup(app, *t.as.name);
-        if (!val) throw ParseError("unknown name '" + *t.as.name + "'");
+        if (!val) {
+          // range of the error: t.loc..t.loc+()
+          throw ParseError("unknown name '" + *t.as.name + "'");
+        }
         lexer++;
         break;
 
@@ -336,10 +351,8 @@ namespace sel {
           while (Token::Type::LIT_LST_CLOSE != (++lexer)->type) {
             elms.push_back(parseElement(app, lexer));
             if (Token::Type::LIT_LST_CLOSE == lexer->type) break;
-            // TODO: interestingly `t` is still the '{'
-            // which can be used in diagnostic ("opened at..")
-            if (eos == lexer) expected("list element", Token(/*END*/));
-            if (Token::Type::THEN != lexer->type) expected("token ',' or matching token '}'", *lexer);
+            if (eos == lexer) expectedContinuation("scanning list literal");
+            if (Token::Type::THEN != lexer->type) expectedMatching(t, *lexer);
           }
 
           // TODO: for the type, need to know if the list
@@ -399,8 +412,10 @@ namespace sel {
 
       case Token::Type::SUB_OPEN:
         {
-          if (Token::Type::SUB_CLOSE == (++lexer)->type)
+          if (Token::Type::SUB_CLOSE == (++lexer)->type) {
+            // range of the error: t.loc..*lexer.loc (probably)
             throw ParseError("expected element, got empty sub-expression");
+          }
 
           // early break: single value between []
           val = parseElement(app, lexer);
@@ -410,7 +425,7 @@ namespace sel {
           }
 
           if (Token::Type::THEN != lexer->type)
-            expected("token ',' or matching token ']'", t);
+            expectedMatching(t, *lexer);
 
           std::vector<Fun*> elms;
           do {
@@ -420,11 +435,9 @@ namespace sel {
             val = parseElement(app, ++lexer);
           } while (true);
 
-          // TODO: interestingly `t` is still the '{'
-          // which can be used in diagnostic ("opened at..")
           if (Token::Type::SUB_CLOSE != lexer++->type) {
-            if (eos == lexer) expected("sub-script element", Token(/*END*/));
-            expected("matching token ']'", *lexer);
+            if (eos == lexer) expectedContinuation("scanning sub-script element");
+            expectedMatching(t, *lexer);
           }
 
           val = new FunChain(elms);
@@ -448,7 +461,7 @@ namespace sel {
   Val* parseElement(App& app, std::istream_iterator<Token>& lexer) {
     TRACE(parseElement, *lexer);
     static std::istream_iterator<Token> eos;
-    if (eos == lexer) expected("element", Token(/*END*/));
+    if (eos == lexer) expectedContinuation("scanning element");
 
     Val* val;
 
@@ -456,7 +469,10 @@ namespace sel {
       Token t = *++lexer;
 
       if (Token::Type::NAME != t.type) expected("name", t);
-      if (lookup(app, *t.as.name)) throw TypeError("cannot redefine already known name '" + *t.as.name + "'");
+      if (lookup(app, *t.as.name)) {
+        // range of the error: t.loc..t.loc+()
+        throw TypeError("cannot redefine already known name '" + *t.as.name + "'");
+      }
 
       lexer++;
       val = parseAtom(app, lexer);
@@ -490,7 +506,7 @@ namespace sel {
   }
 
   void App::run(std::istream& in, std::ostream& out) {
-    // if (!fin || !fout) throw BaseError("uninitialized or malformed application");
+    // if (!fin || !fout) throw RuntimeError("uninitialized or malformed application");
 
     fin->setIn(&in);
     fout->setOut(&out);
@@ -523,7 +539,7 @@ namespace sel {
   std::istream& operator>>(std::istream& in, App& app) {
     std::istream_iterator<Token> lexer(in);
     static std::istream_iterator<Token> eos;
-    if (eos == lexer) expected("script", Token(/*END*/));
+    if (eos == lexer) expectedContinuation("scanning script");
 
     app.fin = new Input();
 
