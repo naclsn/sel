@@ -49,7 +49,22 @@ void build(App& app, char const* const srcs[]) {
   stringstream source;
   while (*srcs)
     source << *srcs++ << ' ';
-  source >> app;
+
+  try {
+    source >> app;
+  } catch (ParseError err) {
+    cerr
+      << "Error: while parsing the script:\n"
+      << err.what() << '\n'
+      << "at: " << source.str()
+      << "    " << string(' ', err.start) << string('~', err.end-err.start)
+    ;
+  } catch (BaseError err) {
+    cerr
+      << "Error: while parsing the script:\n"
+      << err.what() << '\n'
+    ;
+  }
 }
 
 int main(int argc, char const* const argv[]) {

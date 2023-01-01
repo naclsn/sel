@@ -78,6 +78,7 @@ namespace sel {
   // internal
   struct Token {
     size_t loc;
+    size_t len = 1; // TODO
     enum class Type {
       END,
       NAME,
@@ -119,12 +120,13 @@ namespace sel {
   };
 
   // internal
-  double parseNumber(std::istream& in) {
+  double parseNumber(std::istream& in, size_t* len) {
     unsigned base = 10;
     char c;
     double r = 0;
     while (true) {
       c = in.peek();
+      (*len)++;
       if (c < '0' || '9' < c) break;
       in.ignore(1);
       r = r * base + (c-'0');
@@ -133,6 +135,7 @@ namespace sel {
       in.ignore(1);
       while (true) {
         c = in.peek();
+        (*len)++;
         if (c < '0' || '9' < c) break;
         in.ignore(1);
         r+= ((double)(c-'0')) / base;
@@ -199,26 +202,25 @@ namespace sel {
   void expected(char const* should, Token const& got) {
     std::ostringstream oss;
     oss << "expected " << should << " but got " << got << " instead";
-    // range of the error: got.loc..got.log+(depends on got.type)
-    throw ParseError(oss.str());
+    throw ParseError(oss.str(), got.loc, got.loc+got.len);
   }
   void expectedMatching(Token const& open, Token const& got) {
     std::ostringstream oss;
     oss << "expected closing match for " << open << " but got " << got << " instead";
-    // range of the error: same as `expected`, or open.loc..got.loc
-    throw ParseError(oss.str());
+    throw ParseError(oss.str(), open.loc, got.loc);
   }
-  void expectedContinuation(char const* whiledotdotdot) {
+  void expectedContinuation(char const* whiledotdotdot, Token const& somelasttoken) {
     std::ostringstream oss;
     oss << "Reached end of script while " << whiledotdotdot;
-    throw ParseError(oss.str());
+    throw ParseError(oss.str(), somelasttoken.loc, somelasttoken.loc+somelasttoken.len);
   }
 
   // internal
   std::istream& operator>>(std::istream& in, Token& t) {
     char c = in.peek();
     if (in.eof()) return in;
-    t.loc = in.tellg();
+    t.loc = in.tellg(); // YYY: no
+    t.len = 1;
     switch (c) {
       // case -1: // trait::eof()
 
@@ -253,6 +255,7 @@ namespace sel {
         in.ignore(1);
         do {
           c = in.get();
+          t.len++;
           if (':' == c) {
             if (':' != in.peek()) break;
             in.ignore(1);
@@ -270,13 +273,13 @@ namespace sel {
           }
           t.as.str->push_back(c);
         } while (!in.eof());
-        if (':' != c && in.eof()) expectedContinuation("scanning string literal");
+        if (':' != c && in.eof()) expectedContinuation("scanning string literal", t);
         break;
 
       default:
         if ('0' <= c && c <= '9') {
           t.type = Token::Type::LIT_NUM;
-          t.as.num = parseNumber(in);
+          t.as.num = parseNumber(in, &t.len);
           break;
         }
 
@@ -285,6 +288,7 @@ namespace sel {
           t.as.name = new std::string();
           do {
             t.as.name->push_back(in.get());
+            t.len++;
             c = in.peek();
           } while ('a' <= c && c <= 'z');
 
@@ -317,7 +321,7 @@ namespace sel {
   Val* parseAtom(App& app, std::istream_iterator<Token>& lexer) {
     TRACE(parseAtom, *lexer);
     static std::istream_iterator<Token> eos;
-    if (eos == lexer) expectedContinuation("scanning atom");
+    if (eos == lexer) expectedContinuation("scanning atom", *lexer);
 
     Val* val = nullptr;
     Token t = *lexer;
@@ -328,10 +332,7 @@ namespace sel {
 
       case Token::Type::NAME:
         val = lookup(app, *t.as.name);
-        if (!val) {
-          // range of the error: t.loc..t.loc+()
-          throw ParseError("unknown name '" + *t.as.name + "'");
-        }
+        if (!val) throw ParseError("unknown name '" + *t.as.name + "'", t.loc, t.loc+t.len);
         lexer++;
         break;
 
@@ -351,7 +352,7 @@ namespace sel {
           while (Token::Type::LIT_LST_CLOSE != (++lexer)->type) {
             elms.push_back(parseElement(app, lexer));
             if (Token::Type::LIT_LST_CLOSE == lexer->type) break;
-            if (eos == lexer) expectedContinuation("scanning list literal");
+            if (eos == lexer) expectedContinuation("scanning list literal", *lexer);
             if (Token::Type::THEN != lexer->type) expectedMatching(t, *lexer);
           }
 
@@ -412,10 +413,8 @@ namespace sel {
 
       case Token::Type::SUB_OPEN:
         {
-          if (Token::Type::SUB_CLOSE == (++lexer)->type) {
-            // range of the error: t.loc..*lexer.loc (probably)
-            throw ParseError("expected element, got empty sub-expression");
-          }
+          if (Token::Type::SUB_CLOSE == (++lexer)->type)
+            throw ParseError("expected element, got empty sub-expression", t.loc, lexer->loc);
 
           // early break: single value between []
           val = parseElement(app, lexer);
@@ -436,7 +435,7 @@ namespace sel {
           } while (true);
 
           if (Token::Type::SUB_CLOSE != lexer++->type) {
-            if (eos == lexer) expectedContinuation("scanning sub-script element");
+            if (eos == lexer) expectedContinuation("scanning sub-script element", *lexer);
             expectedMatching(t, *lexer);
           }
 
@@ -461,7 +460,7 @@ namespace sel {
   Val* parseElement(App& app, std::istream_iterator<Token>& lexer) {
     TRACE(parseElement, *lexer);
     static std::istream_iterator<Token> eos;
-    if (eos == lexer) expectedContinuation("scanning element");
+    if (eos == lexer) expectedContinuation("scanning element", *lexer);
 
     Val* val;
 
@@ -539,7 +538,7 @@ namespace sel {
   std::istream& operator>>(std::istream& in, App& app) {
     std::istream_iterator<Token> lexer(in);
     static std::istream_iterator<Token> eos;
-    if (eos == lexer) expectedContinuation("scanning script");
+    if (eos == lexer) expectedContinuation("scanning script", *lexer);
 
     app.fin = new Input();
 

@@ -319,7 +319,7 @@ namespace sel {
   void expected(char const* should, TyToken const& got) { // + tts->text + "..."
     std::ostringstream oss;
     oss << "expected " << should << " but got " << got << " instead";
-    throw ParseError(oss.str());
+    throw ParseError(oss.str(), 0, 1); // TODO
   }
 
   // internal
