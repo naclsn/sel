@@ -1,4 +1,5 @@
 #include "sel/utils.hpp"
+#include "sel/visitors.hpp"
 
 namespace sel {
 
@@ -20,6 +21,11 @@ namespace sel {
       return out << "\e[35m" << buf << "\e[m";
     else
       return out << "\e[33m" << buf << "\e[m";
+  }
+
+  std::ostream& operator<<(std::ostream& out, repr me) {
+    VisRepr(out, {.single_line= true})(me.val);
+    return out;
   }
 
 }
