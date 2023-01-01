@@ -29,11 +29,11 @@ namespace sel {
   };
 
   struct ParseError : BaseError {
-    size_t start, end;
-    ParseError(std::string const& msg, size_t start, size_t end)
+    size_t start, span;
+    ParseError(std::string const& msg, size_t start, size_t span)
       : BaseError(msg)
       , start(start)
-      , end(end)
+      , span(span)
     { }
   };
 

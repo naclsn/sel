@@ -78,7 +78,7 @@ namespace sel {
   // internal
   struct Token {
     size_t loc;
-    size_t len = 1; // TODO
+    size_t len;
     enum class Type {
       END,
       NAME,
@@ -109,6 +109,7 @@ namespace sel {
         default: as.chr = t.as.chr;
       }
       loc = t.loc;
+      len = t.len;
     }
     ~Token() {
       switch (type) {
@@ -202,17 +203,22 @@ namespace sel {
   void expected(char const* should, Token const& got) {
     std::ostringstream oss;
     oss << "expected " << should << " but got " << got << " instead";
-    throw ParseError(oss.str(), got.loc, got.loc+got.len);
+    throw ParseError(oss.str(), got.loc, got.len);
   }
   void expectedMatching(Token const& open, Token const& got) {
     std::ostringstream oss;
     oss << "expected closing match for " << open << " but got " << got << " instead";
-    throw ParseError(oss.str(), open.loc, got.loc);
+    throw ParseError(oss.str(), open.loc, got.loc-open.loc);
   }
   void expectedContinuation(char const* whiledotdotdot, Token const& somelasttoken) {
     std::ostringstream oss;
-    oss << "Reached end of script while " << whiledotdotdot;
-    throw ParseError(oss.str(), somelasttoken.loc, somelasttoken.loc+somelasttoken.len);
+    oss << "reached end of script while " << whiledotdotdot;
+    throw ParseError(oss.str(), somelasttoken.loc, somelasttoken.len);
+  }
+  void _fakeThrowErr(Token const& hl) {
+    std::ostringstream oss;
+    oss << "this is a fake error for testing purpose, token: " << hl;
+    throw ParseError(oss.str(), hl.loc, hl.len);
   }
 
   // internal
@@ -220,24 +226,25 @@ namespace sel {
     char c = in.peek();
     if (in.eof()) return in;
     t.loc = in.tellg(); // YYY: no
-    t.len = 1;
+    t.len = 0;
     switch (c) {
       // case -1: // trait::eof()
 
-      case ',': t.type = Token::Type::THEN;          t.as.chr = c; in.ignore(1); break;
-      case ';': t.type = Token::Type::PASS;          t.as.chr = c; in.ignore(1); break;
+      case ',': t.type = Token::Type::THEN;          t.as.chr = c; in.ignore(1); t.len = 1; break;
+      case ';': t.type = Token::Type::PASS;          t.as.chr = c; in.ignore(1); t.len = 1; break;
 
-      case '[': t.type = Token::Type::SUB_OPEN;      t.as.chr = c; in.ignore(1); break;
-      case ']': t.type = Token::Type::SUB_CLOSE;     t.as.chr = c; in.ignore(1); break;
+      case '[': t.type = Token::Type::SUB_OPEN;      t.as.chr = c; in.ignore(1); t.len = 1; break;
+      case ']': t.type = Token::Type::SUB_CLOSE;     t.as.chr = c; in.ignore(1); t.len = 1; break;
 
-      case '{': t.type = Token::Type::LIT_LST_OPEN;  t.as.chr = c; in.ignore(1); break;
-      case '}': t.type = Token::Type::LIT_LST_CLOSE; t.as.chr = c; in.ignore(1); break;
+      case '{': t.type = Token::Type::LIT_LST_OPEN;  t.as.chr = c; in.ignore(1); t.len = 1; break;
+      case '}': t.type = Token::Type::LIT_LST_CLOSE; t.as.chr = c; in.ignore(1); t.len = 1; break;
 
       // case '@':
       case '%':
         t.type = Token::Type::UN_OP;
         t.as.chr = c;
         in.ignore(1);
+        t.len = 1;
         break;
 
       case '+':
@@ -247,12 +254,14 @@ namespace sel {
         t.type = Token::Type::BIN_OP;
         t.as.chr = c;
         in.ignore(1);
+        t.len = 1;
         break;
 
       case ':':
         t.type = Token::Type::LIT_STR;
         t.as.str = new std::string();
         in.ignore(1);
+        t.len++;
         do {
           c = in.get();
           t.len++;
@@ -332,7 +341,7 @@ namespace sel {
 
       case Token::Type::NAME:
         val = lookup(app, *t.as.name);
-        if (!val) throw ParseError("unknown name '" + *t.as.name + "'", t.loc, t.loc+t.len);
+        if (!val) throw ParseError("unknown name '" + *t.as.name + "'", t.loc, t.len);
         lexer++;
         break;
 
@@ -414,7 +423,7 @@ namespace sel {
       case Token::Type::SUB_OPEN:
         {
           if (Token::Type::SUB_CLOSE == (++lexer)->type)
-            throw ParseError("expected element, got empty sub-expression", t.loc, lexer->loc);
+            throw ParseError("expected element, got empty sub-expression", t.loc, lexer->loc-t.loc);
 
           // early break: single value between []
           val = parseElement(app, lexer);

@@ -47,23 +47,26 @@ void lookup(char const* const names[]) {
 
 void build(App& app, char const* const srcs[]) {
   stringstream source;
-  while (*srcs)
-    source << *srcs++ << ' ';
+  while (*srcs) source << *srcs++ << ' ';
 
-  try {
-    source >> app;
-  } catch (ParseError err) {
+  try { source >> app; }
+
+  catch (ParseError const& err) {
     cerr
-      << "Error: while parsing the script:\n"
+      << "Error: (building application) "
       << err.what() << '\n'
-      << "at: " << source.str()
-      << "    " << string(' ', err.start) << string('~', err.end-err.start)
+      << "at: " << source.str() << '\n'
+      << "    " << string(err.start, ' ') << string(err.span, '~') << '\n'
     ;
-  } catch (BaseError err) {
+    exit(EXIT_FAILURE);
+  }
+
+  catch (BaseError const& err) {
     cerr
-      << "Error: while parsing the script:\n"
+      << "Error: (building application) "
       << err.what() << '\n'
     ;
+    exit(EXIT_FAILURE);
   }
 }
 
