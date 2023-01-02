@@ -322,6 +322,7 @@ namespace sel {
           break;
         }
 
+        // YYY: would be great having the previous token
         throw ParseError(std::string("unexpected token '") + c + '\'', t.loc, 1);
     }
 
