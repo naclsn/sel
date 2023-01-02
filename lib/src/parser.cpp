@@ -1,6 +1,7 @@
 #include <iterator>
 #include <iostream>
 #include <sstream>
+#include <limits>
 
 #include "sel/errors.hpp"
 #include "sel/parser.hpp"
@@ -163,7 +164,6 @@ namespace sel {
       case Token::Type::THEN:          out << "THEN";          break;
       case Token::Type::PASS:          out << "PASS";          break;
       case Token::Type::DEF:           out << "DEF";           break;
-      default: out << "END"; // ZZZ
     }
     out << ", ";
     switch (t.type) {
@@ -224,8 +224,20 @@ namespace sel {
   // internal
   std::istream& operator>>(std::istream& in, Token& t) {
     char c = in.peek();
-    if (in.eof()) return in;
-    t.loc = in.tellg(); // YYY: no
+    if (in.eof()) {
+      t.type = Token::Type::END;
+      return in;
+    }
+    if ('#' == c) {
+      in.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+      return in >> t;
+    }
+    if ('\t' == c || '\n' == c || '\r' == c || ' ' == c) { // YYY: what is considered 'whitespace' by C++?
+      in.ignore(1);
+      return in >> t;
+    }
+
+    t.loc = in.tellg(); // YYY: no (no?)
     t.len = 0;
     switch (c) {
       // case -1: // trait::eof()
@@ -309,6 +321,9 @@ namespace sel {
 
           break;
         }
+
+        // YYY: would be great having the previous token
+        throw ParseError(std::string("unexpected token '") + c + '\'', t.loc, 1);
     }
 
     while (!in.eof() && isspace(in.peek())) in.get();
@@ -336,7 +351,7 @@ namespace sel {
     Token t = *lexer;
 
     switch (t.type) {
-      case Token::Type::END: // unreachable
+      case Token::Type::END:
         break;
 
       case Token::Type::NAME:
@@ -405,19 +420,25 @@ namespace sel {
             arg = (*(Fun*)lookup_name("flip"))(arg);
             lexer++;
           } else arg = parseAtom(app, lexer);
+          if (!arg) expected("atom", *lexer);
           val = (*(Fun*)val)(arg);
         }
         break;
 
       case Token::Type::BIN_OP: // TODO: will have a lookup_binop
-        switch (t.as.chr) {
-          case '+': val = lookup_name("add"); break;
-          case '-': val = lookup_name("sub"); break;
-          case '.': val = lookup_name("mul"); break;
-          case '/': val = lookup_name("div"); break;
-          // default unreachable
+        {
+          Val* arg;
+          arg = parseAtom(app, ++lexer);
+          switch (t.as.chr) {
+            case '+': val = lookup_name("add"); break;
+            case '-': val = lookup_name("sub"); break;
+            case '.': val = lookup_name("mul"); break;
+            case '/': val = lookup_name("div"); break;
+            // default unreachable
+          }
+          if (!arg) expected("atom", *lexer);
+          val = (*(Fun*)(*(Fun*)lookup_name("flip"))(val))(arg);
         }
-        val = (*(Fun*)(*(Fun*)lookup_name("flip"))(val))(parseAtom(app, ++lexer));
         break;
 
       case Token::Type::SUB_OPEN:
@@ -461,7 +482,7 @@ namespace sel {
         break;
     }
 
-    if (!val) expected("atom", t);
+    // if (!val) expected("atom", t);
     return val;
   }
 
@@ -484,18 +505,21 @@ namespace sel {
 
       lexer++;
       val = parseAtom(app, lexer);
+      if (!val) expected("atom", *lexer);
       app.define_name_user(*t.as.name, val);
 
     } else val = parseAtom(app, lexer);
+    if (!val) expected("atom", *lexer);
 
     while (Token::Type::THEN != lexer->type
         && Token::Type::PASS != lexer->type
         && Token::Type::LIT_LST_CLOSE != lexer->type
         && Token::Type::SUB_CLOSE != lexer->type
+        && Token::Type::END != lexer->type
         && eos != lexer) {
       Fun* base = coerse<Fun>(val);
       Val* arg = parseAtom(app, lexer);
-      val = base->operator()(arg);
+      if (arg) val = base->operator()(arg);
     }
 
     if (Token::Type::PASS == lexer->type) {
