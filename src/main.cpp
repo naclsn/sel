@@ -1,5 +1,6 @@
 #include <iostream>
 #include <sstream>
+#include <fstream>
 
 #include "sel/errors.hpp"
 #include "sel/parser.hpp"
@@ -10,7 +11,7 @@ using namespace sel;
 void usage(char const* prog, const char* reason) {
   if (reason) cerr << "Error: " << reason << "\n";
   cerr // TODO: better/proper (+ eg. man page)
-    << "Usage: " << prog << " [-Dc] <script...>\n"
+    << "Usage: " << prog << " [-Dc] <script...>|<file>\n"
     << "       " << prog << " -h\n"
     << "       " << prog << " -l [<names...>]\n"
   ;
@@ -93,7 +94,22 @@ int main(int argc, char const* const argv[]) {
 after_while: ;
 
   App app;
-  build(app, argv);
+  bool was_file = false;
+  if (!argv[1]) {
+    // boooring
+    std::ifstream file(argv[0], std::ios::binary | std::ios::ate);
+    if (file.is_open()) {
+      std::streamsize size = file.tellg();
+      file.seekg(0, std::ios::beg);
+      std::vector<char> buffer(size);
+      if (file.read(buffer.data(), size)) {
+        was_file = true;
+        char const* const srcs[2] = {buffer.data(), NULL};
+        build(app, srcs);
+      }
+    }
+  }
+  if (!was_file) build(app, argv);
 
   if (cla_debug) {
     app.repr(cout);
