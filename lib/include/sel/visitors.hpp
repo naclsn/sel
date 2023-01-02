@@ -50,7 +50,9 @@ namespace sel {
   class _make_BinsVisitorBase<bins_ll::nil> {
   public:
     virtual ~_make_BinsVisitorBase() { }
-    void visit() { } // YYY: because the 'using' statement (to silence warnings) needs it
+    // YYY: this template fallback makes it possible to
+    // comment out entries in the `bins_ll::bins` list
+    template <typename T> void visit(T const&) { }
   };
 
   typedef _make_BinsVisitorBase<bins_ll::bins> VisitorBins;
