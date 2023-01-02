@@ -407,7 +407,7 @@ namespace sel {
           // default unreachable
         }
         {
-          Val* arg;
+          Val* arg = nullptr;
           Token t = *++lexer;
           if (Token::Type::BIN_OP == t.type) { // ZZZ: yeah, code dup (as if that was the only problem)
             switch (t.as.chr) {
@@ -427,7 +427,7 @@ namespace sel {
 
       case Token::Type::BIN_OP: // TODO: will have a lookup_binop
         {
-          Val* arg;
+          Val* arg = nullptr;
           arg = parseAtom(app, ++lexer);
           switch (t.as.chr) {
             case '+': val = lookup_name("add"); break;

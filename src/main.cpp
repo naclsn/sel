@@ -46,8 +46,15 @@ void lookup(char const* const names[]) {
   exit(EXIT_SUCCESS);
 }
 
+// `inc <filename>` directive?
+string const prelude_source = R"(
+  def lines [split:\n:];
+  def unlines [join:\n:];
+)";
+
 void build(App& app, char const* const srcs[]) {
   stringstream source;
+  source << prelude_source;
   while (*srcs) source << *srcs++ << ' ';
 
   try { source >> app; }
@@ -56,8 +63,8 @@ void build(App& app, char const* const srcs[]) {
     cerr
       << "Error: (building application) "
       << err.what() << '\n'
-      << "at: " << source.str() << '\n'
-      << "    " << string(err.start, ' ') << string(err.span, '~') << '\n'
+      << "at: " << source.str().substr(prelude_source.length()) << '\n'
+      << "    " << string(err.start-prelude_source.length(), ' ') << string(err.span, '~') << '\n'
     ;
     exit(EXIT_FAILURE);
   }
