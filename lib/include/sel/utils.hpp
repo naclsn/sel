@@ -3,6 +3,8 @@
 
 #include <iostream>
 
+#include "engine.hpp"
+
 #define __A11(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, ...) a11
 #define __VA_COUNT(...) __A11(dum, ## __VA_ARGS__, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
 
@@ -42,8 +44,16 @@ namespace sel {
     void const* ptr;
     raw(void const* ptr): ptr(ptr) { }
   };
-
   std::ostream& operator<<(std::ostream& out, raw ptr);
+
+  /**
+   * For use in representing a value.
+   */
+  struct repr {
+    Val const& val;
+    inline repr(Val const& val): val(val) { }
+  };
+  std::ostream& operator<<(std::ostream& out, repr me);
 
 }
 
