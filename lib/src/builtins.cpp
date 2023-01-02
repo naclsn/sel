@@ -152,6 +152,11 @@ namespace sel {
       return &take;
     }
 
+    double div_::value() {
+      bind_args(a, b);
+      return a.value() / b.value();
+    }
+
     Val* drop_::operator*() {
       bind_args(n, l);
       if (!done) {
@@ -309,6 +314,11 @@ namespace sel {
     bool map_::end() const {
       bind_args(f, l);
       return l.end();
+    }
+
+    double mul_::value() {
+      bind_args(a, b);
+      return a.value() * b.value();
     }
 
     std::ostream& nl_::stream(std::ostream& out) {

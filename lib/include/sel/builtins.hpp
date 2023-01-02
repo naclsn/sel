@@ -478,6 +478,9 @@ namespace sel {
     BIN_unk(const, (unk<'a'>, unk<'b'>, unk<'a'>),
       "always evaluate to its first argument, ignoring its second argument", ());
 
+    BIN_num(div, (num, num, num),
+      "divide the first number by the second number", ());
+
     BIN_lst(drop, (num, lst<unk<'a'>>, lst<unk<'a'>>),
       "return the suffix past a given count, or the empty list if it is shorter", (
       mutable bool done = false;
@@ -515,6 +518,9 @@ namespace sel {
 
     BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>),
       "make a new list by applying an unary operation to each value from a list", ());
+
+    BIN_num(mul, (num, num, num),
+      "multiply tow numbers", ());
 
     BIN_str(nl, (str, str),
       "append a new line to a string", (
@@ -637,9 +643,9 @@ namespace sel {
     // YYY: these are used in parsing..
     typedef cons_l
       < add_
-      // , div_
+      , div_
       , flip_
-      // , mul_
+      , mul_
       , sub_
       >::the bins; //bins_min; // YYY: could have these only here, but would need to merge with below while keeping sorted (not strictly necessary, but convenient)
 #else
@@ -649,7 +655,7 @@ namespace sel {
       , add_
       , conjunction_
       , const_
-      // , div_
+      , div_
       , drop_
       , dropwhile_
       , flip_
@@ -662,7 +668,7 @@ namespace sel {
       , join_
       // , last_
       , map_
-      // , mul_
+      , mul_
       , nl_
       , pi_
       , repeat_
