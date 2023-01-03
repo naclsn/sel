@@ -179,24 +179,7 @@ namespace sel {
         break;
 
       case Token::Type::LIT_STR:
-        out << ".str=";
-        if (!t.as.str) out << "-nil-";
-        else {
-          out << " \"";
-          std::string::size_type from = 0, to = t.as.str->find_first_of({'\t', '\n', '\r', '"'});
-          while (std::string::npos != to) {
-            out << t.as.str->substr(from, to-from) << '\\';
-            switch (t.as.str->at(to)) {
-              case '\t': out << 't'; break;
-              case '\n': out << 'n'; break;
-              case '\r': out << 'r'; break;
-              case '"':  out << '"'; break;
-            }
-            from = to+1;
-            to = t.as.str->find_first_of({'\t', '\n', '\r', '"'}, from);
-          }
-          out << t.as.str->substr(from) << "\"";
-        }
+        out << ".str="; if (t.as.str) out << quoted(*t.as.str); else out << "-nil-";
         break;
 
       case Token::Type::LIT_LST_OPEN:
@@ -235,23 +218,7 @@ namespace sel {
         break;
 
       case Token::Type::LIT_STR:
-        out << "literal string " << *t.as.str;
-        { // TODO: until.cpp>quoted(str)operator<<(out) (3 uses already)
-          out << " \"";
-          std::string::size_type from = 0, to = t.as.str->find_first_of({'\t', '\n', '\r', '"'});
-          while (std::string::npos != to) {
-            out << t.as.str->substr(from, to-from) << '\\';
-            switch (t.as.str->at(to)) {
-              case '\t': out << 't'; break;
-              case '\n': out << 'n'; break;
-              case '\r': out << 'r'; break;
-              case '"':  out << '"'; break;
-            }
-            from = to+1;
-            to = t.as.str->find_first_of({'\t', '\n', '\r', '"'}, from);
-          }
-          out << t.as.str->substr(from) << "\"";
-        }
+        out << "literal string " << quoted(*t.as.str);
         break;
 
       case Token::Type::LIT_LST_OPEN:
