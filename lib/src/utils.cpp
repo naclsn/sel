@@ -24,7 +24,25 @@ namespace sel {
   }
 
   std::ostream& operator<<(std::ostream& out, repr me) {
-    VisRepr(out, {.single_line= true})(me.val);
+    VisRepr(out, {.single_line=true})(me.val);
+    return out;
+  }
+
+  std::ostream& operator<<(std::ostream& out, quoted q) {
+    out << '"';
+    std::string::size_type from = 0, to = q.str.find_first_of({'\t', '\n', '\r', '"'});
+    while (std::string::npos != to) {
+      out << q.str.substr(from, to-from) << '\\';
+      switch (q.str.at(to)) {
+        case '\t': out << 't'; break;
+        case '\n': out << 'n'; break;
+        case '\r': out << 'r'; break;
+        case '"':  out << '"'; break;
+      }
+      from = to+1;
+      to = q.str.find_first_of({'\t', '\n', '\r', '"'}, from);
+    }
+    out << q.str.substr(from) << '"';
     return out;
   }
 

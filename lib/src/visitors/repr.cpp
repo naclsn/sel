@@ -38,22 +38,7 @@ namespace sel {
           break;
 
         case ReprField::STR:
-          {
-            res << " \"";
-            std::string::size_type from = 0, to = it.data.str->find_first_of({'\t', '\n', '\r', '"'});
-            while (std::string::npos != to) {
-              res << it.data.str->substr(from, to-from) << '\\';
-              switch (it.data.str->at(to)) {
-                case '\t': res << 't'; break;
-                case '\n': res << 'n'; break;
-                case '\r': res << 'r'; break;
-                case '"':  res << '"'; break;
-              }
-              from = to+1;
-              to = it.data.str->find_first_of({'\t', '\n', '\r', '"'}, from);
-            }
-            res << it.data.str->substr(from) << "\"";
-          }
+          res << " " << quoted(*it.data.str);
           break;
 
         case ReprField::VAL:
