@@ -148,7 +148,7 @@ namespace sel {
   }
 
   // internal
-  std::ostream& operator<<(std::ostream& out, Token const& t) {
+  std::ostream& reprToken(std::ostream& out, Token const& t) {
     out << "Token { .type=";
     switch (t.type) {
       case Token::Type::END:           out << "END";           break;
@@ -179,7 +179,24 @@ namespace sel {
         break;
 
       case Token::Type::LIT_STR:
-        out << ".str=\"" << (t.as.name ? *t.as.str : "-nil-") << '"';
+        out << ".str=";
+        if (!t.as.str) out << "-nil-";
+        else {
+          out << " \"";
+          std::string::size_type from = 0, to = t.as.str->find_first_of({'\t', '\n', '\r', '"'});
+          while (std::string::npos != to) {
+            out << t.as.str->substr(from, to-from) << '\\';
+            switch (t.as.str->at(to)) {
+              case '\t': out << 't'; break;
+              case '\n': out << 'n'; break;
+              case '\r': out << 'r'; break;
+              case '"':  out << '"'; break;
+            }
+            from = to+1;
+            to = t.as.str->find_first_of({'\t', '\n', '\r', '"'}, from);
+          }
+          out << t.as.str->substr(from) << "\"";
+        }
         break;
 
       case Token::Type::LIT_LST_OPEN:
@@ -197,6 +214,62 @@ namespace sel {
         break;
     }
     return out << ", loc=" << t.loc << " }";
+  }
+
+  // internal
+  std::ostream& operator<<(std::ostream& out, Token const& t) {
+    switch (t.type) {
+      case Token::Type::END:
+        out << "end of script";
+        break;
+
+      case Token::Type::NAME:
+        out << "name '" << *t.as.name << "'";
+        break;
+
+      case Token::Type::LIT_NUM:
+        // ankward: don't have the textual representation
+        // anymore, would need to re-extract it from `loc`
+        // in the input source...
+        out << "literal number of value " << t.as.num;
+        break;
+
+      case Token::Type::LIT_STR:
+        out << "literal string " << *t.as.str;
+        { // TODO: until.cpp>quoted(str)operator<<(out) (3 uses already)
+          out << " \"";
+          std::string::size_type from = 0, to = t.as.str->find_first_of({'\t', '\n', '\r', '"'});
+          while (std::string::npos != to) {
+            out << t.as.str->substr(from, to-from) << '\\';
+            switch (t.as.str->at(to)) {
+              case '\t': out << 't'; break;
+              case '\n': out << 'n'; break;
+              case '\r': out << 'r'; break;
+              case '"':  out << '"'; break;
+            }
+            from = to+1;
+            to = t.as.str->find_first_of({'\t', '\n', '\r', '"'}, from);
+          }
+          out << t.as.str->substr(from) << "\"";
+        }
+        break;
+
+      case Token::Type::LIT_LST_OPEN:
+      case Token::Type::LIT_LST_CLOSE:
+      case Token::Type::UN_OP:
+      case Token::Type::BIN_OP:
+      case Token::Type::SUB_OPEN:
+      case Token::Type::SUB_CLOSE:
+      case Token::Type::THEN:
+      case Token::Type::PASS:
+        out << "token '" << t.as.chr << "'";
+        break;
+
+      case Token::Type::DEF:
+        out << "special name \"def\"";
+        break;
+    }
+    return out;
   }
 
   // internal
