@@ -9,7 +9,7 @@ using namespace std;
 using namespace sel;
 
 void lookup(char const* const names[]) {
-  if (!*names) {
+  if (!names || !*names) {
     vector<string> vs;
     list_names(vs);
     for (auto const& it : vs) cout << it << '\n';
@@ -21,7 +21,7 @@ void lookup(char const* const names[]) {
   while (*names) {
     auto* it = lookup_name(*names);
     if (!it) {
-      cerr << "Unknown name " << *names << "\n";
+      cerr << "Unknown name: " << quoted(*names) << "\n";
       exit(EXIT_FAILURE);
     }
 
@@ -37,10 +37,10 @@ void lookup(char const* const names[]) {
 }
 
 // `inc <filename>` directive?
-string const prelude_source = R"(
+string const prelude_source = /** /"";/*/ R"(
   def lines [split:\n:];
   def unlines [join:\n:];
-)";
+)"; //*/
 
 void build(App& app, char const* const srcs[]) {
   stringstream source;
@@ -50,8 +50,14 @@ void build(App& app, char const* const srcs[]) {
   try { source >> app; }
 
   catch (ParseError const& err) {
+    // YYY: 'cause, like, this should not happen..
+    // (this way of adding the prelude should be temporary anyway)
+    if (err.start < prelude_source.length()) {
+      cerr << "This is an error in the hard-coded prelude!\n";
+      exit(-1);
+    }
     cerr
-      << "Error: (building application) "
+      << "Parsing error: "
       << err.what() << '\n'
       << "at: " << source.str().substr(prelude_source.length()) << '\n'
       << "    " << string(err.start-prelude_source.length(), ' ') << string(err.span, '~') << '\n'
@@ -61,7 +67,7 @@ void build(App& app, char const* const srcs[]) {
 
   catch (BaseError const& err) {
     cerr
-      << "Error: (building application) "
+      << "Error (while building application): "
       << err.what() << '\n'
     ;
     exit(EXIT_FAILURE);
@@ -97,7 +103,7 @@ struct Options {
         script = argv+k;
         break;
 
-      } else if ('-' != arg[1]) { // '-'
+      } else if ('-' != arg[1]) { // startswith '-'
         bool hasv = k+1 < argc;
 
         while (*++arg) {
@@ -125,7 +131,7 @@ struct Options {
         }
         break_one:;
 
-      } else { // '--'
+      } else { // startswith '--'
         string argpp = arg;
 
         if ("--help" == argpp) {
@@ -140,7 +146,7 @@ struct Options {
 #undef xtocstr
 
         } else {
-          ostringstream oss("unknown long argument: ");
+          ostringstream oss("unknown long argument: ", ios::ate);
           oss << quoted(argpp);
           usage(oss.str().c_str());
         } // switch argpp
@@ -148,6 +154,8 @@ struct Options {
       } // if '-' / '--'
     } // for argv
     break_all:;
+
+    verify();
   }
 
   void usage(char const* reason) {
@@ -159,64 +167,49 @@ struct Options {
     exit(EXIT_FAILURE);
   }
 
+  void verify() {
+    if (!lookup && !script && !filename) usage("missing script");
+  }
 };
 
 int main(int argc, char* argv[]) {
-  Options opts(argc, argv);
+  Options const opts(argc, argv);
+  App app;
 
-  if (opts.script) {
-    cout << "script parts:" << endl;
-    for (char** it = opts.script; *it; it++)
-      cout << "   _" << *it << "_" << endl;
-  } else cout << "no script in arguments" << endl;
+  if (opts.lookup) lookup(opts.lookup_names);
 
-  if (opts.lookup) {
-    cout << "flag lookup set" << endl;
-    if (NULL == opts.lookup_names)
-      cout << ".. but no name asked, so list all" << endl;
-    else for (char** it = opts.lookup_names; *it; it++)
-      cout << "   " << *it << endl;
+  if (opts.filename) {
+    ifstream file(opts.filename, ios::binary | ios::ate);
+    ostringstream errbuilder("could not ", ios::ate);
+    if (file.is_open()) {
+      // boooring
+      streamsize size = file.tellg();
+      file.seekg(0, ios::beg);
+      vector<char> buffer(size);
+      if (file.read(buffer.data(), size)) {
+        char const* const srcs[2] = {buffer.data(), NULL};
+        build(app, srcs);
+      } else {
+        cerr << "Could not read file: " << quoted(opts.filename) << "\n";
+        exit(EXIT_FAILURE);
+      }
+    } else {
+      cerr << "Could not open file: " << quoted(opts.filename) << "\n";
+      exit(EXIT_FAILURE);
+    }
+  } else build(app, opts.script);
+
+  if (opts.debug) {
+    app.repr(cout);
+    return EXIT_SUCCESS;
   }
 
-  if (opts.debug) cout << "debug flag set" << endl;
-  if (opts.typecheck) cout << "typecheck flag set" << endl;
+  if (opts.typecheck) {
+    throw NIYError("type checking of user script");
+    return EXIT_FAILURE;
+  }
 
-  if (opts.filename)
-    cout << "script filename: " << quoted(opts.filename) << endl;
+  app.run(cin, cout);
+
+  return EXIT_SUCCESS;
 }
-
-// int main(int argc, char* argv[]) {
-//   Options opts(argc, argv);
-//
-//   App app;
-//   bool was_file = false;
-//   if (!argv[1]) {
-//     // boooring
-//     std::ifstream file(argv[0], std::ios::binary | std::ios::ate);
-//     if (file.is_open()) {
-//       std::streamsize size = file.tellg();
-//       file.seekg(0, std::ios::beg);
-//       std::vector<char> buffer(size);
-//       if (file.read(buffer.data(), size)) {
-//         was_file = true;
-//         char const* const srcs[2] = {buffer.data(), NULL};
-//         build(app, srcs);
-//       }
-//     }
-//   }
-//   if (!was_file) build(app, argv);
-//
-//   if (cla_debug) {
-//     app.repr(cout);
-//     return EXIT_SUCCESS;
-//   }
-//
-//   if (cla_typecheck) {
-//     throw NIYError("type checking of user script");
-//     return argc & 1;
-//   }
-//
-//   app.run(cin, cout);
-//
-//   return EXIT_SUCCESS;
-// }
