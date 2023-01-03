@@ -148,7 +148,7 @@ namespace sel {
   }
 
   // internal
-  std::ostream& operator<<(std::ostream& out, Token const& t) {
+  std::ostream& reprToken(std::ostream& out, Token const& t) {
     out << "Token { .type=";
     switch (t.type) {
       case Token::Type::END:           out << "END";           break;
@@ -179,7 +179,7 @@ namespace sel {
         break;
 
       case Token::Type::LIT_STR:
-        out << ".str=\"" << (t.as.name ? *t.as.str : "-nil-") << '"';
+        out << ".str="; if (t.as.str) out << quoted(*t.as.str); else out << "-nil-";
         break;
 
       case Token::Type::LIT_LST_OPEN:
@@ -197,6 +197,46 @@ namespace sel {
         break;
     }
     return out << ", loc=" << t.loc << " }";
+  }
+
+  // internal
+  std::ostream& operator<<(std::ostream& out, Token const& t) {
+    switch (t.type) {
+      case Token::Type::END:
+        out << "end of script";
+        break;
+
+      case Token::Type::NAME:
+        out << "name '" << *t.as.name << "'";
+        break;
+
+      case Token::Type::LIT_NUM:
+        // ankward: don't have the textual representation
+        // anymore, would need to re-extract it from `loc`
+        // in the input source...
+        out << "literal number of value " << t.as.num;
+        break;
+
+      case Token::Type::LIT_STR:
+        out << "literal string " << quoted(*t.as.str);
+        break;
+
+      case Token::Type::LIT_LST_OPEN:
+      case Token::Type::LIT_LST_CLOSE:
+      case Token::Type::UN_OP:
+      case Token::Type::BIN_OP:
+      case Token::Type::SUB_OPEN:
+      case Token::Type::SUB_CLOSE:
+      case Token::Type::THEN:
+      case Token::Type::PASS:
+        out << "token '" << t.as.chr << "'";
+        break;
+
+      case Token::Type::DEF:
+        out << "special name \"def\"";
+        break;
+    }
+    return out;
   }
 
   // internal
@@ -322,8 +362,8 @@ namespace sel {
           break;
         }
 
-        // YYY: would be great having the previous token
-        throw ParseError(std::string("unexpected token '") + c + '\'', t.loc, 1);
+        // YYY: would be great having the previous token (also this is not a character yet)
+        throw ParseError(std::string("unexpected character '") + c + "' (" + std::to_string((int)c) + ")", t.loc, 1);
     }
 
     while (!in.eof() && isspace(in.peek())) in.get();
@@ -499,8 +539,8 @@ namespace sel {
 
       if (Token::Type::NAME != t.type) expected("name", t);
       if (lookup(app, *t.as.name)) {
-        // range of the error: t.loc..t.loc+()
-        throw TypeError("cannot redefine already known name '" + *t.as.name + "'");
+        //throw TypeError
+        throw ParseError("cannot redefine already known name '" + *t.as.name + "'", t.loc, t.len);
       }
 
       lexer++;

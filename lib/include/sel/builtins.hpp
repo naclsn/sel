@@ -561,7 +561,7 @@ namespace sel {
 
     BIN_num(startswith, (str, str, num),
       "true if the string starts with the given prefix", (
-      bool done, does;
+      bool done = false, does;
     ));
 
     BIN_num(sub, (num, num, num),
@@ -578,7 +578,7 @@ namespace sel {
     BIN_num(tonum, (str, num),
       "convert a string into number", (
       double r;
-      bool done;
+      bool done = false;
     ));
 
     BIN_str(tostr, (num, str),
@@ -633,12 +633,23 @@ namespace sel {
 
     using namespace bins;
 
+#ifdef BINS_MIN
+    // YYY: these are used in parsing..
+    typedef cons_l
+      < add_
+      // , div_
+      , flip_
+      // , mul_
+      , sub_
+      >::the bins; //bins_min; // YYY: could have these only here, but would need to merge with below while keeping sorted (not strictly necessary, but convenient)
+#else
     // XXX: still would love if this list could be built automatically
     typedef cons_l
       < abs_
       , add_
       , conjunction_
       , const_
+      // , div_
       , drop_
       , dropwhile_
       , flip_
@@ -651,6 +662,7 @@ namespace sel {
       , join_
       // , last_
       , map_
+      // , mul_
       , nl_
       , pi_
       , repeat_
@@ -668,6 +680,7 @@ namespace sel {
       , uncurry_
       , zipwith_
       >::the bins;
+#endif
     typedef _make_bins_all<bins>::the bins_all;
 
   } // namespace bins_ll
