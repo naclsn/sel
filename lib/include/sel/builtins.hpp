@@ -561,7 +561,7 @@ namespace sel {
 
     BIN_num(startswith, (str, str, num),
       "true if the string starts with the given prefix", (
-      bool done, does;
+      bool done = false, does;
     ));
 
     BIN_num(sub, (num, num, num),
@@ -578,7 +578,7 @@ namespace sel {
     BIN_num(tonum, (str, num),
       "convert a string into number", (
       double r;
-      bool done;
+      bool done = false;
     ));
 
     BIN_str(tostr, (num, str),
