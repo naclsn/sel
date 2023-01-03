@@ -50,6 +50,12 @@ $ ninja -C build test # needed by meson
 $ ninja -C build coverage
 ```
 
+Release build are usualy faster to build:
+```console
+$ meson release --buildtype release
+$ ninja -C release
+```
+
 ## Command Usage
 
 (flags (check, lookup/search, complete, list, disable ic..))
