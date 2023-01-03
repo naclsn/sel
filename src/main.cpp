@@ -8,16 +8,6 @@
 using namespace std;
 using namespace sel;
 
-void usage(char const* prog, const char* reason) {
-  if (reason) cerr << "Error: " << reason << "\n";
-  cerr // TODO: better/proper (+ eg. man page)
-    << "Usage: " << prog << " [-Dc] <script...>|<file>\n"
-    << "       " << prog << " -h\n"
-    << "       " << prog << " -l [<names...>]\n"
-  ;
-  exit(EXIT_FAILURE);
-}
-
 void lookup(char const* const names[]) {
   if (!*names) {
     vector<string> vs;
@@ -78,57 +68,155 @@ void build(App& app, char const* const srcs[]) {
   }
 }
 
-int main(int argc, char const* const argv[]) {
-  char const* prog = *argv++;
-  if (argc < 2) usage(prog, "missing script");
+struct Options {
+  int argc;
+  char** argv;
+  char const* prog;
 
-  // ...
-  bool cla_debug = false;
-  bool cla_typecheck = false;
-  while (*argv && '-' == (*argv)[0]) {
-    char c = (*argv)[1];
-    switch (c) {
-      case 'h': usage(prog, NULL); break;
-      case 'l': lookup(++argv); break;
-      case 'D': cla_debug = true;     argv++; break;
-      case 'c': cla_typecheck = true; argv++; break;
-      default:
-        if (c < '0' || '9' < c) usage(prog, (string("unknown flag '")+c+"'").c_str());
-        goto after_while;
-    }
+  char** script = NULL; // script...
+  char const* filename = NULL; // -f filename
+
+  bool lookup = false; // -l
+  char** lookup_names = NULL; // -l names...
+
+  bool debug = false; // -D
+  bool typecheck = false; // -c (niy)
+
+  Options(int argc, char* argv[])
+    : argc(argc--)
+    , argv(argv)
+    , prog(*argv++)
+  {
+    if (!argc) usage(NULL);
+
+    for (int k = 0; k < argc; k++) {
+      char const* arg = argv[k];
+      if (!*arg) continue;
+
+      if ('-' != arg[0]) {
+        script = argv+k;
+        break;
+
+      } else if ('-' != arg[1]) { // '-'
+        bool hasv = k+1 < argc;
+
+        while (*++arg) {
+          switch (*arg) {
+            case 'h':
+              usage(NULL);
+              break;
+
+            case 'l':
+              lookup = true;
+              if (hasv) lookup_names = argv+ ++k;
+              goto break_all;
+
+            case 'D': debug = true;       break;
+            case 'c': typecheck = true;   break;
+
+            case 'f':
+              if (hasv) filename = argv[++k];
+              else usage("missing file name");
+              // check file readable here?
+              goto break_one;
+
+            default: usage((string("unknown flag '")+*arg+'\'').c_str());
+          } // switch *arg
+        }
+        break_one:;
+
+      } else { // '--'
+        string argpp = arg;
+
+        if ("--help" == argpp) {
+          usage(NULL);
+
+        } else if ("--version" == argpp) {
+#define xtocstr(x) tocstr(x)
+#define tocstr(x) #x
+          cout << xtocstr(SEL_VERSION) << endl;
+          exit(EXIT_SUCCESS);
+#undef tocstr
+#undef xtocstr
+
+        } else {
+          ostringstream oss("unknown long argument: ");
+          oss << quoted(argpp);
+          usage(oss.str().c_str());
+        } // switch argpp
+
+      } // if '-' / '--'
+    } // for argv
+    break_all:;
   }
-  if (!*argv) usage(prog, "missing script");
-after_while: ;
 
-  App app;
-  bool was_file = false;
-  if (!argv[1]) {
-    // boooring
-    std::ifstream file(argv[0], std::ios::binary | std::ios::ate);
-    if (file.is_open()) {
-      std::streamsize size = file.tellg();
-      file.seekg(0, std::ios::beg);
-      std::vector<char> buffer(size);
-      if (file.read(buffer.data(), size)) {
-        was_file = true;
-        char const* const srcs[2] = {buffer.data(), NULL};
-        build(app, srcs);
-      }
-    }
-  }
-  if (!was_file) build(app, argv);
-
-  if (cla_debug) {
-    app.repr(cout);
-    return EXIT_SUCCESS;
+  void usage(char const* reason) {
+    if (reason) cerr << "Error: " << reason << "\n";
+    cerr // TODO: better/proper (+ eg. man page)
+      << "Usage: " << prog << " [-Dc] <script...> | -f <file>\n"
+      << "       " << prog << " -l [<names...>]\n"
+    ;
+    exit(EXIT_FAILURE);
   }
 
-  if (cla_typecheck) {
-    throw NIYError("type checking of user script");
-    return argc & 1;
+};
+
+int main(int argc, char* argv[]) {
+  Options opts(argc, argv);
+
+  if (opts.script) {
+    cout << "script parts:" << endl;
+    for (char** it = opts.script; *it; it++)
+      cout << "   _" << *it << "_" << endl;
+  } else cout << "no script in arguments" << endl;
+
+  if (opts.lookup) {
+    cout << "flag lookup set" << endl;
+    if (NULL == opts.lookup_names)
+      cout << ".. but no name asked, so list all" << endl;
+    else for (char** it = opts.lookup_names; *it; it++)
+      cout << "   " << *it << endl;
   }
 
-  app.run(cin, cout);
+  if (opts.debug) cout << "debug flag set" << endl;
+  if (opts.typecheck) cout << "typecheck flag set" << endl;
 
-  return EXIT_SUCCESS;
+  if (opts.filename)
+    cout << "script filename: " << quoted(opts.filename) << endl;
 }
+
+// int main(int argc, char* argv[]) {
+//   Options opts(argc, argv);
+//
+//   App app;
+//   bool was_file = false;
+//   if (!argv[1]) {
+//     // boooring
+//     std::ifstream file(argv[0], std::ios::binary | std::ios::ate);
+//     if (file.is_open()) {
+//       std::streamsize size = file.tellg();
+//       file.seekg(0, std::ios::beg);
+//       std::vector<char> buffer(size);
+//       if (file.read(buffer.data(), size)) {
+//         was_file = true;
+//         char const* const srcs[2] = {buffer.data(), NULL};
+//         build(app, srcs);
+//       }
+//     }
+//   }
+//   if (!was_file) build(app, argv);
+//
+//   if (cla_debug) {
+//     app.repr(cout);
+//     return EXIT_SUCCESS;
+//   }
+//
+//   if (cla_typecheck) {
+//     throw NIYError("type checking of user script");
+//     return argc & 1;
+//   }
+//
+//   app.run(cin, cout);
+//
+//   return EXIT_SUCCESS;
+// }
