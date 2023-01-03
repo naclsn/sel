@@ -322,8 +322,8 @@ namespace sel {
           break;
         }
 
-        // YYY: would be great having the previous token
-        throw ParseError(std::string("unexpected token '") + c + '\'', t.loc, 1);
+        // YYY: would be great having the previous token (also this is not a character yet)
+        throw ParseError(std::string("unexpected character '") + c + "' (" + std::to_string((int)c) + ")", t.loc, 1);
     }
 
     while (!in.eof() && isspace(in.peek())) in.get();
@@ -499,8 +499,8 @@ namespace sel {
 
       if (Token::Type::NAME != t.type) expected("name", t);
       if (lookup(app, *t.as.name)) {
-        // range of the error: t.loc..t.loc+()
-        throw TypeError("cannot redefine already known name '" + *t.as.name + "'");
+        //throw TypeError
+        throw ParseError("cannot redefine already known name '" + *t.as.name + "'", t.loc, t.len);
       }
 
       lexer++;
