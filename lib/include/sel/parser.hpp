@@ -72,6 +72,8 @@ namespace sel {
     void accept(Visitor& v) const override;
   };
 
+  // TODO: not this way, 'cause then it cannot be other
+  // than `Fun` (eg. "repeat:1:, join::" should be `Str`)
   class FunChain : public Fun {
     std::vector<Fun*> const f;
   public:
@@ -89,36 +91,18 @@ namespace sel {
   };
 
   class Input : public Str {
-    std::istream* in;
+    std::istream& in;
     std::ostringstream cache;
     std::streamsize nowat = 0, upto = 0;
   public:
-    Input()
+    Input(std::istream& in)
       : Str(TyFlag::IS_INF)
-      , in(nullptr)
+      , in(in)
     { }
     std::ostream& stream(std::ostream& out) override;
     bool end() const override;
     std::ostream& entire(std::ostream& out) override;
     void accept(Visitor& v) const override;
-    void setIn(std::istream* in) { this->in = in; }
-  };
-
-  class Output : public Fun {
-    std::ostream* out;
-  public:
-    Output()
-      : Fun(Type(Ty::FUN,
-          {.box_pair={
-            new Type(Ty::STR, {0}, TyFlag::IS_INF), // YYY: will consider output may be infinite
-            new Type(Ty::UNK, {.name=new std::string("()")}, 0)
-          }}, 0
-        ))
-      , out(nullptr)
-    { }
-    Val* operator()(Val* arg) override;
-    void accept(Visitor& v) const override;
-    void setOut(std::ostream* out) { this->out = out; }
   };
 
   /**
@@ -128,15 +112,11 @@ namespace sel {
    */
   class App {
   private:
-    std::vector<Fun*> funcs;
-    Input* fin;
-    Output* fout;
+    Fun* f; // Str -> Str
     std::unordered_map<std::string, Val*> user;
 
   public:
-    App()
-      : funcs()
-    { }
+    App() { }
 
     Val* lookup_name_user(std::string const& name);
     void define_name_user(std::string const& name, Val* v);

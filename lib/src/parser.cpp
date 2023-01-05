@@ -38,7 +38,7 @@ namespace sel {
       return out;
     }
     // at the end of cache, fetch for more
-    char c = in->get();
+    char c = in.get();
     if (std::char_traits<char>::eof() != c) {
       nowat++;
       upto++;
@@ -47,17 +47,17 @@ namespace sel {
     }
     return out;
   }
-  bool Input::end() const { return nowat == upto && in->eof(); }
+  bool Input::end() const { return nowat == upto && in.eof(); }
   std::ostream& Input::entire(std::ostream& out) {
     // not at the end, get the rest
-    if (!in->eof()) {
+    if (!in.eof()) {
       char buffer[4096];
-      while (in->read(buffer, sizeof(buffer))) {
+      while (in.read(buffer, sizeof(buffer))) {
         upto+= 4096;
         out << buffer;
         cache << buffer;
       }
-      auto end = in->gcount();
+      auto end = in.gcount();
       buffer[end] = '\0';
       upto+= end;
       out << buffer;
@@ -69,12 +69,6 @@ namespace sel {
     return out << cache.str();
   }
   void Input::accept(Visitor& v) const { v.visitInput(ty); }
-
-  Val* Output::operator()(Val* arg) {
-    if (out) coerse<Str>(arg)->entire(*out);
-    return nullptr;
-  }
-  void Output::accept(Visitor& v) const { v.visitOutput(ty); }
 
   // internal
   struct Token {
@@ -378,13 +372,14 @@ namespace sel {
   }
 
   // internal
+  static std::istream_iterator<Token> eos;
   Val* parseAtom(App& app, std::istream_iterator<Token>& lexer);
   Val* parseElement(App& app, std::istream_iterator<Token>& lexer);
+  Val* parseScript(App& app, std::istream_iterator<Token>& lexer);
 
   // internal
   Val* parseAtom(App& app, std::istream_iterator<Token>& lexer) {
     TRACE(parseAtom, *lexer);
-    static std::istream_iterator<Token> eos;
     if (eos == lexer) expectedContinuation("scanning atom", *lexer);
 
     Val* val = nullptr;
@@ -486,30 +481,13 @@ namespace sel {
           if (Token::Type::SUB_CLOSE == (++lexer)->type)
             throw ParseError("expected element, got empty sub-expression", t.loc, lexer->loc-t.loc);
 
-          // early break: single value between []
-          val = parseElement(app, lexer);
-          if (Token::Type::SUB_CLOSE == lexer->type) {
-            lexer++;
-            break;
-          }
-
-          if (Token::Type::THEN != lexer->type)
-            expectedMatching(t, *lexer);
-
-          std::vector<Fun*> elms;
-          do {
-            elms.push_back(coerse<Fun>(val));
-            if (Token::Type::THEN != lexer->type && eos != lexer)
-              break;
-            val = parseElement(app, ++lexer);
-          } while (true);
+          val = parseScript(app, lexer);
+          if (!val) expectedMatching(t, *lexer);
 
           if (Token::Type::SUB_CLOSE != lexer++->type) {
             if (eos == lexer) expectedContinuation("scanning sub-script element", *lexer);
             expectedMatching(t, *lexer);
           }
-
-          val = new FunChain(elms);
         }
         break;
 
@@ -529,7 +507,6 @@ namespace sel {
   // internal
   Val* parseElement(App& app, std::istream_iterator<Token>& lexer) {
     TRACE(parseElement, *lexer);
-    static std::istream_iterator<Token> eos;
     if (eos == lexer) expectedContinuation("scanning element", *lexer);
 
     Val* val;
@@ -570,57 +547,88 @@ namespace sel {
     return val;
   }
 
+  // internal
+  Val* parseScript(App& app, std::istream_iterator<Token>& lexer) {
+    if (eos == lexer) expectedContinuation("scanning sub-script", *lexer);
+
+    Val* val;
+
+    // early return: single value in script / sub-script
+    val = parseElement(app, lexer);
+    if (eos == lexer || Token::Type::SUB_CLOSE == lexer->type)
+      return val;
+
+    // early return: syntax error, to caller to handle
+    if (Token::Type::THEN != lexer->type)
+      return nullptr;
+
+    std::vector<Fun*> elms;
+    elms.push_back(coerse<Fun>(val));
+    do {
+      val = parseElement(app, ++lexer);
+      elms.push_back(coerse<Fun>(val));
+    } while (eos != lexer && Token::Type::THEN == lexer->type);
+
+    return new FunChain(elms);
+  }
+
   Val* App::lookup_name_user(std::string const& name) {
-    return user[name];
+    try {
+      return user.at(name);
+    } catch (.../*std::out_of_range const&*/) {
+      return nullptr;
+    }
   }
   void App::define_name_user(std::string const& name, Val* v) {
     user[name] = v;
   }
 
   void App::run(std::istream& in, std::ostream& out) {
-    // if (!fin || !fout) throw RuntimeError("uninitialized or malformed application");
-
-    fin->setIn(&in);
-    fout->setOut(&out);
-
-    Val* r = fin;
-    for (auto const& it : funcs)
-      r = (*it)(r);
-    (*fout)(r);
-
-    fin->setIn(nullptr);
-    fout->setOut(nullptr);
+    (*(Str*)(*f)(new Input(in))).entire(out);
   }
 
   void App::repr(std::ostream& out, VisRepr::ReprCx cx) const {
-    VisRepr repr(out, cx);
-    repr(*fin);
-    for (auto const& it : funcs)
-      repr(*it);
-    repr(*fout);
+    // TODO: proper use `cx` at this level too
+    VisRepr::ReprCx ccx = {
+      .indents= cx.indents+1,
+      .top_level= false,
+      .single_line= cx.single_line
+    };
+
+    out << "App {\n";
+    VisRepr(out << "   f= ", ccx)(*f);
+    out << "\n";
+
+    out << "   user= {";
+    if (!user.empty()) {
+      out << "\n   ";
+      VisRepr repr(out, ccx);
+      for (auto const& it : user) {
+        out << "   [" << it.first << "]=";
+        if (it.second) {
+          out << it.second->type() << " ";
+          repr(*it.second);
+        } else out << " -nil-";
+        out << "\n   ";
+      }
+    }
+    out << "}\n";
+
+    out << "}\n";
   }
 
   std::ostream& operator<<(std::ostream& out, App const& app) {
     // TODO: todo
-    out << "hey, am an app with this many function(s): " << app.funcs.size();
-    for (auto const& it : app.funcs)
-      out << "\n\t" << it->type();
-    return out;
+    return out << "hey, am an app";
   }
 
   std::istream& operator>>(std::istream& in, App& app) {
     std::istream_iterator<Token> lexer(in);
-    static std::istream_iterator<Token> eos;
     if (eos == lexer) expectedContinuation("scanning script", *lexer);
 
-    app.fin = new Input();
-
-    do {
-      Val* current = parseElement(app, lexer);
-      app.funcs.push_back(coerse<Fun>(current));
-    } while (Token::Type::THEN == lexer->type && eos != ++lexer);
-
-    app.fout = new Output();
+    app.f = coerse<Fun>(parseScript(app, lexer));
+    if (Token::Type::SUB_CLOSE == lexer->type)
+      throw ParseError("unmatched closing ]", lexer->loc, lexer->len);
 
     return in;
   }
