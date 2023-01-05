@@ -562,14 +562,37 @@ namespace sel {
     if (Token::Type::THEN != lexer->type)
       return nullptr;
 
-    std::vector<Fun*> elms;
-    elms.push_back(coerse<Fun>(val));
-    do {
-      val = parseElement(app, ++lexer);
-      elms.push_back(coerse<Fun>(val));
-    } while (eos != lexer && Token::Type::THEN == lexer->type);
+    // the parsed list of values was eg. "[a, b, c]";
+    // this represent the composition "c . b . a" (hs
+    // notations) but in the facts, here are 2 cases that
+    // must be dealt with:
+    // - either it is a chain of function, on par with
+    //   script, so not much can be done without the last
+    //   `x`: "c(b(a(x)))"
+    // - or it starts with a _value_, so the whole can
+    //   be computed: "c(b(a))" (only the first on can be
+    //   not a function for obvious reasons)
+    // the problem is the first case, because nothing can
+    // actually be done about it _yet_, so the computation
+    // is packed in a `FunChain` object (so that it is
+    // itself a function)
+    bool isfun = Ty::FUN == val->type().base;
 
-    return new FunChain(elms);
+    if (isfun) {
+      // first is a function, pack all up for later
+      std::vector<Fun*> elms;
+      elms.push_back(coerse<Fun>(val));
+      do {
+        elms.push_back(coerse<Fun>(parseElement(app, ++lexer)));
+      } while (eos != lexer && Token::Type::THEN == lexer->type);
+      return new FunChain(elms);
+    }
+
+    // first is not a function, apply all right away
+    do {
+      val = (*coerse<Fun>(parseElement(app, ++lexer)))(val);
+    } while (eos != lexer && Token::Type::THEN == lexer->type);
+    return val;
   }
 
   Val* App::lookup_name_user(std::string const& name) {

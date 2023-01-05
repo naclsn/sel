@@ -131,17 +131,6 @@ namespace sel {
 
       case Ty::STR:
         // YYY: this is a (frustrating) hack, but it could be made into a real thing (named-bound'ed types)
-        // FIXME: `./sel -D if tonum [const [repeat :1:], join ::] :0:` (MRE)
-        // segfaults with `nk` null, at this point
-        // `map` already contains a null at "b_const";
-        // this surely has to do with the shortcoming of
-        // `FunChain` being a function and not a value
-        // as in the script above is wrong and should be
-        // `if tonum [repeat :1:, join ::] :0:`
-        // but this result in a broken type `* -> Str*` (actually it straight up does not pass parsing)
-        // because the `[]` syntax is trying to enforce
-        // its type to be the one of a function (where it
-        // should be `Str*`)
         if ((TyFlag::IS_INF & hu.flags) && (TyFlag::IS_INF & nk.flags) != (TyFlag::IS_INF & map.at("_*").flags)) {
           map.erase("_*");
           map.emplace("_*", Type(Ty::UNK, {0}, (TyFlag::IS_INF & nk.flags)));
