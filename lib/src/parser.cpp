@@ -497,7 +497,12 @@ namespace sel {
     if (Token::Type::DEF == lexer->type) {
       Token t = *++lexer;
 
+      if (Token::Type::LIT_STR != t.type) expected("docstring", t);
+      std::string help = *t.as.str;
+
       if (Token::Type::NAME != t.type) expected("name", t);
+      std::string name = *t.as.name;
+
       if (lookup(app, *t.as.name)) {
         // range of the error: t.loc..t.loc+()
         throw TypeError("cannot redefine already known name '" + *t.as.name + "'");
@@ -506,6 +511,23 @@ namespace sel {
       lexer++;
       val = parseAtom(app, lexer);
       if (!val) expected("atom", *lexer);
+
+      // trim, join, squeeze..
+      std::string::size_type head = help.find_first_not_of("\t\n\r "), tail;
+      bool blank = std::string::npos == head;
+      std::string clean;
+      if (!blank) {
+        clean.reserve(help.length());
+        while (std::string::npos != head) {
+          tail = help.find_first_of("\t\n\r ", head);
+          clean.append(help, head, std::string::npos == tail ? tail : tail-head).push_back(' ');
+          head = help.find_first_not_of("\t\n\r ", tail);
+        }
+        clean.pop_back();
+        clean.shrink_to_fit();
+      }
+
+      // TODO: where to put this doc now? oops..
       app.define_name_user(*t.as.name, val);
 
     } else val = parseAtom(app, lexer);
