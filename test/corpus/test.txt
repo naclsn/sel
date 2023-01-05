@@ -1,0 +1,93 @@
+===
+map add 1
+===
+#!/usr/bin/env -S sel -f
+split :\n:,
+  map [
+    tonum,
+    +1,
+    tostr
+  ],
+join :\n:,
+nl
+---
+(script
+  (comment)
+  (element
+    (atom
+      (name))
+    (atom
+      (literal
+        (string))))
+  (element
+    (atom
+      (name))
+    (atom
+      (subscript
+        (element
+          (atom
+            (name)))
+        (element
+          (atom
+            (binop)
+            (atom
+              (literal
+                (number)))))
+        (element
+          (atom
+            (name))))))
+  (element
+    (atom
+      (name))
+    (atom
+      (literal
+        (string))))
+  (element
+    (atom
+      (name))))
+
+===
+truth machine
+===
+#!/usr/bin/env -S sel -f
+if tonum
+  [repeat :1:]
+  [singleton :0:],
+join ::
+
+# note that any input other than a valid number will be
+# considered 0 and any number not 0 will be considered 1
+# (which is an non-surprising behavior)
+---
+(script
+  (comment)
+  (element
+    (atom
+      (name))
+    (atom
+      (name))
+    (atom
+      (subscript
+        (element
+          (atom
+            (name))
+          (atom
+            (literal
+              (string))))))
+    (atom
+      (subscript
+        (element
+          (atom
+            (name))
+          (atom
+            (literal
+              (string)))))))
+  (element
+    (atom
+      (name))
+    (atom
+      (literal
+        (string))))
+  (comment)
+  (comment)
+  (comment))
