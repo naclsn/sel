@@ -112,7 +112,7 @@ namespace sel {
    */
   class App {
   private:
-    Fun* f; // Str -> Str
+    Fun* f; // note that this does not have to be `Str -> Str`
     std::unordered_map<std::string, Val*> user;
 
   public:
@@ -123,6 +123,7 @@ namespace sel {
 
     void run(std::istream& in, std::ostream& out);
 
+    // note: it always assumes `top_level`, even if false (ie. no single line)
     void repr(std::ostream& out, VisRepr::ReprCx cx={.top_level=true}) const;
 
     friend std::ostream& operator<<(std::ostream& out, App const& ty);

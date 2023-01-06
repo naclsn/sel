@@ -528,12 +528,13 @@ namespace sel {
     } else val = parseAtom(app, lexer);
     if (!val) expected("atom", *lexer);
 
-    while (Token::Type::THEN != lexer->type
+    while (eos != lexer
+        && Token::Type::THEN != lexer->type
         && Token::Type::PASS != lexer->type
         && Token::Type::LIT_LST_CLOSE != lexer->type
         && Token::Type::SUB_CLOSE != lexer->type
         && Token::Type::END != lexer->type
-        && eos != lexer) {
+    ) {
       Fun* base = coerse<Fun>(val, val->type());
       Val* arg = parseAtom(app, lexer);
       if (arg) val = base->operator()(arg);
@@ -609,40 +610,48 @@ namespace sel {
   }
 
   void App::run(std::istream& in, std::ostream& out) {
-    // TODO: something about coerse<xxx> the input
-    // to addapt to f, or addapt f to take a Str?
-    // ALSO: the output coerse<Str> probly not there
-    coerse<Str>((*f)(new Input(in)), Type(Ty::STR, {0}, 0))->entire(out);
+    Type const& ty = f->type();
+
+    if (Ty::FUN != ty.base) {
+      std::ostringstream oss;
+      throw TypeError((oss << "value of type " << ty << " is not a function", oss.str()));
+    }
+
+    coerse<Str>((*f)(coerse<Val>(new Input(in), ty.from())), Type(Ty::STR, {0}, TyFlag::IS_INF))->entire(out);
   }
 
   void App::repr(std::ostream& out, VisRepr::ReprCx cx) const {
-    // TODO: proper use `cx` at this level too
     VisRepr::ReprCx ccx = {
       .indents= cx.indents+1,
       .top_level= false,
       .single_line= cx.single_line
     };
 
+    std::string ind;
+    ind.reserve(3 * ccx.indents);
+    for (unsigned k = 0; k < ccx.indents; k++)
+      ind.append("   ");
+
     out << "App {\n";
-    VisRepr(out << "   f= ", ccx)(*f);
+    VisRepr(out << ind << "f= ", ccx)(*f);
     out << "\n";
 
-    out << "   user= {";
+    out << ind << "user= {";
     if (!user.empty()) {
-      out << "\n   ";
+      out << "\n" << ind;
       VisRepr repr(out, ccx);
       for (auto const& it : user) {
-        out << "   [" << it.first << "]=";
+        out << ind << "[" << it.first << "]=";
         if (it.second) {
           out << it.second->type() << " ";
           repr(*it.second);
         } else out << " -nil-";
-        out << "\n   ";
+        out << "\n" << ind;
       }
     }
     out << "}\n";
 
-    out << "}\n";
+    out << ind.substr(0, ind.length()-3) << "}\n";
   }
 
   std::ostream& operator<<(std::ostream& out, App const& app) {

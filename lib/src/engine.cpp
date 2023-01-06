@@ -32,12 +32,6 @@ namespace sel {
   template <typename To>
   To* coerse(Val* from, Type const& to);
 
-  // not much to be done, this is used in bins for unknowns
-  template <> Val* coerse<Val>(Val* from, Type const& to) {
-    _coerse_info<Val>(from, to);
-    return from;
-  }
-
   // Str => Num: same as `tonum`
   template <> Num* coerse<Num>(Val* from, Type const& to) {
     _coerse_info<Num>(from, to);
@@ -94,6 +88,19 @@ namespace sel {
 
     std::ostringstream oss;
     throw TypeError((oss << "value of type " << to << " is not a function", oss.str()));
+  }
+
+  // dispatches to the correct one dynamically
+  // coersing to unk is used in builtins (eg. `const` or `id`)
+  template <> Val* coerse<Val>(Val* from, Type const& to) {
+    _coerse_info<Val>(from, to);
+   switch (to.base) {
+      case Ty::UNK: return from;
+      case Ty::NUM: return coerse<Num>(from, to);
+      case Ty::STR: return coerse<Str>(from, to);
+      case Ty::LST: return coerse<Lst>(from, to);
+      case Ty::FUN: return coerse<Fun>(from, to);
+    }
   }
 
 } // namespace sel
