@@ -534,7 +534,7 @@ namespace sel {
         && Token::Type::SUB_CLOSE != lexer->type
         && Token::Type::END != lexer->type
         && eos != lexer) {
-      Fun* base = coerse<Fun>(val);
+      Fun* base = coerse<Fun>(val, val->type());
       Val* arg = parseAtom(app, lexer);
       if (arg) val = base->operator()(arg);
     }
@@ -581,16 +581,18 @@ namespace sel {
     if (isfun) {
       // first is a function, pack all up for later
       std::vector<Fun*> elms;
-      elms.push_back(coerse<Fun>(val));
+      elms.push_back(coerse<Fun>(val, val->type()));
       do {
-        elms.push_back(coerse<Fun>(parseElement(app, ++lexer)));
+        auto tmp = parseElement(app, ++lexer);
+        elms.push_back(coerse<Fun>(tmp, tmp->type()));
       } while (eos != lexer && Token::Type::THEN == lexer->type);
       return new FunChain(elms);
     }
 
     // first is not a function, apply all right away
     do {
-      val = (*coerse<Fun>(parseElement(app, ++lexer)))(val);
+      auto tmp = parseElement(app, ++lexer);
+      val = (*coerse<Fun>(tmp, tmp->type()))(val);
     } while (eos != lexer && Token::Type::THEN == lexer->type);
     return val;
   }
@@ -607,7 +609,10 @@ namespace sel {
   }
 
   void App::run(std::istream& in, std::ostream& out) {
-    (*(Str*)(*f)(new Input(in))).entire(out);
+    // TODO: something about coerse<xxx> the input
+    // to addapt to f, or addapt f to take a Str?
+    // ALSO: the output coerse<Str> probly not there
+    coerse<Str>((*f)(new Input(in)), Type(Ty::STR, {0}, 0))->entire(out);
   }
 
   void App::repr(std::ostream& out, VisRepr::ReprCx cx) const {
@@ -649,7 +654,8 @@ namespace sel {
     std::istream_iterator<Token> lexer(in);
     if (eos == lexer) expectedContinuation("scanning script", *lexer);
 
-    app.f = coerse<Fun>(parseScript(app, lexer));
+    auto tmp = parseScript(app, lexer);
+    app.f = coerse<Fun>(tmp, tmp->type());
     if (Token::Type::SUB_CLOSE == lexer->type)
       throw ParseError("unmatched closing ]", lexer->loc, lexer->len);
 

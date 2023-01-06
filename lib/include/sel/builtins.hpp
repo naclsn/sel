@@ -44,6 +44,12 @@ namespace sel {
   Val* lookup_name(std::string const& name);
 
   /**
+   * Same as `lookup_name`, but at compile time. Argument
+   * must be an identifier token.
+   */
+#define static_lookup_name(__name) (new sel::bins::__name##_::Head())
+
+  /**
    * Seach for a value by name, return nullptr if not found.
    */
   unsigned list_names(std::vector<std::string>& names);
@@ -238,7 +244,7 @@ namespace sel {
         virtual Val* impl() = 0;
 
         Val* operator()(Val* arg) override {
-          this->arg = coerse<_LastArg>(arg);
+          this->arg = coerse<_LastArg>(arg, last_arg::make(Impl::name));
           return impl();
         }
         void accept(Visitor& v) const override; // visitOne2
@@ -347,7 +353,7 @@ namespace sel {
         virtual Val* impl() = 0;
 
         Val* operator()(Val* arg) override {
-          this->arg = coerse<_LastArg>(arg);
+          this->arg = coerse<_LastArg>(arg, _fun_first_par_type<_ty_one_to_tail>::the::make(Base::Next::name));
           return impl();
         }
       };
@@ -372,7 +378,9 @@ namespace sel {
         : fun<last_from, last_to>::ctor(the::Base::Next::name)
       { }
 
-      Val* operator()(Val* arg) override { return new Next(this, coerse<_next_arg_ty>(arg)); }
+      Val* operator()(Val* arg) override {
+        return new Next(this, coerse<_next_arg_ty>(arg, last_from::make(the::Base::Next::name)));
+      }
       void accept(Visitor& v) const override; // visitHead
     };
 
@@ -398,7 +406,9 @@ namespace sel {
         , arg(arg)
       { }
 
-      Val* operator()(Val* arg) override { return new Next(this, coerse<_next_arg_ty>(arg)); }
+      Val* operator()(Val* arg) override {
+        return new Next(this, coerse<_next_arg_ty>(arg, from::make(the::Base::Next::name)));
+      }
       void accept(Visitor& v) const override; // visitBody
     };
 

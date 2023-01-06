@@ -38,9 +38,18 @@ namespace sel {
   };
 
   struct TypeError : BaseError {
-    TypeError(std::string const& msg)
+    // size_t start, span;
+    TypeError(std::string const& msg) // range..
       : BaseError(msg)
     { }
+    TypeError(Type const& from, Type const& to) // range..
+      : TypeError(bidoof(from, to))
+    { }
+  private:
+    inline static std::string bidoof(Type const& from, Type const& to) {
+      std::ostringstream oss;
+      return (oss << "cannot coerse from " << from << " to " << to, oss.str());
+    }
   };
 
   struct RuntimeError : BaseError {
