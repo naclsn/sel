@@ -5,6 +5,9 @@
 
 namespace sel {
 
+  Val* StrChunks::copy() const {
+    return new StrChunks(chunks);
+  }
   void StrChunks::accept(Visitor& v) const {
     v.visitStrChunks(type(), this->chunks);
   }
@@ -53,25 +56,45 @@ namespace sel {
   namespace bins_helpers {
 
     template <typename Impl, typename one>
+    Val* _bin_be<Impl, ll::cons<one, ll::nil>>::the::copy() const {
+      return new _bin_be<Impl, ll::cons<one, ll::nil>>::the(); // copyOne
+    }
+    template <typename Impl, typename one>
     void _bin_be<Impl, ll::cons<one, ll::nil>>::the::accept(Visitor& v) const {
       v.visit(*(Impl*)this); // visitOne
     }
 
+    template <typename Impl, typename last_arg, char b>
+    Val* _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::copy() const {
+      return new _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the(); // copyOne2
+    }
     template <typename Impl, typename last_arg, char b>
     void _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::accept(Visitor& v) const {
       v.visit(*(Impl*)this); // visitOne2
     }
 
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
+    Val* _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::copy() const {
+      return new _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>(this->base->copy(), this->arg->copy()); // copyBody
+    }
+    template <typename NextT, typename to, typename from, typename from_again, typename from_more>
     void _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::accept(Visitor& v) const {
       v.visit(*this); // visitBody
     }
 
     template <typename NextT, typename last_to, typename last_from>
+    Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the::copy() const {
+      return new _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the(this->base->copy(), this->arg->copy()); // copyTail
+    }
+    template <typename NextT, typename last_to, typename last_from>
     void _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the::accept(Visitor& v) const {
       v.visit(*(typename Base::Next*)this); // visitTail
     }
 
+    template <typename NextT, typename last_to, typename last_from>
+    Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::copy() const {
+      return new _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>(); // copyHead
+    }
     template <typename NextT, typename last_to, typename last_from>
     void _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::accept(Visitor& v) const {
       v.visit(*this); // visitHead

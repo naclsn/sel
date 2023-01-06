@@ -35,6 +35,7 @@ namespace sel {
         out << it;
       return out;
     }
+    Val* copy() const override;
     void accept(Visitor& v) const override;
   };
 
@@ -214,6 +215,7 @@ namespace sel {
           : one::ctor(Impl::name)
         { }
 
+        Val* copy() const override; // copyOne
         void accept(Visitor& v) const override; // visitOne
       };
     };
@@ -241,6 +243,7 @@ namespace sel {
           this->arg = coerse<_LastArg>(arg);
           return impl();
         }
+        Val* copy() const override; // copyOne2
         void accept(Visitor& v) const override; // visitOne2
       };
     };
@@ -330,6 +333,7 @@ namespace sel {
             , arg(arg)
           { }
           Val* operator()(Val* arg) override { return nullptr; } // YYY: still quite hacky?
+          Val* copy() const override; // XXX: missing implementation
         } _base;
         _ProxyBase* base;
         typedef typename _fun_first_par_type<_ty_one_to_tail>::the::vat _LastArg;
@@ -362,6 +366,7 @@ namespace sel {
         typedef typename _the::Base Base;
         constexpr static unsigned args = _the::args;
         using _the::_the;
+        Val* copy() const override; // copyTail
         void accept(Visitor& v) const override; // visitTail
       };
 
@@ -373,6 +378,7 @@ namespace sel {
       { }
 
       Val* operator()(Val* arg) override { return new Next(this, coerse<_next_arg_ty>(arg)); }
+      Val* copy() const override; // visitHead
       void accept(Visitor& v) const override; // visitHead
     };
 
@@ -399,6 +405,7 @@ namespace sel {
       { }
 
       Val* operator()(Val* arg) override { return new Next(this, coerse<_next_arg_ty>(arg)); }
+      Val* copy() const override; // copyBody
       void accept(Visitor& v) const override; // visitBody
     };
 
