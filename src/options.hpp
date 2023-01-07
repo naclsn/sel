@@ -22,7 +22,11 @@ struct Options {
   char** lookup_names = NULL; // -l names...
 
   bool debug = false; // -D
-  bool typecheck = false; // -c (niy)
+  bool typecheck = false; // -n
+  bool strict = false; // -s (niy)
+
+  bool compile = false; // -o (niy)
+  char** compile_flags = NULL; // everything after -o (niy)
 
   Options(int argc, char* argv[])
     : argc(argc--)
@@ -54,7 +58,13 @@ struct Options {
               goto break_all;
 
             case 'D': debug = true;       break;
-            case 'c': typecheck = true;   break;
+            case 'n': typecheck = true;   break;
+            case 's': strict = true;      break;
+
+            case 'o':
+              compile = true;
+              if (hasv) compile_flags = argv+ ++k;
+              goto break_all;
 
             case 'f':
               if (hasv) filename = argv[++k];
@@ -97,8 +107,9 @@ struct Options {
   void usage(char const* reason) {
     if (reason) cerr << "Error: " << reason << "\n";
     cerr // TODO: better/proper (+ eg. man page)
-      << "Usage: " << prog << " [-Dc] <script...> | -f <file>\n"
+      << "Usage: " << prog << " [-Dns] <script...> | -f <file>\n"
       << "       " << prog << " -l [<names...>]\n"
+      << "       " << prog << " [-s] -f <file> [-o <bin> <flags...>]\n"
     ;
     exit(EXIT_FAILURE);
   }

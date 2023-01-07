@@ -40,6 +40,16 @@ void build(App& app, char const* const srcs[]) {
     exit(EXIT_FAILURE);
   }
 
+  catch (TypeError const& err) {
+    cerr
+      << "Type error: "
+      << err.what() << '\n'
+      // << "at: " << source.str().substr(prelude_source.length()) << '\n'
+      // << "    " << string(err.start-prelude_source.length(), ' ') << string(err.span, '~') << '\n'
+    ;
+    exit(EXIT_FAILURE);
+  }
+
   catch (BaseError const& err) {
     cerr
       << "Error (while building application): "

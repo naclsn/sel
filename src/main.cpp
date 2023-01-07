@@ -1,46 +1,13 @@
-#include <iostream>
-#include <sstream>
-#include <fstream>
-
 #include "options.hpp"
-#include "buildapp.hpp"
-
-using namespace std;
-using namespace sel;
-
-void lookup(char const* const names[]) {
-  if (!names || !*names) {
-    vector<string> vs;
-    list_names(vs);
-    for (auto const& it : vs) cout << it << '\n';
-    exit(EXIT_SUCCESS);
-  }
-
-  VisHelp help(cout);
-
-  while (*names) {
-    auto* it = lookup_name(*names);
-    if (!it) {
-      cerr << "Unknown name: " << quoted(*names) << "\n";
-      exit(EXIT_FAILURE);
-    }
-
-    cout << *names << " :: " << it->type() << "\n\t";
-    help(*it); // TODO: (if stdout tty) auto line break at window width?
-    cout << endl;
-
-    if (*++names) cout << endl;
-    delete it;
-  }
-
-  exit(EXIT_SUCCESS);
-}
+#include "actions.hpp"
 
 int main(int argc, char* argv[]) {
   Options const opts(argc, argv);
-  App app;
 
   if (opts.lookup) lookup(opts.lookup_names);
+
+  App app;
+  // if (opts.strict) app.strict_type = true;
 
   if (opts.filename) buildfile(app, opts.filename);
   else build(app, opts.script);
@@ -51,11 +18,21 @@ int main(int argc, char* argv[]) {
   }
 
   if (opts.typecheck) {
-    throw NIYError("type checking of user script");
-    return EXIT_FAILURE;
+    return EXIT_SUCCESS;
   }
 
-  app.run(cin, cout);
+  if (opts.compile) {
+    char** flags = opts.compile_flags;
+    char* outfile = *flags++;
+    cerr << "out: " << quoted(outfile);
+    if (*flags) {
+      cerr << ", flags:\n";
+      while (*flags) cerr << "   " << quoted(*flags++) << "\n";
+    } else cerr << ", no flags\n";
+    throw NIYError("emit binary");
+  }
+
+  run(app);
 
   return EXIT_SUCCESS;
 }
