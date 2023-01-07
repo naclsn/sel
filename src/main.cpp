@@ -70,7 +70,7 @@ void build(App& app, char const* const srcs[]) {
   }
 }
 
-int main(int argc, char const* const argv[]) {
+int main1(int argc, char const* const argv[]) {
   char const* prog = *argv++;
   if (argc < 2) usage(prog, "missing script");
 
@@ -108,4 +108,32 @@ after_while: ;
   app.run(cin, cout);
 
   return EXIT_SUCCESS;
+}
+
+int main(void) {
+  Fun* abs = new bins::abs_::Head();
+  Num* abs42 = (Num*)(*abs)(new NumLiteral(-42));
+
+  Fun* add = new bins::add_::Head();
+  Fun* add_abs42 = (Fun*)(*add)(abs42);
+
+  Num* pi = new bins::pi_::Head();
+  Num* add_abs42_pi = (Num*)(*add_abs42)(pi);
+
+  Val* aap = add_abs42_pi->copy();
+  cout << "\n=== aap: " << repr(*aap) << "\n";
+
+  Fun* const_ = new bins::const_::Head();
+  Val* constt = const_->copy();
+  cout << "\n=== constt: " << repr(*constt) << "\n";
+
+  Val* const_add_abs42_pi = (*const_)(add_abs42_pi);
+  Val* caap = const_add_abs42_pi->copy();
+  cout << "\n=== caap: " << repr(*caap) << "\n";
+
+  Fun* id = new bins::id_::Head();
+  Val* idd = id->copy();
+  cout << "\n=== idd: " << repr(*idd) << "\n";
+
+  cout << "coucou\n";
 }

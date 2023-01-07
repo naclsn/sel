@@ -333,7 +333,7 @@ namespace sel {
             , arg(arg)
           { }
           Val* operator()(Val* arg) override { return nullptr; } // YYY: still quite hacky?
-          Val* copy() const override; // XXX: missing implementation
+          Val* copy() const override { return nullptr; } // XXX: missing implementation (need, more, hacky)
         } _base;
         _ProxyBase* base;
         typedef typename _fun_first_par_type<_ty_one_to_tail>::the::vat _LastArg;
@@ -646,7 +646,7 @@ namespace sel {
 
     using namespace bins;
 
-#ifdef BINS_MIN
+#if 0 //def BINS_MIN
     // YYY: these are used in parsing..
     typedef cons_l
       < add_
@@ -655,7 +655,7 @@ namespace sel {
       , mul_
       , sub_
       >::the bins; //bins_min; // YYY: could have these only here, but would need to merge with below while keeping sorted (not strictly necessary, but convenient)
-#else
+//#else
     // XXX: still would love if this list could be built automatically
     typedef cons_l
       < abs_
@@ -694,6 +694,7 @@ namespace sel {
       , zipwith_
       >::the bins;
 #endif
+    typedef cons_l<abs_, add_, const_, pi_, id_>::the bins;
     typedef _make_bins_all<bins>::the bins_all;
 
   } // namespace bins_ll

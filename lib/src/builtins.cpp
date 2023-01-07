@@ -57,7 +57,8 @@ namespace sel {
 
     template <typename Impl, typename one>
     Val* _bin_be<Impl, ll::cons<one, ll::nil>>::the::copy() const {
-      return new _bin_be<Impl, ll::cons<one, ll::nil>>::the(); // copyOne
+      std::cerr << "{:copy(" << typeid(*this).name() << "):}";
+      return new typename _bin_be<Impl, ll::cons<one, ll::nil>>::the::Base::Next(); // copyOne
     }
     template <typename Impl, typename one>
     void _bin_be<Impl, ll::cons<one, ll::nil>>::the::accept(Visitor& v) const {
@@ -66,7 +67,8 @@ namespace sel {
 
     template <typename Impl, typename last_arg, char b>
     Val* _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::copy() const {
-      return new _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the(); // copyOne2
+      std::cerr << "{:copy(" << typeid(*this).name() << "):}";
+      return new typename _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::Base::Next(); // copyOne2
     }
     template <typename Impl, typename last_arg, char b>
     void _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::accept(Visitor& v) const {
@@ -75,7 +77,12 @@ namespace sel {
 
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
     Val* _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::copy() const {
-      return new _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>(this->base->copy(), this->arg->copy()); // copyBody
+      typedef _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>> a;
+      std::cerr << "{:copy(" << typeid(*this).name() << "):}";
+      return new _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>(
+        (a::Base*)this->base->copy(),
+        (a::Arg*)this->arg->copy()
+      ); // copyBody
     }
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
     void _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::accept(Visitor& v) const {
@@ -84,7 +91,12 @@ namespace sel {
 
     template <typename NextT, typename last_to, typename last_from>
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the::copy() const {
-      return new _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the(this->base->copy(), this->arg->copy()); // copyTail
+      typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the a;
+      std::cerr << "{:copy(" << typeid(*this).name() << "):}";
+      return new typename a::Base::Next(
+        (typename a::Base*)this->base->copy(),
+        (typename a::Arg*)this->arg->copy()
+      ); // copyTail
     }
     template <typename NextT, typename last_to, typename last_from>
     void _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the::accept(Visitor& v) const {
@@ -93,6 +105,7 @@ namespace sel {
 
     template <typename NextT, typename last_to, typename last_from>
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::copy() const {
+      std::cerr << "{:copy(" << typeid(*this).name() << "):}";
       return new _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>(); // copyHead
     }
     template <typename NextT, typename last_to, typename last_from>
@@ -132,6 +145,21 @@ namespace sel {
       return a.value() + b.value();
     }
 
+    double pi_::value() {
+      return M_PI;
+    }
+
+    Val* id_::impl() {
+      bind_args(take);
+      return &take;
+    }
+
+    Val* const_::impl() {
+      bind_args(take, ignore);
+      return &take;
+    }
+
+#if 0
     void conjunction_::once() {
       bind_args(l, r);
       while (!l.end()) {
@@ -168,11 +196,6 @@ namespace sel {
     bool conjunction_::end() const {
       bind_args(l, r);
       return (did_once ? inleft.empty() : l.end()) || r.end();
-    }
-
-    Val* const_::impl() {
-      bind_args(take, ignore);
-      return &take;
     }
 
     double div_::value() {
@@ -267,11 +290,6 @@ namespace sel {
       return (*(Fun*)fun(&a))(&b);
     }
 
-    Val* id_::impl() {
-      bind_args(take);
-      return &take;
-    }
-
     Val* if_::impl() {
       bind_args(condition, consequence, alternative, argument);
       return ((Num*)condition(&argument))->value()
@@ -353,10 +371,6 @@ namespace sel {
       bind_args(s);
       done = true;
       return s.entire(out) << '\n';
-    }
-
-    double pi_::value() {
-      return M_PI;
     }
 
     Val* repeat_::operator*() { return arg; }
@@ -537,6 +551,7 @@ namespace sel {
       bind_args(f, l1, l2);
       return l1.end() || l2.end();
     }
+#endif
 
   } // namespace bins
 
