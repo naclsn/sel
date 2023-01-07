@@ -154,21 +154,6 @@ namespace sel {
       return a.value() + b.value();
     }
 
-    double pi_::value() {
-      return M_PI;
-    }
-
-    Val* id_::impl() {
-      bind_args(take);
-      return &take;
-    }
-
-    Val* const_::impl() {
-      bind_args(take, ignore);
-      return &take;
-    }
-
-#if 0
     void conjunction_::once() {
       bind_args(l, r);
       while (!l.end()) {
@@ -205,6 +190,11 @@ namespace sel {
     bool conjunction_::end() const {
       bind_args(l, r);
       return (did_once ? inleft.empty() : l.end()) || r.end();
+    }
+
+    Val* const_::impl() {
+      bind_args(take, ignore);
+      return &take;
     }
 
     double div_::value() {
@@ -299,6 +289,11 @@ namespace sel {
       return (*(Fun*)fun(&a))(&b);
     }
 
+    Val* id_::impl() {
+      bind_args(take);
+      return &take;
+    }
+
     Val* if_::impl() {
       bind_args(condition, consequence, alternative, argument);
       return ((Num*)condition(&argument))->value()
@@ -380,6 +375,10 @@ namespace sel {
       bind_args(s);
       done = true;
       return s.entire(out) << '\n';
+    }
+
+    double pi_::value() {
+      return M_PI;
     }
 
     Val* repeat_::operator*() { return arg; }
@@ -560,7 +559,6 @@ namespace sel {
       bind_args(f, l1, l2);
       return l1.end() || l2.end();
     }
-#endif
 
   } // namespace bins
 
