@@ -310,6 +310,8 @@ namespace sel {
           , base(base)
           , arg(arg)
         { }
+
+        Val* copy() const override; // copyTail1
       };
 
       // is used when `_is_unk_tail` (eg. 'X(a) -> a')
@@ -332,8 +334,8 @@ namespace sel {
             , base(base)
             , arg(arg)
           { }
-          Val* operator()(Val* arg) override { return nullptr; } // YYY: still quite hacky?
-          Val* copy() const override { return nullptr; } // XXX: missing implementation (need, more, hacky)
+          Val* operator()(Val* arg) override { throw RuntimeError("operation not permited: operator() on proxy base"); } //{ return nullptr; } // YYY: still quite hacky?
+          Val* copy() const override { throw RuntimeError("operation not permited: copy() on proxy base"); } //{ return new _ProxyBase(base, arg); } // YYY: need, more, hacky! (none's supposed to call that)
         } _base;
         _ProxyBase* base;
         typedef typename _fun_first_par_type<_ty_one_to_tail>::the::vat _LastArg;
@@ -354,6 +356,7 @@ namespace sel {
           this->arg = coerse<_LastArg>(arg);
           return impl();
         }
+        Val* copy() const override; // copyTail2
       };
 
       typedef typename std::conditional<
@@ -366,7 +369,6 @@ namespace sel {
         typedef typename _the::Base Base;
         constexpr static unsigned args = _the::args;
         using _the::_the;
-        Val* copy() const override; // copyTail
         void accept(Visitor& v) const override; // visitTail
       };
 
