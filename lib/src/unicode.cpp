@@ -34,4 +34,50 @@ namespace sel {
     return in;
   }
 
+  void grapheme::push_back(codepoint const& cp) {
+    if (0 == many.zero) return many.vec.push_back(cp);
+    int c = 1;
+    while (few[c].u)
+      if (inl == ++c) {
+        std::vector<codepoint> onstack;
+        std::copy(few, few+inl, onstack.begin());
+        many.zero = 0;
+        many.vec = onstack;
+        return;
+      }
+    few[c] = cp;
+  }
+
+  grapheme::size_type grapheme::size() const {
+    if (0 == many.zero) return many.vec.size();
+    int c = 1;
+    while (few[c].u)
+      if (inl == ++c) return inl;
+    return c;
+  }
+
+  codepoint grapheme::at(grapheme::size_type n) const {
+    if (0 == many.zero) return many.vec.at(n);
+    return few[n];
+  }
+
+  void read_grapheme(std::istream_iterator<codepoint>& it, grapheme& r) {
+    static std::istream_iterator<codepoint> eos;
+    ; // TODO: niy
+  }
+
+  std::ostream& operator<<(std::ostream& out, grapheme const& r) {
+    grapheme::size_type l = r.size();
+    for (grapheme::size_type k = 0; k < l; k++)
+      out << r.at(k);
+    return out;
+  }
+
+  std::istream& operator>>(std::istream& in, grapheme& r) {
+    std::istream_iterator<codepoint> it(in);
+    read_grapheme(it, r);
+    return in;
+  }
+
+
 } // namespace sel
