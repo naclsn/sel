@@ -553,17 +553,15 @@ namespace sel {
     Val* val;
 
     if (Token::Type::DEF == lexer->type) {
-      Token t = *++lexer;
+      Token t_name = *++lexer;
+      if (Token::Type::NAME != t_name.type) expected("name", t_name);
 
-      if (Token::Type::LIT_STR != t.type) expected("docstring", t);
-      std::string help = *t.as.str;
+      Token t_help = *++lexer;
+      if (Token::Type::LIT_STR != t_help.type) expected(("docstring for '" + *t_name.as.name + "'").c_str(), t_help);
 
-      if (Token::Type::NAME != t.type) expected("name", t);
-      std::string name = *t.as.name;
-
-      if (lookup(app, *t.as.name)) {
+      if (lookup(app, *t_name.as.name)) {
         //throw TypeError
-        throw ParseError("cannot redefine already known name '" + *t.as.name + "'", t.loc, t.len);
+        throw ParseError("cannot redefine already known name '" + *t_name.as.name + "'", t_name.loc, t_name.len);
       }
 
       lexer++;
@@ -571,22 +569,22 @@ namespace sel {
       if (!val) expected("atom", *lexer);
 
       // trim, join, squeeze..
-      std::string::size_type head = help.find_first_not_of("\t\n\r "), tail;
+      std::string::size_type head = t_help.as.str->find_first_not_of("\t\n\r "), tail;
       bool blank = std::string::npos == head;
       std::string clean;
       if (!blank) {
-        clean.reserve(help.length());
+        clean.reserve(t_help.as.str->length());
         while (std::string::npos != head) {
-          tail = help.find_first_of("\t\n\r ", head);
-          clean.append(help, head, std::string::npos == tail ? tail : tail-head).push_back(' ');
-          head = help.find_first_not_of("\t\n\r ", tail);
+          tail = t_help.as.str->find_first_of("\t\n\r ", head);
+          clean.append(*t_help.as.str, head, std::string::npos == tail ? tail : tail-head).push_back(' ');
+          head = t_help.as.str->find_first_not_of("\t\n\r ", tail);
         }
         clean.pop_back();
         clean.shrink_to_fit();
       }
 
       // TODO: where to put this doc now? oops..
-      app.define_name_user(*t.as.name, val);
+      app.define_name_user(*t_name.as.name, val);
 
     } else val = parseAtom(app, lexer);
     if (!val) expected("atom", *lexer);
