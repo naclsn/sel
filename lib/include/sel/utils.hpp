@@ -55,6 +55,15 @@ namespace sel {
   };
   std::ostream& operator<<(std::ostream& out, repr me);
 
+  /**
+   * For use in representing text.
+   */
+  struct quoted {
+    std::string const& str;
+    inline quoted(std::string const& str): str(str) { }
+  };
+  std::ostream& operator<<(std::ostream& out, quoted q);
+
 }
 
 #endif // SEL_UTILS_HPP

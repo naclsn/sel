@@ -1,5 +1,17 @@
 build/
+ignore/
+
+# clangd stuff
 .cache/
 .clangd/
-ignore/
-compile_flags.txt
+
+# tree sitter grammar (for now thrown in the same repo)
+Cargo.toml
+binding.gyp
+bindings/
+node_modules/
+package-lock.json
+src/grammar.json
+src/node-types.json
+src/parser.c
+src/tree_sitter/
