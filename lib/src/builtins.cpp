@@ -5,6 +5,9 @@
 
 namespace sel {
 
+  Val* StrChunks::copy() const {
+    return new StrChunks(chunks);
+  }
   void StrChunks::accept(Visitor& v) const {
     v.visitStrChunks(type(), this->chunks);
   }
@@ -53,25 +56,67 @@ namespace sel {
   namespace bins_helpers {
 
     template <typename Impl, typename one>
+    Val* _bin_be<Impl, ll::cons<one, ll::nil>>::the::copy() const {
+      TRACE(copyOne, typeid(*this).name());
+      return new typename _bin_be<Impl, ll::cons<one, ll::nil>>::the::Base::Next(); // copyOne
+    }
+    template <typename Impl, typename one>
     void _bin_be<Impl, ll::cons<one, ll::nil>>::the::accept(Visitor& v) const {
       v.visit(*(Impl*)this); // visitOne
     }
 
+    template <typename Impl, typename last_arg, char b>
+    Val* _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::copy() const {
+      TRACE(copyOne2, typeid(*this).name());
+      return new typename _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::Base::Next(); // copyOne2
+    }
     template <typename Impl, typename last_arg, char b>
     void _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::accept(Visitor& v) const {
       v.visit(*(Impl*)this); // visitOne2
     }
 
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
+    Val* _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::copy() const {
+      typedef _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>> a;
+      TRACE(copyBody, typeid(*this).name());
+      return new _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>(
+        (a::Base*)base->copy(),
+        (a::Arg*)arg->copy()
+      ); // copyBody
+    }
+    template <typename NextT, typename to, typename from, typename from_again, typename from_more>
     void _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::accept(Visitor& v) const {
       v.visit(*this); // visitBody
     }
 
     template <typename NextT, typename last_to, typename last_from>
+    Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::_the_when_not_unk::copy() const {
+      typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the a;
+      TRACE(copyTail1, typeid(*this).name());
+      return new typename a::Base::Next(
+        (typename a::Base*)base->copy(),
+        (typename a::Arg*)arg->copy()
+      ); // copyTail1
+    }
+    template <typename NextT, typename last_to, typename last_from>
+    Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::_the_when_is_unk::copy() const {
+      typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the a;
+      TRACE(copyTail2, typeid(*this).name());
+      return new typename a::Base::Next(
+        _base.base,
+        _base.arg
+      ); // copyTail2
+    }
+    template <typename NextT, typename last_to, typename last_from>
     void _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the::accept(Visitor& v) const {
       v.visit(*(typename Base::Next*)this); // visitTail
     }
 
+    template <typename NextT, typename last_to, typename last_from>
+    Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::copy() const {
+      TRACE(copyHead, typeid(*this).name());
+      return new _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>(); // copyHead
+    }
     template <typename NextT, typename last_to, typename last_from>
     void _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::accept(Visitor& v) const {
       v.visit(*this); // visitHead
@@ -150,6 +195,11 @@ namespace sel {
     Val* const_::impl() {
       bind_args(take, ignore);
       return &take;
+    }
+
+    double div_::value() {
+      bind_args(a, b);
+      return a.value() / b.value();
     }
 
     Val* drop_::operator*() {
@@ -309,6 +359,11 @@ namespace sel {
     bool map_::end() const {
       bind_args(f, l);
       return l.end();
+    }
+
+    double mul_::value() {
+      bind_args(a, b);
+      return a.value() * b.value();
     }
 
     std::ostream& nl_::stream(std::ostream& out) {

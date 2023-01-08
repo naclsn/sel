@@ -26,6 +26,7 @@ namespace sel {
       , n(n)
     { }
     double value() override;
+    Val* copy() const override;
     void accept(Visitor& v) const override;
   };
 
@@ -41,6 +42,7 @@ namespace sel {
     std::ostream& stream(std::ostream& out) override;
     bool end() const override;
     std::ostream& entire(std::ostream& out) override;
+    Val* copy() const override;
     void accept(Visitor& v) const override;
   };
 
@@ -69,6 +71,7 @@ namespace sel {
     Val* operator*() override;
     Lst& operator++() override;
     bool end() const override;
+    Val* copy() const override;
     void accept(Visitor& v) const override;
   };
 
@@ -85,6 +88,7 @@ namespace sel {
       , f(f)
     { }
     Val* operator()(Val* arg) override;
+    Val* copy() const override;
     void accept(Visitor& v) const override;
   };
 
@@ -100,6 +104,7 @@ namespace sel {
     std::ostream& stream(std::ostream& out) override;
     bool end() const override;
     std::ostream& entire(std::ostream& out) override;
+    Val* copy() const override;
     void accept(Visitor& v) const override;
     void setIn(std::istream* in) { this->in = in; }
   };
@@ -117,6 +122,7 @@ namespace sel {
       , out(nullptr)
     { }
     Val* operator()(Val* arg) override;
+    Val* copy() const override;
     void accept(Visitor& v) const override;
     void setOut(std::ostream* out) { this->out = out; }
   };

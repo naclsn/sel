@@ -10,16 +10,25 @@
 namespace sel {
 
   double NumLiteral::value() { return n; }
+  Val* NumLiteral::copy() const { return new NumLiteral(n); }
   void NumLiteral::accept(Visitor& v) const { v.visitNumLiteral(ty, n); }
 
   std::ostream& StrLiteral::stream(std::ostream& out) { read = true; return out << s; }
   bool StrLiteral::end() const { return read; }
   std::ostream& StrLiteral::entire(std::ostream& out) { read = true; return out << s; }
+  Val* StrLiteral::copy() const { return new StrLiteral(s); }
   void StrLiteral::accept(Visitor& v) const { v.visitStrLiteral(ty, s); }
 
   Val* LstLiteral::operator*() { return v[c]; }
   Lst& LstLiteral::operator++() { c++; return *this; }
   bool LstLiteral::end() const { return v.size() <= c; }
+  Val* LstLiteral::copy() const {
+    std::vector<Val*> w;
+    w.reserve(v.size());
+    for (auto const& it : v)
+      w.push_back(it->copy());
+    return new LstLiteral(w, new std::vector<Type*>(ty.has()));
+  }
   void LstLiteral::accept(Visitor& v) const { v.visitLstLiteral(ty, this->v); }
 
   Val* FunChain::operator()(Val* arg) {
@@ -27,6 +36,13 @@ namespace sel {
     for (auto const& it : f)
       r = (*it)(r);
     return r;
+  }
+  Val* FunChain::copy() const {
+    std::vector<Fun*> g;
+    g.reserve(f.size());
+    for (auto const& it : f)
+      g.push_back((Fun*)it->copy());
+    return new FunChain(g);
   }
   void FunChain::accept(Visitor& v) const { v.visitFunChain(ty, f); }
 
@@ -68,12 +84,14 @@ namespace sel {
     nowat = upto;
     return out << cache.str();
   }
+  Val* Input::copy() const { return nullptr; } // ZZZ: not on this branch
   void Input::accept(Visitor& v) const { v.visitInput(ty); }
 
   Val* Output::operator()(Val* arg) {
     if (out) coerse<Str>(arg)->entire(*out);
     return nullptr;
   }
+  Val* Output::copy() const { return nullptr; } // ZZZ: not on this branch
   void Output::accept(Visitor& v) const { v.visitOutput(ty); }
 
   // internal
@@ -535,18 +553,38 @@ namespace sel {
     Val* val;
 
     if (Token::Type::DEF == lexer->type) {
-      Token t = *++lexer;
+      Token t_name = *++lexer;
+      if (Token::Type::NAME != t_name.type) expected("name", t_name);
 
-      if (Token::Type::NAME != t.type) expected("name", t);
-      if (lookup(app, *t.as.name)) {
+      Token t_help = *++lexer;
+      if (Token::Type::LIT_STR != t_help.type) expected(("docstring for '" + *t_name.as.name + "'").c_str(), t_help);
+
+      if (lookup(app, *t_name.as.name)) {
         //throw TypeError
-        throw ParseError("cannot redefine already known name '" + *t.as.name + "'", t.loc, t.len);
+        throw ParseError("cannot redefine already known name '" + *t_name.as.name + "'", t_name.loc, t_name.len);
       }
 
       lexer++;
       val = parseAtom(app, lexer);
       if (!val) expected("atom", *lexer);
-      app.define_name_user(*t.as.name, val);
+
+      // trim, join, squeeze..
+      std::string::size_type head = t_help.as.str->find_first_not_of("\t\n\r "), tail;
+      bool blank = std::string::npos == head;
+      std::string clean;
+      if (!blank) {
+        clean.reserve(t_help.as.str->length());
+        while (std::string::npos != head) {
+          tail = t_help.as.str->find_first_of("\t\n\r ", head);
+          clean.append(*t_help.as.str, head, std::string::npos == tail ? tail : tail-head).push_back(' ');
+          head = t_help.as.str->find_first_not_of("\t\n\r ", tail);
+        }
+        clean.pop_back();
+        clean.shrink_to_fit();
+      }
+
+      // TODO: where to put this doc now? oops..
+      app.define_name_user(*t_name.as.name, val);
 
     } else val = parseAtom(app, lexer);
     if (!val) expected("atom", *lexer);

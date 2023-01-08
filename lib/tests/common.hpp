@@ -22,7 +22,7 @@ using namespace sel;
 } while (0)
 
 #define assert(__expr, __msg) do {       \
-  if (__expr) return;                    \
+  if (__expr) break;                     \
   cerr                                   \
     << RED #__expr "\n"                  \
     << "assertion failed with:\n"        \

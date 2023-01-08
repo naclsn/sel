@@ -35,6 +35,7 @@ namespace sel {
         out << it;
       return out;
     }
+    Val* copy() const override;
     void accept(Visitor& v) const override;
   };
 
@@ -214,6 +215,7 @@ namespace sel {
           : one::ctor(Impl::name)
         { }
 
+        Val* copy() const override; // copyOne
         void accept(Visitor& v) const override; // visitOne
       };
     };
@@ -241,6 +243,7 @@ namespace sel {
           this->arg = coerse<_LastArg>(arg);
           return impl();
         }
+        Val* copy() const override; // copyOne2
         void accept(Visitor& v) const override; // visitOne2
       };
     };
@@ -307,6 +310,8 @@ namespace sel {
           , base(base)
           , arg(arg)
         { }
+
+        Val* copy() const override; // copyTail1
       };
 
       // is used when `_is_unk_tail` (eg. 'X(a) -> a')
@@ -329,7 +334,8 @@ namespace sel {
             , base(base)
             , arg(arg)
           { }
-          Val* operator()(Val* arg) override { return nullptr; } // YYY: still quite hacky?
+          Val* operator()(Val* arg) override { throw RuntimeError("operation not permited: operator() on proxy base"); } //{ return nullptr; } // YYY: still quite hacky?
+          Val* copy() const override { throw RuntimeError("operation not permited: copy() on proxy base"); } //{ return new _ProxyBase(base, arg); } // YYY: need, more, hacky! (none's supposed to call that)
         } _base;
         _ProxyBase* base;
         typedef typename _fun_first_par_type<_ty_one_to_tail>::the::vat _LastArg;
@@ -350,6 +356,7 @@ namespace sel {
           this->arg = coerse<_LastArg>(arg);
           return impl();
         }
+        Val* copy() const override; // copyTail2
       };
 
       typedef typename std::conditional<
@@ -373,6 +380,7 @@ namespace sel {
       { }
 
       Val* operator()(Val* arg) override { return new Next(this, coerse<_next_arg_ty>(arg)); }
+      Val* copy() const override; // visitHead
       void accept(Visitor& v) const override; // visitHead
     };
 
@@ -399,6 +407,7 @@ namespace sel {
       { }
 
       Val* operator()(Val* arg) override { return new Next(this, coerse<_next_arg_ty>(arg)); }
+      Val* copy() const override; // copyBody
       void accept(Visitor& v) const override; // visitBody
     };
 
@@ -478,6 +487,9 @@ namespace sel {
     BIN_unk(const, (unk<'a'>, unk<'b'>, unk<'a'>),
       "always evaluate to its first argument, ignoring its second argument", ());
 
+    BIN_num(div, (num, num, num),
+      "divide the first number by the second number", ());
+
     BIN_lst(drop, (num, lst<unk<'a'>>, lst<unk<'a'>>),
       "return the suffix past a given count, or the empty list if it is shorter", (
       mutable bool done = false;
@@ -515,6 +527,9 @@ namespace sel {
 
     BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>),
       "make a new list by applying an unary operation to each value from a list", ());
+
+    BIN_num(mul, (num, num, num),
+      "multiply tow numbers", ());
 
     BIN_str(nl, (str, str),
       "append a new line to a string", (
@@ -637,9 +652,9 @@ namespace sel {
     // YYY: these are used in parsing..
     typedef cons_l
       < add_
-      // , div_
+      , div_
       , flip_
-      // , mul_
+      , mul_
       , sub_
       >::the bins; //bins_min; // YYY: could have these only here, but would need to merge with below while keeping sorted (not strictly necessary, but convenient)
 #else
@@ -649,7 +664,7 @@ namespace sel {
       , add_
       , conjunction_
       , const_
-      // , div_
+      , div_
       , drop_
       , dropwhile_
       , flip_
@@ -662,7 +677,7 @@ namespace sel {
       , join_
       // , last_
       , map_
-      // , mul_
+      , mul_
       , nl_
       , pi_
       , repeat_
