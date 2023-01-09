@@ -478,6 +478,13 @@ namespace sel {
     BIN_num(add, (num, num, num),
       "add two numbers", ());
 
+    BIN_lst(codepoints, (str, lst<num>),
+      "split a string of bytes into its Unicode codepoints", (
+      bool did_once = false;
+      Str_istream sis;
+      std::istream_iterator<codepoint> isi;
+    ));
+
     BIN_lst(conjunction, (lst<unk<'a'>>, lst<unk<'a'>>, lst<unk<'a'>>),
       "logical conjunction between two lists treated as sets; it is right-lazy and the list order is taken from the right argument (for now items are expected to be strings, until arbitraty value comparison)", (
       bool did_once = false;
@@ -501,6 +508,13 @@ namespace sel {
     BIN_lst(filter, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),
       "return the list of elements which satisfy the predicate", (
       Val* curr = nullptr;
+    ));
+
+    BIN_lst(graphemes, (str, lst<str>),
+      "split a stream of bytes into its Unicode graphemes", (
+      bool did_once = false;
+      Str_istream sis;
+      std::istream_iterator<grapheme> isi;
     ));
 
     BIN_unk(flip, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>),
@@ -657,6 +671,7 @@ namespace sel {
     typedef cons_l
       < abs_
       , add_
+      , codepoints_
       , conjunction_
       , const_
       // , div_
@@ -664,6 +679,7 @@ namespace sel {
       , dropwhile_
       , flip_
       , filter_
+      , graphemes_
       // , head_
       , id_
       , if_

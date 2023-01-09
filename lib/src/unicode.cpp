@@ -38,6 +38,15 @@ namespace sel {
     return in;
   }
 
+  grapheme& grapheme::operator=(grapheme const& cp) {
+    if (this == &cp) return *this;
+    if (0 == cp.many.zero) {
+      many.zero = 0;
+      many.vec = cp.many.vec;
+    } else std::copy(cp.few, cp.few+inl, few);
+    return *this;
+  }
+
   void grapheme::push_back(codepoint const& cp) {
     if (0 == many.zero) return many.vec.push_back(cp);
     int c = 1;
@@ -88,6 +97,5 @@ namespace sel {
     read_grapheme(it, r);
     return in;
   }
-
 
 } // namespace sel

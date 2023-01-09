@@ -15,8 +15,7 @@ namespace sel {
   struct codepoint {
     uint32_t u = 0;
     codepoint() { }
-    template <typename T>
-    codepoint(T u): u(u) { }
+    codepoint(uint32_t u): u(u) { }
   };
 
   std::ostream& operator<<(std::ostream& out, codepoint const& r);
@@ -37,23 +36,37 @@ namespace sel {
   public:
     typedef std::vector<codepoint>::size_type size_type;
 
-    // the character \0 forms a 1-codepoint grapheme by
-    // default (GB999, 'Other'); let's assume it would not
-    // appear too often in bytes that actually represent
-    // characters
-    grapheme(codepoint const& first) {
+    // YYY: not to be used directly, this is to have istream iterator
+    grapheme() {
+      many.zero = 42; // because -Wmaybe-uninitialized
+    }
+    // YYY: not to be used directly, this is to have istream iterator
+    void init(codepoint const& first) {
+      // the character \0 forms a 1-codepoint grapheme by
+      // default (GB999, 'Other'); let's assume it would not
+      // appear too often in bytes that actually represent
+      // characters
       if (!first.u) {
+        many.zero = 0;
         many.vec = std::vector<codepoint>({first});
       } else few[0] = first;
     }
-    // this one will never be called with \0 anywhere;
-    // it's here as a shortcut over new().push_back()
-    // for cases such as \r\n
+
+    grapheme(codepoint const& first) {
+      init(first);
+    }
     grapheme(codepoint const& first, codepoint const& second) {
+      // this one will never be called with \0 anywhere;
+      // it's here as a shortcut over new().push_back()
+      // for cases such as \r\n
       few[0] = first;
       few[1] = second;
     }
-    ~grapheme() { if (0 == many.zero) many.vec.~vector(); }
+    ~grapheme() {
+      if (0 == many.zero) many.vec.~vector();
+    }
+
+    grapheme& operator=(grapheme const& cp);
 
     void push_back(codepoint const& cp);
     size_type size() const;

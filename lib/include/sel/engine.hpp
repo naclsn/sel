@@ -133,7 +133,7 @@ namespace sel {
     std::string buffered;
 
   public:
-    Str_streambuf() = delete;
+    Str_streambuf() { } // whever
     Str_streambuf(Str* v): v(v) { }
 
     int_type overflow(int_type) override;
@@ -144,6 +144,7 @@ namespace sel {
     Str_streambuf a;
 
   public:
+    Str_istream() { } // whever
     Str_istream(std::istream&) = delete;
     Str_istream(Str* v): a(v) { init(&a); }
   };

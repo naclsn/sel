@@ -1,5 +1,6 @@
 #include "sel/builtins.hpp"
 #include "sel/visitors.hpp"
+#include "sel/parser.hpp"
 
 #include <cmath>
 
@@ -147,6 +148,23 @@ namespace sel {
       return (did_once ? inleft.empty() : l.end()) || r.end();
     }
 
+    Val* codepoints_::operator*() {
+      bind_args(s);
+      if (!did_once) isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
+      return new NumLiteral(isi->u); // XXX: dont like how it may appear as a literal, may have a NumComputed similar to StrChunks
+    }
+    Lst& codepoints_::operator++() {
+      bind_args(s);
+      if (!did_once) isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
+      isi++;
+      return *this;
+    }
+    bool codepoints_::end() const {
+      bind_args(s);
+      static std::istream_iterator<codepoint> eos;
+      return did_once ? eos == isi : s.end();
+    }
+
     Val* const_::impl() {
       bind_args(take, ignore);
       return &take;
@@ -232,6 +250,24 @@ namespace sel {
       // if we are at the end without scanning but then
       // this is no lazy at all..?
       return l.end();
+    }
+
+    Val* graphemes_::operator*() {
+      bind_args(s);
+      if (!did_once) isi = std::istream_iterator<grapheme>(sis = Str_istream(&s));
+      std::ostringstream oss;
+      return new StrChunks((oss << *isi, oss.str()));
+    }
+    Lst& graphemes_::operator++() {
+      bind_args(s);
+      if (!did_once) isi = std::istream_iterator<grapheme>(sis = Str_istream(&s));
+      ++isi;
+      return *this;
+    }
+    bool graphemes_::end() const {
+      bind_args(s);
+      static std::istream_iterator<grapheme> eos;
+      return did_once ? eos == isi : s.end();
     }
 
     Val* flip_::impl() {
@@ -471,9 +507,7 @@ namespace sel {
     double tonum_::value() {
       if (!done) {
         bind_args(s);
-        std::stringstream ss;
-        s.entire(ss);
-        ss >> r;
+        Str_istream(&s) >> r;
         done = true;
       }
       return r;
