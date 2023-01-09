@@ -661,10 +661,14 @@ namespace sel {
     // YYY: these are used in parsing..
     typedef cons_l
       < add_
+      , codepoints_
       // , div_
       , flip_
+      , graphemes_
       // , mul_
       , sub_
+      , tonum_
+      , tostr_
       >::the bins; //bins_min; // YYY: could have these only here, but would need to merge with below while keeping sorted (not strictly necessary, but convenient)
 #else
     // XXX: still would love if this list could be built automatically

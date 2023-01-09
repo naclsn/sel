@@ -127,6 +127,28 @@ namespace sel {
   };
 
 
+  // this hacked quickly (cause im lazy and wanna see it work)
+  // but XXX: this is crap and will fail!
+  template <typename ToHas>
+  class LstMapCoerse : public Lst {
+    Lst& v;
+    Type const& toto;
+  public:
+    LstMapCoerse(Lst& v, Type const& toto)
+      : Lst(Type(Ty::LST,
+          {.box_has=
+            new std::vector<Type*>({new Type(toto)})
+          }, TyFlag::IS_FIN
+        ))
+      , v(v)
+      , toto(toto)
+    { }
+    Val* operator*() override { return coerse<ToHas>(*v, toto); }
+    Lst& operator++() override { ++v; return *this; }
+    bool end() const override { return v.end(); }
+  };
+
+
   // @thx: http://gabisoft.free.fr/articles/fltrsbf1.html (2 pages, this page 1)
   class Str_streambuf : public std::streambuf {
     Str* v;

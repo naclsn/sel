@@ -15,6 +15,8 @@ namespace sel {
 
   template <typename To>
   To* coerse(Val* from, Type const& to);
+  // forward
+  template <> Val* coerse<Val>(Val* from, Type const& to);
 
   // Str => Num: same as `tonum`
   template <> Num* coerse<Num>(Val* from, Type const& to) {
@@ -51,24 +53,35 @@ namespace sel {
 
   // Str => [Num]: same as `codepoints`
   // Str => [Str]: same as `graphems`
+  // [has] (recursively)
   template <> Lst* coerse<Lst>(Val* from, Type const& to) {
     TRACE(coerse<Lst>
       , "from: " << from->type()
       , "to: " << to
       );
     Type const& ty = from->type();
+    Type const& toto = *to.has()[0];
 
     if (Ty::LST == ty.base) {
-      // TODO: need to recurse
-      return (Lst*)from;
+      if (Ty::NUM == toto.base)
+        return new LstMapCoerse<Num>(*(Lst*)from, toto);
+      if (Ty::STR == toto.base)
+        return new LstMapCoerse<Str>(*(Lst*)from, toto);
+      if (Ty::LST == toto.base)
+        return new LstMapCoerse<Lst>(*(Lst*)from, toto);
+      if (Ty::UNK == toto.base)
+        return (Lst*)from;
     }
 
     if (Ty::STR == ty.base) {
-      if (Ty::STR == to.p.box_has->at(0)->base) // YYY: no, that not good
-        throw NIYError("coersion Str => [Str]");
-      if (Ty::NUM == to.p.box_has->at(0)->base) // YYY: no, that not good
-        throw NIYError("coersion Str => [Num]");
+      if (Ty::NUM == toto.base)
+        return (Lst*)(*static_lookup_name(codepoints))(from);
+      if (Ty::STR == toto.base)
+        return (Lst*)(*static_lookup_name(graphemes))(from);
     }
+
+    //if (Ty::UNK == ty.base) // ?
+    //  return (Lst*)from;
 
     throw TypeError(ty, to);
   }
