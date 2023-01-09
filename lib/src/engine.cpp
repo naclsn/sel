@@ -101,6 +101,29 @@ namespace sel {
       case Ty::LST: return coerse<Lst>(from, to);
       case Ty::FUN: return coerse<Fun>(from, to);
     }
+    throw TypeError("miss-initialized or corrupted type");
+  }
+
+
+  Str_streambuf::int_type Str_streambuf::overflow(int_type) {
+    return traits_type::eof();
+  }
+
+  Str_streambuf::int_type Str_streambuf::underflow() {
+    // should never happend (according to some random standard)
+    if (gptr() < egptr()) return *gptr();
+
+    if (v->end()) return traits_type::eof();
+
+    std::ostringstream oss;
+    oss << *v;
+    buffered = oss.str();
+
+    char_type* cstr = (char_type*)(buffered.c_str());
+    // why you no take const?
+    setg(cstr, cstr, cstr+buffered.length());
+
+    return buffered[0];
   }
 
 } // namespace sel

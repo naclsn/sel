@@ -6,10 +6,11 @@
  * the application.
  */
 
-#include <ostream>
+#include <sstream>
 #include <vector>
 
 #include "types.hpp"
+#include "unicode.hpp"
 
 namespace sel {
 
@@ -123,6 +124,28 @@ namespace sel {
       : Val(type)
     { }
     virtual Val* operator()(Val* arg) = 0;
+  };
+
+
+  // @thx http://gabisoft.free.fr/articles/fltrsbf1.html (2 pages, this page 1)
+  class Str_streambuf : public std::streambuf {
+    Str* v;
+    std::string buffered;
+
+  public:
+    Str_streambuf() = delete;
+    Str_streambuf(Str* v): v(v) { }
+
+    int_type overflow(int_type) override;
+    int_type underflow() override;
+  };
+
+  class Str_istream : public std::istream {
+    Str_streambuf a;
+
+  public:
+    Str_istream(std::istream&) = delete;
+    Str_istream(Str* v): a(v) { init(&a); }
   };
 
 } // namespace sel

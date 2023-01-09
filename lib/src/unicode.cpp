@@ -26,6 +26,10 @@ namespace sel {
   }
 
   std::istream& operator>>(std::istream& in, codepoint& r) {
+    // XXX: add checks on each get for eof and for garbled
+    // garbage (but i don't think this can fail too badly
+    // and its not like we can do anything on broken
+    // input either)
     char a = in.get();
     if (0 == (0b10000000 & a)) r.u = a;
     else if (0 == (0b00100000 & a)) r.u = ((a & 0b00011111) << 6) | (in.get() & 0b00111111);
@@ -39,8 +43,14 @@ namespace sel {
     int c = 1;
     while (few[c].u)
       if (inl == ++c) {
-        std::vector<codepoint> onstack;
-        std::copy(few, few+inl, onstack.begin());
+        // XXX: is this guaranteed this will live on the
+        // stack for enough time that the `few` array
+        // does not get overwritten? in other words: is
+        // the compiler allowed to initialize the vector
+        // in-place, in `many.vec`?
+        // (if not: reserve+copy+back_inserter, would like
+        // to avoid raw call to memcopy...)
+        std::vector<codepoint> onstack(few, few+inl);
         many.zero = 0;
         many.vec = onstack;
         return;
