@@ -150,12 +150,18 @@ namespace sel {
 
     Val* codepoints_::operator*() {
       bind_args(s);
-      if (!did_once) isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
-      return new NumLiteral(isi->u); // XXX: dont like how it may appear as a literal, may have a NumComputed similar to StrChunks
+      if (!did_once) {
+        isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
+        did_once = true;
+      }
+      return new NumLiteral(isi->u); // XXX: dont like how it makes it appear as a literal, may have a NumComputed similar to StrChunks
     }
     Lst& codepoints_::operator++() {
       bind_args(s);
-      if (!did_once) isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
+      if (!did_once) {
+        isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
+        did_once = true;
+      }
       isi++;
       return *this;
     }
@@ -254,13 +260,19 @@ namespace sel {
 
     Val* graphemes_::operator*() {
       bind_args(s);
-      if (!did_once) isi = std::istream_iterator<grapheme>(sis = Str_istream(&s));
+      if (!did_once) {
+          isi = std::istream_iterator<grapheme>(sis = Str_istream(&s));
+          did_once = true;
+        }
       std::ostringstream oss;
       return new StrChunks((oss << *isi, oss.str()));
     }
     Lst& graphemes_::operator++() {
       bind_args(s);
-      if (!did_once) isi = std::istream_iterator<grapheme>(sis = Str_istream(&s));
+      if (!did_once) {
+            isi = std::istream_iterator<grapheme>(sis = Str_istream(&s));
+            did_once = true;
+          }
       ++isi;
       return *this;
     }

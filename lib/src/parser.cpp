@@ -3,6 +3,7 @@
 #include <sstream>
 #include <limits>
 
+#define TRACE(...)
 #include "sel/errors.hpp"
 #include "sel/parser.hpp"
 #include "sel/visitors.hpp"

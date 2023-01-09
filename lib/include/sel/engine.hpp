@@ -127,7 +127,7 @@ namespace sel {
   };
 
 
-  // @thx http://gabisoft.free.fr/articles/fltrsbf1.html (2 pages, this page 1)
+  // @thx: http://gabisoft.free.fr/articles/fltrsbf1.html (2 pages, this page 1)
   class Str_streambuf : public std::streambuf {
     Str* v;
     std::string buffered;
@@ -135,6 +135,9 @@ namespace sel {
   public:
     Str_streambuf() { } // whever
     Str_streambuf(Str* v): v(v) { }
+
+    Str_streambuf& operator=(Str_streambuf const&) = delete;
+    Str_streambuf& operator=(Str_streambuf&& sis);
 
     int_type overflow(int_type) override;
     int_type underflow() override;
@@ -147,6 +150,9 @@ namespace sel {
     Str_istream() { } // whever
     Str_istream(std::istream&) = delete;
     Str_istream(Str* v): a(v) { init(&a); }
+
+    Str_istream& operator=(Str_istream const&) = delete;
+    Str_istream& operator=(Str_istream&& sis);
   };
 
 } // namespace sel
