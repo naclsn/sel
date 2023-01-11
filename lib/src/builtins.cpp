@@ -262,18 +262,18 @@ namespace sel {
     Val* graphemes_::operator*() {
       bind_args(s);
       if (!did_once) {
-          isi = std::istream_iterator<grapheme>(sis = Str_istream(&s));
-          did_once = true;
-        }
+        isi = std::istream_iterator<grapheme>(sis = Str_istream(&s));
+        did_once = true;
+      }
       std::ostringstream oss;
       return new StrChunks((oss << *isi, oss.str()));
     }
     Lst& graphemes_::operator++() {
       bind_args(s);
       if (!did_once) {
-            isi = std::istream_iterator<grapheme>(sis = Str_istream(&s));
-            did_once = true;
-          }
+        isi = std::istream_iterator<grapheme>(sis = Str_istream(&s));
+        did_once = true;
+      }
       ++isi;
       return *this;
     }
