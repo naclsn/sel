@@ -80,10 +80,113 @@ namespace sel {
     return few[n];
   }
 
+  enum BreakPptValue {
+    Other                 = 1 <<  0,
+    Prepend               = 1 <<  1,
+    CR                    = 1 <<  2,
+    LF                    = 1 <<  3,
+    Control               = 1 <<  4,
+    Extend                = 1 <<  5,
+    Extended_Pictographic = 1 <<  6,
+    Regional_Indicator    = 1 <<  7,
+    SpacingMark           = 1 <<  8,
+    L                     = 1 <<  9,
+    V                     = 1 << 10,
+    T                     = 1 << 11,
+    LV                    = 1 << 12,
+    LVT                   = 1 << 13,
+    ZWJ                   = 1 << 14,
+  };
+  BreakPptValue break_ppt_value(uint32_t u) {
+    // TODO: niy
+    return Other;
+  }
+
+  // @thx: https://unicode.org/reports/tr29/#Grapheme_Cluster_Boundary_Rules
   void read_grapheme(std::istream_iterator<codepoint>& it, grapheme& r) {
     static std::istream_iterator<codepoint> eos;
-    ; // TODO: niy
-  }
+    codepoint cp = *it;
+    r.init(cp);
+    ++it;
+
+    // GB3
+    if ('\r' == cp.u && eos != it && '\n' == it->u) {
+      r.push_back(*it);
+      ++it;
+      return;
+    }
+
+#define CURR(a) (pv & (a))
+#define NEXT(b) (npv & (b))
+#define BOTH(a, b) (CURR(a) && NEXT(b))
+
+    // GB4 - shortcut for some often used (eg. lf, space, full stop, ..)
+    if (cp.u < 0xa0) return;
+
+    BreakPptValue pv = break_ppt_value(cp.u);
+
+    // GB4
+    if (CURR(Control)) return;
+
+    bool may_emoji = CURR(Extended_Pictographic);
+
+    // GB2
+    while (eos != it) {
+      cp = *it;
+
+      // GB5 - shortcut for some often used (eg. lf, space, full stop, ..)
+      if (cp.u < 0xa0) return;
+
+      BreakPptValue npv = break_ppt_value(cp.u);
+
+      // GB5
+      if (NEXT(Control)) return;
+
+      if (
+        // GB6
+        BOTH(L, L|V|LV|LVT) ||
+        // GB7
+        BOTH(LV|V, V|T) ||
+        // GB8
+        BOTH(LVT|T, T)
+      ) goto take;
+
+      // GB11
+      if (may_emoji && BOTH(ZWJ, Extended_Pictographic)) {
+        r.push_back(cp);
+        ++it;
+        return;
+      }
+
+      if (
+        // GB9 and GB9a
+        NEXT(Extend|ZWJ|SpacingMark) ||
+        // GB9b
+        CURR(Prepend)
+      ) goto take;
+
+      // GB12 and GB13 - approximation, likely wrong
+      if (BOTH(Regional_Indicator, Regional_Indicator)) {
+        r.push_back(cp);
+        ++it;
+        return;
+      }
+
+      // GB999
+      return;
+
+    take:
+      if (may_emoji) may_emoji = NEXT(Extend);
+      pv = npv;
+      r.push_back(cp);
+      ++it;
+    } // while !eos
+
+#undef BOTH
+#undef NEXT
+#undef CURR
+
+  } // read_grapheme
 
   std::ostream& operator<<(std::ostream& out, grapheme const& r) {
     grapheme::size_type l = r.size();

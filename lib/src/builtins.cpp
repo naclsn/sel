@@ -258,6 +258,7 @@ namespace sel {
       return l.end();
     }
 
+    // TODO: using read_grapheme
     Val* graphemes_::operator*() {
       bind_args(s);
       if (!did_once) {
@@ -528,6 +529,23 @@ namespace sel {
     std::ostream& tostr_::stream(std::ostream& out) { read = true; return out << arg->value(); }
     bool tostr_::end() const { return read; }
     std::ostream& tostr_::entire(std::ostream& out) { read = true; return out << arg->value(); }
+
+    std::ostream& uncodepoints_::stream(std::ostream& out) {
+      bind_args(l);
+      codepoint cp = ((Num*)*l)->value();
+      ++l;
+      return out << cp;
+    }
+    bool uncodepoints_::end() const {
+      bind_args(l);
+      return l.end();
+    }
+    std::ostream& uncodepoints_::entire(std::ostream& out) {
+      bind_args(l);
+      for (; !l.end(); ++l)
+        out << codepoint(((Num*)*l)->value());
+      return out;
+    }
 
     Val* uncurry_::impl() {
       bind_args(f, pair);

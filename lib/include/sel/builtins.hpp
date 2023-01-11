@@ -610,6 +610,9 @@ namespace sel {
       bool read = false;
     ));
 
+    BIN_str(uncodepoints, (lst<num>, str),
+      "construct a string from its Unicode codepoints; this can lead to 'degenerate cases' if not careful", ());
+
     BIN_unk(uncurry, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, lst<unk<'w'/* TODO: tuple */>>, unk<'c'>),
       "convert a curried function to a function on pairs", ());
 
@@ -707,6 +710,7 @@ namespace sel {
       , takewhile_
       , tonum_
       , tostr_
+      , uncodepoints_
       , uncurry_
       , zipwith_
       >::the bins;
