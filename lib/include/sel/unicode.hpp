@@ -71,6 +71,7 @@ namespace sel {
     void push_back(codepoint const& cp);
     size_type size() const;
     codepoint at(size_type n) const;
+    void clear(); // rem to call init after this, not push_back
   }; // grapheme
 
   void read_grapheme(std::istream_iterator<codepoint>& it, grapheme& r);

@@ -80,6 +80,13 @@ namespace sel {
     return few[n];
   }
 
+  void grapheme::clear() {
+    if (0 == many.zero) return many.vec.clear();
+    for (size_t k = 0; k < inl; k++)
+      few[k] = 0;
+  }
+
+  // internal
   enum BreakPptValue {
     Other                 = 1 <<  0,
     Prepend               = 1 <<  1,
@@ -97,9 +104,29 @@ namespace sel {
     LVT                   = 1 << 13,
     ZWJ                   = 1 << 14,
   };
+  struct BreakPptRange {
+    uint32_t cp;
+    BreakPptValue v;
+  };
+  BreakPptRange BREAK_PPT_LUT[] = {
+    // https://www.unicode.org/Public/15.0.0/ucd/auxiliary/GraphemeBreakProperty.txt
+    // https://www.unicode.org/Public/15.0.0/ucd/emoji/emoji-data.txt
+#include "_unicode_grapheme_break"
+  };
+  size_t _binary_search(size_t a, size_t b, uint32_t u) {
+    size_t c = (a+b)/2;
+    if (BREAK_PPT_LUT[c].cp <= u && u < BREAK_PPT_LUT[c+1].cp)
+      return c;
+    return u < BREAK_PPT_LUT[c].cp
+      ? _binary_search(a, c, u)
+      : _binary_search(c, b, u);
+  }
   BreakPptValue break_ppt_value(uint32_t u) {
-    // TODO: niy
-    return Other;
+    constexpr size_t len = sizeof(BREAK_PPT_LUT) / sizeof(BreakPptRange);
+    if (BREAK_PPT_LUT[len-1].cp <= u)
+      return BREAK_PPT_LUT[len-1].v;
+    size_t k = _binary_search(0, len-1, u);
+    return BREAK_PPT_LUT[k].v;
   }
 
   // @thx: https://unicode.org/reports/tr29/#Grapheme_Cluster_Boundary_Rules
@@ -151,11 +178,19 @@ namespace sel {
         BOTH(LVT|T, T)
       ) goto take;
 
-      // GB11
-      if (may_emoji && BOTH(ZWJ, Extended_Pictographic)) {
-        r.push_back(cp);
-        ++it;
-        return;
+      // GB11 - slightly unrolled
+      if (may_emoji) {
+        if (NEXT(ZWJ)) {
+          r.push_back(cp);
+          cp = *++it;
+          npv = break_ppt_value(cp.u);
+          if (NEXT(Extended_Pictographic)) {
+            r.push_back(cp);
+            ++it;
+            return;
+          }
+          return;
+        } else goto take;
       }
 
       if (

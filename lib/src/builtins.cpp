@@ -258,28 +258,29 @@ namespace sel {
       return l.end();
     }
 
-    // TODO: using read_grapheme
     Val* graphemes_::operator*() {
       bind_args(s);
       if (!did_once) {
-        isi = std::istream_iterator<grapheme>(sis = Str_istream(&s));
+        isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
         did_once = true;
+        read_grapheme(isi, curr);
       }
       std::ostringstream oss;
-      return new StrChunks((oss << *isi, oss.str()));
+      return new StrChunks((oss << curr, oss.str()));
     }
     Lst& graphemes_::operator++() {
       bind_args(s);
       if (!did_once) {
-        isi = std::istream_iterator<grapheme>(sis = Str_istream(&s));
+        isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
         did_once = true;
       }
-      ++isi;
+      curr.clear();
+      read_grapheme(isi, curr);
       return *this;
     }
     bool graphemes_::end() const {
       bind_args(s);
-      static std::istream_iterator<grapheme> eos;
+      static std::istream_iterator<codepoint> eos;
       return did_once ? eos == isi : s.end();
     }
 

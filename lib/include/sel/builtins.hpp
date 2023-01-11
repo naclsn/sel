@@ -514,7 +514,8 @@ namespace sel {
       "split a stream of bytes into its Unicode graphemes", (
       bool did_once = false;
       Str_istream sis;
-      std::istream_iterator<grapheme> isi;
+      std::istream_iterator<codepoint> isi;
+      grapheme curr;
     ));
 
     BIN_unk(flip, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>),
