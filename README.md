@@ -1,5 +1,9 @@
-Yet an other `awk`-ish command line tool, with a
+A versatile command line tool to deal with streams, with a
 ("point-free") functional approach.
+
+> Global note that some things may be subject to changes.
+
+> (This file should probly be split into a wiki-ish.)
 
 - [Overview](#Overview)
   - [Getting Started](#Getting%20Started)
@@ -15,15 +19,22 @@ Yet an other `awk`-ish command line tool, with a
   - [Literals](#Literals)
   - [Builtins](#Builtins)
 - [Library](#Library)
+  - [Extending](#Extending)
+    - [As a Builtin](#As%20a%20Builtin)
+      - [Declaration](#Declaration)
+      - [Definition](#Definition)
+      - [Codegen](#Codegen)
+    - [In the Prelude](#In%20the%20Prelude)
 
 # Overview
 
-Similarly to commands such as `awk`, `sed` or `perl
--pe`/`perl -ne`, `sel` takes a script to apply to its
-standard input to produce its standard output.
+Similarly to commands such as `awk` or `sed`, `sel` takes
+a script to apply to its standard input to produce its
+standard output.
 
 ## Getting Started
 
+Project uses the meson build system. With ninja:
 ```console
 $ meson setup build
 $ ninja -C build
@@ -40,8 +51,6 @@ $ seq 17 42 | build/sel [...idk...]
 
 ### Setting Up for Development
 
-Project uses the meson build system (so ninja is assumed).
-
 To enable coverage:
 ```console
 $ meson configure build -Db_coverage=true
@@ -50,7 +59,8 @@ $ ninja -C build test # needed by meson
 $ ninja -C build coverage
 ```
 
-Release build are usualy faster to build:
+Due to the stupid length of some debug symbols, release
+build are usually faster to compile:
 ```console
 $ meson release --buildtype release
 $ ninja -C release
@@ -58,7 +68,34 @@ $ ninja -C release
 
 ## Command Usage
 
-(flags (check, lookup/search, complete, list, disable ic..))
+> The actual "front-end" is not fully designed yet.
+
+```console
+$ build/sel -h
+Usage: build/sel [-Dns] <script...> | -f <file>
+       build/sel -l [<names...>]
+       build/sel [-s] -f <file> [-o <bin> <flags...>]
+```
+
+In the first form, `sel` runs a script that is read either
+from the arguments (`<script..>` -- rest of the command
+line) or from a file (with `-f`). When the script is given
+through the command line, these are joined with a single
+space (`' '`). From this script, an 'app' is made. This
+app is then ran against the standard input to produce the
+standard output.
+- `-n` disables running the app, essentially only performing type-checking.
+- `-s` can be used to enable strict typing (disallows auto-coersion).
+- `-D` does not execute the script but prints (unspecified) dev information.
+
+The second form provides lookup and help for specified
+names. When no names are given, every known names are
+listed out (one by line).
+
+With the last form, it is possible to make `sel` generate
+a small executable which performs the provided script. It
+is compiled leveraging LLVM, so it has to be available on
+the system. This is not implemented yet.
 
 ---
 
@@ -72,8 +109,7 @@ in line.
 ## Syntax
 
 Comments span from the first `#` of a line to the end
-of the line (`\n` character). (TODO: not implemented in
-current version...)
+of the line (`\n` character).
 
 A main idea behind the language it to not be botherd with
 quoting when issuing a command through a POSIX shell. For
@@ -83,27 +119,50 @@ trigger file name expansion, this only occures if it
 does not contain a space (and expressions within `[]`
 will often contain spaces).
 
-Operators are presented [here](#Operators). An exeptions
-to the syntax is the `,` binary operator in that it is
-written with both its operands on its sides.
+Operators are presented [here](#Operators). Only the `,`
+and `;` operators are ever written infix.
 
 The `,` operator is used to chain functions. It is
 equivalent in Haskell to `flip (.)` or the Unix shell pipe
 `|`. The function to the left is executed and its result
 is passed to the function to the right.
 
+The `;` operator is not expected to be used by a short
+script. It discards the value on the left and returns the
+value on the right. Its main use is with the `def` syntax
+(see below).
+
 Literals are presented [here](#Literals). Notably, strings
-are delimited within `:` (which can be escaped with `::`)
+are delimited within `:`s (which can be escaped as `::`)
 and negative numbers cannot be expressed directly. As such,
 "negative 1" would have to be expressed as eg. `[sub 0 1]`.
 Lists are expressed using matching `{`-`}` (C-like).
-<!-- TODO: other escape sequences (\n, \t, ..)
-((and thus maybe change for \:)) -->
 
 Finally words are made of the 26 lower case letters from
-`a` to `z` included. A word will always be looked up for
-its value in the [builtins](#Builtins).
-<!-- TODO/MAYBE: `def <word> <value>` pseudo-function -->
+`a` to `z` included. A word will always be looked up
+for its value in the defined values first, then in the
+[builtins](#Builtins).
+
+To defined a new word: `def <docstring> <word>
+<value>`. This will bind the value to the provided
+word. Although it _is_ implemented in the parser as a
+syntax, it can also be see as a (non-lazy) function:
+```haskell
+-- `name` must be an actual word, not a literal string
+def :: Str -> Word -> a -> a
+def docstring name value = value
+```
+
+Here is an example of how it might be used:
+```
+def hypot:
+  compute the square root of the sum of the squares:
+  [map sq, sum, sqrt]
+  ;
+
+# input would be a list of comma-separated numbers
+split :,:, hypot
+```
 
 ## Type System
 
@@ -118,13 +177,14 @@ The types are:
  - tuples (`(Num, Str)`) and pattern lists (`[Num, Str]`)
 
 Some examples of type definitions:
-```hs
+```haskell
 sum :: [Num] -> Num
 map :: (a -> b) -> [a]* -> [b]*
 ```
 
 In type definitions, lower case words mean the type may
 be any, only known at run time (like `a` and `b` above).
+For the meaning of the `*`, see [Infinity](#Infinity).
 
 ### Tuples and Pattern Lists
 
@@ -132,30 +192,28 @@ be any, only known at run time (like `a` and `b` above).
 
 tuples are backed by lists of known finite size (equal to how many types it has)
 
-pattern lists (name may change) are lists in wich a pattern is repeated (like unfolding a list of tuples)
+pattern lists are lists in wich a pattern is repeated (like unfolding a list of tuples)
 
 none of this is properly implemented and used yet and thus subject to change
 
 ### Coersion
 
-(TODO: although the infrastructure for it is present,
-this is not implemented in the current version)
-
-<!--
 Implicit coersion is provided for convenience. It is
 attempted when an argument to a function does not match
 the destination parameter. This behavior can be disabled
-through some flag probably, in which case the same
-situation will terminate with a type error. -->
+with the `-s` ("strict types") flag, in which case any
+coersion is invalid. In any case an invalid coersion is
+a type error.
 
 Note the following implicit coersions:
  true type | destination  | behavior
 -----------|--------------|----------
  `Num`     | `Str`        | writes the number in decimal
- `Str`     | `Num`        | tries to parse as a number
+ `Str`     | `Num`        | parse as a number, default `0`
  `Str`     | `[Num]`      | list of the Unicode codepoints
  `Str`     | `[Str]`      | list of the Unicode graphemes
- `[Str]`   | `Str`        | joined with empty separator
+<!--
+ `[Str]`   | `Str`        | joined with empty separator -->
 
 These rules apply recursively on complex data structures
 (eg. `[Str]` to `[Num]` is valid).
@@ -171,12 +229,11 @@ seq 5 | sel map +1
 Conditions (boolean values) may be represented with the
 `Num` type. In that case 0 means false, any other value
 means true.
-<!-- TODO/TBD: Str -> Int when invalid.. 0? (current behavior due to stub implementation) -->
 
 ### Infinity
 
-(TODO: although the infrastructure for it is present,
-this is not implemented in the current version)
+(todo: yes it is implemented, but the typing is not
+accounted for yet)
 
 Akin to Haskell, everything is lazy which enables working
 with potentially infinite data structure without always
@@ -185,14 +242,14 @@ hanging.
 A type affixed with a `*` means the value may not be
 bounded (lists and strings). For example the following
 function returns an infinite list:
-```hs
+```haskell
 repeat :: a -> [a]*
 ```
 
 A function may specify that it can operate on such a data
 structure by using the same notation:
-```hs
-join :: [a] -> [[a]]* -> [a]*
+```haskell
+join :: Str -> [Str]* -> Str*
 ```
 
 A value of finite type may be assigned to a parameter
@@ -204,7 +261,7 @@ Also a function keep the finite quality of its parameter to
 its return. With the same `join` function as an example,
 calling it with 2 arguments of finite types results in a
 finite type value.
-```hs
+```haskell
 join "-" "abcd" :: Str -- = "a-b-c-d"
 ```
 
@@ -247,28 +304,33 @@ operator is that an unary operator will first check
 if the next token is a binary operator. If it is one,
 the unary operator is first applied the binary operator,
 then the next atom is passed to the result. See the last
-example in the table [above](#Operator).
+example in the [table above](#Operators).
 
 Finally, it is important to notice that despite being
-called "binary" operators, none can be used with infix
-syntax as in `1 + 2` (this would become `1 [[flip add]
-2]`). (Although the Polish/prefix notation is technically
-correct: `+ 1 2`.)
+binary operators, none can be used with infix syntax as in
+`1 + 2` (this would become `1 [[flip add] 2]`).
+
+> The Polish/prefix notation is technically correct: `+ 1 2`.
 
 ## Literals
 
-Numeric literals come in two forms: integers and floating
-points. Both are expressed using the charaters `0` to `9`,
-with `.` as the decimal separator. The floating point
-notation needs the leading 0; `.5` will effectively be
-desugared as `[flip mul] 5`. It is not possible to express
-a negative value literally. To obtain such a value, the
-`sub 0` function can be used.
+Numeric literals are just as usual, exept the leading `0`
+is needed for fractional numbers: `.5` will be parsed as
+`[flip mul] 5` (see the [operators](#Operators)) so it
+has to be written `0.5`.
+
+For the same reason, it is not possible to express a
+negative value literally. For this the `sub 0` function
+can be used.
+
+Support for hexadecimal, binary and octal notations can
+be expected (at some point).
 
 String literals are written between matching `:` and
 `:`. To write a string containing the character `:`,
-it must be doubled.
-<!-- MAYBE: could change for traditional \. (or even have both) -->
+it can be doubled. The followig C-like escape sequences
+are also supported: `\a`, `\b`, `\t`, `\n`, `\v`, `\f`,
+`\r` and `\e`.
 
 <!--
 A character literal is a simpler way to represent a string
@@ -306,21 +368,139 @@ categories of functions:
 
 # Library
 
+(ie. libsel.so and such)
+
+## Extending
+
+The program can be extended by adding new names.
+
+Adding a new name ("function" or "value") can be done in
+two ways:
+- as a builtin, directly in C++;
+- in the prelude, expressed in sel.
+
+The first one is the favored way as it give much more
+liberty. The second one may be less performant, and many
+computation are way more difficult to express in sel than
+in C++.
+
+### As a Builtin
+
+"Builtin" referes to a sel value
+which is implemented in C++, declared in
+[builtins.hpp](lib/include/sel/builtins.hpp) and defined
+in [builtins.cpp](lib/src/builtins.cpp). For it to be
+accessible:
+- declare it in the hpp using the appropriate macro
+- register it in the hpp
+- defind it in the cpp by implementing the needed method-s
+- (optionally implement its codegen visitor method-s) -- NIY
+
+#### Declaration
+
+A set of C macro is used to declare new builtins. You
+should use the one that has the name of the last type it
+returns, for example:
+- `BIN_num` for a function that ultimately returns a number,
+  or a value that _is_ a number
+- `BIN_str` for a function that ultimately returns a string,
+  or a value that _is_ a string
+- `BIN_lst` for a function that ultimately returns a list,
+  or a value that _is_ a list (regardless of contains type)
+- `BIN_unk` for a function which return type is parametric
+  (eg. `[a] -> a`)
+
+For any of these macro, the parameters are:
+1. the name (as an identifier, must not contain `_` or digits)
+2. the type (a comma-separated list of C++ MTP structures - careful of the lower case, that's my bad)
+3. a helpful docstring
+4. any member variables / methods it may need (this is the body of a structure)
+
+> Note that the name defined **in C++** is affixed with
+> `_`, this is to avoid collisions with eg. keywords.
+
+Parameters for points 2 and 4 have to be specified between
+parenthesises, as they could contain commas.
+
+Here are a few declaration as examples:
+```cpp
+// map :: (a -> b) -> [a] -> [b]
+BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>),
+  "make a new list by applying an unary operation to each value from a list", ());
+
+// tonum :: Str -> Num
+BIN_num(tonum, (str, num),
+  "convert a string into number", (
+  // these 2 to cache the result
+  double r;
+  bool done = false;
+));
+
+// const :: a -> b -> a
+BIN_unk(const, (unk<'a'>, unk<'b'>, unk<'a'>),
+  "always evaluate to its first argument, ignoring its second argument", ());
+```
+
+A defined builtin will not be in
+play until registered. Near the end of
+[builtins.hpp](lib/include/sel/builtins.hpp) is a list
+of all the registered builtin. Here you need to add your
+own. It should be kept in alphabetical order. (Note again
+that, **in C++**, `_` is affix to the name.)
+
+#### Definition
+
+Which methods must be implemented depends on the macro
+that was used to declare it:
+- `BIN_num`:
+  - `double value()`
+    return the actual numeric value
+- `BIN_str`:
+  - `std::ostream& stream(std::ostream&)`
+    send a part of the string into the stream
+  - `bool end() const`
+    indicates whether it is valid to call `stream` again
+  - `std::ostream& entire(std::ostream&)`
+    send the entirety of the string into the stream
+- `BIN_lst`:
+  - `Val* operator*()`
+    returns a pointer to the current value
+  - `Lst& operator++()`
+    fetches the next value; only exists in prefix notation;
+    must returns `*this`
+  - `bool end() const`
+    indicates whether it is valid to use `*` or `++` again
+- `BIN_unk`:
+  - `Val* impl()`
+    returns a pointer to the resulting value
+
+In any member method, the `bind_args` macro can be used
+to access the arguments as C++ references.
+```cpp
+Val* const_::impl() {
+  // const :: a -> b -> a
+  // const take ignore = take
+  bind_args(take, ignore);
+  return &take;
+}
+```
+
+#### Codegen
+
+(not implemented yet, but this would
+be done by writing the needed method for
+[VisCodegen](lib/src/visitors/codegen.cpp), which itself
+will also requier adding the method declaration in
+[the header](lib/include/sel/visitors.hpp)... none of
+which exists yet)
+
+### In the Prelude
+
+(this mechanism is not clarified yet, but the prelude is
+essentially a piece of sel script that gets prepended
+to the user-input script; it contains calls to
+[`def`](#Syntax))
+
 ---
 
-### Notepad
-#### TODO/WIP
-- better errors
-- auto coersion (will require utf-8)
-- memory
-#### FIXMEs
-- `echo 1 2 3 | ./sel split: :, reverse, join: :`
-- `./sel -D const {:a:, :b:, :c:}, reverse, join: :`
-- `printf '1 2 3\n4 5 6' | ./sel split:\\n:, map [split: :, map tonum], zipwith add, map tostr, join:\\n:`
-#### Feature Goals
-- [x] lazy and infinite data structures (still todo: type flag for this)
-- ([ ] only cache when not proved not needed)
-- [ ] lib interface
-- [ ] proper unicode (eg. graphems and word)
-- [ ] REPL
-- [ ] interactive (based on REPL)
+> the GitHub "Need inspiration?" bit was "super-spoon"

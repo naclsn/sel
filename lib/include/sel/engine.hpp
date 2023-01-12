@@ -31,6 +31,7 @@ namespace sel {
     { }
     virtual ~Val() { }
     Type const& type() const { return ty; }
+    virtual Val* copy() const = 0;
     virtual void accept(Visitor& v) const;
   };
 
