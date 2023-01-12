@@ -12,9 +12,9 @@ using namespace std;
 using namespace sel;
 
 // `inc <filename>` directive?
-string const prelude_source = /** /"";/*/ R"(
-  def lines [split:\n:];
-  def unlines [join:\n:];
+string const prelude_source = /**/"";/*/ R"(
+  def lines:: [split:\n:];
+  def unlines:: [join:\n:];
 )"; //*/
 
 void build(App& app, char const* const srcs[]) {

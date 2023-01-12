@@ -456,7 +456,7 @@ unknown_token_push1:
         }
         if (eos == tts) expected("matching token ')'", TyToken());
         if (TyTokenType::P_CLOSE != tts->type) expected("matching token ')'", *tts);
-        tts++;
+        ++tts;
         break;
 
       case TyTokenType::B_OPEN:
@@ -468,13 +468,13 @@ unknown_token_push1:
           parseTypeImpl(new_first, ++tts, *it);
           res.p.box_has->push_back(it);
           if (TyTokenType::COMMA != tts->type) break;
-          tts++;
+          ++tts;
         } while (eos != tts);
         if (eos == tts) expected("matching token ']'", TyToken());
         if (TyTokenType::B_CLOSE != tts->type) expected("matching token ']'", *tts);
         res.base = Ty::LST;
         res.flags = 0;
-        tts++;
+        ++tts;
         break;
 
       default:
@@ -485,7 +485,7 @@ unknown_token_push1:
     //        | type*
     if (TyTokenType::STAR == tts->type) {
       res.flags|= TyFlag::IS_INF;
-      tts++;
+      ++tts;
     }
 
     if (eos == tts) return;
@@ -512,14 +512,15 @@ unknown_token_push1:
     if (TyTokenType::NAME == first.type && eos != lexer) {
       TyToken second = *++lexer;
       if (TyTokenType::TY_EQ == second.type) {
-        lexer++; // drop '::'
+        ++lexer; // drop '::'
         if (eos == lexer) throw std::string("end of token stream");
         if (named) named->assign(first.text);
-        first = *lexer++; // pop `first` (will forward to impl)
+        first = *lexer; // pop `first` (will forward to impl)
+        ++lexer;
       } else if (named) named->assign("");
     } else {
       if (named) named->assign("");
-      lexer++; // pop `first` (will forward to impl)
+      ++lexer; // pop `first` (will forward to impl)
     }
 
     parseTypeImpl(first, lexer, res);

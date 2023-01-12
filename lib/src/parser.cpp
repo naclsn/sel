@@ -410,17 +410,17 @@ namespace sel {
       case Token::Type::NAME:
         val = lookup(app, *t.as.name);
         if (!val) throw ParseError("unknown name '" + *t.as.name + "'", t.loc, t.len);
-        lexer++;
+        ++lexer;
         break;
 
       case Token::Type::LIT_NUM:
         val = new NumLiteral(t.as.num);
-        lexer++;
+        ++lexer;
         break;
 
       case Token::Type::LIT_STR:
         val = new StrLiteral(std::string(*t.as.str));
-        lexer++;
+        ++lexer;
         break;
 
       case Token::Type::LIT_LST_OPEN:
@@ -448,15 +448,15 @@ namespace sel {
           // to be done at element-s level...)
 
           val = new LstLiteral(elms);
-          lexer++;
+          ++lexer;
         }
         break;
 
       // YYY: hard-coded lookups could be hard-coded
       case Token::Type::UN_OP: // TODO: will have a lookup_unop
         switch (t.as.chr) {
-          // case '@': val = lookup_name(""); break;
-          case '%': val = lookup_name("flip"); break;
+          // case '@': val = static_lookup_name(..); break;
+          case '%': val = static_lookup_name(flip); break;
           // default unreachable
         }
         {
@@ -464,14 +464,14 @@ namespace sel {
           Token t = *++lexer;
           if (Token::Type::BIN_OP == t.type) { // ZZZ: yeah, code dup (as if that was the only problem)
             switch (t.as.chr) {
-              case '+': arg = lookup_name("add"); break;
-              case '-': arg = lookup_name("sub"); break;
-              case '.': arg = lookup_name("mul"); break;
-              case '/': arg = lookup_name("div"); break;
+              case '+': arg = static_lookup_name(add); break;
+              case '-': arg = static_lookup_name(sub); break;
+              case '.': arg = static_lookup_name(mul); break;
+              case '/': arg = static_lookup_name(div); break;
               // default unreachable
             }
-            arg = (*(Fun*)lookup_name("flip"))(arg);
-            lexer++;
+            arg = (*static_lookup_name(flip))(arg);
+            ++lexer;
           } else arg = parseAtom(app, lexer);
           if (!arg) expected("atom", *lexer);
           val = (*(Fun*)val)(arg);
@@ -483,14 +483,14 @@ namespace sel {
           Val* arg = nullptr;
           arg = parseAtom(app, ++lexer);
           switch (t.as.chr) {
-            case '+': val = lookup_name("add"); break;
-            case '-': val = lookup_name("sub"); break;
-            case '.': val = lookup_name("mul"); break;
-            case '/': val = lookup_name("div"); break;
+            case '+': val = static_lookup_name(add); break;
+            case '-': val = static_lookup_name(sub); break;
+            case '.': val = static_lookup_name(mul); break;
+            case '/': val = static_lookup_name(div); break;
             // default unreachable
           }
           if (!arg) expected("atom", *lexer);
-          val = (*(Fun*)(*(Fun*)lookup_name("flip"))(val))(arg);
+          val = (*(Fun*)(*static_lookup_name(flip))(val))(arg);
         }
         break;
 
@@ -502,10 +502,11 @@ namespace sel {
           val = parseScript(app, lexer);
           if (!val) expectedMatching(t, *lexer);
 
-          if (Token::Type::SUB_CLOSE != lexer++->type) {
+          if (Token::Type::SUB_CLOSE != lexer->type) {
             if (eos == lexer) expectedContinuation("scanning sub-script element", *lexer);
             expectedMatching(t, *lexer);
           }
+          ++lexer;
         }
         break;
 
@@ -541,7 +542,7 @@ namespace sel {
         throw ParseError("cannot redefine already known name '" + *t_name.as.name + "'", t_name.loc, t_name.len);
       }
 
-      lexer++;
+      ++lexer;
       val = parseAtom(app, lexer);
       if (!val) expected("atom", *lexer);
 
@@ -579,7 +580,7 @@ namespace sel {
     }
 
     if (Token::Type::PASS == lexer->type) {
-      lexer++;
+      ++lexer;
       return parseElement(app, lexer);
     }
 
