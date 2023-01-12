@@ -85,7 +85,7 @@ namespace sel {
     nowat = upto;
     return out << cache.str();
   }
-  Val* Input::copy() const { return nullptr; } // ZZZ: not on this branch
+  Val* Input::copy() const { return new Input(*this); }
   void Input::accept(Visitor& v) const { v.visitInput(ty); }
 
   // internal
@@ -638,7 +638,7 @@ namespace sel {
 
   Val* App::lookup_name_user(std::string const& name) {
     try {
-      return user.at(name);
+      return user.at(name)->copy();
     } catch (.../*std::out_of_range const&*/) {
       return nullptr;
     }

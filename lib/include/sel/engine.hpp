@@ -132,10 +132,10 @@ namespace sel {
   // but XXX: this is crap and will fail!
   template <typename ToHas>
   class LstMapCoerse : public Lst {
-    Lst& v;
+    Lst* v;
     Type const& toto;
   public:
-    LstMapCoerse(Lst& v, Type const& toto)
+    LstMapCoerse(Lst* v, Type const& toto)
       : Lst(Type(Ty::LST,
           {.box_has=
             new std::vector<Type*>({new Type(toto)})
@@ -144,9 +144,11 @@ namespace sel {
       , v(v)
       , toto(toto)
     { }
-    Val* operator*() override { return coerse<ToHas>(*v, toto); }
-    Lst& operator++() override { ++v; return *this; }
-    bool end() const override { return v.end(); }
+    Val* operator*() override { return coerse<ToHas>(*(*v), toto); }
+    Lst& operator++() override { ++(*v); return *this; }
+    bool end() const override { return v->end(); }
+    Val* copy() const override { return new LstMapCoerse<ToHas>((Lst*)v->copy(), toto); }
+    // XXX: missing accept(v)
   };
 
 

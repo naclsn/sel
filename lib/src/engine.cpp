@@ -64,11 +64,11 @@ namespace sel {
 
     if (Ty::LST == ty.base) {
       if (Ty::NUM == toto.base)
-        return new LstMapCoerse<Num>(*(Lst*)from, toto);
+        return new LstMapCoerse<Num>((Lst*)from, toto);
       if (Ty::STR == toto.base)
-        return new LstMapCoerse<Str>(*(Lst*)from, toto);
+        return new LstMapCoerse<Str>((Lst*)from, toto);
       if (Ty::LST == toto.base)
-        return new LstMapCoerse<Lst>(*(Lst*)from, toto);
+        return new LstMapCoerse<Lst>((Lst*)from, toto);
       if (Ty::UNK == toto.base)
         return (Lst*)from;
     }

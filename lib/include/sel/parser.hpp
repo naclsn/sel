@@ -98,6 +98,13 @@ namespace sel {
     std::istream& in;
     std::ostringstream cache;
     std::streamsize nowat = 0, upto = 0;
+    Input(Input const& other)
+      : Str(TyFlag::IS_INF)
+      , in(other.in)
+      , cache(other.cache.str())
+      , nowat(other.nowat)
+      , upto(other.upto)
+    { }
   public:
     Input(std::istream& in)
       : Str(TyFlag::IS_INF)

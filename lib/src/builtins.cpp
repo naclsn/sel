@@ -1,3 +1,4 @@
+#define TRACE(...)
 #include "sel/builtins.hpp"
 #include "sel/visitors.hpp"
 #include "sel/parser.hpp"
