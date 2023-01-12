@@ -65,6 +65,17 @@ $ seq 17 42 | build/sel [...idk...]
 41
 ```
 
+> sel: error while loading shared libraries: libsel.so:
+> cannot open shared object file: No such file or directory
+
+Note that on some distribution (eg. Fedora), meson will
+install `libsel.so` under `/usr/local/lib{,64}`. If it is
+not found at runtime, you may need to add it manually:
+```console
+# echo /usr/local/lib64 >/etc/ld.so.conf.d/sel.conf
+# ldconfig # rebuild cache
+```
+
 ### Setting Up for Development
 
 To enable coverage:
