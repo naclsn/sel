@@ -3,7 +3,23 @@ A versatile command line tool to deal with streams, with a
 
 > Global note that some things may be subject to changes.
 
-> (This file should probly be split into a wiki-ish.)
+---
+
+##### State of Development
+
+The project has be brought to a "usable" (~hackable) point.
+However it is unfinished, notably:
+- tests, I want more test, there is basically none
+- infrastructure for tuples and pattern lists is in place, but incomplete
+- same goes for affixing types with `*` (marks unbounded)
+- (.. because of the previous on, literal lists are broken and crash type-checking)
+- not every function that I would want are implemented, plan is to add as the need comes
+- memory management is not quite a thing, this would mainly hinder use of `libsel.so`, with memory leaks
+- (LLVM-based codegen is only a dream for now)
+
+---
+
+> (This file should probly be split into a wiki-ish set of pages.)
 
 - [Overview](#Overview)
   - [Getting Started](#Getting%20Started)
