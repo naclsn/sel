@@ -13,6 +13,11 @@
   },
   "author": "Grenier Célestin",
   "license": "MIT",
+  "files": [
+    "grammar.js",
+    "queries/*",
+    "test/corpus/*",
+  ],
   "scripts": {
     "build": "tree-sitter generate",
     "test": "tree-sitter test"

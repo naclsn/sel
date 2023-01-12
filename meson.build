@@ -1,7 +1,7 @@
 project('sel', 'cpp',
   default_options : ['cpp_std=c++11'],
   version : '0.1.7',
-  # license : '..',
+  license : 'MIT',
 )
 
 add_project_arguments(
