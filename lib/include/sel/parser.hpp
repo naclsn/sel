@@ -26,6 +26,7 @@ namespace sel {
       , n(n)
     { }
     double value() override;
+    Val* copy() const override;
     void accept(Visitor& v) const override;
   };
 
@@ -41,6 +42,7 @@ namespace sel {
     std::ostream& stream(std::ostream& out) override;
     bool end() const override;
     std::ostream& entire(std::ostream& out) override;
+    Val* copy() const override;
     void accept(Visitor& v) const override;
   };
 
@@ -69,9 +71,12 @@ namespace sel {
     Val* operator*() override;
     Lst& operator++() override;
     bool end() const override;
+    Val* copy() const override;
     void accept(Visitor& v) const override;
   };
 
+  // TODO: not this way, 'cause then it cannot be other
+  // than `Fun` (eg. "repeat:1:, join::" should be `Str`)
   class FunChain : public Fun {
     std::vector<Fun*> const f;
   public:
@@ -85,40 +90,31 @@ namespace sel {
       , f(f)
     { }
     Val* operator()(Val* arg) override;
+    Val* copy() const override;
     void accept(Visitor& v) const override;
   };
 
   class Input : public Str {
-    std::istream* in;
+    std::istream& in;
     std::ostringstream cache;
     std::streamsize nowat = 0, upto = 0;
-  public:
-    Input()
+    Input(Input const& other)
       : Str(TyFlag::IS_INF)
-      , in(nullptr)
+      , in(other.in)
+      , cache(other.cache.str())
+      , nowat(other.nowat)
+      , upto(other.upto)
+    { }
+  public:
+    Input(std::istream& in)
+      : Str(TyFlag::IS_INF)
+      , in(in)
     { }
     std::ostream& stream(std::ostream& out) override;
     bool end() const override;
     std::ostream& entire(std::ostream& out) override;
+    Val* copy() const override;
     void accept(Visitor& v) const override;
-    void setIn(std::istream* in) { this->in = in; }
-  };
-
-  class Output : public Fun {
-    std::ostream* out;
-  public:
-    Output()
-      : Fun(Type(Ty::FUN,
-          {.box_pair={
-            new Type(Ty::STR, {0}, TyFlag::IS_INF), // YYY: will consider output may be infinite
-            new Type(Ty::UNK, {.name=new std::string("()")}, 0)
-          }}, 0
-        ))
-      , out(nullptr)
-    { }
-    Val* operator()(Val* arg) override;
-    void accept(Visitor& v) const override;
-    void setOut(std::ostream* out) { this->out = out; }
   };
 
   /**
@@ -128,21 +124,18 @@ namespace sel {
    */
   class App {
   private:
-    std::vector<Fun*> funcs;
-    Input* fin;
-    Output* fout;
+    Fun* f; // note that this does not have to be `Str -> Str`
     std::unordered_map<std::string, Val*> user;
 
   public:
-    App()
-      : funcs()
-    { }
+    App() { }
 
     Val* lookup_name_user(std::string const& name);
     void define_name_user(std::string const& name, Val* v);
 
     void run(std::istream& in, std::ostream& out);
 
+    // note: it always assumes `top_level`, even if false (ie. no single line)
     void repr(std::ostream& out, VisRepr::ReprCx cx={.top_level=true}) const;
 
     friend std::ostream& operator<<(std::ostream& out, App const& ty);

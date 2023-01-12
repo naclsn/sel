@@ -6,10 +6,11 @@
  * the application.
  */
 
-#include <ostream>
+#include <sstream>
 #include <vector>
 
 #include "types.hpp"
+#include "unicode.hpp"
 
 namespace sel {
 
@@ -30,6 +31,7 @@ namespace sel {
     { }
     virtual ~Val() { }
     Type const& type() const { return ty; }
+    virtual Val* copy() const = 0;
     virtual void accept(Visitor& v) const;
   };
 
@@ -41,7 +43,7 @@ namespace sel {
    * it for `coerse(Val val, Type to)`.
    */
   template <typename To>
-  To* coerse(Val* from); // TODO: `Type const& to` [?]
+  To* coerse(Val* from, Type const& to);
 
   /**
    * Abstract class for `Num`-type compatible values.
@@ -123,6 +125,59 @@ namespace sel {
       : Val(type)
     { }
     virtual Val* operator()(Val* arg) = 0;
+  };
+
+
+  // this hacked quickly (cause im lazy and wanna see it work)
+  // but XXX: this is crap and will fail!
+  template <typename ToHas>
+  class LstMapCoerse : public Lst {
+    Lst* v;
+    Type const& toto;
+  public:
+    LstMapCoerse(Lst* v, Type const& toto)
+      : Lst(Type(Ty::LST,
+          {.box_has=
+            new std::vector<Type*>({new Type(toto)})
+          }, TyFlag::IS_FIN
+        ))
+      , v(v)
+      , toto(toto)
+    { }
+    Val* operator*() override { return coerse<ToHas>(*(*v), toto); }
+    Lst& operator++() override { ++(*v); return *this; }
+    bool end() const override { return v->end(); }
+    Val* copy() const override { return new LstMapCoerse<ToHas>((Lst*)v->copy(), toto); }
+    // XXX: missing accept(v)
+  };
+
+
+  // @thx: http://gabisoft.free.fr/articles/fltrsbf1.html (2 pages, this page 1)
+  class Str_streambuf : public std::streambuf {
+    Str* v;
+    std::string buffered;
+
+  public:
+    Str_streambuf() { } // whever
+    Str_streambuf(Str* v): v(v) { }
+
+    Str_streambuf& operator=(Str_streambuf const&) = delete;
+    Str_streambuf& operator=(Str_streambuf&& sis);
+
+    int_type overflow(int_type) override;
+    int_type underflow() override;
+  };
+
+  class Str_istream : public std::istream {
+    Str_streambuf a;
+
+  public:
+    Str_istream() { } // whever
+    Str_istream(std::istream&) = delete;
+    Str_istream(Str* v): a(v) { init(&a); }
+
+    Str_istream& operator=(Str_istream const&) = delete;
+    Str_istream& operator=(Str_istream&& sis);
   };
 
 } // namespace sel

@@ -35,6 +35,7 @@ namespace sel {
         out << it;
       return out;
     }
+    Val* copy() const override;
     void accept(Visitor& v) const override;
   };
 
@@ -42,6 +43,12 @@ namespace sel {
    * Seach for a value by name, return nullptr if not found.
    */
   Val* lookup_name(std::string const& name);
+
+  /**
+   * Same as `lookup_name`, but at compile time. Argument
+   * must be an identifier token.
+   */
+#define static_lookup_name(__name) (new sel::bins::__name##_::Head())
 
   /**
    * Seach for a value by name, return nullptr if not found.
@@ -214,6 +221,7 @@ namespace sel {
           : one::ctor(Impl::name)
         { }
 
+        Val* copy() const override; // copyOne
         void accept(Visitor& v) const override; // visitOne
       };
     };
@@ -238,9 +246,10 @@ namespace sel {
         virtual Val* impl() = 0;
 
         Val* operator()(Val* arg) override {
-          this->arg = coerse<_LastArg>(arg);
+          this->arg = coerse<_LastArg>(arg, last_arg::make(Impl::name));
           return impl();
         }
+        Val* copy() const override; // copyOne2
         void accept(Visitor& v) const override; // visitOne2
       };
     };
@@ -307,6 +316,8 @@ namespace sel {
           , base(base)
           , arg(arg)
         { }
+
+        Val* copy() const override; // copyTail1
       };
 
       // is used when `_is_unk_tail` (eg. 'X(a) -> a')
@@ -329,7 +340,8 @@ namespace sel {
             , base(base)
             , arg(arg)
           { }
-          Val* operator()(Val* arg) override { return nullptr; } // YYY: still quite hacky?
+          Val* operator()(Val* arg) override { throw RuntimeError("operation not permited: operator() on proxy base"); } //{ return nullptr; } // YYY: still quite hacky?
+          Val* copy() const override { throw RuntimeError("operation not permited: copy() on proxy base"); } //{ return new _ProxyBase(base, arg); } // YYY: need, more, hacky! (none's supposed to call that)
         } _base;
         _ProxyBase* base;
         typedef typename _fun_first_par_type<_ty_one_to_tail>::the::vat _LastArg;
@@ -347,9 +359,10 @@ namespace sel {
         virtual Val* impl() = 0;
 
         Val* operator()(Val* arg) override {
-          this->arg = coerse<_LastArg>(arg);
+          this->arg = coerse<_LastArg>(arg, _fun_first_par_type<_ty_one_to_tail>::the::make(Base::Next::name));
           return impl();
         }
+        Val* copy() const override; // copyTail2
       };
 
       typedef typename std::conditional<
@@ -372,7 +385,10 @@ namespace sel {
         : fun<last_from, last_to>::ctor(the::Base::Next::name)
       { }
 
-      Val* operator()(Val* arg) override { return new Next(this, coerse<_next_arg_ty>(arg)); }
+      Val* operator()(Val* arg) override {
+        return new Next(this, coerse<_next_arg_ty>(arg, last_from::make(the::Base::Next::name)));
+      }
+      Val* copy() const override; // visitHead
       void accept(Visitor& v) const override; // visitHead
     };
 
@@ -398,7 +414,10 @@ namespace sel {
         , arg(arg)
       { }
 
-      Val* operator()(Val* arg) override { return new Next(this, coerse<_next_arg_ty>(arg)); }
+      Val* operator()(Val* arg) override {
+        return new Next(this, coerse<_next_arg_ty>(arg, from::make(the::Base::Next::name)));
+      }
+      Val* copy() const override; // copyBody
       void accept(Visitor& v) const override; // visitBody
     };
 
@@ -468,6 +487,13 @@ namespace sel {
     BIN_num(add, (num, num, num),
       "add two numbers", ());
 
+    BIN_lst(codepoints, (str, lst<num>),
+      "split a string of bytes into its Unicode codepoints", (
+      bool did_once = false;
+      Str_istream sis;
+      std::istream_iterator<codepoint> isi;
+    ));
+
     BIN_lst(conjunction, (lst<unk<'a'>>, lst<unk<'a'>>, lst<unk<'a'>>),
       "logical conjunction between two lists treated as sets; it is right-lazy and the list order is taken from the right argument (for now items are expected to be strings, until arbitraty value comparison)", (
       bool did_once = false;
@@ -477,6 +503,9 @@ namespace sel {
 
     BIN_unk(const, (unk<'a'>, unk<'b'>, unk<'a'>),
       "always evaluate to its first argument, ignoring its second argument", ());
+
+    BIN_num(div, (num, num, num),
+      "divide the first number by the second number", ());
 
     BIN_lst(drop, (num, lst<unk<'a'>>, lst<unk<'a'>>),
       "return the suffix past a given count, or the empty list if it is shorter", (
@@ -491,6 +520,14 @@ namespace sel {
     BIN_lst(filter, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),
       "return the list of elements which satisfy the predicate", (
       Val* curr = nullptr;
+    ));
+
+    BIN_lst(graphemes, (str, lst<str>),
+      "split a stream of bytes into its Unicode graphemes", (
+      bool did_once = false;
+      Str_istream sis;
+      std::istream_iterator<codepoint> isi;
+      grapheme curr;
     ));
 
     BIN_unk(flip, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>),
@@ -515,6 +552,9 @@ namespace sel {
 
     BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>),
       "make a new list by applying an unary operation to each value from a list", ());
+
+    BIN_num(mul, (num, num, num),
+      "multiply tow numbers", ());
 
     BIN_str(nl, (str, str),
       "append a new line to a string", (
@@ -586,6 +626,9 @@ namespace sel {
       bool read = false;
     ));
 
+    BIN_str(uncodepoints, (lst<num>, str),
+      "construct a string from its Unicode codepoints; this can lead to 'degenerate cases' if not careful", ());
+
     BIN_unk(uncurry, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, lst<unk<'w'/* TODO: tuple */>>, unk<'c'>),
       "convert a curried function to a function on pairs", ());
 
@@ -637,23 +680,29 @@ namespace sel {
     // YYY: these are used in parsing..
     typedef cons_l
       < add_
-      // , div_
+      , codepoints_
+      , div_
       , flip_
-      // , mul_
+      , graphemes_
+      , mul_
       , sub_
+      , tonum_
+      , tostr_
       >::the bins; //bins_min; // YYY: could have these only here, but would need to merge with below while keeping sorted (not strictly necessary, but convenient)
 #else
     // XXX: still would love if this list could be built automatically
     typedef cons_l
       < abs_
       , add_
+      , codepoints_
       , conjunction_
       , const_
-      // , div_
+      , div_
       , drop_
       , dropwhile_
       , flip_
       , filter_
+      , graphemes_
       // , head_
       , id_
       , if_
@@ -662,7 +711,7 @@ namespace sel {
       , join_
       // , last_
       , map_
-      // , mul_
+      , mul_
       , nl_
       , pi_
       , repeat_
@@ -677,6 +726,7 @@ namespace sel {
       , takewhile_
       , tonum_
       , tostr_
+      , uncodepoints_
       , uncurry_
       , zipwith_
       >::the bins;

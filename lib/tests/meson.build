@@ -7,6 +7,7 @@ all = [
   'runApp',
   'def_kw',
   'end',
+  'each',
 ]
 
 foreach name : all

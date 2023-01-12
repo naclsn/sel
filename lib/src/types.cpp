@@ -1,6 +1,6 @@
 #include <unordered_map>
 
-// #define TRACE(...)
+#define TRACE(...)
 #include "sel/utils.hpp"
 #include "sel/types.hpp"
 #include "sel/errors.hpp"
@@ -131,7 +131,6 @@ namespace sel {
 
       case Ty::STR:
         // YYY: this is a (frustrating) hack, but it could be made into a real thing (named-bound'ed types)
-        // XXX: this segfaults with `nk` null in `if [repeat :1:]` (MRE)
         if ((TyFlag::IS_INF & hu.flags) && (TyFlag::IS_INF & nk.flags) != (TyFlag::IS_INF & map.at("_*").flags)) {
           map.erase("_*");
           map.emplace("_*", Type(Ty::UNK, {0}, (TyFlag::IS_INF & nk.flags)));
@@ -140,7 +139,17 @@ namespace sel {
 
       case Ty::LST:
         // assert nk.has().size() == hu.has().size()
-        // XXX: apparently this is not always the case (probly a bug): `const {}, reverse, join: :` (MRE) -- could have to do with '_mixed'?
+        // FIXME: `const {}, reverse, join: :` (MRE)
+        // because the parsing does not give its 'has'
+        // to a literal list, it gets initialized empty
+        // the problem is likely not to be solved here
+        // but in type coersion, where it will be done
+        // to make the input type compatible; eg:
+        // '[Str]' from '(Num, Str)' is valid and will
+        // be applied the missing conversion(s)
+        // by `coerse()` so that the output val
+        // effectively always have a type compatible
+        // to the function it gets applied to
         {
           auto const& hu_has = hu.has();
           auto const& nk_has = nk.has();
