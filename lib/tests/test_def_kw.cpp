@@ -34,7 +34,7 @@ TEST(def_kw) {
         "incall,",
         "incall,",
       "map", "tostr,",
-    "join", ":", ":,",
+    "join", ":", ":",
   }, "1 2 3", "5 6 7");
   do_run({
     "def", "lines::", "[split", ":\\n:];\n",
