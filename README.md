@@ -113,6 +113,7 @@ app is then ran against the standard input to produce the
 standard output.
 - `-n` disables running the app, essentially only performing type-checking.
 - `-s` can be used to enable strict typing (disallows auto-coersion).
+- `-t` give the type of the given expression (if it is valid).
 - `-D` does not execute the script but prints (unspecified) dev information.
 
 The second form provides lookup and help for specified

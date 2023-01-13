@@ -656,7 +656,7 @@ namespace sel {
       throw TypeError((oss << "value of type " << ty << " is not a function", oss.str()));
     }
 
-    coerse<Str>(*this, (*f)(coerse<Val>(*this, new Input(*this, in), ty.from())), Type(Ty::STR, {0}, TyFlag::IS_INF))->entire(out);
+    coerse<Str>(*this, (*(Fun*)f)(coerse<Val>(*this, new Input(*this, in), ty.from())), Type(Ty::STR, {0}, TyFlag::IS_INF))->entire(out);
   }
 
   void App::repr(std::ostream& out, VisRepr::ReprCx cx) const {
@@ -702,8 +702,10 @@ namespace sel {
     std::istream_iterator<Token> lexer(in);
     if (eos == lexer) expectedContinuation("scanning script", *lexer);
 
-    auto tmp = parseScript(app, lexer);
-    app.f = coerse<Fun>(app, tmp, tmp->type());
+    Val* tmp = parseScript(app, lexer);
+    app.f = app.not_fun
+      ? tmp
+      : coerse<Fun>(app, tmp, tmp->type());
     if (Token::Type::SUB_CLOSE == lexer->type)
       throw ParseError("unmatched closing ]", lexer->loc, lexer->len);
 

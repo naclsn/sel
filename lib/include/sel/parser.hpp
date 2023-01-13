@@ -124,16 +124,20 @@ namespace sel {
    */
   class App {
   private:
-    Fun* f; // note that this does not have to be `Str -> Str`
+    Val* f; // note that this does not have to be `Str -> Str`
     std::unordered_map<std::string, Val*> user;
 
     bool strict_type = false;
+    bool not_fun = false; // ie yes fun by default
 
   public:
     App() { }
-    App(bool strict_type)
+    App(bool strict_type, bool not_fun)
       : strict_type(strict_type)
+      , not_fun(not_fun)
     { }
+
+    Type const& type() const { return f->type(); }
 
     bool is_strict_type() const { return strict_type; }
 
