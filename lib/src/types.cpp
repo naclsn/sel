@@ -542,8 +542,9 @@ unknown_token_push1:
     if (base != other.base)
       return false;
 
-    if ((TyFlag::IS_INF & flags) != (TyFlag::IS_INF & other.flags))
-      return false;
+    // XXX: disabled for now (support too partial)
+    //if ((TyFlag::IS_INF & flags) != (TyFlag::IS_INF & other.flags))
+    //  return false;
 
     switch (base) {
       case Ty::NUM:

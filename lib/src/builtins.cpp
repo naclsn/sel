@@ -8,7 +8,7 @@
 namespace sel {
 
   Val* StrChunks::copy() const {
-    return new StrChunks(chunks);
+    return new StrChunks(app, chunks);
   }
   void StrChunks::accept(Visitor& v) const {
     v.visitStrChunks(type(), this->chunks);
@@ -18,20 +18,20 @@ namespace sel {
   template <typename list> struct linear_search;
   template <typename car, typename cdr>
   struct linear_search<bins_ll::cons<car, cdr>> {
-    static inline Val* the(std::string const& name) {
-      if (car::name == name) return new typename car::Head();
-      return linear_search<cdr>::the(name);
+    static inline Val* the(App& app, std::string const& name) {
+      if (car::name == name) return new typename car::Head(app);
+      return linear_search<cdr>::the(app, name);
     }
   };
   template <>
   struct linear_search<bins_ll::nil> {
-    static inline Val* the(std::string const& _) {
+    static inline Val* the(App& app, std::string const& _) {
       return nullptr;
     }
   };
 
-  Val* lookup_name(std::string const& name) {
-    return linear_search<bins_ll::bins>::the(name);
+  Val* lookup_name(App& app, std::string const& name) {
+    return linear_search<bins_ll::bins>::the(app, name);
   }
 
   // internal
@@ -60,7 +60,7 @@ namespace sel {
     template <typename Impl, typename one>
     Val* _bin_be<Impl, ll::cons<one, ll::nil>>::the::copy() const {
       TRACE(copyOne, typeid(*this).name());
-      return new typename _bin_be<Impl, ll::cons<one, ll::nil>>::the::Base::Next(); // copyOne
+      return new typename _bin_be<Impl, ll::cons<one, ll::nil>>::the::Base::Next(this->app); // copyOne
     }
     template <typename Impl, typename one>
     void _bin_be<Impl, ll::cons<one, ll::nil>>::the::accept(Visitor& v) const {
@@ -70,7 +70,7 @@ namespace sel {
     template <typename Impl, typename last_arg, char b>
     Val* _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::copy() const {
       TRACE(copyOne2, typeid(*this).name());
-      return new typename _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::Base::Next(); // copyOne2
+      return new typename _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::Base::Next(this->app); // copyOne2
     }
     template <typename Impl, typename last_arg, char b>
     void _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::accept(Visitor& v) const {
@@ -82,6 +82,7 @@ namespace sel {
       typedef _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>> a;
       TRACE(copyBody, typeid(*this).name());
       return new _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>(
+        this->app,
         (a::Base*)base->copy(),
         (a::Arg*)arg->copy()
       ); // copyBody
@@ -96,6 +97,7 @@ namespace sel {
       typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the a;
       TRACE(copyTail1, typeid(*this).name());
       return new typename a::Base::Next(
+        this->app,
         (typename a::Base*)base->copy(),
         (typename a::Arg*)arg->copy()
       ); // copyTail1
@@ -105,6 +107,7 @@ namespace sel {
       typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the a;
       TRACE(copyTail2, typeid(*this).name());
       return new typename a::Base::Next(
+        this->app,
         _base.base,
         _base.arg
       ); // copyTail2
@@ -117,7 +120,7 @@ namespace sel {
     template <typename NextT, typename last_to, typename last_from>
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::copy() const {
       TRACE(copyHead, typeid(*this).name());
-      return new _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>(); // copyHead
+      return new _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>(this->app); // copyHead
     }
     template <typename NextT, typename last_to, typename last_from>
     void _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::accept(Visitor& v) const {
@@ -200,7 +203,7 @@ namespace sel {
         isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
         did_once = true;
       }
-      return new NumLiteral(isi->u); // XXX: dont like how it makes it appear as a literal, may have a NumComputed similar to StrChunks
+      return new NumLiteral(app, isi->u); // XXX: dont like how it makes it appear as a literal, may have a NumComputed similar to StrChunks
     }
     Lst& codepoints_::operator++() {
       bind_args(s);
@@ -317,7 +320,7 @@ namespace sel {
         read_grapheme(isi, curr);
       }
       std::ostringstream oss;
-      return new StrChunks((oss << curr, oss.str()));
+      return new StrChunks(app, (oss << curr, oss.str()));
     }
     Lst& graphemes_::operator++() {
       bind_args(s);
@@ -511,7 +514,7 @@ namespace sel {
     }
     Val* split_::operator*() {
       if (!init) { next(); init = true; }
-      return new StrChunks(curr);
+      return new StrChunks(app, curr);
     }
     Lst& split_::operator++() {
       if (!init) { next(); init = true; }

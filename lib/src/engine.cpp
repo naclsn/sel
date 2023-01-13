@@ -6,6 +6,7 @@
 #include "sel/engine.hpp"
 #include "sel/utils.hpp"
 #include "sel/builtins.hpp"
+#include "sel/parser.hpp"
 
 namespace sel {
 
@@ -14,37 +15,39 @@ namespace sel {
   }
 
   template <typename To>
-  To* coerse(Val* from, Type const& to);
+  To* coerse(App& app, Val* from, Type const& to);
   // forward
-  template <> Val* coerse<Val>(Val* from, Type const& to);
+  template <> Val* coerse<Val>(App& app, Val* from, Type const& to);
 
   // Str => Num: same as `tonum`
-  template <> Num* coerse<Num>(Val* from, Type const& to) {
+  template <> Num* coerse<Num>(App& app, Val* from, Type const& to) {
     TRACE(coerse<Num>
       , "from: " << from->type()
       , "to: " << to
       );
     Type const& ty = from->type();
+    if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
     if (Ty::NUM == ty.base) return (Num*)from;
 
     if (Ty::STR == ty.base)
-      return (Num*)(*static_lookup_name(tonum))(from);
+      return (Num*)(*static_lookup_name(app, tonum))(from);
 
     throw TypeError(ty, to);
   }
 
   // Num => Str: same as `tostr`
   // [Str] => Str: same as `join::` (discussed, will not implement yet)
-  template <> Str* coerse<Str>(Val* from, Type const& to) {
+  template <> Str* coerse<Str>(App& app, Val* from, Type const& to) {
     TRACE(coerse<Str>
       , "from: " << from->type()
       , "to: " << to
       );
     Type const& ty = from->type();
+    if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
     if (Ty::STR == ty.base) return (Str*)from;
 
     if (Ty::NUM == ty.base)
-      return (Str*)(*static_lookup_name(tostr))(from);
+      return (Str*)(*static_lookup_name(app, tostr))(from);
     if (Ty::LST == ty.base && 0 < ty.p.box_has->size() && Ty::STR == ty.p.box_has->at(0)->base) // and that's not even enough!
       throw NIYError("coersion [Str] => Str");
 
@@ -54,30 +57,31 @@ namespace sel {
   // Str => [Num]: same as `codepoints`
   // Str => [Str]: same as `graphems`
   // [has] (recursively)
-  template <> Lst* coerse<Lst>(Val* from, Type const& to) {
+  template <> Lst* coerse<Lst>(App& app, Val* from, Type const& to) {
     TRACE(coerse<Lst>
       , "from: " << from->type()
       , "to: " << to
       );
     Type const& ty = from->type();
+    if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
     Type const& toto = *to.has()[0];
 
     if (Ty::LST == ty.base) {
       if (Ty::NUM == toto.base)
-        return new LstMapCoerse<Num>((Lst*)from, toto);
+        return new LstMapCoerse<Num>(app, (Lst*)from, toto);
       if (Ty::STR == toto.base)
-        return new LstMapCoerse<Str>((Lst*)from, toto);
+        return new LstMapCoerse<Str>(app, (Lst*)from, toto);
       if (Ty::LST == toto.base)
-        return new LstMapCoerse<Lst>((Lst*)from, toto);
+        return new LstMapCoerse<Lst>(app, (Lst*)from, toto);
       if (Ty::UNK == toto.base)
         return (Lst*)from;
     }
 
     if (Ty::STR == ty.base) {
       if (Ty::NUM == toto.base)
-        return (Lst*)(*static_lookup_name(codepoints))(from);
+        return (Lst*)(*static_lookup_name(app, codepoints))(from);
       if (Ty::STR == toto.base)
-        return (Lst*)(*static_lookup_name(graphemes))(from);
+        return (Lst*)(*static_lookup_name(app, graphemes))(from);
     }
 
     //if (Ty::UNK == ty.base) // ?
@@ -88,11 +92,13 @@ namespace sel {
 
   // special case for type checking, (effectively a cast)
   // where `to` should be `tyor idk
-  template <> Fun* coerse<Fun>(Val* from, Type const& to) {
+  template <> Fun* coerse<Fun>(App& app, Val* from, Type const& to) {
     TRACE(coerse<Fun>
       , "from: " << from->type()
       , "to: " << to
       );
+    Type const& ty = from->type();
+    if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
     if (Ty::FUN == to.base) return (Fun*)from;
 
     std::ostringstream oss;
@@ -101,17 +107,19 @@ namespace sel {
 
   // dispatches to the correct one dynamically
   // coersing to unk is used in builtins (eg. `const` or `id`)
-  template <> Val* coerse<Val>(Val* from, Type const& to) {
+  template <> Val* coerse<Val>(App& app, Val* from, Type const& to) {
     TRACE(coerse<Val>
       , "from: " << from->type()
       , "to: " << to
       );
-   switch (to.base) {
+    Type const& ty = from->type();
+    if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
+    switch (to.base) {
       case Ty::UNK: return from;
-      case Ty::NUM: return coerse<Num>(from, to);
-      case Ty::STR: return coerse<Str>(from, to);
-      case Ty::LST: return coerse<Lst>(from, to);
-      case Ty::FUN: return coerse<Fun>(from, to);
+      case Ty::NUM: return coerse<Num>(app, from, to);
+      case Ty::STR: return coerse<Str>(app, from, to);
+      case Ty::LST: return coerse<Lst>(app, from, to);
+      case Ty::FUN: return coerse<Fun>(app, from, to);
     }
     throw TypeError("miss-initialized or corrupted type");
   }

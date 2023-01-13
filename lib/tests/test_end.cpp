@@ -1,5 +1,7 @@
 #include "common.hpp"
 
+App app;
+
 template <typename T> long unsigned count(T&);
 template <>
 long unsigned count<Lst>(Lst& l) {
@@ -31,15 +33,15 @@ void dotestone(char const* txt, T* it, size_t n) {
 template <typename T> void dotest012(char const*);
 template <>
 void dotest012<LstLiteral>(char const* txt) {
-  dotestone(txt, (Lst*)new LstLiteral({}), 0);
-  dotestone(txt, (Lst*)new LstLiteral({new NumLiteral(0)}), 1);
-  dotestone(txt, (Lst*)new LstLiteral({new NumLiteral(1), new NumLiteral(2)}), 2);
+  dotestone(txt, (Lst*)new LstLiteral(app, {}), 0);
+  dotestone(txt, (Lst*)new LstLiteral(app, {new NumLiteral(app, 0)}), 1);
+  dotestone(txt, (Lst*)new LstLiteral(app, {new NumLiteral(app, 1), new NumLiteral(app, 2)}), 2);
 }
 template <>
 void dotest012<StrChunks>(char const* txt) {
-  dotestone(txt, (Str*)new StrChunks(vector<string>{}), 0);
-  dotestone(txt, (Str*)new StrChunks(vector<string>{"zero"}), 1);
-  dotestone(txt, (Str*)new StrChunks(vector<string>{"one", "two"}), 2);
+  dotestone(txt, (Str*)new StrChunks(app, vector<string>{}), 0);
+  dotestone(txt, (Str*)new StrChunks(app, vector<string>{"zero"}), 1);
+  dotestone(txt, (Str*)new StrChunks(app, vector<string>{"one", "two"}), 2);
 }
 
 TEST(end) {

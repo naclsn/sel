@@ -15,6 +15,7 @@
 namespace sel {
 
   class Visitor;
+  class App;
 
   /**
    * Abstract base class for every types of values. See
@@ -24,10 +25,12 @@ namespace sel {
    */
   class Val {
   protected:
+    App& app;
     Type const ty;
   public:
-    Val(Type const& ty)
-      : ty(Type(ty))
+    Val(App& app, Type const& ty)
+      : app(app)
+      , ty(Type(ty))
     { }
     virtual ~Val() { }
     Type const& type() const { return ty; }
@@ -35,6 +38,7 @@ namespace sel {
     virtual void accept(Visitor& v) const;
   };
 
+  class App;
   /**
    * Coerse a value to a type. Returned pointer may be
    * the same or a newly allocated value.
@@ -43,7 +47,7 @@ namespace sel {
    * it for `coerse(Val val, Type to)`.
    */
   template <typename To>
-  To* coerse(Val* from, Type const& to);
+  To* coerse(App& app, Val* from, Type const& to);
 
   /**
    * Abstract class for `Num`-type compatible values.
@@ -52,8 +56,8 @@ namespace sel {
    */
   class Num : public Val {
   public:
-    Num()
-      : Val(Type(Ty::NUM, {0}, 0))
+    Num(App& app)
+      : Val(app, Type(Ty::NUM, {0}, 0))
     { }
     virtual double value() = 0;
   };
@@ -64,8 +68,8 @@ namespace sel {
    */
   class Str : public Val { //, public std::istream
   public:
-    Str(TyFlag is_inf)
-      : Val(Type(Ty::STR, {0}, is_inf))
+    Str(App& app, TyFlag is_inf)
+      : Val(app, Type(Ty::STR, {0}, is_inf))
     { }
     friend std::ostream& operator<<(std::ostream& out, Str& val) { return val.stream(out); }
     /**
@@ -90,8 +94,8 @@ namespace sel {
    */
   class Lst : public Val { //, public std::iterator<std::input_iterator_tag, Val>
   public:
-    Lst(Type const& type)
-      : Val(type)
+    Lst(App& app, Type const& type)
+      : Val(app, type)
     { }
     /**
      * Get (compute, etc..) the current value.
@@ -121,8 +125,8 @@ namespace sel {
    */
   class Fun : public Val {
   public:
-    Fun(Type const& type)
-      : Val(type)
+    Fun(App& app, Type const& type)
+      : Val(app, type)
     { }
     virtual Val* operator()(Val* arg) = 0;
   };
@@ -135,8 +139,8 @@ namespace sel {
     Lst* v;
     Type const& toto;
   public:
-    LstMapCoerse(Lst* v, Type const& toto)
-      : Lst(Type(Ty::LST,
+    LstMapCoerse(App& app, Lst* v, Type const& toto)
+      : Lst(app, Type(Ty::LST,
           {.box_has=
             new std::vector<Type*>({new Type(toto)})
           }, TyFlag::IS_FIN
@@ -144,10 +148,10 @@ namespace sel {
       , v(v)
       , toto(toto)
     { }
-    Val* operator*() override { return coerse<ToHas>(*(*v), toto); }
+    Val* operator*() override { return coerse<ToHas>(app, *(*v), toto); }
     Lst& operator++() override { ++(*v); return *this; }
     bool end() const override { return v->end(); }
-    Val* copy() const override { return new LstMapCoerse<ToHas>((Lst*)v->copy(), toto); }
+    Val* copy() const override { return new LstMapCoerse<ToHas>(app, (Lst*)v->copy(), toto); }
     // XXX: missing accept(v)
   };
 

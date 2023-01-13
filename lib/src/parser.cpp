@@ -11,13 +11,13 @@
 namespace sel {
 
   double NumLiteral::value() { return n; }
-  Val* NumLiteral::copy() const { return new NumLiteral(n); }
+  Val* NumLiteral::copy() const { return new NumLiteral(app, n); }
   void NumLiteral::accept(Visitor& v) const { v.visitNumLiteral(ty, n); }
 
   std::ostream& StrLiteral::stream(std::ostream& out) { read = true; return out << s; }
   bool StrLiteral::end() const { return read; }
   std::ostream& StrLiteral::entire(std::ostream& out) { read = true; return out << s; }
-  Val* StrLiteral::copy() const { return new StrLiteral(s); }
+  Val* StrLiteral::copy() const { return new StrLiteral(app, s); }
   void StrLiteral::accept(Visitor& v) const { v.visitStrLiteral(ty, s); }
 
   Val* LstLiteral::operator*() { return v[c]; }
@@ -28,7 +28,7 @@ namespace sel {
     w.reserve(v.size());
     for (auto const& it : v)
       w.push_back(it->copy());
-    return new LstLiteral(w, new std::vector<Type*>(ty.has()));
+    return new LstLiteral(app, w, new std::vector<Type*>(ty.has()));
   }
   void LstLiteral::accept(Visitor& v) const { v.visitLstLiteral(ty, this->v); }
 
@@ -43,7 +43,7 @@ namespace sel {
     g.reserve(f.size());
     for (auto const& it : f)
       g.push_back((Fun*)it->copy());
-    return new FunChain(g);
+    return new FunChain(app, g);
   }
   void FunChain::accept(Visitor& v) const { v.visitFunChain(ty, f); }
 
@@ -386,7 +386,7 @@ namespace sel {
   Val* lookup(App& app, std::string const& name) {
     Val* user = app.lookup_name_user(name);
     if (user) return user;
-    return lookup_name(name);
+    return lookup_name(app, name);
   }
 
   // internal
@@ -414,12 +414,12 @@ namespace sel {
         break;
 
       case Token::Type::LIT_NUM:
-        val = new NumLiteral(t.as.num);
+        val = new NumLiteral(app, t.as.num);
         ++lexer;
         break;
 
       case Token::Type::LIT_STR:
-        val = new StrLiteral(std::string(*t.as.str));
+        val = new StrLiteral(app, std::string(*t.as.str));
         ++lexer;
         break;
 
@@ -447,7 +447,7 @@ namespace sel {
           // [Str]) / look at surrounding (this would have
           // to be done at element-s level...)
 
-          val = new LstLiteral(elms);
+          val = new LstLiteral(app, elms);
           ++lexer;
         }
         break;
@@ -455,8 +455,8 @@ namespace sel {
       // YYY: hard-coded lookups could be hard-coded
       case Token::Type::UN_OP: // TODO: will have a lookup_unop
         switch (t.as.chr) {
-          // case '@': val = static_lookup_name(..); break;
-          case '%': val = static_lookup_name(flip); break;
+          // case '@': val = static_lookup_name(app, ..); break;
+          case '%': val = static_lookup_name(app, flip); break;
           // default unreachable
         }
         {
@@ -464,13 +464,13 @@ namespace sel {
           Token t = *++lexer;
           if (Token::Type::BIN_OP == t.type) { // ZZZ: yeah, code dup (as if that was the only problem)
             switch (t.as.chr) {
-              case '+': arg = static_lookup_name(add); break;
-              case '-': arg = static_lookup_name(sub); break;
-              case '.': arg = static_lookup_name(mul); break;
-              case '/': arg = static_lookup_name(div); break;
+              case '+': arg = static_lookup_name(app, add); break;
+              case '-': arg = static_lookup_name(app, sub); break;
+              case '.': arg = static_lookup_name(app, mul); break;
+              case '/': arg = static_lookup_name(app, div); break;
               // default unreachable
             }
-            arg = (*static_lookup_name(flip))(arg);
+            arg = (*static_lookup_name(app, flip))(arg);
             ++lexer;
           } else arg = parseAtom(app, lexer);
           if (!arg) expected("atom", *lexer);
@@ -483,14 +483,14 @@ namespace sel {
           Val* arg = nullptr;
           arg = parseAtom(app, ++lexer);
           switch (t.as.chr) {
-            case '+': val = static_lookup_name(add); break;
-            case '-': val = static_lookup_name(sub); break;
-            case '.': val = static_lookup_name(mul); break;
-            case '/': val = static_lookup_name(div); break;
+            case '+': val = static_lookup_name(app, add); break;
+            case '-': val = static_lookup_name(app, sub); break;
+            case '.': val = static_lookup_name(app, mul); break;
+            case '/': val = static_lookup_name(app, div); break;
             // default unreachable
           }
           if (!arg) expected("atom", *lexer);
-          val = (*(Fun*)(*static_lookup_name(flip))(val))(arg);
+          val = (*(Fun*)(*static_lookup_name(app, flip))(val))(arg);
         }
         break;
 
@@ -574,7 +574,7 @@ namespace sel {
         && Token::Type::SUB_CLOSE != lexer->type
         && Token::Type::END != lexer->type
     ) {
-      Fun* base = coerse<Fun>(val, val->type());
+      Fun* base = coerse<Fun>(app, val, val->type());
       Val* arg = parseAtom(app, lexer);
       if (arg) val = base->operator()(arg);
     }
@@ -621,18 +621,18 @@ namespace sel {
     if (isfun) {
       // first is a function, pack all up for later
       std::vector<Fun*> elms;
-      elms.push_back(coerse<Fun>(val, val->type()));
+      elms.push_back(coerse<Fun>(app, val, val->type()));
       do {
         auto tmp = parseElement(app, ++lexer);
-        elms.push_back(coerse<Fun>(tmp, tmp->type()));
+        elms.push_back(coerse<Fun>(app, tmp, tmp->type()));
       } while (eos != lexer && Token::Type::THEN == lexer->type);
-      return new FunChain(elms);
+      return new FunChain(app, elms);
     }
 
     // first is not a function, apply all right away
     do {
       auto tmp = parseElement(app, ++lexer);
-      val = (*coerse<Fun>(tmp, tmp->type()))(val);
+      val = (*coerse<Fun>(app, tmp, tmp->type()))(val);
     } while (eos != lexer && Token::Type::THEN == lexer->type);
     return val;
   }
@@ -656,7 +656,7 @@ namespace sel {
       throw TypeError((oss << "value of type " << ty << " is not a function", oss.str()));
     }
 
-    coerse<Str>((*f)(coerse<Val>(new Input(in), ty.from())), Type(Ty::STR, {0}, TyFlag::IS_INF))->entire(out);
+    coerse<Str>(*this, (*f)(coerse<Val>(*this, new Input(*this, in), ty.from())), Type(Ty::STR, {0}, TyFlag::IS_INF))->entire(out);
   }
 
   void App::repr(std::ostream& out, VisRepr::ReprCx cx) const {
@@ -703,7 +703,7 @@ namespace sel {
     if (eos == lexer) expectedContinuation("scanning script", *lexer);
 
     auto tmp = parseScript(app, lexer);
-    app.f = coerse<Fun>(tmp, tmp->type());
+    app.f = coerse<Fun>(app, tmp, tmp->type());
     if (Token::Type::SUB_CLOSE == lexer->type)
       throw ParseError("unmatched closing ]", lexer->loc, lexer->len);
 

@@ -13,8 +13,9 @@ void lookup(char const* const names[]) {
 
   VisHelp help(cout);
 
+  App app;
   while (*names) {
-    auto* it = lookup_name(*names);
+    auto* it = lookup_name(app, *names);
     if (!it) {
       cerr << "Unknown name: " << quoted(*names) << "\n";
       exit(EXIT_FAILURE);

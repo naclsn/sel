@@ -1,16 +1,18 @@
 #include "common.hpp"
 using namespace bins;
 
+App app;
+
 template <typename T> Val* asval(T x);
 
-template <> inline Val* asval(int x) { return new NumLiteral(x); }
-template <> inline Val* asval(float x) { return new NumLiteral(x); }
+template <> inline Val* asval(int x) { return new NumLiteral(app, x); }
+template <> inline Val* asval(float x) { return new NumLiteral(app, x); }
 
-template <> inline Val* asval(char x) { return new StrLiteral(string(1, x)); }
-template <> inline Val* asval(char const* x) { return new StrLiteral(x); }
-template <> inline Val* asval(string x) { return new StrLiteral(x); }
+template <> inline Val* asval(char x) { return new StrLiteral(app, string(1, x)); }
+template <> inline Val* asval(char const* x) { return new StrLiteral(app, x); }
+template <> inline Val* asval(string x) { return new StrLiteral(app, x); }
 
-template <> inline Val* asval(vector<Val*> x) { return new LstLiteral(x); }
+template <> inline Val* asval(vector<Val*> x) { return new LstLiteral(app, x); }
 
 
 template <typename F, typename... L> struct uncurry;
@@ -19,13 +21,13 @@ template <typename F, typename H, typename... T>
 struct uncurry<F, H, T...> { static inline Val* the(H h, T... t) { return (*(Fun*)uncurry<typename F::Base, T...>::the(t...))(asval(h)); } };
 
 template <typename I, typename a, typename b, typename c, typename O>
-struct uncurry<bins_helpers::_bin_be<I, ll::cons<fun<b, c>, a>>, O> { static inline Val* the(O o) { return (*(Fun*)new bins_helpers::_bin_be<I, ll::cons<fun<b, c>, a>>())(asval(o)); } };
+struct uncurry<bins_helpers::_bin_be<I, ll::cons<fun<b, c>, a>>, O> { static inline Val* the(O o) { return (*(Fun*)new bins_helpers::_bin_be<I, ll::cons<fun<b, c>, a>>(app))(asval(o)); } };
 
 // template <typename Impl>
 // struct uncurry<bins_helpers::_fake_bin_be<Impl>> { static inline Val* the() { .. } };
 
 template <typename F>
-struct uncurry<F> { static inline Val* the() { return new F(); } };
+struct uncurry<F> { static inline Val* the() { return new F(app); } };
 
 
 /** return true when failed */
