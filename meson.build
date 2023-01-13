@@ -10,10 +10,4 @@ add_project_arguments(
 )
 
 subdir('lib')
-
-app = executable('sel',
-  'src/main.cpp',
-  include_directories : [inc],
-  link_with : [lib],
-  install : true,
-)
+subdir('src')
