@@ -12,7 +12,6 @@
 #include <ostream>
 #include <string>
 #include <vector>
-#include <typeinfo>
 
 #include "types.hpp"
 #include "builtins.hpp"
@@ -43,7 +42,8 @@ namespace sel {
     using _make_BinsVisitorBase<typename L::cdr>::visit;
     virtual void visit(typename L::car const& val) {
       // was TypeError, could be RuntimeError or even simply BaseError...
-      throw NIYError(std::string("operation not supported: ") + typeid(*this).name() + "(" + typeid(val).name() + ")");
+      // throw NIYError(std::string("operation not supported: ") + typeid(*this).name() + "(" + typeid(val).name() + ")");
+      throw NIYError("operation not supported for this visitor, on this value");
     }
   };
   template <>

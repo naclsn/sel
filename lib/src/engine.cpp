@@ -1,5 +1,4 @@
 #include <iostream>
-#include <typeinfo>
 
 #define TRACE(...)
 #include "sel/errors.hpp"
@@ -10,7 +9,8 @@
 namespace sel {
 
   void Val::accept(Visitor& v) const {
-    throw NIYError(std::string("'accept' of visitor pattern for this class: ") + typeid(*this).name());
+    // throw NIYError(std::string("'accept' of visitor pattern for this class: ") + typeid(*this).name());
+    throw NIYError("visitor pattern not supported at all on this value");
   }
 
   template <typename To>

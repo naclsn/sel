@@ -1,9 +1,9 @@
+#include <cmath>
+
 #define TRACE(...)
 #include "sel/builtins.hpp"
 #include "sel/visitors.hpp"
 #include "sel/parser.hpp"
-
-#include <cmath>
 
 namespace sel {
 
@@ -59,7 +59,7 @@ namespace sel {
 
     template <typename Impl, typename one>
     Val* _bin_be<Impl, ll::cons<one, ll::nil>>::the::copy() const {
-      TRACE(copyOne, typeid(*this).name());
+      // TRACE(copyOne, typeid(*this).name());
       return new typename _bin_be<Impl, ll::cons<one, ll::nil>>::the::Base::Next(); // copyOne
     }
     template <typename Impl, typename one>
@@ -69,7 +69,7 @@ namespace sel {
 
     template <typename Impl, typename last_arg, char b>
     Val* _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::copy() const {
-      TRACE(copyOne2, typeid(*this).name());
+      // TRACE(copyOne2, typeid(*this).name());
       return new typename _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::Base::Next(); // copyOne2
     }
     template <typename Impl, typename last_arg, char b>
@@ -80,7 +80,7 @@ namespace sel {
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
     Val* _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::copy() const {
       typedef _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>> a;
-      TRACE(copyBody, typeid(*this).name());
+      // TRACE(copyBody, typeid(*this).name());
       return new _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>(
         (a::Base*)base->copy(),
         (a::Arg*)arg->copy()
@@ -94,7 +94,7 @@ namespace sel {
     template <typename NextT, typename last_to, typename last_from>
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::_the_when_not_unk::copy() const {
       typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the a;
-      TRACE(copyTail1, typeid(*this).name());
+      // TRACE(copyTail1, typeid(*this).name());
       return new typename a::Base::Next(
         (typename a::Base*)base->copy(),
         (typename a::Arg*)arg->copy()
@@ -103,7 +103,7 @@ namespace sel {
     template <typename NextT, typename last_to, typename last_from>
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::_the_when_is_unk::copy() const {
       typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the a;
-      TRACE(copyTail2, typeid(*this).name());
+      // TRACE(copyTail2, typeid(*this).name());
       return new typename a::Base::Next(
         _base.base,
         _base.arg
@@ -116,7 +116,7 @@ namespace sel {
 
     template <typename NextT, typename last_to, typename last_from>
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::copy() const {
-      TRACE(copyHead, typeid(*this).name());
+      // TRACE(copyHead, typeid(*this).name());
       return new _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>(); // copyHead
     }
     template <typename NextT, typename last_to, typename last_from>
