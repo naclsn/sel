@@ -16,13 +16,13 @@ namespace sel {
     ch_t chunks;
     ch_t::size_type at;
   public:
-    StrChunks(std::vector<std::string> chunks)
-      : Str(TyFlag::IS_FIN)
+    StrChunks(App& app, std::vector<std::string> chunks)
+      : Str(app, TyFlag::IS_FIN)
       , chunks(chunks)
       , at(0)
     { }
-    StrChunks(std::string single)
-      : StrChunks(std::vector<std::string>({single}))
+    StrChunks(App& app, std::string single)
+      : StrChunks(app, std::vector<std::string>({single}))
     { }
     std::ostream& stream(std::ostream& out) override {
       return out << chunks[at++];
@@ -42,13 +42,13 @@ namespace sel {
   /**
    * Seach for a value by name, return nullptr if not found.
    */
-  Val* lookup_name(std::string const& name);
+  Val* lookup_name(App& app, std::string const& name);
 
   /**
    * Same as `lookup_name`, but at compile time. Argument
    * must be an identifier token.
    */
-#define static_lookup_name(__name) (new sel::bins::__name##_::Head())
+#define static_lookup_name(__appref, __name) (new sel::bins::__name##_::Head(__appref))
 
   /**
    * Seach for a value by name, return nullptr if not found.
@@ -125,11 +125,11 @@ namespace sel {
         return Type(Ty::NUM, {0}, 0);
       }
       struct ctor : Num {
-        ctor(char const* fname)
-          : Num()
+        ctor(App& app, char const* fname)
+          : Num(app)
         { }
-        ctor(char const* fname, Type const& base_fty, Type const& ty)
-          : Num()
+        ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
+          : Num(app)
         { }
       };
     };
@@ -139,11 +139,11 @@ namespace sel {
         return Type(Ty::STR, {0}, TyFlag::IS_FIN/*is_inf*/);
       }
       struct ctor : Str {
-        ctor(char const* fname)
-          : Str(TyFlag::IS_FIN) // ZZZ: from template param
+        ctor(App& app, char const* fname)
+          : Str(app, TyFlag::IS_FIN) // ZZZ: from template param
         { }
-        ctor(char const* fname, Type const& base_fty, Type const& ty)
-          : Str(TyFlag::IS_FIN) // ZZZ: from base_fty.applied(ty)
+        ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
+          : Str(app, TyFlag::IS_FIN) // ZZZ: from base_fty.applied(ty)
         { }
       };
     };
@@ -153,9 +153,9 @@ namespace sel {
         return Type(Ty::LST, {.box_has=types1(new Type(has::make(fname)/*...*/))}, TyFlag::IS_FIN/*is_inf*/);
       }
       struct ctor : Lst {
-        ctor(char const* fname): Lst(make(fname)) { }
-        ctor(char const* fname, Type const& base_fty, Type const& ty)
-          : Lst(base_fty.applied(ty))
+        ctor(App& app, char const* fname): Lst(app, make(fname)) { }
+        ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
+          : Lst(app, base_fty.applied(ty))
         { }
       };
     };
@@ -165,9 +165,9 @@ namespace sel {
         return Type(Ty::FUN, {.box_pair={new Type(from::make(fname)), new Type(to::make(fname))}}, 0);
       }
       struct ctor : Fun {
-        ctor(char const* fname): Fun(make(fname)) { }
-        ctor(char const* fname, Type const& base_fty, Type const& ty)
-          : Fun(base_fty.applied(ty))
+        ctor(App& app, char const* fname): Fun(app, make(fname)) { }
+        ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
+          : Fun(app, base_fty.applied(ty))
         { }
       };
     };
@@ -217,8 +217,8 @@ namespace sel {
 
         constexpr static unsigned args = 0;
 
-        the()
-          : one::ctor(Impl::name)
+        the(App& app)
+          : one::ctor(app, Impl::name)
         { }
 
         Val* copy() const override; // copyOne
@@ -237,8 +237,8 @@ namespace sel {
         typedef typename last_arg::vat _LastArg;
         _LastArg* arg;
 
-        the()
-          : fun<last_arg, unk<b>>::ctor(Impl::name)
+        the(App& app)
+          : fun<last_arg, unk<b>>::ctor(app, Impl::name)
           , arg(nullptr)
         { }
 
@@ -246,7 +246,7 @@ namespace sel {
         virtual Val* impl() = 0;
 
         Val* operator()(Val* arg) override {
-          this->arg = coerse<_LastArg>(arg, last_arg::make(Impl::name));
+          this->arg = coerse<_LastArg>(this->app, arg, last_arg::make(Impl::name));
           return impl();
         }
         Val* copy() const override; // copyOne2
@@ -311,8 +311,8 @@ namespace sel {
         Arg* arg;
 
         // this is the (inherited) ctor for the tail type
-        _the_when_not_unk(Base* base, Arg* arg)
-          : _ty_tail::ctor(Base::Next::name, base->type(), arg->type())
+        _the_when_not_unk(App& app, Base* base, Arg* arg)
+          : _ty_tail::ctor(app, Base::Next::name, base->type(), arg->type())
           , base(base)
           , arg(arg)
         { }
@@ -335,8 +335,8 @@ namespace sel {
           constexpr static unsigned args = Base::args + 1;
           Base* base;
           Arg* arg;
-          _ProxyBase(Base* base, Arg* arg)
-            : _ty_one_to_tail::ctor(Base::Next::name, base->type(), arg->type()) // YYY: too hacky?
+          _ProxyBase(App& app, Base* base, Arg* arg)
+            : _ty_one_to_tail::ctor(app, Base::Next::name, base->type(), arg->type()) // YYY: too hacky?
             , base(base)
             , arg(arg)
           { }
@@ -348,9 +348,9 @@ namespace sel {
         _LastArg* arg;
 
         // this is the (inherited) ctor for the tail type when ends on unk
-        _the_when_is_unk(Base* base, Arg* arg)
-          : _ty_one_to_tail::ctor(Base::Next::name, base->type(), arg->type())
-          , _base(base, arg)
+        _the_when_is_unk(App& app, Base* base, Arg* arg)
+          : _ty_one_to_tail::ctor(app, Base::Next::name, base->type(), arg->type())
+          , _base(app, base, arg)
           , base(&_base)
           , arg(nullptr)
         { }
@@ -359,7 +359,7 @@ namespace sel {
         virtual Val* impl() = 0;
 
         Val* operator()(Val* arg) override {
-          this->arg = coerse<_LastArg>(arg, _fun_first_par_type<_ty_one_to_tail>::the::make(Base::Next::name));
+          this->arg = coerse<_LastArg>(this->app, arg, _fun_first_par_type<_ty_one_to_tail>::the::make(Base::Next::name));
           return impl();
         }
         Val* copy() const override; // copyTail2
@@ -381,12 +381,12 @@ namespace sel {
       constexpr static unsigned args = 0;
 
       // this is the ctor for the head type
-      _bin_be()
-        : fun<last_from, last_to>::ctor(the::Base::Next::name)
+      _bin_be(App& app)
+        : fun<last_from, last_to>::ctor(app, the::Base::Next::name)
       { }
 
       Val* operator()(Val* arg) override {
-        return new Next(this, coerse<_next_arg_ty>(arg, last_from::make(the::Base::Next::name)));
+        return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, last_from::make(the::Base::Next::name)));
       }
       Val* copy() const override; // visitHead
       void accept(Visitor& v) const override; // visitHead
@@ -408,14 +408,14 @@ namespace sel {
       Arg* arg;
 
       // this is the ctor for body types
-      _bin_be(Base* base, Arg* arg)
-        : fun<from, to>::ctor(the::Base::Next::name, base->type(), arg->type())
+      _bin_be(App& app, Base* base, Arg* arg)
+        : fun<from, to>::ctor(app, the::Base::Next::name, base->type(), arg->type())
         , base(base)
         , arg(arg)
       { }
 
       Val* operator()(Val* arg) override {
-        return new Next(this, coerse<_next_arg_ty>(arg, from::make(the::Base::Next::name)));
+        return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, from::make(the::Base::Next::name)));
       }
       Val* copy() const override; // copyBody
       void accept(Visitor& v) const override; // visitBody

@@ -6,11 +6,15 @@ int main(int argc, char* argv[]) {
 
   if (opts.lookup) lookup(opts.lookup_names);
 
-  App app;
-  // if (opts.strict) app.strict_type = true;
+  App app(opts.strict, opts.any_type);
 
   if (opts.filename) buildfile(app, opts.filename);
   else build(app, opts.script);
+
+  if (opts.any_type) {
+    cout << app << "\n\t:: " << app.type() << endl;
+    return EXIT_SUCCESS;
+  }
 
   if (opts.debug) {
     app.repr(cout);

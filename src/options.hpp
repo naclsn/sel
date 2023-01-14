@@ -23,7 +23,8 @@ struct Options {
 
   bool debug = false; // -D
   bool typecheck = false; // -n
-  bool strict = false; // -s (niy)
+  bool strict = false; // -s
+  bool any_type = false; // -t (allows the app to be of any type)
 
   bool compile = false; // -o (niy)
   char** compile_flags = NULL; // everything after -o (niy)
@@ -60,6 +61,7 @@ struct Options {
             case 'D': debug = true;       break;
             case 'n': typecheck = true;   break;
             case 's': strict = true;      break;
+            case 't': any_type = true;    break;
 
             case 'o':
               compile = true;
@@ -107,7 +109,7 @@ struct Options {
   void usage(char const* reason) {
     if (reason) cerr << "Error: " << reason << "\n";
     cerr // TODO: better/proper (+ eg. man page)
-      << "Usage: " << prog << " [-Dns] <script...> | -f <file>\n"
+      << "Usage: " << prog << " [-Dnst] <script...> | -f <file>\n"
       << "       " << prog << " -l [<names...>]\n"
       << "       " << prog << " [-s] -f <file> [-o <bin> <flags...>]\n"
     ;

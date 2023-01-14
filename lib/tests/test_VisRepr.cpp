@@ -8,14 +8,16 @@ void doTestEq(Val const& val, string const exp) {
   assert_cmp(exp, oss.str());
 }
 
+App app;
+
 TEST(VisRepr) {
-  auto num = NumLiteral(42.1);
+  auto num = NumLiteral(app, 42.1);
   doTestEq(
     num,
     "<Num> NumLiteral { n= 42.1 }"
   );
 
-  auto str = StrLiteral("coucou");
+  auto str = StrLiteral(app, "coucou");
   doTestEq(
     str,
     "<Str> StrLiteral { s= \"coucou\" }"
@@ -25,7 +27,7 @@ TEST(VisRepr) {
   v.push_back(&num);
   v.push_back(&str);
   doTestEq(
-    LstLiteral(v),
+    LstLiteral(app, v),
     "<[_mixed]> LstLiteral { v[0]=<Num> NumLiteral { n= 42.1 } v[1]=<Str> StrLiteral { s= \"coucou\" } }"
   );
 }
