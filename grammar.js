@@ -30,7 +30,7 @@ module.exports = grammar({
     subscript: $ => seq('[', optional($._elements1), ']'),
 
     number: _ => /[0-9]+(\.[0-9]+)?|0x[0-9A-F]+|0b[01]+|0o[0-7]/,
-    string: _ => seq(':', /([^\\:]|\\[abtnvfre]|::)*/, ':'),
+    string: _ => token(seq(':', /([^\\:]|\\[abtnvfre]|::)*/, ':')),
     list: $ => seq('{', $._elements1, '}'),
 
     reserved: _ => /[~^]/,
