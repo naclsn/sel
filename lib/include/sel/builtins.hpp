@@ -530,6 +530,11 @@ namespace sel {
       grapheme curr;
     ));
 
+    BIN_str(hex, (num, str),
+      "convert a number to its hexadecimal textual representation", (
+      bool read = false;
+    ));
+
     BIN_unk(flip, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>),
       "flip the two parameters by passing the first given after the second one", ());
 
@@ -704,6 +709,7 @@ namespace sel {
       , filter_
       , graphemes_
       // , head_
+      , hex_
       , id_
       , if_
       // , init_

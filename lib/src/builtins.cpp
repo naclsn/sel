@@ -338,6 +338,10 @@ namespace sel {
       return did_once ? eos == isi : s.end();
     }
 
+    std::ostream& hex_::stream(std::ostream& out) { read = true; return out << std::hex << size_t(arg->value()); }
+    bool hex_::end() const { return read; }
+    std::ostream& hex_::entire(std::ostream& out) { read = true; return out << std::hex << size_t(arg->value()); }
+
     Val* flip_::impl() {
       bind_args(fun, b, a);
       return (*(Fun*)fun(&a))(&b);
