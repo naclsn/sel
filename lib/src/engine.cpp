@@ -36,7 +36,7 @@ namespace sel {
   }
 
   // Num => Str: same as `tostr`
-  // [Str] => Str: same as `join::` (discussed, will not implement yet)
+  // [a] => Str: same as `join::` (still not sure I like it, but it is very helpful)
   template <> Str* coerse<Str>(App& app, Val* from, Type const& to) {
     TRACE(coerse<Str>
       , "from: " << from->type()
@@ -48,14 +48,14 @@ namespace sel {
 
     if (Ty::NUM == ty.base)
       return (Str*)(*static_lookup_name(app, tostr))(from);
-    if (Ty::LST == ty.base && 0 < ty.p.box_has->size() && Ty::STR == ty.p.box_has->at(0)->base) // and that's not even enough!
-      throw NIYError("coersion [Str] => Str");
+    if (Ty::LST == ty.base)
+      return (Str*)(*(Fun*)(*static_lookup_name(app, join))(new StrChunks(app, "")))(from);
 
     throw TypeError(ty, to);
   }
 
   // Str => [Num]: same as `codepoints`
-  // Str => [Str]: same as `graphems`
+  // Str => [Str]: same as `graphems` - this is also fallback for Str => [a]
   // [has] (recursively)
   template <> Lst* coerse<Lst>(App& app, Val* from, Type const& to) {
     TRACE(coerse<Lst>
@@ -80,7 +80,7 @@ namespace sel {
     if (Ty::STR == ty.base) {
       if (Ty::NUM == toto.base)
         return (Lst*)(*static_lookup_name(app, codepoints))(from);
-      if (Ty::STR == toto.base)
+      if (Ty::STR == toto.base || Ty::UNK == toto.base)
         return (Lst*)(*static_lookup_name(app, graphemes))(from);
     }
 
