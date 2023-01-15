@@ -16,7 +16,7 @@
   "files": [
     "grammar.js",
     "queries/*",
-    "test/corpus/*",
+    "test/corpus/*"
   ],
   "scripts": {
     "build": "tree-sitter generate",
