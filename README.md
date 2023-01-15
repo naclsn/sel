@@ -237,21 +237,29 @@ Note the following implicit coersions:
  true type | destination  | behavior
 -----------|--------------|----------
  `Num`     | `Str`        | writes the number in decimal
- `Str`     | `Num`        | parse as a number, default `0`
+ `Str`     | `Num`        | parse as a number, or `0`
  `Str`     | `[Num]`      | list of the Unicode codepoints
  `Str`     | `[Str]`      | list of the Unicode graphemes
-<!--
- `[Str]`   | `Str`        | joined with empty separator -->
+ `[Str]`   | `Str`        | joined with empty separator
 
 These rules apply recursively on complex data structures
-(eg. `[Str]` to `[Num]` is valid).
+(eg. `[Str]` to `[Num]` is valid). Multiple coersions may
+happen at once.
 
 For example the two following scripts are effectively
 equivalent (because the script input type is of `Str`
 and its output is implicitly coersed back to `Str`):
 ```sh
-seq 5 | sel tonum, map +1, tostr
 seq 5 | sel map +1
+seq 5 | sel tonum, map +1, tostr
+```
+
+When the true type is `Str` and the destination type is
+`[any]`, the coersion to a list of Unicode graphemes
+is favored:
+```sh
+printf abc | sel reverse
+printf abc | sel graphemes, reverse, join ::
 ```
 
 Conditions (boolean values) may be represented with the
