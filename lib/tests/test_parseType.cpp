@@ -1,6 +1,6 @@
 #include "common.hpp"
 
-void doTestEq(char const* source, Type const& expect) {
+int doTestEq(char const* source, Type const& expect) {
   istringstream iss(source);
   Type result;
   string name;
@@ -20,28 +20,32 @@ void doTestEq(char const* source, Type const& expect) {
   string a = source;
   string b = oss.str();
   assert_eq(a, b);
+
+  return 0;
 }
 
 TEST(parseType) {
-  auto v = new std::vector<Type*>();
-  v->push_back(new Type(Ty::UNK, {.name=new std::string("a")}, 0));
-  v->push_back(new Type(Ty::UNK, {.name=new std::string("b")}, 0));
+  return
+
   doTestEq(
     "ty :: (a, b)",
     Type(Ty::LST,
-      {.box_has=v}, TyFlag::IS_TPL
+      {.box_has= new vector<Type*>{
+        new Type(Ty::UNK, {.name=new std::string("a")}, 0),
+        new Type(Ty::UNK, {.name=new std::string("b")}, 0),
+      }}, TyFlag::IS_TPL
     )
-  );
+  )+
 
-  auto w = new std::vector<Type*>();
-  w->push_back(new Type(Ty::UNK, {.name=new std::string("a")}, 0));
-  w->push_back(new Type(Ty::UNK, {.name=new std::string("b")}, 0));
   doTestEq(
     "ty :: [a, b]*",
     Type(Ty::LST,
-      {.box_has=w}, TyFlag::IS_INF
+      {.box_has= new vector<Type*>{
+        new Type(Ty::UNK, {.name=new std::string("a")}, 0),
+        new Type(Ty::UNK, {.name=new std::string("b")}, 0),
+      }}, TyFlag::IS_INF
     )
-  );
+  )+
 
   doTestEq(
     "ty :: (Num -> Str*) -> Num -> Num",
@@ -61,5 +65,7 @@ TEST(parseType) {
         )
       }}, 0
     )
-  );
+  )+
+
+  0;
 }

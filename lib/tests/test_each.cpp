@@ -31,7 +31,7 @@ struct uncurry<F> { static inline Val* the() { return new F(app); } };
 
 
 /** return true when failed */
-template <typename F> bool test() { cerr << "no test for '" << F::name << "'\n"; return false; }
+template <typename F> bool test() { cout << "no test for '" << F::name << "'\n"; return false; }
 
 
 template <typename list> struct call_test;
@@ -43,8 +43,7 @@ template <>
 struct call_test<bins_ll::nil> { static inline unsigned the() { return 0; } };
 
 TEST(each) {
-  unsigned failures = call_test<bins_ll::bins>::the();
-  assert(0 == failures, failures << " failures total");
+  return call_test<bins_ll::bins>::the();
 }
 
 
