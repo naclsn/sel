@@ -389,6 +389,25 @@ namespace sel {
     if (user) return user;
     return lookup_name(app, name);
   }
+  Val* lookup_unary(App& app, Token const& t) {
+    switch (t.as.chr) {
+      // case '@': val = static_lookup_name(app, ..); break;
+      case '%': return static_lookup_name(app, flip); break; // YYY: flips cancel out
+    }
+    // default unreachable
+    return nullptr;
+  }
+  Val* lookup_binary(App& app, Token const& t) {
+    switch (t.as.chr) {
+      case '+': return static_lookup_name(app, add); break;
+      case '-': return static_lookup_name(app, sub); break;
+      case '.': return static_lookup_name(app, mul); break;
+      case '/': return static_lookup_name(app, div); break;
+      case '_': return static_lookup_name(app, index); break;
+    }
+    // default unreachable
+    return nullptr;
+  }
 
   // internal
   static std::istream_iterator<Token> eos;
@@ -453,26 +472,13 @@ namespace sel {
         }
         break;
 
-      // YYY: hard-coded lookups could be hard-coded
-      case Token::Type::UN_OP: // TODO: will have a lookup_unop
-        switch (t.as.chr) {
-          // case '@': val = static_lookup_name(app, ..); break;
-          case '%': val = static_lookup_name(app, flip); break;
-          // default unreachable
-        }
+      case Token::Type::UN_OP:
+        val = lookup_unary(app, t);
         {
           Val* arg = nullptr;
           Token t = *++lexer;
-          if (Token::Type::BIN_OP == t.type) { // ZZZ: yeah, code dup (as if that was the only problem)
-            switch (t.as.chr) {
-              case '+': arg = static_lookup_name(app, add); break;
-              case '-': arg = static_lookup_name(app, sub); break;
-              case '.': arg = static_lookup_name(app, mul); break;
-              case '/': arg = static_lookup_name(app, div); break;
-              case '_': arg = static_lookup_name(app, index); break;
-              // default unreachable
-            }
-            arg = (*static_lookup_name(app, flip))(arg);
+          if (Token::Type::BIN_OP == t.type) {
+            arg = (*static_lookup_name(app, flip))(lookup_binary(app, t));
             ++lexer;
           } else arg = parseAtom(app, lexer);
           if (!arg) expected("atom", *lexer);
@@ -480,20 +486,12 @@ namespace sel {
         }
         break;
 
-      case Token::Type::BIN_OP: // TODO: will have a lookup_binop
+      case Token::Type::BIN_OP:
         {
-          Val* arg = nullptr;
-          arg = parseAtom(app, ++lexer);
-          switch (t.as.chr) {
-            case '+': val = static_lookup_name(app, add); break;
-            case '-': val = static_lookup_name(app, sub); break;
-            case '.': val = static_lookup_name(app, mul); break;
-            case '/': val = static_lookup_name(app, div); break;
-            case '_': val = static_lookup_name(app, index); break;
-            // default unreachable
-          }
+          // it parses the argument first, the op is on the stack for below
+          Val* arg = parseAtom(app, ++lexer);
           if (!arg) expected("atom", *lexer);
-          val = (*(Fun*)(*static_lookup_name(app, flip))(val))(arg);
+          val = (*(Fun*)(*static_lookup_name(app, flip))(lookup_binary(app, t)))(arg);
         }
         break;
 
