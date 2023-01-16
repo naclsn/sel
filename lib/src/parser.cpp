@@ -315,6 +315,7 @@ namespace sel {
       case '-':
       case '.':
       case '/':
+      case '_':
         t.type = Token::Type::BIN_OP;
         t.as.chr = c;
         in.ignore(1);
@@ -468,6 +469,7 @@ namespace sel {
               case '-': arg = static_lookup_name(app, sub); break;
               case '.': arg = static_lookup_name(app, mul); break;
               case '/': arg = static_lookup_name(app, div); break;
+              case '_': arg = static_lookup_name(app, index); break;
               // default unreachable
             }
             arg = (*static_lookup_name(app, flip))(arg);
@@ -487,6 +489,7 @@ namespace sel {
             case '-': val = static_lookup_name(app, sub); break;
             case '.': val = static_lookup_name(app, mul); break;
             case '/': val = static_lookup_name(app, div); break;
+            case '_': val = static_lookup_name(app, index); break;
             // default unreachable
           }
           if (!arg) expected("atom", *lexer);

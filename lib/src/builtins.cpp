@@ -359,6 +359,23 @@ namespace sel {
         : &alternative;
     }
 
+    Val* index_::impl() {
+      if (!did) {
+        bind_args(l, k);
+        const size_t idx = k.value();
+        size_t len;
+        for (len = 0; !l.end() && len < idx; ++l, len++);
+        if (idx == len) {
+          found = *l;
+        } else {
+          std::ostringstream oss;
+          throw RuntimeError((oss << "index out of range: " << idx << " but length is " << len, oss.str()));
+        }
+        did = true;
+      }
+      return found;
+    }
+
     Val* iterate_::operator*() {
       bind_args(f, o);
       return !curr ? &o : curr;

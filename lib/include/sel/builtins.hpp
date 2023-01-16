@@ -544,6 +544,12 @@ namespace sel {
     BIN_unk(if, (fun<unk<'a'>, num>, unk<'b'>, unk<'b'>, unk<'a'>, unk<'b'>),
       "take a condition, a consequence and an alternative; return consequence if the argument verifies the condition, alternative otherwise", ());
 
+    BIN_unk(index, (lst<unk<'a'>>, num, unk<'a'>),
+      "select the value at the given index in the list (despite being called index it is an offset, ie. 0-based)", (
+      bool did = false;
+      Val* found = nullptr;
+    ));
+
     BIN_lst(iterate, (fun<unk<'a'>, unk<'a'>>, unk<'a'>, lst<unk<'a'>>),
       "return an infinite list of repeated applications of the function to the input", (
       Val* curr = nullptr;
@@ -689,6 +695,7 @@ namespace sel {
       , div_
       , flip_
       , graphemes_
+      , index_
       , mul_
       , sub_
       , tonum_
@@ -712,6 +719,7 @@ namespace sel {
       , hex_
       , id_
       , if_
+      , index_
       // , init_
       , iterate_
       , join_
