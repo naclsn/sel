@@ -124,10 +124,14 @@ namespace sel {
     throw TypeError("miss-initialized or corrupted type");
   }
 
+  template <typename ToHas>
+  void LstMapCoerse<ToHas>::accept(Visitor& v) const {
+    v.visitLstMapCoerse(type(), *this->v);
+  }
+
 
   Str_streambuf& Str_streambuf::operator=(Str_streambuf&& sis) {
     if (this == &sis) return *this;
-    // YYY: this moves the get buffer? do i need to update it explicitly
     std::streambuf::operator=(std::move(sis));
     v = sis.v;
     buffered = std::move(sis.buffered);

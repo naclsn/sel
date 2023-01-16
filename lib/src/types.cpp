@@ -247,44 +247,6 @@ namespace sel {
     return recurseBuildKnown(map, to());
   }
 
-  // TODO: remove both
-  std::vector<Type*>* types1(Type* ty1) {
-    auto* r = new std::vector<Type*>();
-    r->push_back(ty1);
-    return r;
-  }
-  std::vector<Type*>* types2(Type* ty1, Type* ty2) {
-    auto* r = new std::vector<Type*>();
-    r->push_back(ty1);
-    r->push_back(ty2);
-    return r;
-  }
-
-  // Type unkType(std::string* name) {
-  //   TRACE(unkType, *name<<"*"<<raw(name));
-  //   return Type(Ty::UNK, {.name=name}, 0);
-  // }
-
-  // Type numType() {
-  //   TRACE(numType, "");
-  //   return Type(Ty::NUM, {0}, 0);
-  // }
-
-  // Type strType(TyFlag is_inf) {
-  //   TRACE(strType, is_inf);
-  //   return Type(Ty::STR, {0}, static_cast<uint8_t>(is_inf));
-  // }
-
-  // Type lstType(Type* has, TyFlag is_inf) {
-  //   TRACE(lstType, *has<<"*"<<raw(has)<<", "<<is_inf);
-  //   return Type(Ty::LST, {.box_has=has}, static_cast<uint8_t>(is_inf));
-  // }
-
-  // Type funType(Type* fst, Type* snd) {
-  //   TRACE(funType, *fst<<"*"<<raw(fst)<<", "<<*snd<<"*"<<raw(snd));
-  //   return Type(Ty::FUN, {.box_pair={fst,snd}}, 0);
-  // }
-
   // internal
   enum class TyTokenType {
     END,
@@ -328,7 +290,9 @@ namespace sel {
   void expected(char const* should, TyToken const& got) { // + tts->text + "..."
     std::ostringstream oss;
     oss << "expected " << should << " but got " << got << " instead";
-    throw ParseError(oss.str(), 0, 1); // TODO
+    throw ParseError(oss.str(), 0, 1);
+    // YYY: TyTokens do not store any location information...
+    // but for not this is ok as there's never a need to parse a type
   }
 
   // internal
