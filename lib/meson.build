@@ -1,6 +1,8 @@
 inc = include_directories('include')
 install_subdir('include/sel', install_dir : 'include')
 
+llvm = dependency('llvm', version : '< 9')
+
 lib = library('sel',
   'src/utils.cpp',
   'src/errors.cpp',
@@ -12,7 +14,9 @@ lib = library('sel',
   'src/visitors.cpp',
   'src/visitors/repr.cpp',
   'src/visitors/help.cpp',
+  'src/visitors/codegen.cpp',
   include_directories : [inc],
+  dependencies : [llvm],
   install : true,
 )
 

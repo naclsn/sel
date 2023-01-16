@@ -13,6 +13,10 @@
 #include <string>
 #include <vector>
 
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Module.h>
+
 #include "types.hpp"
 #include "builtins.hpp"
 
@@ -87,7 +91,7 @@ namespace sel {
     }
   };
 
-    // TODO/ZZZ: special (jank) cases
+    // FIXME/TODO/ZZZ: special (jank) cases
     template <typename cdr>
     class _VisRepr<bins_ll::cons<bins::const_, cdr>> : public _VisRepr<cdr> {
     private:
@@ -191,6 +195,34 @@ namespace sel {
   class VisHelp : public _VisHelp<bins_ll::bins> {
   public:
     VisHelp(std::ostream& res): _VisHelp(res) { }
+  };
+
+
+  class VisCodegen : public Visitor {
+    llvm::LLVMContext context;
+    llvm::IRBuilder<> builder;
+    llvm::Module module;
+
+  public:
+    VisCodegen(char* const module_name)
+      : context()
+      , builder(context)
+      , module(module_name, context)
+    { }
+
+    void visitNumLiteral(Type const& type, double n) override;
+    void visitStrLiteral(Type const& type, std::string const& s) override;
+    void visitLstLiteral(Type const& type, std::vector<Val*> const& v) override;
+    void visitStrChunks(Type const& type, std::vector<std::string> const& vs) override;
+    void visitFunChain(Type const& type, std::vector<Fun*> const& f) override;
+    void visitInput(Type const& type) override;
+    void visitOutput(Type const& type) override;
+
+    void visit(bins::abs_::Base const&) override;
+    void visit(bins::abs_ const&) override;
+    void visit(bins::add_::Base::Base const&) override;
+    void visit(bins::add_::Base const&) override;
+    void visit(bins::add_ const&) override;
   };
 
 } // namespace sel
