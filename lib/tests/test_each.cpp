@@ -3,7 +3,7 @@ using namespace bins;
 
 App app;
 
-template <typename T> Val* asval(T x);
+template <typename T> Val* asval(T x) { return x; }
 
 template <> inline Val* asval(int x) { return new NumLiteral(app, x); }
 template <> inline Val* asval(float x) { return new NumLiteral(app, x); }
@@ -13,6 +13,7 @@ template <> inline Val* asval(char const* x) { return new StrLiteral(app, x); }
 template <> inline Val* asval(string x) { return new StrLiteral(app, x); }
 
 template <> inline Val* asval(vector<Val*> x) { return new LstLiteral(app, x); }
+template <typename... T> inline Val* asval(T... x) { return asval(vector<Val*>{asval(x)...}); }
 
 
 template <typename F, typename... L> struct uncurry;
@@ -65,6 +66,35 @@ TEST(each) { return call_test<bins_ll::bins>::the(); }
 
 #define CALL(__f, ...) uncurry<__f##_, TPARAM_AUTO(REVERSE(__VA_ARGS__))>::the(REVERSE(__VA_ARGS__))
 
+#define __rem_par(...) __VA_ARGS__
+
+#define assert_num(__should, __have) do {  \
+  Val* _habe = (__have);                   \
+  assert_eq(Ty::NUM, _habe->type().base);  \
+  Num& _fart = *((Num*)_habe);             \
+  assert_eq(__should, _fart.value());      \
+} while (0)
+
+#define assert_str(__should, __have) do {                \
+  Val* _habe = (__have);                                 \
+  assert_eq(Ty::STR, _habe->type().base);                \
+  Str& _fart = *((Str*)_habe);                           \
+  ostringstream oss;                                     \
+  assert_cmp(__should, (_fart.entire(oss), oss.str()));  \
+} while (0)
+
+#define assert_lstnum(__should, __have) do {                      \
+  Val* _habe = (__have);                                          \
+  assert_eq(Ty::LST, _habe->type().base);                         \
+  Lst& _fart = *((Lst*)_habe);                                    \
+  for (auto const& _it : __rem_par __should) {                    \
+    assert(!_fart.end(), "should not have reached the end yet");  \
+    assert_num(_it, *_fart);                                      \
+    ++_fart;                                                      \
+  }                                                               \
+  assert(_fart.end(), "should have reached the end now");         \
+} while(0)
+
 
 template <>
 int test<abs_>() {
@@ -83,13 +113,7 @@ int test<add_>() {
 template <>
 int test<codepoints_>() {
   constexpr char const* c = "aふb\r\nc🏳‍⚧d";
-  constexpr uint32_t const p[] = { 97, 12405, 98, 13, 10, 99, 127987, 8205, 9895, 100 };
-  Lst& cps = (*(Lst*)(CALL(codepoints, c)));
-  for (auto const& it : p) {
-    assert(!cps.end(), "should not have reached the end yet");
-    assert_eq(it, ((Num*)*cps)->value());
-    ++cps;
-  }
+  assert_lstnum(({ 97, 12405, 98, 13, 10, 99, 127987, 8205, 9895, 100 }), CALL(codepoints, c));
   return 0;
 }
 
@@ -102,9 +126,32 @@ int test<conjunction_>() {
 
 template <>
 int test<const_>() {
-  ostringstream oss;
   Val* s = CALL(const, "coucou", 1);
   assert_eq(Type(Ty::STR, {0}, 0), s->type());
-  assert_eq("coucou", (((Str*)s)->entire(oss), oss.str()));
+  assert_str("coucou", s);
+  return 0;
+}
+
+template <>
+int test<div_>() {
+  assert_num(2, CALL(div, 4, 2));
+  return 0;
+}
+
+template <>
+int test<drop_>() {
+  assert_lstnum(({3, 2, 1}), CALL(drop, 2, asval(5, 4, 3, 2, 1)));
+  return 0;
+}
+
+template <>
+int test<mul_>() {
+  assert_eq(2, (*(Num*)CALL(mul, 4, 2)).value());
+  return 0;
+}
+
+template <>
+int test<sub_>() {
+  assert_eq(2, (*(Num*)CALL(sub, 4, 2)).value());
   return 0;
 }
