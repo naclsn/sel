@@ -1,6 +1,9 @@
 inc = include_directories('include')
 install_subdir('include/sel', install_dir : 'include')
 
+# note to self: if it is not finding the correct version
+# despite having `llvm-config --version` check out, this
+# is because it is only trying `llvm-config-64`...
 llvm = dependency('llvm', version : '< 9')
 
 lib = library('sel',

@@ -13,6 +13,7 @@ using namespace sel;
 #define GREEN "\e[32m"
 #define RESET "\e[m"
 
+#undef fail
 #define fail(__msg) do {                 \
   cerr                                   \
     << "failed with:\n"                  \
@@ -21,6 +22,7 @@ using namespace sel;
   exit(EXIT_FAILURE);                    \
 } while (0)
 
+#undef assert
 #define assert(__expr, __msg) do {       \
   if (__expr) break;                     \
   cerr                                   \
@@ -31,6 +33,7 @@ using namespace sel;
   exit(EXIT_FAILURE);                    \
 } while (0)
 
+#undef asssert_eq
 #define assert_eq(__should, __have) do {                      \
   auto _should = (__should);                                  \
   auto _have = (__have);                                      \
@@ -44,11 +47,13 @@ using namespace sel;
   exit(EXIT_FAILURE);                                         \
 } while (0)
 
+#undef asssert_cmp
 #define assert_cmp assert_eq
 // #define assert_cmp(__should, __have) _assert_cmp(#__should, #__have, __should, __have)
 // inline void _assert_cmp(char const* sshould, char const* shave, string should, string have) {
 // }
 
+#undef TEST
 #define TEST(__function)  \
   void __##__function();  \
   int main() {            \

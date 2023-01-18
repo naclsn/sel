@@ -17,6 +17,7 @@ foreach name : all
       filename,
       include_directories : [inc],
       link_with : [lib],
+      dependencies : [llvm], # link_with is not enough to bring the cxxflags (-I) over
     ),
   )
 endforeach
