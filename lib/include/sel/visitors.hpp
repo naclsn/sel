@@ -197,18 +197,19 @@ namespace sel {
     VisHelp(std::ostream& res): _VisHelp(res) { }
   };
 
-
   class VisCodegen : public Visitor {
     llvm::LLVMContext context;
     llvm::IRBuilder<> builder;
     llvm::Module module;
 
   public:
-    VisCodegen(char* const module_name)
+    VisCodegen(char const* module_name)
       : context()
       , builder(context)
       , module(module_name, context)
     { }
+
+    void dump() const { module.print(llvm::errs(), nullptr); }
 
     void visitNumLiteral(Type const& type, double n) override;
     void visitStrLiteral(Type const& type, std::string const& s) override;

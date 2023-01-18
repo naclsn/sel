@@ -2,25 +2,25 @@
 
 namespace sel {
 
-    void visitNumLiteral(Type const& type, double n) {
+    void VisCodegen::visitNumLiteral(Type const& type, double n) {
     }
 
-    void visitStrLiteral(Type const& type, std::string const& s) {
+    void VisCodegen::visitStrLiteral(Type const& type, std::string const& s) {
     }
 
-    void visitLstLiteral(Type const& type, std::vector<Val*> const& v) {
+    void VisCodegen::visitLstLiteral(Type const& type, std::vector<Val*> const& v) {
     }
 
-    void visitStrChunks(Type const& type, std::vector<std::string> const& vs) {
+    void VisCodegen::visitStrChunks(Type const& type, std::vector<std::string> const& vs) {
     }
 
-    void visitFunChain(Type const& type, std::vector<Fun*> const& f) {
+    void VisCodegen::visitFunChain(Type const& type, std::vector<Fun*> const& f) {
     }
 
-    void visitInput(Type const& type) {
+    void VisCodegen::visitInput(Type const& type) {
     }
 
-    void visitOutput(Type const& type) {
+    void VisCodegen::visitOutput(Type const& type) {
     }
 
 #define _depth(__depth) _depth_ ## __depth

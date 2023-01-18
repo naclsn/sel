@@ -61,7 +61,6 @@ void build(App& app, char const* const srcs[]) {
 
 void buildfile(App& app, char const* filename) {
   ifstream file(filename, ios::binary | ios::ate);
-  ostringstream errbuilder("could not ", ios::ate);
 
   if (file.is_open()) {
     streamsize size = file.tellg();
@@ -76,6 +75,24 @@ void buildfile(App& app, char const* filename) {
       cerr << "Could not read file: " << quoted(filename) << "\n";
       exit(EXIT_FAILURE);
     }
+
+    return;
+  }
+
+  // maybe it's a pipe or such (can't open "at end") -- try again
+  ifstream notfile(filename, ios::binary);
+
+  if (notfile) {
+    string buffer;
+    char small[4096];
+    while (notfile.read(small, sizeof(small)))
+      buffer+= small;
+    auto end = notfile.gcount();
+    small[end] = '\0';
+    buffer+= small;
+
+    char const* const srcs[2] = {buffer.data(), NULL};
+    build(app, srcs);
 
   } else {
     cerr << "Could not open file: " << quoted(filename) << "\n";

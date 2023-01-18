@@ -52,4 +52,23 @@ void run(App& app) {
   }
 }
 
+void compile(App& app, char const* const* flags) {
+  char const* outfile = *flags++;
+
+  // for now module_name == outfile
+  if (*flags) {
+    cerr << ", flags:\n";
+    while (*flags) cerr << "   " << quoted(*flags++) << "\n";
+  } else cerr << ", no flags\n";
+
+  VisCodegen codegen(outfile);
+  app.accept(codegen);
+
+  cerr << "```llvm-ir\n";
+  codegen.dump();
+  cerr << "```\n";
+
+  throw NIYError("emit binary");
+}
+
 #endif // SELI_ACTIONS_HPP
