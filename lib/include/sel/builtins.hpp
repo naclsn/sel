@@ -487,6 +487,17 @@ namespace sel {
     BIN_num(add, (num, num, num),
       "add two numbers", ());
 
+    BIN_str(bin, (num, str),
+      "convert a number to its binary textual representation (without leading '0b')", (
+      bool read = false;
+    ));
+
+    BIN_lst(bytes, (str, lst<num>),
+      "split a string of bytes into its actual bytes as numbers", (
+      std::string buff;
+      std::string::size_type off = std::string::npos;
+    ));
+
     BIN_lst(codepoints, (str, lst<num>),
       "split a string of bytes into its Unicode codepoints", (
       bool did_once = false;
@@ -531,7 +542,7 @@ namespace sel {
     ));
 
     BIN_str(hex, (num, str),
-      "convert a number to its hexadecimal textual representation", (
+      "convert a number to its hexadecimal textual representation (without leading '0x')", (
       bool read = false;
     ));
 
@@ -570,6 +581,11 @@ namespace sel {
     BIN_str(nl, (str, str),
       "append a new line to a string", (
       bool done = false;
+    ));
+
+    BIN_str(oct, (num, str),
+      "convert a number to its octal textual representation (without leading '0o')", (
+      bool read = false;
     ));
 
     BIN_num(pi, (num),
@@ -706,6 +722,8 @@ namespace sel {
     typedef cons_l
       < abs_
       , add_
+      , bin_
+      , bytes_
       , codepoints_
       , conjunction_
       , const_
@@ -727,6 +745,7 @@ namespace sel {
       , map_
       , mul_
       , nl_
+      , oct_
       , pi_
       , repeat_
       , replicate_

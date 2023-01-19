@@ -159,6 +159,17 @@ namespace sel {
       return a.value() + b.value();
     }
 
+    std::ostream& bin_::stream(std::ostream& out) {
+      read = true;
+      uint64_t a = arg->value();
+      char b[64+1]; b[64] = '\0';
+      char* head = b+64;
+      do { *--head = '0' + (a & 1); } while (a>>= 1);
+      return out << head;
+    }
+    bool bin_::end() const { return read; }
+    std::ostream& bin_::entire(std::ostream& out) { return out << *this; }
+
     void conjunction_::once() {
       bind_args(l, r);
       while (!l.end()) {
@@ -195,6 +206,30 @@ namespace sel {
     bool conjunction_::end() const {
       bind_args(l, r);
       return (did_once ? inleft.empty() : l.end()) || r.end();
+    }
+
+    Val* bytes_::operator*() {
+      bind_args(s);
+      if (buff.length() <= off && !s.end()) {
+        std::ostringstream oss;
+        buff = (oss << s, oss.str());
+        off = 0;
+      }
+      return new NumLiteral(app, buff[off]); // XXX: dont like how it makes it appear as a literal, may have a NumComputed similar to StrChunks
+    }
+    Lst& bytes_::operator++() {
+      bind_args(s);
+      off++;
+      if (buff.length() <= off && !s.end()) {
+        std::ostringstream oss;
+        buff = (oss << s, oss.str());
+        off = 0;
+      }
+      return *this;
+    }
+    bool bytes_::end() const {
+      bind_args(s);
+      return s.end() && buff.length() <= off;
     }
 
     Val* codepoints_::operator*() {
@@ -455,6 +490,10 @@ namespace sel {
     double pi_::value() {
       return M_PI;
     }
+
+    std::ostream& oct_::stream(std::ostream& out) { read = true; return out << std::oct << size_t(arg->value()); }
+    bool oct_::end() const { return read; }
+    std::ostream& oct_::entire(std::ostream& out) { read = true; return out << std::oct << size_t(arg->value()); }
 
     Val* repeat_::operator*() { return arg; }
     Lst& repeat_::operator++() { return *this; }
