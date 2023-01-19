@@ -637,6 +637,15 @@ namespace sel {
     return val;
   }
 
+  void App::push_back(Val const* v) {
+    ptrs.push_back(v);
+  }
+  void App::clear() {
+    for (auto it = ptrs.crbegin(); it != ptrs.crend(); ++it)
+      delete *it;
+    ptrs.clear();
+  }
+
   Val* App::lookup_name_user(std::string const& name) {
     try {
       return user.at(name)->copy();

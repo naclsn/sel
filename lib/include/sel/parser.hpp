@@ -125,6 +125,8 @@ namespace sel {
     Val* f; // note that this does not have to be `Str -> Str`
     std::unordered_map<std::string, Val*> user;
 
+    std::vector<Val const*> ptrs;
+
     bool strict_type = false;
     bool not_fun = false; // ie yes fun by default
 
@@ -134,6 +136,10 @@ namespace sel {
       : strict_type(strict_type)
       , not_fun(not_fun)
     { }
+    ~App() { clear(); }
+
+    void push_back(Val const* v);
+    void clear();
 
     Type const& type() const { return f->type(); }
 

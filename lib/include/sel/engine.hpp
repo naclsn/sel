@@ -28,11 +28,8 @@ namespace sel {
     App& app;
     Type const ty;
   public:
-    Val(App& app, Type const& ty)
-      : app(app)
-      , ty(Type(ty))
-    { }
-    virtual ~Val() { }
+    Val(App& app, Type const& ty);
+    virtual ~Val();
     Type const& type() const { return ty; }
     virtual Val* copy() const = 0;
     virtual void accept(Visitor& v) const;
