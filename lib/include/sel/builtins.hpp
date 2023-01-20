@@ -367,7 +367,7 @@ namespace sel {
         // using _the::_the;
         the(App& app, typename _the::Base* base, typename _the::Arg* arg)
           : _the(app, base, arg)
-        { std::cerr << "=== the:_the (Tail): " << repr(*this) << "\n"; }
+        { }
         void accept(Visitor& v) const override; // visitTail
       };
 
