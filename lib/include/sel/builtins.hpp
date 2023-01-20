@@ -539,6 +539,7 @@ namespace sel {
       Str_istream sis;
       std::istream_iterator<codepoint> isi;
       grapheme curr;
+      bool past_end = false;
     ));
 
     BIN_str(hex, (num, str),

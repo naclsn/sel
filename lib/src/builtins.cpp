@@ -364,13 +364,15 @@ namespace sel {
         did_once = true;
       }
       curr.clear();
-      read_grapheme(isi, curr);
+      static std::istream_iterator<codepoint> const eos;
+      if (eos == isi) past_end = true;
+      else read_grapheme(isi, curr);
       return *this;
     }
     bool graphemes_::end() const {
       bind_args(s);
-      static std::istream_iterator<codepoint> eos;
-      return did_once ? eos == isi : s.end();
+      static std::istream_iterator<codepoint> const eos;
+      return did_once ? eos == isi && past_end : s.end();
     }
 
     std::ostream& hex_::stream(std::ostream& out) { read = true; return out << std::hex << size_t(arg->value()); }

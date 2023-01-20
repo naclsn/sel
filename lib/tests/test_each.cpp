@@ -192,13 +192,7 @@ T(drop) {
 
 T(graphemes) {
   assert_lststr(
-    ({ "\x61", "\xe3\x81\xb5", "\x62", "\x0d\x0a", "\x63", "\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7",
-      // FIXME: wasn't able to figure why: it seems to end
-      // one too soon in testing, but not in just using it
-      // through script; this actually behaves as expected
-      // `printf [..] | s/el graphemes, join :-:`
-      //"\x64"
-    }),
+    ({ "\x61", "\xe3\x81\xb5", "\x62", "\x0d\x0a", "\x63", "\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7", "\x64" }),
     CALL(graphemes, "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
   );
   return 0;
