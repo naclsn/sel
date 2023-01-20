@@ -476,12 +476,12 @@ namespace sel {
       return a.value() * b.value();
     }
 
-    std::ostream& nl_::stream(std::ostream& out) {
+    std::ostream& ln_::stream(std::ostream& out) {
       bind_args(s);
       return !s.end() ? out << s : (done = true, out << '\n');
     }
-    bool nl_::end() const { return done; }
-    std::ostream& nl_::entire(std::ostream& out) {
+    bool ln_::end() const { return done; }
+    std::ostream& ln_::entire(std::ostream& out) {
       bind_args(s);
       done = true;
       return s.entire(out) << '\n';
@@ -649,6 +649,23 @@ namespace sel {
     std::ostream& tostr_::stream(std::ostream& out) { read = true; return out << arg->value(); }
     bool tostr_::end() const { return read; }
     std::ostream& tostr_::entire(std::ostream& out) { read = true; return out << arg->value(); }
+
+    std::ostream& unbytes_::stream(std::ostream& out) {
+      bind_args(l);
+      char b = ((Num*)*l)->value();
+      ++l;
+      return out << b;
+    }
+    bool unbytes_::end() const {
+      bind_args(l);
+      return l.end();
+    }
+    std::ostream& unbytes_::entire(std::ostream& out) {
+      bind_args(l);
+      for (; !l.end(); ++l)
+        out << char(((Num*)*l)->value());
+      return out;
+    }
 
     std::ostream& uncodepoints_::stream(std::ostream& out) {
       bind_args(l);

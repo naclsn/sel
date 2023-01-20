@@ -578,7 +578,7 @@ namespace sel {
     BIN_num(mul, (num, num, num),
       "multiply tow numbers", ());
 
-    BIN_str(nl, (str, str),
+    BIN_str(ln, (str, str),
       "append a new line to a string", (
       bool done = false;
     ));
@@ -652,6 +652,9 @@ namespace sel {
       "convert a number into string", (
       bool read = false;
     ));
+
+    BIN_str(unbytes, (lst<num>, str),
+      "construct a string from its actual bytes; this can lead to broken UTF-8 or 'degenerate cases' if not careful", ());
 
     BIN_str(uncodepoints, (lst<num>, str),
       "construct a string from its Unicode codepoints; this can lead to 'degenerate cases' if not careful", ());
@@ -742,9 +745,9 @@ namespace sel {
       , iterate_
       , join_
       // , last_
+      , ln_
       , map_
       , mul_
-      , nl_
       , oct_
       , pi_
       , repeat_
@@ -759,6 +762,7 @@ namespace sel {
       , takewhile_
       , tonum_
       , tostr_
+      , unbytes_
       , uncodepoints_
       , uncurry_
       , zipwith_
