@@ -5,6 +5,8 @@
 #include <vector>
 #include <unordered_set>
 
+#include <typeinfo> // ZZZ
+
 #include "utils.hpp"
 #include "engine.hpp"
 #include "errors.hpp"
@@ -239,20 +241,20 @@ namespace sel {
 
         constexpr static unsigned args = 0;
 
-        typedef typename last_arg::vat _LastArg;
-        _LastArg* arg;
+        typedef typename last_arg::vat LastArg;
+        // LastArg* arg;
 
         the(App& app)
           : fun<last_arg, unk<b>>::ctor(app, Impl::name)
-          , arg(nullptr)
+          // , arg(nullptr)
         { std::cerr << "=== the (One2): " << repr(*this) << "\n"; }
 
         // to be overriden in `Implementation`
-        virtual Val* impl() = 0;
+        virtual Val* impl(LastArg) = 0;
 
         Val* operator()(Val* arg) override {
-          this->arg = coerse<_LastArg>(this->app, arg, last_arg::make(Impl::name));
-          return impl();
+          auto* last = coerse<LastArg>(this->app, arg, last_arg::make(Impl::name));
+          return impl(*last);
         }
         Val* copy() const override; // copyOne2
         void accept(Visitor& v) const override; // visitOne2
@@ -320,7 +322,7 @@ namespace sel {
           : _ty_tail::ctor(app, Base::Next::name, base->type(), arg->type())
           , base(base)
           , arg(arg)
-        { std::cerr << "=== _the_when_not_unk (Tail1): " << repr(*this) << "\n"; }
+        { }
 
         Val* copy() const override; // copyTail1
       };
@@ -332,43 +334,28 @@ namespace sel {
 
         typedef typename Base::_next_arg_ty Arg;
 
-        constexpr static unsigned args = Base::args + 1; // YYY: ?
+        constexpr static unsigned args = Base::args + 1;
 
-        // tldr: inserts the arg as this own `arg`, and push back `base` once
-        struct _ProxyBase : _ty_one_to_tail::ctor {
-          typedef _the_when_is_unk the;
-          constexpr static unsigned args = Base::args + 1;
-          Base* base;
-          Arg* arg;
-          _ProxyBase(App& app, Base* base, Arg* arg)
-            : _ty_one_to_tail::ctor(app, Base::Next::name, base->type(), arg->type()) // YYY: too hacky?
-            , base(base)
-            , arg(arg)
-          { std::cerr << "=== _ProxyBase: " << "repr(*this)" << "\n"; }
-          Val* operator()(Val* arg) override { throw RuntimeError("operation not permited: operator() on proxy base"); } //{ return nullptr; } // YYY: still quite hacky?
-          Val* copy() const override { throw RuntimeError("operation not permited: copy() on proxy base"); } //{ return new _ProxyBase(base, arg); } // YYY: need, more, hacky! (none's supposed to call that)
-        } _base;
-        _ProxyBase* base;
-        typedef typename _fun_first_par_type<_ty_one_to_tail>::the::vat _LastArg;
-        _LastArg* arg;
+        Base* base;
+        Arg* arg;
+        typedef typename _fun_first_par_type<_ty_one_to_tail>::the::vat LastArg;
 
         // this is the (inherited) ctor for the tail type when ends on unk
         _the_when_is_unk(App& app, Base* base, Arg* arg)
           : _ty_one_to_tail::ctor(app, Base::Next::name, base->type(), arg->type())
-          // , _base(new _ProxyBase(app, base, arg))
-          , _base(app, base, arg)
-          , base(&_base)
-          , arg(nullptr)
-        { std::cerr << "=== _the_when_is_unk (Tail2): " << repr(*this) << "\n"; }
+          // , base(new _ProxyBase(app, base, arg))
+          , base(base)
+          , arg(arg)
+        { }
 
         // to be overriden in `Implementation`
-        virtual Val* impl() = 0;
+        virtual Val* impl(LastArg& last) = 0;
 
         Val* operator()(Val* arg) override {
           std::cerr << "--- this should be here\n";
-          this->arg = coerse<_LastArg>(this->app, arg, _fun_first_par_type<_ty_one_to_tail>::the::make(Base::Next::name));
+          auto* last = coerse<LastArg>(this->app, arg, _fun_first_par_type<_ty_one_to_tail>::the::make(Base::Next::name));
           std::cerr << "--- but this is probably after?\n";
-          return impl();
+          return impl(*last);
         }
         Val* copy() const override; // copyTail2
       };
@@ -382,7 +369,10 @@ namespace sel {
         typedef typename _the::Head Head;
         typedef typename _the::Base Base;
         constexpr static unsigned args = _the::args;
-        using _the::_the;
+        // using _the::_the;
+        the(App& app, typename _the::Base* base, typename _the::Arg* arg)
+          : _the(app, base, arg)
+        { std::cerr << "=== the:_the (Tail): " << repr(*this) << "\n"; }
         void accept(Visitor& v) const override; // visitTail
       };
 
@@ -452,7 +442,7 @@ namespace sel {
       Lst& operator++() override; \
       bool end() const override;
 #define _BIN_unk \
-      Val* impl() override;
+      Val* impl(LastArg&) override;
 
 // used to remove the parenthesis from `__decl` and `__body`
 #define __rem_par(...) __VA_ARGS__

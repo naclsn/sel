@@ -108,8 +108,8 @@ namespace sel {
       // TRACE(copyTail2, typeid(*this).name());
       return new typename a::Base::Next(
         this->app,
-        _base.base,
-        _base.arg
+        (typename a::Base*)base->base->copy(),
+        (typename a::Arg*)base->arg->copy()
       ); // copyTail2
     }
     template <typename NextT, typename last_to, typename last_from>
@@ -376,8 +376,8 @@ namespace sel {
     // bool hex_::end() const { return read; }
     // std::ostream& hex_::entire(std::ostream& out) { read = true; return out << std::hex << size_t(arg->value()); }
 
-    Val* flip_::impl() {
-      bind_args(fun, b, a);
+    Val* flip_::impl(LastArg& a) {
+      bind_args(fun, b);
       return (*(Fun*)fun(&a))(&b);
     }
 

@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+#include <typeinfo> // ZZZ
+
 #include "types.hpp"
 #include "builtins.hpp"
 
@@ -97,18 +99,23 @@ namespace sel {
     //     this->visitCommon(it._base, typename std::conditional<!_b::args, std::true_type, std::false_type>::type{});
     //   }
     // };
-    template <typename cdr>
-    class _VisRepr<bins_ll::cons<bins::flip_, cdr>> : public _VisRepr<cdr> {
-    private:
-      typedef bins::flip_ _b;
-    protected:
-      _VisRepr(std::ostream& res, _ReprCx cx): _VisRepr<cdr>(res, cx) { }
-    public:
-      using _VisRepr<cdr>::visit;
-      void visit(_b const& it) override {
-        this->visitCommon(it._base, typename std::conditional<!_b::args, std::true_type, std::false_type>::type{});
-      }
-    };
+
+    // template <typename cdr>
+    // class _VisRepr<bins_ll::cons<bins::flip_, cdr>> : public _VisRepr<cdr> {
+    // private:
+    //   typedef bins::flip_ _b;
+    // protected:
+    //   _VisRepr(std::ostream& res, _ReprCx cx): _VisRepr<cdr>(res, cx) { }
+    // public:
+    //   using _VisRepr<cdr>::visit;
+    //   void visit(_b const& it) override {
+    //     // ZZZ: there is not visitProxy() yet (and base is a _ProxyBase)
+    //     std::cerr << "special jank case for " << typeid(it).name() << "\n";
+    //     this->visitCommon(it, typename std::conditional<!_b::args, std::true_type, std::false_type>::type{});
+    //     // this->visitCommon(it.base, typename std::conditional<!_b::args, std::true_type, std::false_type>::type{});
+    //   }
+    // };
+
     // // special-SPECIAL case (even more jank) of `id_`
     // template <typename cdr>
     // class _VisRepr<bins_ll::cons<bins::if_, cdr>> : public _VisRepr<cdr> {
