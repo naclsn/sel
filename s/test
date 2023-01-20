@@ -1,0 +1,4 @@
+#!/bin/sh -e
+cd "${0%/*}/.."
+test -d build/ || meson build/ --buildtype=release -Dstrip=true
+meson test -C build/ --verbose "$@"

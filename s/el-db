@@ -1,0 +1,4 @@
+#!/bin/sh -e
+cd "${0%/*}/.."
+test -d build/debug/ || meson build/debug/ -Db_coverage=true
+ninja -C build/debug/ >&2 && exec gdb -q --args build/debug/src/sel "$@"

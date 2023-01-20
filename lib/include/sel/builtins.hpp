@@ -730,8 +730,8 @@ namespace sel {
       , div_
       , drop_
       , dropwhile_
-      , flip_
       , filter_
+      , flip_
       , graphemes_
       // , head_
       , hex_
