@@ -10,7 +10,7 @@
 
 App app;
 
-void test_tonum() { // tonum :3:
+int test_tonum() { // tonum :3:
   Val* tonum1 = lookup_name(app, "tonum");
   showv_test(tonum1,
     "<Str -> Num> Tonum1 { }\n"
@@ -23,9 +23,11 @@ void test_tonum() { // tonum :3:
     "   arg=<Str> StrLiteral { s= \"3\" }\n"
     "}\n"
     );
+
+  return 0;
 }
 
-void test_add() { // add 1 2
+int test_add() { // add 1 2
   Val* add2 = lookup_name(app, "add");
   showv_test(add2,
     "<Num -> Num -> Num> Add2 { }\n"
@@ -49,9 +51,11 @@ void test_add() { // add 1 2
     "   arg=<Num> NumLiteral { n= 2 }\n"
     "}\n"
     );
+
+  return 0;
 }
 
-void test_map() { // map tonum 4
+int test_map() { // map tonum 4
   Val* map2 = lookup_name(app, "map");
   showv_test(map2,
     "<(a -> b) -> [a] -> [b]> Map2 { }\n"
@@ -75,9 +79,11 @@ void test_map() { // map tonum 4
     "   arg=<[Str]> LstLiteral { v[0]=<Str> StrLiteral { s= \"4\" } }\n"
     "}\n"
     );
+
+  return 0;
 }
 
-void test_repeat() { // repeat 5
+int test_repeat() { // repeat 5
   Val* repeat1 = lookup_name(app, "repeat");
   showv_test(repeat1,
     "<a -> [a]> Repeat1 { }\n"
@@ -90,9 +96,11 @@ void test_repeat() { // repeat 5
     "   arg=<Num> NumLiteral { n= 5 }\n"
     "}\n"
     );
+
+  return 0;
 }
 
-void test_zipwith() { // zipwith map {repeat} {{1}} // YYY: but most boundedness are wrong
+int test_zipwith() { // zipwith map {repeat} {{1}} // YYY: but most boundedness are wrong
   Val* zipwith3 = lookup_name(app, "zipwith");
   showv_test(zipwith3,
     "<(a -> b -> c) -> [a] -> [b] -> [c]> Zipwith3 { }\n"
@@ -134,12 +142,16 @@ void test_zipwith() { // zipwith map {repeat} {{1}} // YYY: but most boundedness
     "   arg=<[[Num]]> LstLiteral { v[0]=<[Num]> LstLiteral { v[0]=<Num> NumLiteral { n= 42 } } }\n"
     "}\n"
     );
+
+  return 0;
 }
 
 TEST(bins_applied) {
-  cout << "{{{ test_tonum\n";   test_tonum();   cout << "}}}\n";
-  cout << "{{{ test_add\n";     test_add();     cout << "}}}\n";
-  cout << "{{{ test_map\n";     test_map();     cout << "}}}\n";
-  cout << "{{{ test_repeat\n";  test_repeat();  cout << "}}}\n";
-  cout << "{{{ test_zipwith\n"; test_zipwith(); cout << "}}}\n";
+  int fails = 0;
+  cout << "{{{ test_tonum\n";   fails+= test_tonum();   cout << "}}}\n";
+  cout << "{{{ test_add\n";     fails+= test_add();     cout << "}}}\n";
+  cout << "{{{ test_map\n";     fails+= test_map();     cout << "}}}\n";
+  cout << "{{{ test_repeat\n";  fails+= test_repeat();  cout << "}}}\n";
+  cout << "{{{ test_zipwith\n"; fails+= test_zipwith(); cout << "}}}\n";
+  return fails;
 }

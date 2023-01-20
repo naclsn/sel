@@ -636,7 +636,7 @@ namespace sel {
 
     BIN_lst(take, (num, lst<unk<'a'>>, lst<unk<'a'>>),
       "return the prefix of a given length, or the entire list if it is shorter", (
-      size_t did;
+      size_t did = 0;
     ));
 
     BIN_lst(takewhile, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),

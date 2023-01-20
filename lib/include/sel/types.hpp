@@ -56,6 +56,8 @@ namespace sel {
     Type applied(Type const& arg) const;
   };
 
+  std::ostream& operator<<(std::ostream& out, Ty ty);
+
   // TODO: remove both
   std::vector<Type*>* types1(Type* ty1);
   std::vector<Type*>* types2(Type* ty1, Type* ty2);

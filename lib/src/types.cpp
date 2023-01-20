@@ -7,7 +7,6 @@
 
 namespace sel {
 
-  // internal
   std::ostream& operator<<(std::ostream& out, Ty ty) {
     switch (ty) {
       case Ty::UNK: out << "UNK"; break;

@@ -1,6 +1,6 @@
 #include "common.hpp"
 
-void doTestEq(char const* source, char const* repr) {
+int doTestEq(char const* source, char const* repr) {
   istringstream iss(source);
   App app;
   iss >> app;
@@ -12,9 +12,13 @@ void doTestEq(char const* source, char const* repr) {
 
   cout << "application representation:\n" << oss.str() << endl;
   assert_cmp(repr, oss.str());
+
+  return 0;
 }
 
 TEST(parseApp) {
+  return
+
   doTestEq(
     "split : :, map [tonum, add 1, add 2, tostr], join ::::"
     ,
@@ -51,7 +55,7 @@ TEST(parseApp) {
     "   }\n"
     "   user= {}\n"
     "}\n"
-  );
+  )+
 
   doTestEq(
     "tonum, +1, tostr"
@@ -70,12 +74,11 @@ TEST(parseApp) {
     "   }\n"
     "   user= {}\n"
     "}\n"
-  );
+  )+
 
   doTestEq(
     "const {1, 2, 3, :soleil:, {map}}"
     ,
-
     "App {\n"
     "   f= <b -> [_mixed]> Const0 {\n"
     "      base=<a -> b -> a> Const1 { }\n"
@@ -90,7 +93,7 @@ TEST(parseApp) {
     "   }\n"
     "   user= {}\n"
     "}\n"
-  );
+  )+
 
   doTestEq(
     "const {}, reverse, join : :"
@@ -109,7 +112,7 @@ TEST(parseApp) {
     "   }\n"
     "   user= {}\n"
     "}\n"
-  );
+  )+
 
   doTestEq(
     "const {1}, reverse, join : :"
@@ -128,7 +131,7 @@ TEST(parseApp) {
     "   }\n"
     "   user= {}\n"
     "}\n"
-  );
+  )+
 
   doTestEq(
     "const {1, 2}, reverse, join : :"
@@ -150,7 +153,7 @@ TEST(parseApp) {
     "   }\n"
     "   user= {}\n"
     "}\n"
-  );
+  )+
 
   doTestEq(
     "%map"
@@ -164,7 +167,7 @@ TEST(parseApp) {
     "   }\n"
     "   user= {}\n"
     "}\n"
-  );
+  )+
 
   doTestEq(
     "tonum, %-1, tostr"
@@ -186,5 +189,7 @@ TEST(parseApp) {
     "   }\n"
     "   user= {}\n"
     "}\n"
-  );
+  )+
+
+  0;
 }

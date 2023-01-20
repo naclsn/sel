@@ -1,6 +1,6 @@
 #include "common.hpp"
 
-void pushAssert(vector<Type>& all, Type const push, string const expect) {
+int pushAssert(vector<Type>& all, Type const push, string const expect) {
   all.push_back(push);
 
   ostringstream oss;
@@ -8,21 +8,28 @@ void pushAssert(vector<Type>& all, Type const push, string const expect) {
 
   cout << "---\t" << all[all.size()-1] << '\n';
   assert_cmp(expect, oss.str());
+
+  return 0;
 }
 
-void doApplied(Type fun, vector<Type> args, vector<string> reprx) {
+int doApplied(Type fun, vector<Type> args, vector<string> reprx) {
   vector<Type> all;
+  int fails = 0;
 
-  pushAssert(all, fun, reprx[0]);
+  fails+= pushAssert(all, fun, reprx[0]);
 
   for (size_t k = 0; k < args.size(); k++) {
     cout << all[all.size()-1].from() << "  <-  " << args[k] << '\n';
 
-    pushAssert(all, all[all.size()-1].applied(args[k]), reprx[k+1]);
+    fails+= pushAssert(all, all[all.size()-1].applied(args[k]), reprx[k+1]);
   }
+
+  return fails;
 }
 
 TEST(Type_applied) {
+  int fails = 0;
+
   Type map2_t = Type(Ty::FUN,
     {.box_pair={
       new Type(Ty::FUN,
@@ -62,7 +69,7 @@ TEST(Type_applied) {
   );
 
   // map tonum :text:
-  doApplied(map2_t, {tonum1_t, text0_t}, {
+  fails+= doApplied(map2_t, {tonum1_t, text0_t}, {
     "(a -> b) -> [a]* -> [b]*",
     "[Str]* -> [Num]*",
     "[Num]",
@@ -135,7 +142,7 @@ TEST(Type_applied) {
   );
 
   // zipwith map {repeat} {{1}}
-  doApplied(zipwith3_t, {map2_t, list0_repeat1_t, list0_list0_num_t}, {
+  fails+= doApplied(zipwith3_t, {map2_t, list0_repeat1_t, list0_list0_num_t}, {
     "(a -> b -> c) -> [a]* -> [b]* -> [c]*",
     "[a -> b]* -> [[a]*]* -> [[b]*]*",
     "[[a]] -> [[[a]*]]", // YYY: but should be: "[[a]*] -> [[[a]*]*]"
@@ -149,5 +156,7 @@ TEST(Type_applied) {
       new Type(Ty::UNK, {.name=new string("b_idk")}, 0)
     }}, 0
   );
-  doApplied(idk1_t, {text0_t}, {"a -> b", "b"});
+  fails+= doApplied(idk1_t, {text0_t}, {"a -> b", "b"});
+
+  return fails;
 }

@@ -25,26 +25,33 @@ long unsigned count<Str>(Str& s) {
 }
 
 template <typename T>
-void dotestone(char const* txt, T* it, size_t n) {
+int dotestone(char const* txt, T* it, size_t n) {
   cout << txt << ", size: " << n << endl;
   assert_eq(n, count(*it));
+  return 0;
 }
 
-template <typename T> void dotest012(char const*);
+template <typename T> int dotest012(char const*);
 template <>
-void dotest012<LstLiteral>(char const* txt) {
-  dotestone(txt, (Lst*)new LstLiteral(app, {}), 0);
-  dotestone(txt, (Lst*)new LstLiteral(app, {new NumLiteral(app, 0)}), 1);
-  dotestone(txt, (Lst*)new LstLiteral(app, {new NumLiteral(app, 1), new NumLiteral(app, 2)}), 2);
+int dotest012<LstLiteral>(char const* txt) {
+  return
+  dotestone(txt, (Lst*)new LstLiteral(app, {}), 0)+
+  dotestone(txt, (Lst*)new LstLiteral(app, {new NumLiteral(app, 0)}), 1)+
+  dotestone(txt, (Lst*)new LstLiteral(app, {new NumLiteral(app, 1), new NumLiteral(app, 2)}), 2)+
+  0;
 }
 template <>
-void dotest012<StrChunks>(char const* txt) {
-  dotestone(txt, (Str*)new StrChunks(app, vector<string>{}), 0);
-  dotestone(txt, (Str*)new StrChunks(app, vector<string>{"zero"}), 1);
-  dotestone(txt, (Str*)new StrChunks(app, vector<string>{"one", "two"}), 2);
+int dotest012<StrChunks>(char const* txt) {
+  return
+  dotestone(txt, (Str*)new StrChunks(app, vector<string>{}), 0)+
+  dotestone(txt, (Str*)new StrChunks(app, vector<string>{"zero"}), 1)+
+  dotestone(txt, (Str*)new StrChunks(app, vector<string>{"one", "two"}), 2)+
+  0;
 }
 
 TEST(end) {
-  dotest012<LstLiteral>("LstLiteral");
-  dotest012<StrChunks>("StrChunks");
+  return
+  dotest012<LstLiteral>("LstLiteral")+
+  dotest012<StrChunks>("StrChunks")+
+  0;
 }

@@ -620,7 +620,8 @@ namespace sel {
     }
     bool take_::end() const {
       bind_args(n, l);
-      return n.value() < did || l.end();
+      auto x = n.value();
+      return 0 == x || x < did || l.end();
     }
 
     Val* takewhile_::operator*() {
