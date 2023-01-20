@@ -108,12 +108,14 @@ namespace sel {
     reprHelper(type, "StrChunks", a);
   }
 
-  void VisRepr::visitInput(Type const& type) {
-    reprHelper(type, "Input", {});
+  void VisRepr::visitLstMapCoerse(Type const& type, Lst const& l) {
+    reprHelper(type, "LstMapCoerse", {
+      fi_val("l", &l),
+    });
   }
 
-  void VisRepr::visitOutput(Type const& type) {
-    reprHelper(type, "Output", {});
+  void VisRepr::visitInput(Type const& type) {
+    reprHelper(type, "Input", {});
   }
 
   template <typename T>

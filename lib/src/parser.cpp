@@ -375,9 +375,8 @@ namespace sel {
           break;
         }
 
-        // YYY: would be great having the previous token (also this is not a character yet)
         throw ParseError(std::string("unexpected character '") + c + "' (" + std::to_string((int)c) + ")", t.loc, 1);
-    }
+    } // switch c
 
     while (!in.eof() && isspace(in.peek())) in.get();
     return in;

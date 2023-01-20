@@ -152,7 +152,7 @@ namespace sel {
     Lst& operator++() override { ++(*v); return *this; }
     bool end() const override { return v->end(); }
     Val* copy() const override { return new LstMapCoerse<ToHas>(app, (Lst*)v->copy(), toto); }
-    // XXX: missing accept(v)
+    void accept(Visitor& v) const override;
   };
 
 

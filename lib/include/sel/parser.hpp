@@ -75,8 +75,6 @@ namespace sel {
     void accept(Visitor& v) const override;
   };
 
-  // TODO: not this way, 'cause then it cannot be other
-  // than `Fun` (eg. "repeat:1:, join::" should be `Str`)
   class FunChain : public Fun {
     std::vector<Fun*> const f;
   public:

@@ -19,6 +19,8 @@ if true
 endif
 # end completions
 
+install_man('etc/sel.1')
+
 app = executable('sel',
   'main.cpp',
   include_directories : [inc],

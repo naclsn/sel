@@ -150,10 +150,12 @@ namespace sel {
     template <typename/*...*/ has/*, TyFlag is_inf*/> struct lst {
       typedef Lst vat;
       inline static Type make(char const* fname) {
-        return Type(Ty::LST, {.box_has=types1(new Type(has::make(fname)/*...*/))}, TyFlag::IS_FIN/*is_inf*/);
+        return Type(Ty::LST, {.box_has=new std::vector<Type*>{new Type(has::make(fname)/*...*/)}}, TyFlag::IS_FIN/*is_inf*/);
       }
       struct ctor : Lst {
-        ctor(App& app, char const* fname): Lst(app, make(fname)) { }
+        ctor(App& app, char const* fname)
+          : Lst(app, make(fname))
+        { }
         ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
           : Lst(app, base_fty.applied(ty))
         { }
@@ -165,7 +167,9 @@ namespace sel {
         return Type(Ty::FUN, {.box_pair={new Type(from::make(fname)), new Type(to::make(fname))}}, 0);
       }
       struct ctor : Fun {
-        ctor(App& app, char const* fname): Fun(app, make(fname)) { }
+        ctor(App& app, char const* fname)
+          : Fun(app, make(fname))
+        { }
         ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
           : Fun(app, base_fty.applied(ty))
         { }
@@ -254,7 +258,7 @@ namespace sel {
       };
     };
 
-    template <typename other> struct _fun_first_par_type { typedef void the; }; // ZZZ
+    template <typename other> struct _fun_first_par_type { typedef void the; }; // should never happen
     template <typename from, typename to> struct _fun_first_par_type<fun<from, to>> { typedef from the; };
 
     template <typename other> struct _fun_last_ret_type { typedef other the; };
@@ -614,7 +618,7 @@ namespace sel {
     ));
 
     BIN_lst(split, (str, str, lst<str>),
-      "break a string into pieces separated by the argument, consuming the delimiter; note that an empty delimiter does not split the input on every character, but rather is equivalent to `const [repeat ::]`", ( // YYY: .. i think..?
+      "break a string into pieces separated by the argument, consuming the delimiter; note that an empty delimiter does not split the input on every character, but rather is equivalent to `const [repeat ::]`, for this see `graphemes`", (
       bool did_once = false;
       std::string ssep;
       std::ostringstream acc = std::ostringstream(std::ios_base::ate);
@@ -707,8 +711,11 @@ namespace sel {
 
     using namespace bins;
 
-#ifdef BINS_MIN
-    // YYY: these are used in parsing..
+    // YYY: (these are used in parsing - eg. coersion /
+    // operators) could have these only here, but would
+    // need to merge with below while keeping sorted (not
+    // strictly necessary, but convenient); although for
+    // now `bins_min` is not used
     typedef cons_l
       < add_
       , codepoints_
@@ -720,8 +727,8 @@ namespace sel {
       , sub_
       , tonum_
       , tostr_
-      >::the bins; //bins_min; // YYY: could have these only here, but would need to merge with below while keeping sorted (not strictly necessary, but convenient)
-#else
+      >::the bins_min;
+
     // XXX: still would love if this list could be built automatically
     typedef cons_l
       < abs_
@@ -768,7 +775,7 @@ namespace sel {
       , uncurry_
       , zipwith_
       >::the bins;
-#endif
+
     typedef _make_bins_all<bins>::the bins_all;
 
   } // namespace bins_ll

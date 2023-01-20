@@ -316,7 +316,6 @@ namespace sel {
     bool dropwhile_::end() const {
       bind_args(p, l);
       if (done) return l.end();
-      // XXX: untested (still no proper predicate to facilitate)
       while (!l.end() && p(*l))
         ++l;
       done = true;
@@ -340,10 +339,8 @@ namespace sel {
     }
     bool filter_::end() const {
       bind_args(p, l);
-      // TODO/FIXME/...
-      // XXX: still dont like this model: no way to tell
-      // if we are at the end without scanning but then
-      // this is no lazy at all..?
+      // TODO: no, there is no way to tell if we are at the
+      // end without iterating until either p(*l) or l.end
       return l.end();
     }
 
