@@ -15,13 +15,13 @@ App app;
 TEST(VisRepr) {
   int fails = 0;
 
-  auto num = NumLiteral(app, 42.1);
+  auto num = *new NumLiteral(app, 42.1);
   fails+= doTestEq(
     num,
     "<Num> NumLiteral { n= 42.1 }"
   );
 
-  auto str = StrLiteral(app, "coucou");
+  auto str = *new StrLiteral(app, "coucou");
   fails+= doTestEq(
     str,
     "<Str> StrLiteral { s= \"coucou\" }"
@@ -31,7 +31,7 @@ TEST(VisRepr) {
   v.push_back(&num);
   v.push_back(&str);
   fails+= doTestEq(
-    LstLiteral(app, v),
+    *new LstLiteral(app, v),
     "<[_mixed]> LstLiteral { v[0]=<Num> NumLiteral { n= 42.1 } v[1]=<Str> StrLiteral { s= \"coucou\" } }"
   );
 
