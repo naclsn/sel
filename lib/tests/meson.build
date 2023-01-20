@@ -1,13 +1,13 @@
 all = [
-  'parseApp',
-  'parseType',
-  'VisRepr',
-  'Type_applied',
-  'bins_applied',
-  'runApp',
-  'def_kw',
-  'end',
-  'each',
+  # 'parseApp',
+  # 'parseType',
+  # 'VisRepr',
+  # 'Type_applied',
+  # 'bins_applied',
+  # 'runApp',
+  # 'def_kw',
+  # 'end',
+  # 'each',
 ]
 
 foreach name : all

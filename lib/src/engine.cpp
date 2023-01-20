@@ -12,8 +12,12 @@ namespace sel {
   Val::Val(App& app, Type const& ty)
     : app(app)
     , ty(Type(ty))
-  { app.push_back(this); }
-  Val::~Val() { }
+  {
+    std::cerr << "[+" << ty << "+]\n";
+    app.push_back(this); }
+  Val::~Val() {
+    std::cerr << "[-" << ty << "-]\n";
+  }
 
   void Val::accept(Visitor& v) const {
     // throw NIYError(std::string("'accept' of visitor pattern for this class: ") + typeid(*this).name());

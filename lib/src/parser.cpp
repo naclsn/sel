@@ -433,6 +433,7 @@ namespace sel {
         break;
 
       case Token::Type::LIT_NUM:
+        std::cerr << "--- did find a num literal now\n";
         val = new NumLiteral(app, t.as.num);
         ++lexer;
         break;
@@ -506,6 +507,7 @@ namespace sel {
             if (eos == lexer) expectedContinuation("scanning sub-script element", *lexer);
             expectedMatching(t, *lexer);
           }
+          std::cerr << "--- done with this sub-script\n";
           ++lexer;
         }
         break;
@@ -576,8 +578,12 @@ namespace sel {
     ) {
       Fun* base = coerse<Fun>(app, val, val->type());
       Val* arg = parseAtom(app, lexer);
+      std::cerr << "--- this is still before\n";
       if (arg) val = base->operator()(arg);
+      std::cerr << "--- this is sa;ldkjfsalkdjf before\n";
     }
+
+    std::cerr << "--- returning from parseElement\n";
 
     if (Token::Type::PASS == lexer->type) {
       ++lexer;
@@ -595,8 +601,10 @@ namespace sel {
 
     // early return: single value in script / sub-script
     val = parseElement(app, lexer);
-    if (eos == lexer || Token::Type::SUB_CLOSE == lexer->type)
+    if (eos == lexer || Token::Type::SUB_CLOSE == lexer->type) {
+      std::cerr << "--- returning from parseScript (single element)\n";
       return val;
+    }
 
     // early return: syntax error, to caller to handle
     if (Token::Type::THEN != lexer->type)
@@ -638,11 +646,14 @@ namespace sel {
   }
 
   void App::push_back(Val const* v) {
+    std::cerr << "{+" << v->type() << "+}\n";
     ptrs.push_back(v);
   }
   void App::clear() {
-    for (auto it = ptrs.crbegin(); it != ptrs.crend(); ++it)
+    for (auto it = ptrs.crbegin(); it != ptrs.crend(); ++it) {
+      std::cerr << "{-" << (*it)->type() << "-}\n";
       delete *it;
+    }
     ptrs.clear();
   }
 
