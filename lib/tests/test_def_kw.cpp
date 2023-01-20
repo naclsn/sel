@@ -42,6 +42,6 @@ TEST(def_kw) {
     "def", "ltonum::", "[map", "tonum];\n",
     "def", "ltostr::", "[map", "tostr];\n",
     "def", "mappp::", "[map", "+1];\n",
-    "lines,", "ltonum,", "mappp,", "ltostr,", "unlines,", "nl",
+    "lines,", "ltonum,", "mappp,", "ltostr,", "unlines,", "ln",
   }, "1\na\n2\nb\n3\nc", "2\n1\n3\n1\n4\n1\n");
 }
