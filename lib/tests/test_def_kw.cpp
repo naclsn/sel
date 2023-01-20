@@ -16,9 +16,9 @@ int do_run(initializer_list<char const*> script_args, string given, string expec
   app.run(zin, zout);
   string got = zout.str();
 
-  cout << "--- given:\n" << given;
-  cout << "--- got:\n" << got;
-  cout << "---\n";
+  cout << "--- given:\n" << given << "\n";
+  cout << "--- got:\n" << got << "\n";
+  cout << "---\n" << "\n";
 
   assert_cmp(expect, got);
   return 0;

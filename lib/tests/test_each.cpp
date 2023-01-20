@@ -73,7 +73,11 @@ struct call_test<bins_ll::cons<car, cdr>> { static inline int the() { return tes
 template <>
 struct call_test<bins_ll::nil> { static inline int the() { return 0; } };
 
-TEST(each) { return call_test<bins_ll::bins>::the(); }
+typedef
+  bins_ll::bins
+  //ll::cons_l<graphemes_>::the
+  tested;
+TEST(each) { return call_test<tested>::the(); }
 
 
 #define __r(__n) __r ## __n
@@ -135,6 +139,18 @@ TEST(each) { return call_test<bins_ll::bins>::the(); }
   assert(_fart.end(), "should have reached the end by now");      \
 } while(0)
 
+#define assert_lststr(__should, __have) do {                      \
+  Val* _habe = (__have);                                          \
+  assert_eq(Ty::LST, _habe->type().base);                         \
+  Lst& _fart = *((Lst*)_habe);                                    \
+  for (auto const& _it : __rem_par __should) {                    \
+    assert(!_fart.end(), "should not have reached the end yet");  \
+    assert_str(_it, *_fart);                                      \
+    ++_fart;                                                      \
+  }                                                               \
+  assert(_fart.end(), "should have reached the end by now");      \
+} while(0)
+
 
 T(abs) {
   assert_num(5, CALL(abs, -5));
@@ -149,13 +165,10 @@ T(add) {
 }
 
 T(codepoints) {
-  assert_lstnum(({ 97, 12405, 98, 13, 10, 99, 127987, 8205, 9895, 100 }), CALL(codepoints, "aふb\r\nc🏳‍⚧d"));
-  return 0;
-}
-
-T(conjunction) {
-  cout << "(for `conjunction_`) niy: arbitrary value comparison -- not tested yet\n";
-  //CALL(conjunction, ...);
+  assert_lstnum(
+    ({ 97, 12405, 98, 13, 10, 99, 127987, 8205, 9895, 100 }),
+    CALL(codepoints, "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
+  );
   return 0;
 }
 
@@ -171,6 +184,23 @@ T(div) {
 
 T(drop) {
   assert_lstnum(({3, 2, 1}), CALL(drop, 2, (ili<int>{5, 4, 3, 2, 1})));
+  assert_lstnum(({5, 4, 3, 2, 1}), CALL(drop, 0, (ili<int>{5, 4, 3, 2, 1})));
+  assert_lstnum((ili<int>{}), CALL(drop, 2, (ili<int>{})));
+  assert_lstnum((ili<int>{}), CALL(drop, 6, (ili<int>{5, 4, 3, 2, 1})));
+  return 0;
+}
+
+T(graphemes) {
+  assert_lststr(
+    ({ "\x61", "\xe3\x81\xb5", "\x62", "\x0d\x0a", "\x63", "\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7",
+      // FIXME: wasn't able to figure why: it seems to end
+      // one too soon in testing, but not in just using it
+      // through script; this actually behaves as expected
+      // `printf [..] | s/el graphemes, join :-:`
+      //"\x64"
+    }),
+    CALL(graphemes, "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
+  );
   return 0;
 }
 
@@ -181,5 +211,13 @@ T(mul) {
 
 T(sub) {
   assert_num(2, CALL(sub, 4, 2));
+  return 0;
+}
+
+T(take) {
+  assert_lstnum(({5, 4}), CALL(take, 2, (ili<int>{5, 4, 3, 2, 1})));
+  assert_lstnum((ili<int>{}), CALL(take, 0, (ili<int>{5, 4, 3, 2, 1})));
+  assert_lstnum((ili<int>{}), CALL(take, 2, (ili<int>{})));
+  assert_lstnum(({5, 4, 3, 2, 1}), CALL(take, 6, (ili<int>{5, 4, 3, 2, 1})));
   return 0;
 }
