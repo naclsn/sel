@@ -163,7 +163,6 @@ namespace sel {
     void visitStrChunks(Type const& type, std::vector<std::string> const& vs) override;
     void visitFunChain(Type const& type, std::vector<Fun*> const& f) override;
     void visitInput(Type const& type) override;
-    void visitOutput(Type const& type) override;
 
     void visit(bins::abs_::Base const&) override;
     void visit(bins::abs_ const&) override;

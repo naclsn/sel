@@ -20,9 +20,6 @@ namespace sel {
     void VisCodegen::visitInput(Type const& type) {
     }
 
-    void VisCodegen::visitOutput(Type const& type) {
-    }
-
 #define _depth(__depth) _depth_ ## __depth
 #define _depth_0 arg
 #define _depth_1 base->_depth_0
