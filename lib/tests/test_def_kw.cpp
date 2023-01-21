@@ -7,7 +7,7 @@ void build(App& app, vector<char const*> srcs) {
   source >> app;
 }
 
-void do_run(initializer_list<char const*> script_args, string given, string expect) {
+int do_run(initializer_list<char const*> script_args, string given, string expect) {
   App app;
   build(app, script_args);
 
@@ -16,14 +16,16 @@ void do_run(initializer_list<char const*> script_args, string given, string expe
   app.run(zin, zout);
   string got = zout.str();
 
-  cout << "--- given:\n" << given;
-  cout << "--- got:\n" << got;
-  cout << "---\n";
+  cout << "--- given:\n" << given << "\n";
+  cout << "--- got:\n" << got << "\n";
+  cout << "---\n" << "\n";
 
   assert_cmp(expect, got);
+  return 0;
 }
 
 TEST(def_kw) {
+  return
   do_run({
     "split", ":", ":,",
       "map", "tonum,",
@@ -35,13 +37,14 @@ TEST(def_kw) {
         "incall,",
       "map", "tostr,",
     "join", ":", ":",
-  }, "1 2 3", "5 6 7");
+  }, "1 2 3", "5 6 7")+
   do_run({
     "def", "lines::", "[split", ":\\n:];\n",
     "def", "unlines::", "[join", ":\\n:];\n",
     "def", "ltonum::", "[map", "tonum];\n",
     "def", "ltostr::", "[map", "tostr];\n",
     "def", "mappp::", "[map", "+1];\n",
-    "lines,", "ltonum,", "mappp,", "ltostr,", "unlines,", "nl",
-  }, "1\na\n2\nb\n3\nc", "2\n1\n3\n1\n4\n1\n");
+    "lines,", "ltonum,", "mappp,", "ltostr,", "unlines,", "ln",
+  }, "1\na\n2\nb\n3\nc", "2\n1\n3\n1\n4\n1\n")+
+  0;
 }

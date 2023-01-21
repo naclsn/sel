@@ -30,7 +30,7 @@ namespace sel {
     constexpr static int inl = sizeof(_dyn_codepoint) / sizeof(codepoint);
     static_assert(1 < inl, "probly architecture not supported idk");
 
-    codepoint few[inl];
+    codepoint few[inl] = {0};
     _dyn_codepoint many;
 
   public:
@@ -55,13 +55,11 @@ namespace sel {
     grapheme(codepoint const& first) {
       init(first);
     }
-    grapheme(codepoint const& first, codepoint const& second) {
-      // this one will never be called with \0 anywhere;
-      // it's here as a shortcut over new().push_back()
-      // for cases such as \r\n
-      few[0] = first;
-      few[1] = second;
-    }
+    //grapheme(codepoint const& first, codepoint const& second) {
+    //  // this one must never be called with \0 anywhere;
+    //  few[0] = first;
+    //  few[1] = second;
+    //}
     ~grapheme() {
       if (0 == many.zero) many.vec.~vector();
     }

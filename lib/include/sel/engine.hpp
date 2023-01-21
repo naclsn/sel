@@ -28,11 +28,8 @@ namespace sel {
     App& app;
     Type const ty;
   public:
-    Val(App& app, Type const& ty)
-      : app(app)
-      , ty(Type(ty))
-    { }
-    virtual ~Val() { }
+    Val(App& app, Type const& ty);
+    virtual ~Val();
     Type const& type() const { return ty; }
     virtual Val* copy() const = 0;
     virtual void accept(Visitor& v) const;
@@ -152,7 +149,7 @@ namespace sel {
     Lst& operator++() override { ++(*v); return *this; }
     bool end() const override { return v->end(); }
     Val* copy() const override { return new LstMapCoerse<ToHas>(app, (Lst*)v->copy(), toto); }
-    // XXX: missing accept(v)
+    void accept(Visitor& v) const override;
   };
 
 

@@ -22,12 +22,12 @@
 
 namespace sel {
 
-  class Val;
-  class Fun; // YYY: for FunChain, but I would prefer without
-
   class VisitorLits {
   private:
-    void ni(char const* waai) { std::cerr << "This visitor does not handle '" << waai << "'\n"; } // YYY: proper throw?
+    void ni(char const* waai) {
+      std::ostringstream oss;
+      throw NIYError((oss << "operation not supported for this visitor, on " << waai, oss.str()));
+    }
   public:
     virtual ~VisitorLits() { }
     virtual void visitNumLiteral(Type const& type, double n) { ni("NumLiteral"); }
@@ -35,9 +35,8 @@ namespace sel {
     virtual void visitLstLiteral(Type const& type, std::vector<Val*> const& v) { ni("LstLiteral"); }
     virtual void visitFunChain(Type const& type, std::vector<Fun*> const& f) { ni("FunChain"); }
     virtual void visitStrChunks(Type const& type, std::vector<std::string> const& vs) { ni("StrChunks"); }
-  //class VisitorSpec
+    virtual void visitLstMapCoerse(Type const& type, Lst const& l) { ni("LstMapCoerse"); }
     virtual void visitInput(Type const& type) { ni("Input"); }
-    virtual void visitOutput(Type const& type) { ni("Output"); }
   };
 
   template <typename L>
@@ -45,9 +44,8 @@ namespace sel {
   public:
     using _make_BinsVisitorBase<typename L::cdr>::visit;
     virtual void visit(typename L::car const& val) {
-      // was TypeError, could be RuntimeError or even simply BaseError...
-      // throw NIYError(std::string("operation not supported: ") + typeid(*this).name() + "(" + typeid(val).name() + ")");
-      throw NIYError("operation not supported for this visitor, on this value");
+      std::ostringstream oss;
+      throw NIYError((oss << "operation not supported for this visitor, on this value of type " << val.type(), oss.str()));
     }
   };
   template <>
@@ -71,12 +69,11 @@ namespace sel {
   };
 
 
-    // ZZZ: outside, dont like, pollutes
-    struct _ReprCx {
-      unsigned indents;
-      bool top_level;
-      bool single_line;
-    };
+  struct _ReprCx {
+    unsigned indents;
+    bool top_level;
+    bool single_line;
+  };
 
   template <typename L>
   class _VisRepr : public _VisRepr<typename L::cdr> {
@@ -90,57 +87,6 @@ namespace sel {
       this->visitCommon(it, typename std::conditional<!_b::args, std::true_type, std::false_type>::type{});
     }
   };
-
-    // FIXME/TODO/ZZZ: special (jank) cases
-    template <typename cdr>
-    class _VisRepr<bins_ll::cons<bins::const_, cdr>> : public _VisRepr<cdr> {
-    private:
-      typedef bins::const_ _b;
-    protected:
-      _VisRepr(std::ostream& res, _ReprCx cx): _VisRepr<cdr>(res, cx) { }
-    public:
-      using _VisRepr<cdr>::visit;
-      void visit(_b const& it) override {
-        this->visitCommon(it._base, typename std::conditional<!_b::args, std::true_type, std::false_type>::type{});
-      }
-    };
-    template <typename cdr>
-    class _VisRepr<bins_ll::cons<bins::flip_, cdr>> : public _VisRepr<cdr> {
-    private:
-      typedef bins::flip_ _b;
-    protected:
-      _VisRepr(std::ostream& res, _ReprCx cx): _VisRepr<cdr>(res, cx) { }
-    public:
-      using _VisRepr<cdr>::visit;
-      void visit(_b const& it) override {
-        this->visitCommon(it._base, typename std::conditional<!_b::args, std::true_type, std::false_type>::type{});
-      }
-    };
-    // special-SPECIAL case (even more jank) of `id_`
-    template <typename cdr>
-    class _VisRepr<bins_ll::cons<bins::if_, cdr>> : public _VisRepr<cdr> {
-    private:
-      typedef bins::if_ _b;
-    protected:
-      _VisRepr(std::ostream& res, _ReprCx cx): _VisRepr<cdr>(res, cx) { }
-    public:
-      using _VisRepr<cdr>::visit;
-      void visit(_b const& it) override {
-        this->visitCommon(it._base, typename std::conditional<!_b::args, std::true_type, std::false_type>::type{});
-      }
-    };
-    template <typename cdr>
-    class _VisRepr<bins_ll::cons<bins::uncurry_, cdr>> : public _VisRepr<cdr> {
-    private:
-      typedef bins::uncurry_ _b;
-    protected:
-      _VisRepr(std::ostream& res, _ReprCx cx): _VisRepr<cdr>(res, cx) { }
-    public:
-      using _VisRepr<cdr>::visit;
-      void visit(_b const& it) override {
-        this->visitCommon(it._base, typename std::conditional<!_b::args, std::true_type, std::false_type>::type{});
-      }
-    };
 
   template <>
   class _VisRepr<bins_ll::nil> : public Visitor {
@@ -168,9 +114,9 @@ namespace sel {
     void visitStrLiteral(Type const& type, std::string const& s) override;
     void visitLstLiteral(Type const& type, std::vector<Val*> const& v) override;
     void visitStrChunks(Type const& type, std::vector<std::string> const& vs) override;
+    void visitLstMapCoerse(Type const& type, Lst const& l) override;
     void visitFunChain(Type const& type, std::vector<Fun*> const& f) override;
     void visitInput(Type const& type) override;
-    void visitOutput(Type const& type) override;
   };
 
 

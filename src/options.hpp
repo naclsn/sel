@@ -108,7 +108,7 @@ struct Options {
 
   void usage(char const* reason) {
     if (reason) cerr << "Error: " << reason << "\n";
-    cerr // TODO: better/proper (+ eg. man page)
+    cerr
       << "Usage: " << prog << " [-Dnst] <script...> | -f <file>\n"
       << "       " << prog << " -l [<names...>]\n"
       << "       " << prog << " [-s] -f <file> [-o <bin> <flags...>]\n"

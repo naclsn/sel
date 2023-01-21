@@ -9,6 +9,12 @@
 
 namespace sel {
 
+  Val::Val(App& app, Type const& ty)
+    : app(app)
+    , ty(Type(ty))
+  { app.push_back(this); }
+  Val::~Val() { }
+
   void Val::accept(Visitor& v) const {
     // throw NIYError(std::string("'accept' of visitor pattern for this class: ") + typeid(*this).name());
     throw NIYError("visitor pattern not supported at all on this value");
@@ -124,10 +130,14 @@ namespace sel {
     throw TypeError("miss-initialized or corrupted type");
   }
 
+  template <typename ToHas>
+  void LstMapCoerse<ToHas>::accept(Visitor& v) const {
+    v.visitLstMapCoerse(type(), *this->v);
+  }
+
 
   Str_streambuf& Str_streambuf::operator=(Str_streambuf&& sis) {
     if (this == &sis) return *this;
-    // YYY: this moves the get buffer? do i need to update it explicitly
     std::streambuf::operator=(std::move(sis));
     v = sis.v;
     buffered = std::move(sis.buffered);

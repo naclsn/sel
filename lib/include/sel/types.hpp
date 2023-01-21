@@ -32,7 +32,7 @@ namespace sel {
    * Represents a type (yey). Use the [..]Type function
    * to construct/parse.
    */
-  struct Type { // TODO: maybe could do with cleaner move 'compliance' (eg. operator=) ((or none at all))
+  struct Type {
     Ty base = Ty::UNK;
     union P {
       std::string* name;
@@ -56,15 +56,7 @@ namespace sel {
     Type applied(Type const& arg) const;
   };
 
-  // TODO: remove both
-  std::vector<Type*>* types1(Type* ty1);
-  std::vector<Type*>* types2(Type* ty1, Type* ty2);
-
-  // Type unkType(std::string* name);
-  // Type numType();
-  // Type strType(TyFlag is_inf);
-  // Type lstType(Type* has, TyFlag is_inf);
-  // Type funType(Type* fst, Type* snd);
+  std::ostream& operator<<(std::ostream& out, Ty ty);
 
   /**
    * Parse a type from the given stream. The overload to

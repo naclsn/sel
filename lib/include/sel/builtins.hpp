@@ -150,10 +150,12 @@ namespace sel {
     template <typename/*...*/ has/*, TyFlag is_inf*/> struct lst {
       typedef Lst vat;
       inline static Type make(char const* fname) {
-        return Type(Ty::LST, {.box_has=types1(new Type(has::make(fname)/*...*/))}, TyFlag::IS_FIN/*is_inf*/);
+        return Type(Ty::LST, {.box_has=new std::vector<Type*>{new Type(has::make(fname)/*...*/)}}, TyFlag::IS_FIN/*is_inf*/);
       }
       struct ctor : Lst {
-        ctor(App& app, char const* fname): Lst(app, make(fname)) { }
+        ctor(App& app, char const* fname)
+          : Lst(app, make(fname))
+        { }
         ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
           : Lst(app, base_fty.applied(ty))
         { }
@@ -165,7 +167,9 @@ namespace sel {
         return Type(Ty::FUN, {.box_pair={new Type(from::make(fname)), new Type(to::make(fname))}}, 0);
       }
       struct ctor : Fun {
-        ctor(App& app, char const* fname): Fun(app, make(fname)) { }
+        ctor(App& app, char const* fname)
+          : Fun(app, make(fname))
+        { }
         ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
           : Fun(app, base_fty.applied(ty))
         { }
@@ -234,27 +238,26 @@ namespace sel {
 
         constexpr static unsigned args = 0;
 
-        typedef typename last_arg::vat _LastArg;
-        _LastArg* arg;
+        typedef typename last_arg::vat LastArg;
+        // LastArg* arg;
 
         the(App& app)
           : fun<last_arg, unk<b>>::ctor(app, Impl::name)
-          , arg(nullptr)
         { }
 
         // to be overriden in `Implementation`
-        virtual Val* impl() = 0;
+        virtual Val* impl(LastArg&) = 0;
 
         Val* operator()(Val* arg) override {
-          this->arg = coerse<_LastArg>(this->app, arg, last_arg::make(Impl::name));
-          return impl();
+          auto* last = coerse<LastArg>(this->app, arg, last_arg::make(Impl::name));
+          return impl(*last);
         }
         Val* copy() const override; // copyOne2
         void accept(Visitor& v) const override; // visitOne2
       };
     };
 
-    template <typename other> struct _fun_first_par_type { typedef void the; }; // ZZZ
+    template <typename other> struct _fun_first_par_type { typedef void the; }; // should never happen
     template <typename from, typename to> struct _fun_first_par_type<fun<from, to>> { typedef from the; };
 
     template <typename other> struct _fun_last_ret_type { typedef other the; };
@@ -327,40 +330,25 @@ namespace sel {
 
         typedef typename Base::_next_arg_ty Arg;
 
-        constexpr static unsigned args = Base::args + 1; // YYY: ?
+        constexpr static unsigned args = Base::args + 1;
 
-        // tldr: inserts the arg as this own `arg`, and push back `base` once
-        struct _ProxyBase : _ty_one_to_tail::ctor {
-          typedef _the_when_is_unk the;
-          constexpr static unsigned args = Base::args + 1;
-          Base* base;
-          Arg* arg;
-          _ProxyBase(App& app, Base* base, Arg* arg)
-            : _ty_one_to_tail::ctor(app, Base::Next::name, base->type(), arg->type()) // YYY: too hacky?
-            , base(base)
-            , arg(arg)
-          { }
-          Val* operator()(Val* arg) override { throw RuntimeError("operation not permited: operator() on proxy base"); } //{ return nullptr; } // YYY: still quite hacky?
-          Val* copy() const override { throw RuntimeError("operation not permited: copy() on proxy base"); } //{ return new _ProxyBase(base, arg); } // YYY: need, more, hacky! (none's supposed to call that)
-        } _base;
-        _ProxyBase* base;
-        typedef typename _fun_first_par_type<_ty_one_to_tail>::the::vat _LastArg;
-        _LastArg* arg;
+        Base* base;
+        Arg* arg;
+        typedef typename _fun_first_par_type<_ty_one_to_tail>::the::vat LastArg;
 
         // this is the (inherited) ctor for the tail type when ends on unk
         _the_when_is_unk(App& app, Base* base, Arg* arg)
           : _ty_one_to_tail::ctor(app, Base::Next::name, base->type(), arg->type())
-          , _base(app, base, arg)
-          , base(&_base)
-          , arg(nullptr)
+          , base(base)
+          , arg(arg)
         { }
 
         // to be overriden in `Implementation`
-        virtual Val* impl() = 0;
+        virtual Val* impl(LastArg& last) = 0;
 
         Val* operator()(Val* arg) override {
-          this->arg = coerse<_LastArg>(this->app, arg, _fun_first_par_type<_ty_one_to_tail>::the::make(Base::Next::name));
-          return impl();
+          auto* last = coerse<LastArg>(this->app, arg, _fun_first_par_type<_ty_one_to_tail>::the::make(Base::Next::name));
+          return impl(*last);
         }
         Val* copy() const override; // copyTail2
       };
@@ -374,7 +362,10 @@ namespace sel {
         typedef typename _the::Head Head;
         typedef typename _the::Base Base;
         constexpr static unsigned args = _the::args;
-        using _the::_the;
+        // using _the::_the;
+        the(App& app, typename _the::Base* base, typename _the::Arg* arg)
+          : _the(app, base, arg)
+        { }
         void accept(Visitor& v) const override; // visitTail
       };
 
@@ -444,7 +435,7 @@ namespace sel {
       Lst& operator++() override; \
       bool end() const override;
 #define _BIN_unk \
-      Val* impl() override;
+      Val* impl(LastArg&) override;
 
 // used to remove the parenthesis from `__decl` and `__body`
 #define __rem_par(...) __VA_ARGS__
@@ -487,6 +478,17 @@ namespace sel {
     BIN_num(add, (num, num, num),
       "add two numbers", ());
 
+    BIN_str(bin, (num, str),
+      "convert a number to its binary textual representation (without leading '0b')", (
+      bool read = false;
+    ));
+
+    BIN_lst(bytes, (str, lst<num>),
+      "split a string of bytes into its actual bytes as numbers", (
+      std::string buff;
+      std::string::size_type off = std::string::npos;
+    ));
+
     BIN_lst(codepoints, (str, lst<num>),
       "split a string of bytes into its Unicode codepoints", (
       bool did_once = false;
@@ -528,6 +530,12 @@ namespace sel {
       Str_istream sis;
       std::istream_iterator<codepoint> isi;
       grapheme curr;
+      bool past_end = false;
+    ));
+
+    BIN_str(hex, (num, str),
+      "convert a number to its hexadecimal textual representation (without leading '0x')", (
+      bool read = false;
     ));
 
     BIN_unk(flip, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>),
@@ -538,6 +546,12 @@ namespace sel {
 
     BIN_unk(if, (fun<unk<'a'>, num>, unk<'b'>, unk<'b'>, unk<'a'>, unk<'b'>),
       "take a condition, a consequence and an alternative; return consequence if the argument verifies the condition, alternative otherwise", ());
+
+    BIN_unk(index, (lst<unk<'a'>>, num, unk<'a'>),
+      "select the value at the given index in the list (despite being called index it is an offset, ie. 0-based)", (
+      bool did = false;
+      Val* found = nullptr;
+    ));
 
     BIN_lst(iterate, (fun<unk<'a'>, unk<'a'>>, unk<'a'>, lst<unk<'a'>>),
       "return an infinite list of repeated applications of the function to the input", (
@@ -556,9 +570,14 @@ namespace sel {
     BIN_num(mul, (num, num, num),
       "multiply tow numbers", ());
 
-    BIN_str(nl, (str, str),
+    BIN_str(ln, (str, str),
       "append a new line to a string", (
       bool done = false;
+    ));
+
+    BIN_str(oct, (num, str),
+      "convert a number to its octal textual representation (without leading '0o')", (
+      bool read = false;
     ));
 
     BIN_num(pi, (num),
@@ -586,7 +605,7 @@ namespace sel {
     ));
 
     BIN_lst(split, (str, str, lst<str>),
-      "break a string into pieces separated by the argument, consuming the delimiter; note that an empty delimiter does not split the input on every character, but rather is equivalent to `const [repeat ::]`", ( // YYY: .. i think..?
+      "break a string into pieces separated by the argument, consuming the delimiter; note that an empty delimiter does not split the input on every character, but rather is equivalent to `const [repeat ::]`, for this see `graphemes`", (
       bool did_once = false;
       std::string ssep;
       std::ostringstream acc = std::ostringstream(std::ios_base::ate);
@@ -609,7 +628,7 @@ namespace sel {
 
     BIN_lst(take, (num, lst<unk<'a'>>, lst<unk<'a'>>),
       "return the prefix of a given length, or the entire list if it is shorter", (
-      size_t did;
+      size_t did = 0;
     ));
 
     BIN_lst(takewhile, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),
@@ -625,6 +644,9 @@ namespace sel {
       "convert a number into string", (
       bool read = false;
     ));
+
+    BIN_str(unbytes, (lst<num>, str),
+      "construct a string from its actual bytes; this can lead to broken UTF-8 or 'degenerate cases' if not careful", ());
 
     BIN_str(uncodepoints, (lst<num>, str),
       "construct a string from its Unicode codepoints; this can lead to 'degenerate cases' if not careful", ());
@@ -676,43 +698,52 @@ namespace sel {
 
     using namespace bins;
 
-#ifdef BINS_MIN
-    // YYY: these are used in parsing..
+    // YYY: (these are used in parsing - eg. coersion /
+    // operators) could have these only here, but would
+    // need to merge with below while keeping sorted (not
+    // strictly necessary, but convenient); although for
+    // now `bins_min` is not used
     typedef cons_l
       < add_
       , codepoints_
       , div_
       , flip_
       , graphemes_
+      , index_
       , mul_
       , sub_
       , tonum_
       , tostr_
-      >::the bins; //bins_min; // YYY: could have these only here, but would need to merge with below while keeping sorted (not strictly necessary, but convenient)
-#else
+      >::the bins_min;
+
     // XXX: still would love if this list could be built automatically
     typedef cons_l
       < abs_
       , add_
+      , bin_
+      , bytes_
       , codepoints_
       , conjunction_
       , const_
       , div_
       , drop_
       , dropwhile_
-      , flip_
       , filter_
+      , flip_
       , graphemes_
       // , head_
+      , hex_
       , id_
       , if_
+      , index_
       // , init_
       , iterate_
       , join_
       // , last_
+      , ln_
       , map_
       , mul_
-      , nl_
+      , oct_
       , pi_
       , repeat_
       , replicate_
@@ -726,11 +757,12 @@ namespace sel {
       , takewhile_
       , tonum_
       , tostr_
+      , unbytes_
       , uncodepoints_
       , uncurry_
       , zipwith_
       >::the bins;
-#endif
+
     typedef _make_bins_all<bins>::the bins_all;
 
   } // namespace bins_ll

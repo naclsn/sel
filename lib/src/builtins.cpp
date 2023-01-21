@@ -108,8 +108,8 @@ namespace sel {
       // TRACE(copyTail2, typeid(*this).name());
       return new typename a::Base::Next(
         this->app,
-        _base.base,
-        _base.arg
+        (typename a::Base*)base->copy(),
+        (typename a::Arg*)arg->copy()
       ); // copyTail2
     }
     template <typename NextT, typename last_to, typename last_from>
@@ -159,6 +159,17 @@ namespace sel {
       return a.value() + b.value();
     }
 
+    std::ostream& bin_::stream(std::ostream& out) {
+      read = true;
+      uint64_t a = arg->value();
+      char b[64+1]; b[64] = '\0';
+      char* head = b+64;
+      do { *--head = '0' + (a & 1); } while (a>>= 1);
+      return out << head;
+    }
+    bool bin_::end() const { return read; }
+    std::ostream& bin_::entire(std::ostream& out) { return out << *this; }
+
     void conjunction_::once() {
       bind_args(l, r);
       while (!l.end()) {
@@ -197,6 +208,30 @@ namespace sel {
       return (did_once ? inleft.empty() : l.end()) || r.end();
     }
 
+    Val* bytes_::operator*() {
+      bind_args(s);
+      if (buff.length() <= off && !s.end()) {
+        std::ostringstream oss;
+        buff = (oss << s, oss.str());
+        off = 0;
+      }
+      return new NumLiteral(app, buff[off]); // XXX: dont like how it makes it appear as a literal, may have a NumComputed similar to StrChunks
+    }
+    Lst& bytes_::operator++() {
+      bind_args(s);
+      off++;
+      if (buff.length() <= off && !s.end()) {
+        std::ostringstream oss;
+        buff = (oss << s, oss.str());
+        off = 0;
+      }
+      return *this;
+    }
+    bool bytes_::end() const {
+      bind_args(s);
+      return s.end() && buff.length() <= off;
+    }
+
     Val* codepoints_::operator*() {
       bind_args(s);
       if (!did_once) {
@@ -220,8 +255,8 @@ namespace sel {
       return did_once ? eos == isi : s.end();
     }
 
-    Val* const_::impl() {
-      bind_args(take, ignore);
+    Val* const_::impl(LastArg& ignore) {
+      bind_args(take);
       return &take;
     }
 
@@ -281,7 +316,6 @@ namespace sel {
     bool dropwhile_::end() const {
       bind_args(p, l);
       if (done) return l.end();
-      // XXX: untested (still no proper predicate to facilitate)
       while (!l.end() && p(*l))
         ++l;
       done = true;
@@ -305,10 +339,8 @@ namespace sel {
     }
     bool filter_::end() const {
       bind_args(p, l);
-      // TODO/FIXME/...
-      // XXX: still dont like this model: no way to tell
-      // if we are at the end without scanning but then
-      // this is no lazy at all..?
+      // TODO: no, there is no way to tell if we are at the
+      // end without iterating until either p(*l) or l.end
       return l.end();
     }
 
@@ -329,30 +361,52 @@ namespace sel {
         did_once = true;
       }
       curr.clear();
-      read_grapheme(isi, curr);
+      static std::istream_iterator<codepoint> const eos;
+      if (eos == isi) past_end = true;
+      else read_grapheme(isi, curr);
       return *this;
     }
     bool graphemes_::end() const {
       bind_args(s);
-      static std::istream_iterator<codepoint> eos;
-      return did_once ? eos == isi : s.end();
+      static std::istream_iterator<codepoint> const eos;
+      return did_once ? eos == isi && past_end : s.end();
     }
 
-    Val* flip_::impl() {
-      bind_args(fun, b, a);
+    std::ostream& hex_::stream(std::ostream& out) { read = true; return out << std::hex << size_t(arg->value()); }
+    bool hex_::end() const { return read; }
+    std::ostream& hex_::entire(std::ostream& out) { read = true; return out << std::hex << size_t(arg->value()); }
+
+    Val* flip_::impl(LastArg& a) {
+      bind_args(fun, b);
       return (*(Fun*)fun(&a))(&b);
     }
 
-    Val* id_::impl() {
-      bind_args(take);
+    Val* id_::impl(LastArg& take) {
       return &take;
     }
 
-    Val* if_::impl() {
-      bind_args(condition, consequence, alternative, argument);
+    Val* if_::impl(LastArg& argument) {
+      bind_args(condition, consequence, alternative);
       return ((Num*)condition(&argument))->value()
         ? &consequence
         : &alternative;
+    }
+
+    Val* index_::impl(LastArg& k) {
+      if (!did) {
+        bind_args(l);
+        const size_t idx = k.value();
+        size_t len;
+        for (len = 0; !l.end() && len < idx; ++l, len++);
+        if (idx == len) {
+          found = *l;
+        } else {
+          std::ostringstream oss;
+          throw RuntimeError((oss << "index out of range: " << idx << " but length is " << len, oss.str()));
+        }
+        did = true;
+      }
+      return found;
     }
 
     Val* iterate_::operator*() {
@@ -420,12 +474,12 @@ namespace sel {
       return a.value() * b.value();
     }
 
-    std::ostream& nl_::stream(std::ostream& out) {
+    std::ostream& ln_::stream(std::ostream& out) {
       bind_args(s);
       return !s.end() ? out << s : (done = true, out << '\n');
     }
-    bool nl_::end() const { return done; }
-    std::ostream& nl_::entire(std::ostream& out) {
+    bool ln_::end() const { return done; }
+    std::ostream& ln_::entire(std::ostream& out) {
       bind_args(s);
       done = true;
       return s.entire(out) << '\n';
@@ -434,6 +488,10 @@ namespace sel {
     double pi_::value() {
       return M_PI;
     }
+
+    std::ostream& oct_::stream(std::ostream& out) { read = true; return out << std::oct << size_t(arg->value()); }
+    bool oct_::end() const { return read; }
+    std::ostream& oct_::entire(std::ostream& out) { read = true; return out << std::oct << size_t(arg->value()); }
 
     Val* repeat_::operator*() { return arg; }
     Lst& repeat_::operator++() { return *this; }
@@ -560,7 +618,8 @@ namespace sel {
     }
     bool take_::end() const {
       bind_args(n, l);
-      return n.value() < did || l.end();
+      auto x = n.value();
+      return 0 == x || x < did || l.end();
     }
 
     Val* takewhile_::operator*() {
@@ -590,6 +649,23 @@ namespace sel {
     bool tostr_::end() const { return read; }
     std::ostream& tostr_::entire(std::ostream& out) { read = true; return out << arg->value(); }
 
+    std::ostream& unbytes_::stream(std::ostream& out) {
+      bind_args(l);
+      char b = ((Num*)*l)->value();
+      ++l;
+      return out << b;
+    }
+    bool unbytes_::end() const {
+      bind_args(l);
+      return l.end();
+    }
+    std::ostream& unbytes_::entire(std::ostream& out) {
+      bind_args(l);
+      for (; !l.end(); ++l)
+        out << char(((Num*)*l)->value());
+      return out;
+    }
+
     std::ostream& uncodepoints_::stream(std::ostream& out) {
       bind_args(l);
       codepoint cp = ((Num*)*l)->value();
@@ -607,8 +683,8 @@ namespace sel {
       return out;
     }
 
-    Val* uncurry_::impl() {
-      bind_args(f, pair);
+    Val* uncurry_::impl(LastArg& pair) {
+      bind_args(f);
       return (*(Fun*)f(*pair))(*++pair);
     }
 

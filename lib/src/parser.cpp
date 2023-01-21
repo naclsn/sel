@@ -315,6 +315,7 @@ namespace sel {
       case '-':
       case '.':
       case '/':
+      case '_':
         t.type = Token::Type::BIN_OP;
         t.as.chr = c;
         in.ignore(1);
@@ -374,9 +375,8 @@ namespace sel {
           break;
         }
 
-        // YYY: would be great having the previous token (also this is not a character yet)
         throw ParseError(std::string("unexpected character '") + c + "' (" + std::to_string((int)c) + ")", t.loc, 1);
-    }
+    } // switch c
 
     while (!in.eof() && isspace(in.peek())) in.get();
     return in;
@@ -387,6 +387,25 @@ namespace sel {
     Val* user = app.lookup_name_user(name);
     if (user) return user;
     return lookup_name(app, name);
+  }
+  Val* lookup_unary(App& app, Token const& t) {
+    switch (t.as.chr) {
+      // case '@': val = static_lookup_name(app, ..); break;
+      case '%': return static_lookup_name(app, flip); break; // YYY: flips cancel out
+    }
+    // default unreachable
+    return nullptr;
+  }
+  Val* lookup_binary(App& app, Token const& t) {
+    switch (t.as.chr) {
+      case '+': return static_lookup_name(app, add); break;
+      case '-': return static_lookup_name(app, sub); break;
+      case '.': return static_lookup_name(app, mul); break;
+      case '/': return static_lookup_name(app, div); break;
+      case '_': return static_lookup_name(app, index); break;
+    }
+    // default unreachable
+    return nullptr;
   }
 
   // internal
@@ -452,25 +471,13 @@ namespace sel {
         }
         break;
 
-      // YYY: hard-coded lookups could be hard-coded
-      case Token::Type::UN_OP: // TODO: will have a lookup_unop
-        switch (t.as.chr) {
-          // case '@': val = static_lookup_name(app, ..); break;
-          case '%': val = static_lookup_name(app, flip); break;
-          // default unreachable
-        }
+      case Token::Type::UN_OP:
+        val = lookup_unary(app, t);
         {
           Val* arg = nullptr;
           Token t = *++lexer;
-          if (Token::Type::BIN_OP == t.type) { // ZZZ: yeah, code dup (as if that was the only problem)
-            switch (t.as.chr) {
-              case '+': arg = static_lookup_name(app, add); break;
-              case '-': arg = static_lookup_name(app, sub); break;
-              case '.': arg = static_lookup_name(app, mul); break;
-              case '/': arg = static_lookup_name(app, div); break;
-              // default unreachable
-            }
-            arg = (*static_lookup_name(app, flip))(arg);
+          if (Token::Type::BIN_OP == t.type) {
+            arg = (*static_lookup_name(app, flip))(lookup_binary(app, t));
             ++lexer;
           } else arg = parseAtom(app, lexer);
           if (!arg) expected("atom", *lexer);
@@ -478,19 +485,12 @@ namespace sel {
         }
         break;
 
-      case Token::Type::BIN_OP: // TODO: will have a lookup_binop
+      case Token::Type::BIN_OP:
         {
-          Val* arg = nullptr;
-          arg = parseAtom(app, ++lexer);
-          switch (t.as.chr) {
-            case '+': val = static_lookup_name(app, add); break;
-            case '-': val = static_lookup_name(app, sub); break;
-            case '.': val = static_lookup_name(app, mul); break;
-            case '/': val = static_lookup_name(app, div); break;
-            // default unreachable
-          }
+          // it parses the argument first, the op is on the stack for below
+          Val* arg = parseAtom(app, ++lexer);
           if (!arg) expected("atom", *lexer);
-          val = (*(Fun*)(*static_lookup_name(app, flip))(val))(arg);
+          val = (*(Fun*)(*static_lookup_name(app, flip))(lookup_binary(app, t)))(arg);
         }
         break;
 
@@ -635,6 +635,15 @@ namespace sel {
       val = (*coerse<Fun>(app, tmp, tmp->type()))(val);
     } while (eos != lexer && Token::Type::THEN == lexer->type);
     return val;
+  }
+
+  void App::push_back(Val const* v) {
+    ptrs.push_back(v);
+  }
+  void App::clear() {
+    for (auto it = ptrs.crbegin(); it != ptrs.crend(); ++it)
+      delete *it;
+    ptrs.clear();
   }
 
   Val* App::lookup_name_user(std::string const& name) {

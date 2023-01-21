@@ -9,17 +9,16 @@ A versatile command line tool to deal with streams, with a
 
 The project has be brought to a "usable" (~hackable) point.
 However it is unfinished, notably:
-- tests, I want more test, there is basically none
+- tests are coming slowly
 - infrastructure for tuples and pattern lists is in place, but incomplete
 - same goes for affixing types with `*` (marks unbounded)
-- (.. because of the previous on, literal lists are broken and crash type-checking)
+- (.. because of the previous one, literal lists are broken and crash type-checking)
 - not every function that I would want are implemented, plan is to add as the need comes
-- memory management is not quite a thing, this would mainly hinder use of `libsel.so`, with memory leaks
-- (LLVM-based codegen is only a dream for now)
+- LLVM-based codegen is still far
 
 ---
 
-> (This file should probly be split into a wiki-ish set of pages.)
+> (TODO: split into a wiki-ish set of pages.)
 
 - [Overview](#Overview)
   - [Getting Started](#Getting%20Started)
