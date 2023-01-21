@@ -13,8 +13,6 @@
 #include <string>
 #include <vector>
 
-#include <typeinfo> // ZZZ
-
 #include "types.hpp"
 #include "builtins.hpp"
 

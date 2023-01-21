@@ -5,8 +5,6 @@
 #include <vector>
 #include <unordered_set>
 
-#include <typeinfo> // ZZZ
-
 #include "utils.hpp"
 #include "engine.hpp"
 #include "errors.hpp"
