@@ -105,10 +105,29 @@ namespace sel {
       );
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
-    if (Ty::FUN == to.base) return (Fun*)from;
+    if (Ty::FUN == to.base) {
+
+      // performs as much as arity check (get return type
+      // until one is no longer Fun, if the other is still
+      // Fun then it does not check out)
+      // YYY: the pointer is to not invoque `operator=`
+      Type const* cy = &ty; bool still_y = false;
+      Type const* co = &to; bool still_o = false;
+      do {
+        cy = &cy->to(); still_y = Ty::FUN == cy->base;
+        co = &co->to(); still_o = Ty::FUN == co->base;
+      } while (still_y && still_o);
+
+      if (still_y || still_o) {
+        std::ostringstream oss;
+        throw TypeError((oss << "arity of " << ty << " does not match with " << to, oss.str()));
+      }
+
+      return (Fun*)from;
+    }
 
     std::ostringstream oss;
-    throw TypeError((oss << "value of type " << to << " is not a function", oss.str()));
+    throw TypeError((oss << "value of type " << ty << " is not a function", oss.str()));
   }
 
   // dispatches to the correct one dynamically
