@@ -70,17 +70,17 @@ namespace sel {
       );
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
-    Type const& toto = *to.has()[0];
+    Type const& toto = *to.has()[0]; // XXX: has[0]
 
     if (Ty::LST == ty.base) {
+      if (Ty::UNK == toto.base || ty.has()[0]->base == toto.base) // XXX: has[0]
+        return (Lst*)from;
       if (Ty::NUM == toto.base)
         return new LstMapCoerse<Num>(app, (Lst*)from, toto);
       if (Ty::STR == toto.base)
         return new LstMapCoerse<Str>(app, (Lst*)from, toto);
       if (Ty::LST == toto.base)
         return new LstMapCoerse<Lst>(app, (Lst*)from, toto);
-      if (Ty::UNK == toto.base)
-        return (Lst*)from;
     }
 
     if (Ty::STR == ty.base) {
