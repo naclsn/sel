@@ -249,7 +249,8 @@ namespace sel {
         virtual Val* impl(LastArg&) = 0;
 
         Val* operator()(Val* arg) override {
-          auto* last = coerse<LastArg>(this->app, arg, last_arg::make(Impl::name));
+          //auto* last = coerse<LastArg>(this->app, arg, last_arg::make(Impl::name));
+          auto* last = coerse<LastArg>(this->app, arg, this->type().from());
           return impl(*last);
         }
         Val* copy() const override; // copyOne2
@@ -347,7 +348,8 @@ namespace sel {
         virtual Val* impl(LastArg& last) = 0;
 
         Val* operator()(Val* arg) override {
-          auto* last = coerse<LastArg>(this->app, arg, _fun_first_par_type<_ty_one_to_tail>::the::make(Base::Next::name));
+          //auto* last = coerse<LastArg>(this->app, arg, _fun_first_par_type<_ty_one_to_tail>::the::make(Base::Next::name));
+          auto* last = coerse<LastArg>(this->app, arg, this->type().from());
           return impl(*last);
         }
         Val* copy() const override; // copyTail2
@@ -377,7 +379,8 @@ namespace sel {
       { }
 
       Val* operator()(Val* arg) override {
-        return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, last_from::make(the::Base::Next::name)));
+        //return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, last_from::make(the::Base::Next::name)));
+        return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, this->type().from()));
       }
       Val* copy() const override; // visitHead
       void accept(Visitor& v) const override; // visitHead
@@ -406,7 +409,8 @@ namespace sel {
       { }
 
       Val* operator()(Val* arg) override {
-        return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, from::make(the::Base::Next::name)));
+        //return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, from::make(the::Base::Next::name)));
+        return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, this->type().from()));
       }
       Val* copy() const override; // copyBody
       void accept(Visitor& v) const override; // visitBody
