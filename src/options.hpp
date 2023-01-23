@@ -110,7 +110,7 @@ struct Options {
     if (reason) cerr << "Error: " << reason << "\n";
     cerr
       << "Usage: " << prog << " [-Dnst] <script...> | -f <file>\n"
-      << "       " << prog << " -l [<names...>]\n"
+      << "       " << prog << " -l [<names...>] | :: <type...>\n"
       << "       " << prog << " [-s] -f <file> [-o <bin> <flags...>]\n"
     ;
     exit(EXIT_FAILURE);

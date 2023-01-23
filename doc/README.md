@@ -19,7 +19,7 @@
 ```console
 $ build/sel -h
 Usage: build/sel [-Dns] <script...> | -f <file>
-       build/sel -l [<names...>]
+       build/sel -l [<names...>] | :: <type...>
        build/sel [-s] -f <file> [-o <bin> <flags...>]
 ```
 
@@ -37,7 +37,8 @@ standard output.
 
 The second form provides lookup and help for specified
 names. When no names are given, every known names are
-listed out (one by line).
+listed out (one by line). It can also be used to find a
+value matching a type: `sel -l :: 'Num -> Str'`.
 
 With the last form, it is possible to make `sel` generate
 a small executable which performs the provided script. It
