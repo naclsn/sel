@@ -763,6 +763,29 @@ namespace sel {
       , zipwith_
       >::the bins;
 
+    namespace {
+      constexpr bool is_sorted(char const* a, char const* b) {
+        return *a < *b || (*a == *b && (*a == '\0' || is_sorted(a + 1, b + 1)));
+      }
+
+      template <typename L> struct are_sorted;
+
+      template <typename H1, typename H2, typename T>
+      struct are_sorted<cons<H1, cons<H2, T>>> {
+        static constexpr bool the() {
+          return is_sorted(H1::name, H2::name) && are_sorted<cons<H2, T>>::the();
+        }
+      };
+      template <typename O>
+      struct are_sorted<cons<O, nil>> {
+        static constexpr bool the() {
+          return true;
+        }
+      };
+
+      static_assert(are_sorted<bins>::the(), "must be sorted");
+    }
+
     typedef _make_bins_all<bins>::the bins_all;
 
   } // namespace bins_ll
