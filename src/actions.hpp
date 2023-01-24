@@ -3,6 +3,7 @@
 
 #include "buildapp.hpp"
 #include "wordwrap.hpp"
+#include "termutils.hpp"
 
 void lookup(char const* const names[]) {
   if (!names || !*names) {
@@ -12,8 +13,12 @@ void lookup(char const* const names[]) {
     exit(EXIT_SUCCESS);
   }
 
-  wordwrap<3> wwcout(50, cout);
+  unsigned w, h;
+  int a = term_size(w, h);
+
+  wordwrap<3> wwcout(0 == a ? w : -1, cout);
   VisHelp help(wwcout);
+
   App app;
 
   if (string("::") == *names) {
