@@ -2,6 +2,7 @@
 #define SELI_ACTIONS_HPP
 
 #include "buildapp.hpp"
+#include "wordwrap.hpp"
 
 void lookup(char const* const names[]) {
   if (!names || !*names) {
@@ -11,7 +12,8 @@ void lookup(char const* const names[]) {
     exit(EXIT_SUCCESS);
   }
 
-  VisHelp help(cout);
+  wordwrap<3> wwcout(50, cout);
+  VisHelp help(wwcout);
   App app;
 
   if (string("::") == *names) {
@@ -34,9 +36,9 @@ void lookup(char const* const names[]) {
         if (found) cout << "\n";
         else found = true;
 
-        cout << name << " :: " << it->type() << "\n\t";
-        help(*it); // TODO: (if stdout tty) auto line break at window width?
-        cout << endl;
+        cout << name << " :: " << it->type() << "\n";
+        help(*it);
+        wwcout << endl;
       }
     }
 
@@ -54,9 +56,9 @@ void lookup(char const* const names[]) {
         exit(EXIT_FAILURE);
       }
 
-      cout << *names << " :: " << it->type() << "\n\t";
-      help(*it); // TODO: (if stdout tty) auto line break at window width?
-      cout << endl;
+      cout << *names << " :: " << it->type() << "\n";
+      help(*it);
+      wwcout << endl;
 
       if (*++names) cout << endl;
       delete it;
