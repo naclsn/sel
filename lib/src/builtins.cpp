@@ -513,11 +513,8 @@ namespace sel {
 
     void reverse_::once() {
       bind_args(l);
-      if (!l.end()) {
+      for (; !l.end(); ++l)
         cache.push_back(*l);
-        while (!l.end())
-          cache.push_back(*(++l));
-      }
       did_once = true;
       curr = cache.size();
     }
