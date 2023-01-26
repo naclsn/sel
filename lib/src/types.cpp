@@ -106,6 +106,50 @@ namespace sel {
     }
   }
 
+  void Type::repr(std::ostream& out, unsigned depth) {
+    char indent[depth*3+1];
+    for (size_t k = 0; k < depth*3; k++)
+      indent[k] = ' ';
+    indent[depth*3] = '\0';
+
+    out << "Type {\n" << indent << "base= ";
+
+    switch (base) {
+      case Ty::UNK:
+        out << "UNK";
+        out << "\n" << indent << "name= " << quoted(*p.name);
+        break;
+
+      case Ty::NUM:
+        out << "NUM";
+        break;
+
+      case Ty::STR:
+        out << "STR";
+        out << "\n" << indent << "is_inf= " << std::boolalpha << !!(flags & TyFlag::IS_INF);
+        break;
+
+      case Ty::LST:
+        out << "LST";
+        out << "\n" << indent << "is_inf= " << std::boolalpha << !!(flags & TyFlag::IS_INF);
+        out << "\n" << indent << "is_tpl= " << std::boolalpha << !!(flags & TyFlag::IS_TPL);
+        out << "\n" << indent << "has= {\n";
+        for (const auto& it : *p.box_has)
+          it->repr(out << indent << indent, depth+2);
+        out << indent << "}";
+        break;
+
+      case Ty::FUN:
+        out << "FUN";
+        p.box_pair[0]->repr(out << "\n" << indent << "from", depth+1);
+        p.box_pair[1]->repr(out << "\n" << indent << "to", depth+1);
+        break;
+    }
+
+    if (depth) indent[(depth-1)*3] = '\0';
+    out << "\n" << indent << "}\n";
+  }
+
   typedef std::unordered_map<std::string, Type const&> known_map;
   /**
    * now_known, has_unknowns;
@@ -203,7 +247,9 @@ namespace sel {
           w->reserve(tt.has().size());
           for (auto const& it : tt.has())
             w->push_back(new Type(recurseBuildKnown(map, *it)));
-          return Type(Ty::LST, {.box_has=w}, map.at("_*").flags);
+          return Type(Ty::LST, {.box_has=w}, tt.flags & TyFlag::IS_TPL
+            ? TyFlag::IS_TPL
+            : map.at("_*").flags);
         }
 
       case Ty::FUN:

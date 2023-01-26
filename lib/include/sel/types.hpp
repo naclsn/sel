@@ -47,6 +47,8 @@ namespace sel {
     Type(Type&& ty) noexcept;
     ~Type();
 
+    void repr(std::ostream& out, unsigned indent=1);
+
     bool operator==(Type const& other) const;
     bool operator!=(Type const& other) const;
 

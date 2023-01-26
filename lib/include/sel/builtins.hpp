@@ -119,6 +119,7 @@ namespace sel {
         return Type(Ty::UNK, {.name=vname}, 0);
       }
     };
+
     struct num {
       typedef Num vat;
       inline static Type make(char const* fname) {
@@ -133,6 +134,7 @@ namespace sel {
         { }
       };
     };
+
     /*template <TyFlag is_inf> */struct str {
       typedef Str vat;
       inline static Type make(char const* fname) {
@@ -147,10 +149,13 @@ namespace sel {
         { }
       };
     };
+
     template <typename/*...*/ has/*, TyFlag is_inf*/> struct lst {
       typedef Lst vat;
       inline static Type make(char const* fname) {
-        return Type(Ty::LST, {.box_has=new std::vector<Type*>{new Type(has::make(fname)/*...*/)}}, TyFlag::IS_FIN/*is_inf*/);
+        return Type(Ty::LST, {.box_has= new std::vector<Type*>{
+          new Type(has::make(fname))/*...*/
+        }}, TyFlag::IS_FIN/*is_inf*/);
       }
       struct ctor : Lst {
         ctor(App& app, char const* fname)
@@ -161,10 +166,31 @@ namespace sel {
         { }
       };
     };
+
+    template <typename... has> struct tpl {
+      typedef Lst vat;
+      inline static Type make(char const* fname) {
+        return Type(Ty::LST, {.box_has= new std::vector<Type*>{
+          new Type(has::make(fname))...
+        }}, TyFlag::IS_TPL);
+      }
+      struct ctor : Lst {
+        ctor(App& app, char const* fname)
+          : Lst(app, make(fname))
+        { }
+        ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
+          : Lst(app, base_fty.applied(ty))
+        { }
+      };
+    };
+
     template <typename from, typename to> struct fun {
       typedef Fun vat;
       inline static Type make(char const* fname) {
-        return Type(Ty::FUN, {.box_pair={new Type(from::make(fname)), new Type(to::make(fname))}}, 0);
+        return Type(Ty::FUN, {.box_pair= {
+          new Type(from::make(fname)),
+          new Type(to::make(fname))
+        }}, 0);
       }
       struct ctor : Fun {
         ctor(App& app, char const* fname)
@@ -474,6 +500,7 @@ namespace sel {
     using bins_helpers::num;
     using bins_helpers::str;
     using bins_helpers::lst;
+    using bins_helpers::tpl;
     using bins_helpers::fun;
 
     BIN_num(abs, (num, num),
@@ -521,6 +548,11 @@ namespace sel {
     BIN_lst(dropwhile, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),
       "return the suffix remaining from the first element not verifying the predicate onward", (
       mutable bool done = false;
+    ));
+
+    BIN_lst(duple, (unk<'a'>, tpl<unk<'a'>, unk<'a'>>),
+      "create a pair off of a single item", (
+      int did = 0;
     ));
 
     BIN_lst(filter, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),
@@ -649,13 +681,18 @@ namespace sel {
       bool read = false;
     ));
 
+    BIN_lst(tuple, (unk<'a'>, unk<'b'>, tpl<unk<'a'>, unk<'b'>>),
+      "construct a tuple", (
+      int did = 0;
+    ));
+
     BIN_str(unbytes, (lst<num>, str),
       "construct a string from its actual bytes; this can lead to broken UTF-8 or 'degenerate cases' if not careful", ());
 
     BIN_str(uncodepoints, (lst<num>, str),
       "construct a string from its Unicode codepoints; this can lead to 'degenerate cases' if not careful", ());
 
-    BIN_unk(uncurry, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, lst<unk<'w'/* TODO: tuple */>>, unk<'c'>),
+    BIN_unk(uncurry, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, tpl<unk<'a'>, unk<'b'>>, unk<'c'>),
       "convert a curried function to a function on pairs", ());
 
     BIN_lst(zipwith, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, lst<unk<'a'>>, lst<unk<'b'>>, lst<unk<'c'>>),
@@ -732,6 +769,7 @@ namespace sel {
       , div_
       , drop_
       , dropwhile_
+      , duple_
       , filter_
       , flip_
       , graphemes_
@@ -761,6 +799,7 @@ namespace sel {
       , takewhile_
       , tonum_
       , tostr_
+      , tuple_
       , unbytes_
       , uncodepoints_
       , uncurry_

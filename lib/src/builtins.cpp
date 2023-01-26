@@ -322,6 +322,18 @@ namespace sel {
       return l.end();
     }
 
+    Val* duple_::operator*() {
+      bind_args(v);
+      return v.copy();
+    }
+    Lst& duple_::operator++() {
+      ++did;
+      return *this;
+    }
+    bool duple_::end() const {
+      return 2 == did;
+    }
+
     Val* filter_::operator*() {
       bind_args(p, l);
       if (!curr) {
@@ -645,6 +657,18 @@ namespace sel {
     std::ostream& tostr_::stream(std::ostream& out) { read = true; return out << arg->value(); }
     bool tostr_::end() const { return read; }
     std::ostream& tostr_::entire(std::ostream& out) { read = true; return out << arg->value(); }
+
+    Val* tuple_::operator*() {
+      bind_args(a, b);
+      return 0 == did ? &a : &b;
+    }
+    Lst& tuple_::operator++() {
+      ++did;
+      return *this;
+    }
+    bool tuple_::end() const {
+      return 2 == did;
+    }
 
     std::ostream& unbytes_::stream(std::ostream& out) {
       bind_args(l);
