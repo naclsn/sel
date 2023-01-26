@@ -63,7 +63,7 @@ namespace sel {
   // [a..] => [b..]
   // (a..) => (b..)
   // (a..) => [b..]
-  // [a..] => (b..): ... sizes have to match
+  // [a..] => (b..)
   template <> Lst* coerse<Lst>(App& app, Val* from, Type const& to) {
     TRACE(coerse<Lst>
       , "from: " << from->type()
@@ -73,23 +73,26 @@ namespace sel {
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
 
     std::vector<Type*> const& to_has = to.has();
-    auto size = to_has.size();
+    auto to_size = to_has.size();
 
     if (Ty::LST == ty.base) {
-      std::vector<Type*> const& ty_has = ty.has();
+      // std::vector<Type*> const& ty_has = ty.has();
 
-      if (ty_has.size() != size) {
-        std::ostringstream oss;
-        throw TypeError((oss << "content arity of " << ty << " does not match with " << to, oss.str()));
-      }
-
-      // if (Ty::UNK == to_has.base || ty.has()[0]->base == to_has.base) // XXX: has[0]
-      //   return (Lst*)from;
+      // TODO: the actual conditions are bit more invloved, probly like:
+      //  - list to list may be always ok
+      //  - tuple to tuple ok when `to_size <= ty_size` -- (Str, Num) => (Str, Num, Str)
+      //  - tuple to list ok when `to_size <= ty_size` -- (Num, Num) => [Str]
+      //  - list to tuple ok when `to_size <= ty_size` -- [Num] => (Str, Num, Str)
+      // .. but what happens if falls short?
+      // if (ty_has.size() != size) {
+      //   std::ostringstream oss;
+      //   throw TypeError((oss << "content arity of " << ty << " does not match with " << to, oss.str()));
+      // }
 
       return new LstMapCoerse(app, (Lst*)from, to_has);
     }
 
-    if (Ty::STR == ty.base && 1 == size) {
+    if (Ty::STR == ty.base && 1 == to_size) {
       if (Ty::NUM == to_has[0]->base)
         return (Lst*)(*static_lookup_name(app, codepoints))(from);
       if (Ty::STR == to_has[0]->base || Ty::UNK == to_has[0]->base)

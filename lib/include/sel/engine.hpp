@@ -136,17 +136,23 @@ namespace sel {
     Lst* v;
     size_t now_has;
     size_t has_size;
+
+    static inline std::vector<Type*>* cpy_has(std::vector<Type*> const& to_has) {
+      auto* r = new std::vector<Type*>();
+      r->reserve(to_has.size());
+      for (auto const& it : to_has)
+        r->push_back(new Type(*it));
+      return r;
+    }
+
   public:
     LstMapCoerse(App& app, Lst* v, std::vector<Type*> const& to_has)
-      : Lst(app, Type(Ty::LST,
-          {.box_has=
-            new std::vector<Type*>(to_has)
-          }, TyFlag::IS_FIN
-        ))
+      : Lst(app, Type(Ty::LST, {.box_has= cpy_has(to_has)}, TyFlag::IS_FIN))
       , v(v)
       , now_has(0)
       , has_size(ty.has().size())
     { }
+
     Val* operator*() override {
       return coerse<Val>(app, *(*v), *ty.has()[now_has]);
     }
@@ -157,6 +163,7 @@ namespace sel {
       return *this;
     }
     bool end() const override { return v->end(); }
+
     Val* copy() const override {
       return new LstMapCoerse(app, (Lst*)v->copy(), ty.has());
     }
