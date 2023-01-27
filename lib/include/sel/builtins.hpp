@@ -626,7 +626,7 @@ namespace sel {
       Val* curr = nullptr;
     ));
 
-    BIN_str(join, (istr, ilst<istr>, istr),
+    BIN_str(join, (str, ilst<istr>, istr),
       "join a list of string with a separator between entries", (
       std::string ssep;
       bool beginning = true;

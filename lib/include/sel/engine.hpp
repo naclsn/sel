@@ -147,7 +147,7 @@ namespace sel {
 
   public:
     LstMapCoerse(App& app, Lst* v, std::vector<Type*> const& to_has)
-      : Lst(app, Type(Ty::LST, {.box_has= cpy_has(to_has)}, TyFlag::IS_FIN))
+      : Lst(app, Type(Ty::LST, {.box_has= cpy_has(to_has)}, v->type().flags))
       , v(v)
       , now_has(0)
       , has_size(ty.has().size())

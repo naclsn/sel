@@ -73,10 +73,13 @@ namespace sel {
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
 
     std::vector<Type*> const& to_has = to.has();
-    auto to_size = to_has.size();
+    auto const to_size = to_has.size();
 
     if (Ty::LST == ty.base) {
+      if (ty == to) return (Lst*)from;
+
       // std::vector<Type*> const& ty_has = ty.has();
+      // auto const ty_size = ty_has.size();
 
       // TODO: the actual conditions are bit more invloved, probly like:
       //  - list to list may be always ok
