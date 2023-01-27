@@ -545,8 +545,6 @@ unknown_token_push1:
    * As such, this does not look at the flags (eg. IS_INF).
    */
   bool Type::operator==(Type const& other) const {
-    std::cerr << "comparing types: " << *this << " with " << other << "\n";
-
     if (Ty::UNK == base || Ty::UNK == other.base)
       return true;
 
