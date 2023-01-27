@@ -45,6 +45,9 @@ namespace sel {
    */
   template <typename To>
   To* coerse(App& app, Val* from, Type const& to);
+  // forward (needed in LstMapCoerse)
+  template <>
+  Val* coerse<Val>(App& app, Val* from, Type const& to);
 
   /**
    * Abstract class for `Num`-type compatible values.
@@ -129,26 +132,41 @@ namespace sel {
   };
 
 
-  // this hacked quickly (cause im lazy and wanna see it work)
-  // but XXX: this is crap and will fail!
-  template <typename ToHas>
   class LstMapCoerse : public Lst {
     Lst* v;
-    Type const& toto;
+    size_t now_has;
+    size_t has_size;
+
+    static inline std::vector<Type*>* cpy_has(std::vector<Type*> const& to_has) {
+      auto* r = new std::vector<Type*>();
+      r->reserve(to_has.size());
+      for (auto const& it : to_has)
+        r->push_back(new Type(*it));
+      return r;
+    }
+
   public:
-    LstMapCoerse(App& app, Lst* v, Type const& toto)
-      : Lst(app, Type(Ty::LST,
-          {.box_has=
-            new std::vector<Type*>({new Type(toto)})
-          }, TyFlag::IS_FIN
-        ))
+    LstMapCoerse(App& app, Lst* v, std::vector<Type*> const& to_has)
+      : Lst(app, Type(Ty::LST, {.box_has= cpy_has(to_has)}, v->type().flags))
       , v(v)
-      , toto(toto)
+      , now_has(0)
+      , has_size(ty.has().size())
     { }
-    Val* operator*() override { return coerse<ToHas>(app, *(*v), toto); }
-    Lst& operator++() override { ++(*v); return *this; }
+
+    Val* operator*() override {
+      return coerse<Val>(app, *(*v), *ty.has()[now_has]);
+    }
+    Lst& operator++() override {
+      ++(*v);
+      if (has_size <= ++now_has)
+        now_has = 0;
+      return *this;
+    }
     bool end() const override { return v->end(); }
-    Val* copy() const override { return new LstMapCoerse<ToHas>(app, (Lst*)v->copy(), toto); }
+
+    Val* copy() const override {
+      return new LstMapCoerse(app, (Lst*)v->copy(), ty.has());
+    }
     void accept(Visitor& v) const override;
   };
 

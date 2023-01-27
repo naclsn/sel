@@ -119,6 +119,7 @@ namespace sel {
         return Type(Ty::UNK, {.name=vname}, 0);
       }
     };
+
     struct num {
       typedef Num vat;
       inline static Type make(char const* fname) {
@@ -133,10 +134,11 @@ namespace sel {
         { }
       };
     };
-    /*template <TyFlag is_inf> */struct str {
+
+    struct str {
       typedef Str vat;
       inline static Type make(char const* fname) {
-        return Type(Ty::STR, {0}, TyFlag::IS_FIN/*is_inf*/);
+        return Type(Ty::STR, {0}, TyFlag::IS_FIN);
       }
       struct ctor : Str {
         ctor(App& app, char const* fname)
@@ -147,10 +149,27 @@ namespace sel {
         { }
       };
     };
-    template <typename/*...*/ has/*, TyFlag is_inf*/> struct lst {
+    struct istr {
+      typedef Str vat;
+      inline static Type make(char const* fname) {
+        return Type(Ty::STR, {0}, TyFlag::IS_INF);
+      }
+      struct ctor : Str {
+        ctor(App& app, char const* fname)
+          : Str(app, TyFlag::IS_INF) //(uint8_t)(make(fname).flags))
+        { }
+        ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
+          : Str(app, TyFlag::IS_INF) //(uint8_t)(base_fty.applied(ty).flags))
+        { }
+      };
+    };
+
+    template <typename... has> struct lst {
       typedef Lst vat;
       inline static Type make(char const* fname) {
-        return Type(Ty::LST, {.box_has=new std::vector<Type*>{new Type(has::make(fname)/*...*/)}}, TyFlag::IS_FIN/*is_inf*/);
+        return Type(Ty::LST, {.box_has= new std::vector<Type*>{
+          new Type(has::make(fname))...
+        }}, TyFlag::IS_FIN);
       }
       struct ctor : Lst {
         ctor(App& app, char const* fname)
@@ -161,10 +180,47 @@ namespace sel {
         { }
       };
     };
+    template <typename... has> struct ilst {
+      typedef Lst vat;
+      inline static Type make(char const* fname) {
+        return Type(Ty::LST, {.box_has= new std::vector<Type*>{
+          new Type(has::make(fname))...
+        }}, TyFlag::IS_INF);
+      }
+      struct ctor : Lst {
+        ctor(App& app, char const* fname)
+          : Lst(app, make(fname))
+        { }
+        ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
+          : Lst(app, base_fty.applied(ty))
+        { }
+      };
+    };
+
+    template <typename... has> struct tpl {
+      typedef Lst vat;
+      inline static Type make(char const* fname) {
+        return Type(Ty::LST, {.box_has= new std::vector<Type*>{
+          new Type(has::make(fname))...
+        }}, TyFlag::IS_TPL);
+      }
+      struct ctor : Lst {
+        ctor(App& app, char const* fname)
+          : Lst(app, make(fname))
+        { }
+        ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
+          : Lst(app, base_fty.applied(ty))
+        { }
+      };
+    };
+
     template <typename from, typename to> struct fun {
       typedef Fun vat;
       inline static Type make(char const* fname) {
-        return Type(Ty::FUN, {.box_pair={new Type(from::make(fname)), new Type(to::make(fname))}}, 0);
+        return Type(Ty::FUN, {.box_pair= {
+          new Type(from::make(fname)),
+          new Type(to::make(fname))
+        }}, 0);
       }
       struct ctor : Fun {
         ctor(App& app, char const* fname)
@@ -249,7 +305,8 @@ namespace sel {
         virtual Val* impl(LastArg&) = 0;
 
         Val* operator()(Val* arg) override {
-          auto* last = coerse<LastArg>(this->app, arg, last_arg::make(Impl::name));
+          //auto* last = coerse<LastArg>(this->app, arg, last_arg::make(Impl::name));
+          auto* last = coerse<LastArg>(this->app, arg, this->type().from());
           return impl(*last);
         }
         Val* copy() const override; // copyOne2
@@ -347,7 +404,8 @@ namespace sel {
         virtual Val* impl(LastArg& last) = 0;
 
         Val* operator()(Val* arg) override {
-          auto* last = coerse<LastArg>(this->app, arg, _fun_first_par_type<_ty_one_to_tail>::the::make(Base::Next::name));
+          //auto* last = coerse<LastArg>(this->app, arg, _fun_first_par_type<_ty_one_to_tail>::the::make(Base::Next::name));
+          auto* last = coerse<LastArg>(this->app, arg, this->type().from());
           return impl(*last);
         }
         Val* copy() const override; // copyTail2
@@ -377,7 +435,8 @@ namespace sel {
       { }
 
       Val* operator()(Val* arg) override {
-        return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, last_from::make(the::Base::Next::name)));
+        //return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, last_from::make(the::Base::Next::name)));
+        return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, this->type().from()));
       }
       Val* copy() const override; // visitHead
       void accept(Visitor& v) const override; // visitHead
@@ -406,7 +465,8 @@ namespace sel {
       { }
 
       Val* operator()(Val* arg) override {
-        return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, from::make(the::Base::Next::name)));
+        //return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, from::make(the::Base::Next::name)));
+        return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, this->type().from()));
       }
       Val* copy() const override; // copyBody
       void accept(Visitor& v) const override; // visitBody
@@ -469,7 +529,10 @@ namespace sel {
     using bins_helpers::unk;
     using bins_helpers::num;
     using bins_helpers::str;
+    using bins_helpers::istr;
     using bins_helpers::lst;
+    using bins_helpers::ilst;
+    using bins_helpers::tpl;
     using bins_helpers::fun;
 
     BIN_num(abs, (num, num),
@@ -483,20 +546,20 @@ namespace sel {
       bool read = false;
     ));
 
-    BIN_lst(bytes, (str, lst<num>),
+    BIN_lst(bytes, (istr, ilst<num>),
       "split a string of bytes into its actual bytes as numbers", (
       std::string buff;
       std::string::size_type off = std::string::npos;
     ));
 
-    BIN_lst(codepoints, (str, lst<num>),
+    BIN_lst(codepoints, (istr, ilst<num>),
       "split a string of bytes into its Unicode codepoints", (
       bool did_once = false;
       Str_istream sis;
       std::istream_iterator<codepoint> isi;
     ));
 
-    BIN_lst(conjunction, (lst<unk<'a'>>, lst<unk<'a'>>, lst<unk<'a'>>),
+    BIN_lst(conjunction, (lst<unk<'a'>>, ilst<unk<'a'>>, ilst<unk<'a'>>),
       "logical conjunction between two lists treated as sets; it is right-lazy and the list order is taken from the right argument (for now items are expected to be strings, until arbitraty value comparison)", (
       bool did_once = false;
       std::unordered_set<std::string> inleft;
@@ -509,22 +572,27 @@ namespace sel {
     BIN_num(div, (num, num, num),
       "divide the first number by the second number", ());
 
-    BIN_lst(drop, (num, lst<unk<'a'>>, lst<unk<'a'>>),
+    BIN_lst(drop, (num, ilst<unk<'a'>>, ilst<unk<'a'>>),
       "return the suffix past a given count, or the empty list if it is shorter", (
       mutable bool done = false;
     ));
 
-    BIN_lst(dropwhile, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),
+    BIN_lst(dropwhile, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
       "return the suffix remaining from the first element not verifying the predicate onward", (
       mutable bool done = false;
     ));
 
-    BIN_lst(filter, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),
+    BIN_lst(duple, (unk<'a'>, tpl<unk<'a'>, unk<'a'>>),
+      "create a pair off of a single item", (
+      int did = 0;
+    ));
+
+    BIN_lst(filter, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
       "return the list of elements which satisfy the predicate", (
       Val* curr = nullptr;
     ));
 
-    BIN_lst(graphemes, (str, lst<str>),
+    BIN_lst(graphemes, (istr, ilst<str>),
       "split a stream of bytes into its Unicode graphemes", (
       bool did_once = false;
       Str_istream sis;
@@ -547,30 +615,30 @@ namespace sel {
     BIN_unk(if, (fun<unk<'a'>, num>, unk<'b'>, unk<'b'>, unk<'a'>, unk<'b'>),
       "take a condition, a consequence and an alternative; return consequence if the argument verifies the condition, alternative otherwise", ());
 
-    BIN_unk(index, (lst<unk<'a'>>, num, unk<'a'>),
+    BIN_unk(index, (ilst<unk<'a'>>, num, unk<'a'>),
       "select the value at the given index in the list (despite being called index it is an offset, ie. 0-based)", (
       bool did = false;
       Val* found = nullptr;
     ));
 
-    BIN_lst(iterate, (fun<unk<'a'>, unk<'a'>>, unk<'a'>, lst<unk<'a'>>),
+    BIN_lst(iterate, (fun<unk<'a'>, unk<'a'>>, unk<'a'>, ilst<unk<'a'>>),
       "return an infinite list of repeated applications of the function to the input", (
       Val* curr = nullptr;
     ));
 
-    BIN_str(join, (str, lst<str>, str),
+    BIN_str(join, (str, ilst<istr>, istr),
       "join a list of string with a separator between entries", (
       std::string ssep;
       bool beginning = true;
     ));
 
-    BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, lst<unk<'a'>>, lst<unk<'b'>>),
+    BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, ilst<unk<'a'>>, ilst<unk<'b'>>),
       "make a new list by applying an unary operation to each value from a list", ());
 
     BIN_num(mul, (num, num, num),
       "multiply tow numbers", ());
 
-    BIN_str(ln, (str, str),
+    BIN_str(ln, (istr, istr),
       "append a new line to a string", (
       bool done = false;
     ));
@@ -583,7 +651,7 @@ namespace sel {
     BIN_num(pi, (num),
       "pi, what did you expect", ());
 
-    BIN_lst(repeat, (unk<'a'>, lst<unk<'a'>>),
+    BIN_lst(repeat, (unk<'a'>, ilst<unk<'a'>>),
       "repeat an infinite amount of copies of the same value", ());
 
     BIN_lst(replicate, (num, unk<'a'>, lst<unk<'a'>>),
@@ -604,7 +672,7 @@ namespace sel {
       bool done = false;
     ));
 
-    BIN_lst(split, (str, str, lst<str>),
+    BIN_lst(split, (str, istr, ilst<istr>),
       "break a string into pieces separated by the argument, consuming the delimiter; note that an empty delimiter does not split the input on every character, but rather is equivalent to `const [repeat ::]`, for this see `graphemes`", (
       bool did_once = false;
       std::string ssep;
@@ -618,7 +686,7 @@ namespace sel {
       void next();
     ));
 
-    BIN_num(startswith, (str, str, num),
+    BIN_num(startswith, (str, istr, num),
       "true if the string starts with the given prefix", (
       bool done = false, does;
     ));
@@ -626,15 +694,15 @@ namespace sel {
     BIN_num(sub, (num, num, num),
       "substract the second number from the first", ());
 
-    BIN_lst(take, (num, lst<unk<'a'>>, lst<unk<'a'>>),
+    BIN_lst(take, (num, ilst<unk<'a'>>, lst<unk<'a'>>),
       "return the prefix of a given length, or the entire list if it is shorter", (
       size_t did = 0;
     ));
 
-    BIN_lst(takewhile, (fun<unk<'a'>, num>, lst<unk<'a'>>, lst<unk<'a'>>),
+    BIN_lst(takewhile, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
       "return the longest prefix of elements statisfying the predicate", ());
 
-    BIN_num(tonum, (str, num),
+    BIN_num(tonum, (istr, num),
       "convert a string into number", (
       double r;
       bool done = false;
@@ -645,16 +713,21 @@ namespace sel {
       bool read = false;
     ));
 
-    BIN_str(unbytes, (lst<num>, str),
+    BIN_lst(tuple, (unk<'a'>, unk<'b'>, tpl<unk<'a'>, unk<'b'>>),
+      "construct a tuple", (
+      int did = 0;
+    ));
+
+    BIN_str(unbytes, (ilst<num>, istr),
       "construct a string from its actual bytes; this can lead to broken UTF-8 or 'degenerate cases' if not careful", ());
 
-    BIN_str(uncodepoints, (lst<num>, str),
+    BIN_str(uncodepoints, (ilst<num>, istr),
       "construct a string from its Unicode codepoints; this can lead to 'degenerate cases' if not careful", ());
 
-    BIN_unk(uncurry, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, lst<unk<'w'/* TODO: tuple */>>, unk<'c'>),
+    BIN_unk(uncurry, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, tpl<unk<'a'>, unk<'b'>>, unk<'c'>),
       "convert a curried function to a function on pairs", ());
 
-    BIN_lst(zipwith, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, lst<unk<'a'>>, lst<unk<'b'>>, lst<unk<'c'>>),
+    BIN_lst(zipwith, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, ilst<unk<'a'>>, ilst<unk<'b'>>, ilst<unk<'c'>>),
       "make a new list by applying an binary operation to each corresponding value from each lists; stops when either list ends", (
       Val* curr = nullptr;
     ));
@@ -728,6 +801,7 @@ namespace sel {
       , div_
       , drop_
       , dropwhile_
+      , duple_
       , filter_
       , flip_
       , graphemes_
@@ -757,11 +831,35 @@ namespace sel {
       , takewhile_
       , tonum_
       , tostr_
+      , tuple_
       , unbytes_
       , uncodepoints_
       , uncurry_
       , zipwith_
       >::the bins;
+
+    namespace {
+      constexpr bool is_sorted(char const* a, char const* b) {
+        return *a < *b || (*a == *b && (*a == '\0' || is_sorted(a + 1, b + 1)));
+      }
+
+      template <typename L> struct are_sorted;
+
+      template <typename H1, typename H2, typename T>
+      struct are_sorted<cons<H1, cons<H2, T>>> {
+        static constexpr bool the() {
+          return is_sorted(H1::name, H2::name) && are_sorted<cons<H2, T>>::the();
+        }
+      };
+      template <typename O>
+      struct are_sorted<cons<O, nil>> {
+        static constexpr bool the() {
+          return true;
+        }
+      };
+
+      static_assert(are_sorted<bins>::the(), "must be sorted");
+    }
 
     typedef _make_bins_all<bins>::the bins_all;
 

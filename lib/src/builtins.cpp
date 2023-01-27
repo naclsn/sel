@@ -59,8 +59,9 @@ namespace sel {
 
     template <typename Impl, typename one>
     Val* _bin_be<Impl, ll::cons<one, ll::nil>>::the::copy() const {
-      // TRACE(copyOne, typeid(*this).name());
-      return new typename _bin_be<Impl, ll::cons<one, ll::nil>>::the::Base::Next(this->app); // copyOne
+      typedef _bin_be<Impl, ll::cons<one, ll::nil>>::the a;
+      TRACE(copyOne, a::the::Base::Next::name);
+      return new typename a::Base::Next(this->app); // copyOne
     }
     template <typename Impl, typename one>
     void _bin_be<Impl, ll::cons<one, ll::nil>>::the::accept(Visitor& v) const {
@@ -69,8 +70,9 @@ namespace sel {
 
     template <typename Impl, typename last_arg, char b>
     Val* _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::copy() const {
-      // TRACE(copyOne2, typeid(*this).name());
-      return new typename _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::Base::Next(this->app); // copyOne2
+      typedef _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the a;
+      TRACE(copyOne2, a::the::Base::Next::name);
+      return new typename a::Base::Next(this->app); // copyOne2
     }
     template <typename Impl, typename last_arg, char b>
     void _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::accept(Visitor& v) const {
@@ -80,7 +82,7 @@ namespace sel {
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
     Val* _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::copy() const {
       typedef _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>> a;
-      // TRACE(copyBody, typeid(*this).name());
+      TRACE(copyBody, a::the::Base::Next::name);
       return new _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>(
         this->app,
         (a::Base*)base->copy(),
@@ -95,7 +97,7 @@ namespace sel {
     template <typename NextT, typename last_to, typename last_from>
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::_the_when_not_unk::copy() const {
       typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the a;
-      // TRACE(copyTail1, typeid(*this).name());
+      TRACE(copyTail1, a::the::Base::Next::name);
       return new typename a::Base::Next(
         this->app,
         (typename a::Base*)base->copy(),
@@ -105,7 +107,7 @@ namespace sel {
     template <typename NextT, typename last_to, typename last_from>
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::_the_when_is_unk::copy() const {
       typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the a;
-      // TRACE(copyTail2, typeid(*this).name());
+      TRACE(copyTail2, a::the::Base::Next::name);
       return new typename a::Base::Next(
         this->app,
         (typename a::Base*)base->copy(),
@@ -119,8 +121,9 @@ namespace sel {
 
     template <typename NextT, typename last_to, typename last_from>
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::copy() const {
-      // TRACE(copyHead, typeid(*this).name());
-      return new _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>(this->app); // copyHead
+      typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>> a;
+      TRACE(copyHead, a::the::Base::Next::name);
+      return new a(this->app); // copyHead
     }
     template <typename NextT, typename last_to, typename last_from>
     void _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::accept(Visitor& v) const {
@@ -322,6 +325,18 @@ namespace sel {
       return l.end();
     }
 
+    Val* duple_::operator*() {
+      bind_args(v);
+      return v.copy();
+    }
+    Lst& duple_::operator++() {
+      ++did;
+      return *this;
+    }
+    bool duple_::end() const {
+      return 2 == did;
+    }
+
     Val* filter_::operator*() {
       bind_args(p, l);
       if (!curr) {
@@ -493,14 +508,14 @@ namespace sel {
     bool oct_::end() const { return read; }
     std::ostream& oct_::entire(std::ostream& out) { read = true; return out << std::oct << size_t(arg->value()); }
 
-    Val* repeat_::operator*() { return arg; }
+    Val* repeat_::operator*() { return arg->copy(); }
     Lst& repeat_::operator++() { return *this; }
     bool repeat_::end() const { return false; }
 
     Val* replicate_::operator*() {
       if (!did) did++;
       bind_args(n, o);
-      return &o;
+      return o.copy();
     }
     Lst& replicate_::operator++() {
       did++;
@@ -513,11 +528,8 @@ namespace sel {
 
     void reverse_::once() {
       bind_args(l);
-      if (!l.end()) {
+      for (; !l.end(); ++l)
         cache.push_back(*l);
-        while (!l.end())
-          cache.push_back(*(++l));
-      }
       did_once = true;
       curr = cache.size();
     }
@@ -648,6 +660,18 @@ namespace sel {
     std::ostream& tostr_::stream(std::ostream& out) { read = true; return out << arg->value(); }
     bool tostr_::end() const { return read; }
     std::ostream& tostr_::entire(std::ostream& out) { read = true; return out << arg->value(); }
+
+    Val* tuple_::operator*() {
+      bind_args(a, b);
+      return 0 == did ? &a : &b;
+    }
+    Lst& tuple_::operator++() {
+      ++did;
+      return *this;
+    }
+    bool tuple_::end() const {
+      return 2 == did;
+    }
 
     std::ostream& unbytes_::stream(std::ostream& out) {
       bind_args(l);

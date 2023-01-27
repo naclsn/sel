@@ -44,16 +44,51 @@ using namespace sel;
   cerr                                                        \
     << GREEN #__should RESET "  ==  " RED #__have RESET "\n"  \
     << "assertion failed with:\n"                             \
+    << "   values do not match\n"                             \
     << "   expected: " GREEN << _should << RESET "\n"         \
     << "    but got: " RED   << _have   << RESET "\n"         \
   ;                                                           \
   return 1;                                                   \
 } while (0)
 
-#define assert_cmp assert_eq
-// #define assert_cmp(__should, __have) _assert_cmp(#__should, #__have, __should, __have)
-// inline void _assert_cmp(char const* sshould, char const* shave, string should, string have) {
-// }
+#define assert_cmp(__should, __have) do {                 \
+  if (_assert_cmp(#__should, #__have, __should, __have))  \
+    return 1;                                             \
+} while (0)
+
+inline bool _assert_cmp(char const* sshould, char const* shave, string should, string have) {
+  if (should == have) return false;
+
+  cerr
+    << GREEN << sshould << RESET "  ==  " RED << shave << RESET "\n"
+    << "assertion failed with:\n"
+    << "   texts do not match\n"
+  ;
+
+  string::size_type a_st = 0, a_ed;
+  string::size_type b_st = 0, b_ed;
+  while (true) {
+    a_ed = should.find('\n', a_st);
+    b_ed = have.find('\n', b_st);
+
+    string la = should.substr(a_st, a_ed-a_st);
+    string lb = have.substr(b_st, b_ed-b_st);
+
+    if (la == lb) cerr << la << "\n";
+    else cerr
+      << GREEN << la << RESET "\n"
+      << RED   << lb << RESET "\n"
+    ;
+
+    if (string::npos == a_ed || string::npos == b_ed) break;
+    a_st = a_ed+1;
+    b_st = b_ed+1;
+  }
+
+  cerr << "\n";
+
+  return true;
+}
 
 #define TEST(__function)           \
   int __##__function();            \

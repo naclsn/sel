@@ -93,21 +93,29 @@ namespace sel {
   };
 
   class Input : public Str {
-    std::istream& in;
-    std::ostringstream cache;
-    std::streamsize nowat = 0, upto = 0;
-    Input(Input const& other)
-      : Str(other.app, TyFlag::IS_INF)
-      , in(other.in)
-      , cache(other.cache.str())
-      , nowat(other.nowat)
-      , upto(other.upto)
+    struct InputBuffer {
+      std::istream& in;
+      std::ostringstream cache;
+      std::streamsize upto = 0;
+      InputBuffer(std::istream& in): in(in) { }
+    }* buffer;
+    std::streamsize nowat = 0;
+    bool first;
+
+    Input(App& app, Input const& other)
+      : Str(app, TyFlag::IS_INF)
+      , buffer(other.buffer)
+      , first(false)
     { }
+
   public:
     Input(App& app, std::istream& in)
       : Str(app, TyFlag::IS_INF)
-      , in(in)
+      , buffer(new InputBuffer(in))
+      , first(true)
     { }
+    ~Input() { if (first) delete buffer; }
+
     std::ostream& stream(std::ostream& out) override;
     bool end() const override;
     std::ostream& entire(std::ostream& out) override;
