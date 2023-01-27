@@ -49,41 +49,41 @@ namespace sel {
 
   std::ostream& Input::stream(std::ostream& out) { // YYY: should it/not be reading c/c?
     // already read up to `upto`, so take from cache starting at `nowat`
-    if (nowat < upto) {
-      out << cache.str().substr(nowat, upto-nowat);
-      nowat = upto;
+    if (nowat < buffer->upto) {
+      out << buffer->cache.str().substr(nowat, buffer->upto-nowat);
+      nowat = buffer->upto;
       return out;
     }
     // at the end of cache, fetch for more
-    char c = in.get();
+    char c = buffer->in.get();
     if (std::char_traits<char>::eof() != c) {
       nowat++;
-      upto++;
+      buffer->upto++;
       out.put(c);
-      cache.put(c);
+      buffer->cache.put(c);
     }
     return out;
   }
-  bool Input::end() const { return nowat == upto && in.eof(); }
+  bool Input::end() const { return nowat == buffer->upto && buffer->in.eof(); }
   std::ostream& Input::entire(std::ostream& out) {
     // not at the end, get the rest
-    if (!in.eof()) {
-      char buffer[4096];
-      while (in.read(buffer, sizeof(buffer))) {
-        upto+= 4096;
-        out << buffer;
-        cache << buffer;
+    if (!buffer->in.eof()) {
+      char tmp[4096];
+      while (buffer->in.read(tmp, sizeof(tmp))) {
+        buffer->upto+= 4096;
+        out << tmp;
+        buffer->cache << tmp;
       }
-      auto end = in.gcount();
-      buffer[end] = '\0';
-      upto+= end;
-      out << buffer;
-      cache << buffer;
-      nowat = upto;
+      auto end = buffer->in.gcount();
+      tmp[end] = '\0';
+      buffer->upto+= end;
+      out << tmp;
+      buffer->cache << tmp;
+      nowat = buffer->upto;
       return out;
     }
-    nowat = upto;
-    return out << cache.str();
+    nowat = buffer->upto;
+    return out << buffer->cache.str();
   }
   Val* Input::copy() const { return new Input(*this); }
   void Input::accept(Visitor& v) const { v.visitInput(ty); }

@@ -123,7 +123,7 @@ namespace sel {
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::copy() const {
       typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>> a;
       TRACE(copyHead, a::the::Base::Next::name);
-      return new _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>(this->app); // copyHead
+      return new a(this->app); // copyHead
     }
     template <typename NextT, typename last_to, typename last_from>
     void _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::accept(Visitor& v) const {
