@@ -566,7 +566,7 @@ unknown_token_push1:
           if (len != other.p.box_has->size()) return false;
           for (size_t k = 0; k < len; k++) {
             Type const& tya = *(*p.box_has)[k];
-            Type const& tyb = *(*p.box_has)[k];
+            Type const& tyb = *(*other.p.box_has)[k];
             if (tya != tyb) return false;
           }
           return true;
