@@ -40,7 +40,7 @@ namespace sel {
       , read(false)
     { }
     std::ostream& stream(std::ostream& out) override;
-    bool end() const override;
+    bool end() override;
     std::ostream& entire(std::ostream& out) override;
     Val* copy() const override;
     void accept(Visitor& v) const override;
@@ -70,7 +70,7 @@ namespace sel {
     { }
     Val* operator*() override;
     Lst& operator++() override;
-    bool end() const override;
+    bool end() override;
     Val* copy() const override;
     void accept(Visitor& v) const override;
   };
@@ -117,7 +117,7 @@ namespace sel {
     ~Input() { if (first) delete buffer; }
 
     std::ostream& stream(std::ostream& out) override;
-    bool end() const override;
+    bool end() override;
     std::ostream& entire(std::ostream& out) override;
     Val* copy() const override;
     void accept(Visitor& v) const override;

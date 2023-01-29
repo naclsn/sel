@@ -15,14 +15,14 @@ namespace sel {
   void NumLiteral::accept(Visitor& v) const { v.visitNumLiteral(ty, n); }
 
   std::ostream& StrLiteral::stream(std::ostream& out) { read = true; return out << s; }
-  bool StrLiteral::end() const { return read; }
+  bool StrLiteral::end() { return read; }
   std::ostream& StrLiteral::entire(std::ostream& out) { read = true; return out << s; }
   Val* StrLiteral::copy() const { return new StrLiteral(app, s); }
   void StrLiteral::accept(Visitor& v) const { v.visitStrLiteral(ty, s); }
 
   Val* LstLiteral::operator*() { return v[c]; }
   Lst& LstLiteral::operator++() { c++; return *this; }
-  bool LstLiteral::end() const { return v.size() <= c; }
+  bool LstLiteral::end() { return v.size() <= c; }
   Val* LstLiteral::copy() const {
     std::vector<Val*> w;
     w.reserve(v.size());
@@ -64,7 +64,7 @@ namespace sel {
     }
     return out;
   }
-  bool Input::end() const { return nowat == buffer->upto && buffer->in.eof(); }
+  bool Input::end() { return nowat == buffer->upto && buffer->in.eof(); }
   std::ostream& Input::entire(std::ostream& out) {
     // not at the end, get the rest
     if (!buffer->in.eof()) {

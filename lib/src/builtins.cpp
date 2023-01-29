@@ -170,7 +170,7 @@ namespace sel {
       do { *--head = '0' + (a & 1); } while (a>>= 1);
       return out << head;
     }
-    bool bin_::end() const { return read; }
+    bool bin_::end() { return read; }
     std::ostream& bin_::entire(std::ostream& out) { return out << *this; }
 
     void conjunction_::once() {
@@ -206,7 +206,7 @@ namespace sel {
       }
       return *this;
     }
-    bool conjunction_::end() const {
+    bool conjunction_::end() {
       bind_args(l, r);
       return (did_once ? inleft.empty() : l.end()) || r.end();
     }
@@ -230,7 +230,7 @@ namespace sel {
       }
       return *this;
     }
-    bool bytes_::end() const {
+    bool bytes_::end() {
       bind_args(s);
       return s.end() && buff.length() <= off;
     }
@@ -252,7 +252,7 @@ namespace sel {
       isi++;
       return *this;
     }
-    bool codepoints_::end() const {
+    bool codepoints_::end() {
       bind_args(s);
       static std::istream_iterator<codepoint> eos;
       return did_once ? eos == isi : s.end();
@@ -287,7 +287,7 @@ namespace sel {
       ++l;
       return *this;
     }
-    bool drop_::end() const {
+    bool drop_::end() {
       bind_args(n, l);
       if (done) return l.end();
       size_t k;
@@ -316,7 +316,7 @@ namespace sel {
       ++l;
       return *this;
     }
-    bool dropwhile_::end() const {
+    bool dropwhile_::end() {
       bind_args(p, l);
       if (done) return l.end();
       while (!l.end() && p(*l))
@@ -333,7 +333,7 @@ namespace sel {
       ++did;
       return *this;
     }
-    bool duple_::end() const {
+    bool duple_::end() {
       return 2 == did;
     }
 
@@ -352,10 +352,9 @@ namespace sel {
       curr = *l;
       return *this;
     }
-    bool filter_::end() const {
+    bool filter_::end() {
       bind_args(p, l);
-      // FIXME: no, there is no way to tell if we are at the
-      // end without iterating until either p(*l) or l.end
+      while (!l.end() && !((Num*)p(*l))->value()) ++l;
       return l.end();
     }
 
@@ -381,14 +380,14 @@ namespace sel {
       else read_grapheme(isi, curr);
       return *this;
     }
-    bool graphemes_::end() const {
+    bool graphemes_::end() {
       bind_args(s);
       static std::istream_iterator<codepoint> const eos;
       return did_once ? eos == isi && past_end : s.end();
     }
 
     std::ostream& hex_::stream(std::ostream& out) { read = true; return out << std::hex << size_t(arg->value()); }
-    bool hex_::end() const { return read; }
+    bool hex_::end() { return read; }
     std::ostream& hex_::entire(std::ostream& out) { read = true; return out << std::hex << size_t(arg->value()); }
 
     Val* flip_::impl(LastArg& a) {
@@ -419,11 +418,9 @@ namespace sel {
       if (l.end()) at_when_end = at;
       return *this;
     }
-    bool give_::end() const {
+    bool give_::end() {
       bind_args(n, l);
-      // FIXME: same problem as with filter; there is no way to
-      // tell if any element will make it out of give without
-      // actually finding the first one that does
+      if (!did_once) once();
       return l.end() && at_when_end == at;
     }
 
@@ -464,7 +461,7 @@ namespace sel {
       curr = f(!curr ? &o : curr);
       return *this;
     }
-    bool iterate_::end() const { return false; }
+    bool iterate_::end() { return false; }
 
     std::ostream& join_::stream(std::ostream& out) {
       bind_args(sep, lst);
@@ -479,7 +476,7 @@ namespace sel {
       ++lst;
       return out;
     }
-    bool join_::end() const {
+    bool join_::end() {
       bind_args(sep, lst);
       return lst.end();
     }
@@ -510,7 +507,7 @@ namespace sel {
       ++l;
       return *this;
     }
-    bool map_::end() const {
+    bool map_::end() {
       bind_args(f, l);
       return l.end();
     }
@@ -524,7 +521,7 @@ namespace sel {
       bind_args(s);
       return !s.end() ? out << s : (done = true, out << '\n');
     }
-    bool ln_::end() const { return done; }
+    bool ln_::end() { return done; }
     std::ostream& ln_::entire(std::ostream& out) {
       bind_args(s);
       done = true;
@@ -536,12 +533,12 @@ namespace sel {
     }
 
     std::ostream& oct_::stream(std::ostream& out) { read = true; return out << std::oct << size_t(arg->value()); }
-    bool oct_::end() const { return read; }
+    bool oct_::end() { return read; }
     std::ostream& oct_::entire(std::ostream& out) { read = true; return out << std::oct << size_t(arg->value()); }
 
     Val* repeat_::operator*() { return arg->copy(); }
     Lst& repeat_::operator++() { return *this; }
-    bool repeat_::end() const { return false; }
+    bool repeat_::end() { return false; }
 
     Val* replicate_::operator*() {
       if (!did) did++;
@@ -552,7 +549,7 @@ namespace sel {
       did++;
       return *this;
     }
-    bool replicate_::end() const {
+    bool replicate_::end() {
       bind_args(n, o);
       return 0 == n.value() || n.value() < did;
     }
@@ -572,7 +569,7 @@ namespace sel {
       curr--;
       return *this;
     }
-    bool reverse_::end() const {
+    bool reverse_::end() {
       if (did_once) return 0 == curr;
       bind_args(l);
       return l.end();
@@ -580,7 +577,7 @@ namespace sel {
 
     Val* singleton_::operator*() { return arg; }
     Lst& singleton_::operator++() { done = true; return *this; }
-    bool singleton_::end() const { return done; }
+    bool singleton_::end() { return done; }
 
     void split_::once() {
       bind_args(sep, str);
@@ -622,7 +619,7 @@ namespace sel {
       next();
       return *this;
     }
-    bool split_::end() const {
+    bool split_::end() {
       return at_past_end;
     }
 
@@ -659,7 +656,7 @@ namespace sel {
       ++l;
       return *this;
     }
-    bool take_::end() const {
+    bool take_::end() {
       bind_args(n, l);
       auto x = n.value();
       return 0 == x || x < did || l.end();
@@ -674,7 +671,7 @@ namespace sel {
       ++l;
       return *this;
     }
-    bool takewhile_::end() const {
+    bool takewhile_::end() {
       bind_args(p, l);
       return l.end() || !((Num*)p(*l))->value();
     }
@@ -689,7 +686,7 @@ namespace sel {
     }
 
     std::ostream& tostr_::stream(std::ostream& out) { read = true; return out << arg->value(); }
-    bool tostr_::end() const { return read; }
+    bool tostr_::end() { return read; }
     std::ostream& tostr_::entire(std::ostream& out) { read = true; return out << arg->value(); }
 
     Val* tuple_::operator*() {
@@ -700,7 +697,7 @@ namespace sel {
       ++did;
       return *this;
     }
-    bool tuple_::end() const {
+    bool tuple_::end() {
       return 2 == did;
     }
 
@@ -710,7 +707,7 @@ namespace sel {
       ++l;
       return out << b;
     }
-    bool unbytes_::end() const {
+    bool unbytes_::end() {
       bind_args(l);
       return l.end();
     }
@@ -727,7 +724,7 @@ namespace sel {
       ++l;
       return out << cp;
     }
-    bool uncodepoints_::end() const {
+    bool uncodepoints_::end() {
       bind_args(l);
       return l.end();
     }
@@ -755,7 +752,7 @@ namespace sel {
       ++l2;
       return *this;
     }
-    bool zipwith_::end() const {
+    bool zipwith_::end() {
       bind_args(f, l1, l2);
       return l1.end() || l2.end();
     }

@@ -80,7 +80,7 @@ namespace sel {
      * `true` if there is no more bytes to stream. Calling
      * `stream` (or `entire`) at this point is probably undefined.
      */
-    virtual bool end() const = 0;
+    virtual bool end() = 0;
     /**
      * Stream the whole string of bytes.
      */
@@ -115,7 +115,7 @@ namespace sel {
      * invalid for any operation)
      * this means an empty list will be end true right away
      */
-    virtual bool end() const = 0;
+    virtual bool end() = 0;
   };
 
   /**
@@ -162,7 +162,7 @@ namespace sel {
         now_has = 0;
       return *this;
     }
-    bool end() const override { return v->end(); }
+    bool end() override { return v->end(); }
 
     Val* copy() const override {
       return new LstMapCoerse(app, (Lst*)v->copy(), ty.has());

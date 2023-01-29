@@ -27,7 +27,7 @@ namespace sel {
     std::ostream& stream(std::ostream& out) override {
       return out << chunks[at++];
     }
-    bool end() const override {
+    bool end() override {
       return chunks.size() <= at;
     }
     std::ostream& entire(std::ostream& out) override {
@@ -488,12 +488,12 @@ namespace sel {
       double value() override;
 #define _BIN_str \
       std::ostream& stream(std::ostream& out) override; \
-      bool end() const override; \
+      bool end() override; \
       std::ostream& entire(std::ostream& out) override;
 #define _BIN_lst \
       Val* operator*() override; \
       Lst& operator++() override; \
-      bool end() const override;
+      bool end() override;
 #define _BIN_unk \
       Val* impl(LastArg&) override;
 
@@ -574,12 +574,12 @@ namespace sel {
 
     BIN_lst(drop, (num, ilst<unk<'a'>>, ilst<unk<'a'>>),
       "return the suffix past a given count, or the empty list if it is shorter", (
-      mutable bool done = false;
+      bool done = false;
     ));
 
     BIN_lst(dropwhile, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
       "return the suffix remaining from the first element not verifying the predicate onward", (
-      mutable bool done = false;
+      bool done = false;
     ));
 
     BIN_lst(duple, (unk<'a'>, tpl<unk<'a'>, unk<'a'>>),

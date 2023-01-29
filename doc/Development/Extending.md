@@ -86,7 +86,7 @@ that was used to declare it:
 - `BIN_str`:
   - `std::ostream& stream(std::ostream&)`
     send a part of the string into the stream
-  - `bool end() const`
+  - `bool end()`
     indicates whether it is valid to call `stream` again
   - `std::ostream& entire(std::ostream&)`
     send the entirety of the string into the stream
@@ -96,7 +96,7 @@ that was used to declare it:
   - `Lst& operator++()`
     fetches the next value; only exists in prefix notation;
     must returns `*this`
-  - `bool end() const`
+  - `bool end()`
     indicates whether it is valid to use `*` or `++` again
 - `BIN_unk`:
   - `Val* impl()`
