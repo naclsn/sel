@@ -561,7 +561,16 @@ unknown_token_push1:
         return true;
 
       case Ty::LST:
-        return *p.box_has == *other.p.box_has;
+        { // YYY: cant use vector<>::operator== because these are vectors of pointers
+          auto const len = p.box_has->size();
+          if (len != other.p.box_has->size()) return false;
+          for (size_t k = 0; k < len; k++) {
+            Type const& tya = *(*p.box_has)[k];
+            Type const& tyb = *(*p.box_has)[k];
+            if (tya != tyb) return false;
+          }
+          return true;
+        }
 
       case Ty::FUN:
         return *p.box_pair[0] == *other.p.box_pair[0]
