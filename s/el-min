@@ -1,0 +1,5 @@
+#!/bin/sh -e
+t=build/bins_min
+cd "${0%/*}/.."
+test -d $t/ || meson $t/ -Ddebug=false -Doptimization=0 -Dbins_min=true
+ninja -C $t/ && $t/src/sel "$@"

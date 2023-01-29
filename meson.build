@@ -9,5 +9,12 @@ add_project_arguments(
   language : 'cpp',
 )
 
+if get_option('bins_min')
+  add_project_arguments(
+    '-DBINS_MIN=1',
+    language : 'cpp',
+  )
+endif
+
 subdir('lib')
 subdir('src')

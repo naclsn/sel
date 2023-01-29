@@ -1,6 +1,11 @@
 #include "common.hpp"
 using namespace bins;
 
+// completely disables this test when working with the `bins_min` restricted subset
+#ifdef BINS_MIN
+TEST(each) { cout << "test disable as BIN_MIN is defined\n"; return 0; }
+#else
+
 App app;
 
 template <typename T> inline Val* asval(T x) { return x; }
@@ -215,3 +220,5 @@ T(take) {
   assert_lstnum(({5, 4, 3, 2, 1}), CALL(take, 6, (ili<int>{5, 4, 3, 2, 1})));
   return 0;
 }
+
+#endif // BIN_MIN

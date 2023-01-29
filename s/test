@@ -1,4 +1,5 @@
 #!/bin/sh -e
+t=build
 cd "${0%/*}/.."
-test -d build/ || meson build/ --buildtype=release -Dstrip=true
-meson test -C build/ --verbose "$@"
+test -d $t/ || meson $t/ --buildtype=release --strip
+meson test -C $t/ --verbose "$@"

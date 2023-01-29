@@ -561,7 +561,6 @@ unknown_token_push1:
         return true;
 
       case Ty::LST:
-        return true; // YYY: proper
         return *p.box_has == *other.p.box_has;
 
       case Ty::FUN:

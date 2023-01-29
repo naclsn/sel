@@ -354,7 +354,7 @@ namespace sel {
     }
     bool filter_::end() const {
       bind_args(p, l);
-      // TODO: no, there is no way to tell if we are at the
+      // FIXME: no, there is no way to tell if we are at the
       // end without iterating until either p(*l) or l.end
       return l.end();
     }
@@ -394,6 +394,37 @@ namespace sel {
     Val* flip_::impl(LastArg& a) {
       bind_args(fun, b);
       return (*(Fun*)fun(&a))(&b);
+    }
+
+    void give_::once() {
+      bind_args(n, l);
+      size_t count = n.value();
+      circ.reserve(count);
+      for (; !l.end() && circ.size() < count; ++l)
+        circ.push_back(*l);
+      if (l.end()) at_when_end = at;
+      did_once = true;
+    }
+    Val* give_::operator*() {
+      bind_args(n, l);
+      if (!did_once) once();
+      return 0 != circ.size() ? circ[at] : *l;
+    }
+    Lst& give_::operator++() {
+      bind_args(n, l);
+      if (!did_once) once();
+      if (0 != circ.size())
+        circ[++at] = *l;
+      ++l;
+      if (l.end()) at_when_end = at;
+      return *this;
+    }
+    bool give_::end() const {
+      bind_args(n, l);
+      // FIXME: same problem as with filter; there is no way to
+      // tell if any element will make it out of give without
+      // actually finding the first one that does
+      return l.end() && at_when_end == at;
     }
 
     Val* id_::impl(LastArg& take) {

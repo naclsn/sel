@@ -609,6 +609,15 @@ namespace sel {
     BIN_unk(flip, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>),
       "flip the two parameters by passing the first given after the second one", ());
 
+    BIN_lst(give, (num, lst<unk<'a'>>, lst<unk<'a'>>),
+      "return the prefix prior to the given count, or the empty list if it is shorter", (
+      bool did_once = false;
+      size_t at = 0;
+      size_t at_when_end = 0;
+      std::vector<Val*> circ;
+      void once();
+    ));
+
     BIN_unk(id, (unk<'a'>, unk<'a'>),
       "the identity function, returns its input", ());
 
@@ -783,6 +792,7 @@ namespace sel {
       , flip_
       , graphemes_
       , index_
+      , join_
       , mul_
       , sub_
       , tonum_
@@ -804,6 +814,7 @@ namespace sel {
       , duple_
       , filter_
       , flip_
+      , give_
       , graphemes_
       // , head_
       , hex_
@@ -836,7 +847,20 @@ namespace sel {
       , uncodepoints_
       , uncurry_
       , zipwith_
-      >::the bins;
+      >::the bins_max;
+
+// TODO: this is waiting for better answers (see also
+// test_each).  Idea is: building with the whole `bins_max`
+// ll is too heavy for quick dev-build (eg. when testing
+// something out). The minimal set is `bins_min`, want a
+// way to say what gets added on top of it (eg. just bytes,
+// map, ln and give).
+// I think it could be interesting to have a ll merge-sorted.
+#ifdef BINS_MIN
+    typedef bins_min bins;
+#else
+    typedef bins_max bins;
+#endif
 
     namespace {
       constexpr bool is_sorted(char const* a, char const* b) {
