@@ -47,7 +47,7 @@ namespace sel {
   }
   void FunChain::accept(Visitor& v) const { v.visitFunChain(ty, f); }
 
-  std::ostream& Input::stream(std::ostream& out) { // YYY: should it/not be reading c/c?
+  std::ostream& Input::stream(std::ostream& out) {
     // already read up to `upto`, so take from cache starting at `nowat`
     if (nowat < buffer->upto) {
       out << buffer->cache.str().substr(nowat, buffer->upto-nowat);
@@ -55,13 +55,25 @@ namespace sel {
       return out;
     }
     // at the end of cache, fetch for more
-    char c = buffer->in.get();
-    if (std::char_traits<char>::eof() != c) {
-      nowat++;
-      buffer->upto++;
-      out.put(c);
-      buffer->cache.put(c);
-    }
+    auto const avail = buffer->in.rdbuf()->in_avail();
+    //if (!avail) return out;
+    if (0 < avail) {
+      // try extrating multiple at once (usl/unreachable if `sync_with_stdio(true)`)
+      char small[avail];
+      buffer->in.read(small, avail);
+      nowat+= avail;
+      buffer->upto+= avail;
+      out.write(small, avail);
+    } else {
+      // can only get the next one; forward if not eof
+      char c = buffer->in.get();
+      if (std::char_traits<char>::eof() != c) {
+        nowat++;
+        buffer->upto++;
+        out.put(c);
+        buffer->cache.put(c);
+      }
+    } // 0 < avail
     return out;
   }
   bool Input::end() { return nowat == buffer->upto && buffer->in.eof(); }
