@@ -727,6 +727,12 @@ namespace sel {
       int did = 0;
     ));
 
+    BIN_num(unbin, (istr, num),
+      "convert a number into string from its binary textual representation (without leading '0b')", (
+      double r;
+      bool done = false;
+    ));
+
     BIN_str(unbytes, (ilst<num>, istr),
       "construct a string from its actual bytes; this can lead to broken UTF-8 or 'degenerate cases' if not careful", ());
 
@@ -735,6 +741,18 @@ namespace sel {
 
     BIN_unk(uncurry, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, tpl<unk<'a'>, unk<'b'>>, unk<'c'>),
       "convert a curried function to a function on pairs", ());
+
+    BIN_num(unhex, (istr, num),
+      "convert a number into string from its hexadecimal textual representation (without leading '0x')", (
+      double r;
+      bool done = false;
+    ));
+
+    BIN_num(unoct, (istr, num),
+      "convert a number into string from its octal textual representation (without leading '0o')", (
+      double r;
+      bool done = false;
+    ));
 
     BIN_lst(zipwith, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, ilst<unk<'a'>>, ilst<unk<'b'>>, ilst<unk<'c'>>),
       "make a new list by applying an binary operation to each corresponding value from each lists; stops when either list ends", (
@@ -843,9 +861,12 @@ namespace sel {
       , tonum_
       , tostr_
       , tuple_
+      , unbin_
       , unbytes_
       , uncodepoints_
       , uncurry_
+      , unhex_
+      , unoct_
       , zipwith_
       >::the bins_max;
 

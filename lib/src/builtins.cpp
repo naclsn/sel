@@ -701,6 +701,25 @@ namespace sel {
       return 2 == did;
     }
 
+    double unbin_::value() {
+      if (!done) {
+        bind_args(s);
+        size_t n = 0;
+        while (!s.end()) {
+          std::ostringstream oss;
+          std::string buff = (oss << s, oss.str());
+          for (char const c : buff) {
+            if ('0' != c && '1' != c) goto out;
+            n = (n << 1) | (c - '0');
+          }
+        }
+      out:
+        r = n;
+        done = true;
+      }
+      return r;
+    }
+
     std::ostream& unbytes_::stream(std::ostream& out) {
       bind_args(l);
       char b = ((Num*)*l)->value();
@@ -738,6 +757,28 @@ namespace sel {
     Val* uncurry_::impl(LastArg& pair) {
       bind_args(f);
       return (*(Fun*)f(*pair))(*++pair);
+    }
+
+    double unhex_::value() {
+      if (!done) {
+        bind_args(s);
+        size_t n = 0;
+        Str_istream(&s) >> std::hex >> n;
+        r = n;
+        done = true;
+      }
+      return r;
+    }
+
+    double unoct_::value() {
+      if (!done) {
+        bind_args(s);
+        size_t n = 0;
+        Str_istream(&s) >> std::oct >> n;
+        r = n;
+        done = true;
+      }
+      return r;
     }
 
     Val* zipwith_::operator*() {
