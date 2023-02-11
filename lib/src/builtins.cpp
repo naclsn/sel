@@ -218,7 +218,7 @@ namespace sel {
         buff = (oss << s, oss.str());
         off = 0;
       }
-      return new NumLiteral(app, buff[off]); // XXX: dont like how it makes it appear as a literal, may have a NumComputed similar to StrChunks
+      return new NumLiteral(app, (uint8_t)buff[off]); // XXX: dont like how it makes it appear as a literal, may have a NumComputed similar to StrChunks
     }
     Lst& bytes_::operator++() {
       bind_args(s);

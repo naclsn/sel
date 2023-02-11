@@ -12,6 +12,7 @@ template <typename T> inline Val* asval(T x) { return x; }
 
 template <> inline Val* asval(int x) { return new NumLiteral(app, x); }
 template <> inline Val* asval(float x) { return new NumLiteral(app, x); }
+template <> inline Val* asval(double x) { return new NumLiteral(app, x); }
 
 template <> inline Val* asval(char x) { return new StrLiteral(app, string(1, x)); }
 template <> inline Val* asval(char const* x) { return new StrLiteral(app, x); }
@@ -169,6 +170,20 @@ T(add) {
   return 0;
 }
 
+T(bin) {
+  assert_str("101010", CALL(bin, 42));
+  assert_str("0", CALL(bin, 0));
+  return 0;
+}
+
+T(bytes) {
+  assert_lstnum(
+    ({ 97, 227, 129, 181, 98, 13, 10, 99, 240, 159, 143, 179, 226, 128, 141, 226, 154, 167, 100 }),
+    CALL(bytes, "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
+  );
+  return 0;
+}
+
 T(codepoints) {
   assert_lstnum(
     ({ 97, 12405, 98, 13, 10, 99, 127987, 8205, 9895, 100 }),
@@ -203,8 +218,20 @@ T(graphemes) {
   return 0;
 }
 
+T(hex) {
+  assert_str("2a", CALL(hex, 42));
+  assert_str("0", CALL(hex, 0));
+  return 0;
+}
+
 T(mul) {
   assert_num(8, CALL(mul, 4, 2));
+  return 0;
+}
+
+T(oct) {
+  assert_str("52", CALL(oct, 42));
+  assert_str("0", CALL(oct, 0));
   return 0;
 }
 
@@ -218,6 +245,59 @@ T(take) {
   assert_lstnum((ili<int>{}), CALL(take, 0, (ili<int>{5, 4, 3, 2, 1})));
   assert_lstnum((ili<int>{}), CALL(take, 2, (ili<int>{})));
   assert_lstnum(({5, 4, 3, 2, 1}), CALL(take, 6, (ili<int>{5, 4, 3, 2, 1})));
+  return 0;
+}
+
+T(tonum) {
+  assert_num(42, CALL(tonum, "42"));
+  assert_num(0, CALL(tonum, "garbage"));
+  assert_num(-1, CALL(tonum, "-1"));
+  assert_num(0.3, CALL(tonum, "0.3"));
+  // idk if that a behavior i'd wand to keep, but it's a thing still
+  auto x = CALL(tonum, "-0");
+  assert_str("-0", CALL(tostr, x));
+  return 0;
+}
+
+T(tostr) {
+  assert_str("42", CALL(tostr, 42));
+  assert_str("0", CALL(tostr, 0));
+  assert_str("-1", CALL(tostr, -1));
+  assert_str("0.3", CALL(tostr, 0.3));
+  return 0;
+}
+
+T(unbin) {
+  assert_num(42, CALL(unbin, "101010"));
+  assert_num(0, CALL(unbin, "garbage"));
+  return 0;
+}
+
+T(unbytes) {
+  assert_str(
+    "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64",
+    CALL(unbytes, (ili<int>{ 97, 227, 129, 181, 98, 13, 10, 99, 240, 159, 143, 179, 226, 128, 141, 226, 154, 167, 100 }))
+  );
+  return 0;
+}
+
+T(uncodepoints) {
+  assert_str(
+    "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64",
+    CALL(uncodepoints, (ili<int>{ 97, 12405, 98, 13, 10, 99, 127987, 8205, 9895, 100 }))
+  );
+  return 0;
+}
+
+T(unhex) {
+  assert_num(42, CALL(unhex, "2a"));
+  assert_num(0, CALL(unhex, "garbage"));
+  return 0;
+}
+
+T(unoct) {
+  assert_num(42, CALL(unoct, "52"));
+  assert_num(0, CALL(unoct, "garbage"));
   return 0;
 }
 
