@@ -197,6 +197,19 @@ T(const) {
   return 0;
 }
 
+T(contains) {
+  assert_num(1, CALL(contains, "abc", "abc"));
+  assert_num(1, CALL(contains, "a", "abc"));
+  assert_num(1, CALL(contains, "b", "abc"));
+  assert_num(1, CALL(contains, "c", "abc"));
+  assert_num(1, CALL(contains, "", "abc"));
+  assert_num(0, CALL(contains, "abcz", "abc"));
+  assert_num(0, CALL(contains, "zabc", "abc"));
+  assert_num(0, CALL(contains, "zabcz", "abc"));
+  assert_num(0, CALL(contains, "z", "abc"));
+  return 0;
+}
+
 T(div) {
   assert_num(2, CALL(div, 4, 2));
   return 0;
@@ -207,6 +220,19 @@ T(drop) {
   assert_lstnum(({5, 4, 3, 2, 1}), CALL(drop, 0, (ili<int>{5, 4, 3, 2, 1})));
   assert_lstnum((ili<int>{}), CALL(drop, 2, (ili<int>{})));
   assert_lstnum((ili<int>{}), CALL(drop, 6, (ili<int>{5, 4, 3, 2, 1})));
+  return 0;
+}
+
+T(endswith) {
+  assert_num(1, CALL(endswith, "abc", "abc"));
+  assert_num(0, CALL(endswith, "a", "abc"));
+  assert_num(0, CALL(endswith, "b", "abc"));
+  assert_num(1, CALL(endswith, "c", "abc"));
+  assert_num(1, CALL(endswith, "", "abc"));
+  assert_num(0, CALL(endswith, "abcz", "abc"));
+  assert_num(0, CALL(endswith, "zabc", "abc"));
+  assert_num(0, CALL(endswith, "zabcz", "abc"));
+  assert_num(0, CALL(endswith, "z", "abc"));
   return 0;
 }
 
@@ -232,6 +258,19 @@ T(mul) {
 T(oct) {
   assert_str("52", CALL(oct, 42));
   assert_str("0", CALL(oct, 0));
+  return 0;
+}
+
+T(startswith) {
+  assert_num(1, CALL(startswith, "abc", "abc"));
+  assert_num(1, CALL(startswith, "a", "abc"));
+  assert_num(0, CALL(startswith, "b", "abc"));
+  assert_num(0, CALL(startswith, "c", "abc"));
+  assert_num(1, CALL(startswith, "", "abc"));
+  assert_num(0, CALL(startswith, "abcz", "abc"));
+  assert_num(0, CALL(startswith, "zabc", "abc"));
+  assert_num(0, CALL(startswith, "zabcz", "abc"));
+  assert_num(0, CALL(startswith, "z", "abc"));
   return 0;
 }
 

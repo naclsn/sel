@@ -569,6 +569,11 @@ namespace sel {
     BIN_unk(const, (unk<'a'>, unk<'b'>, unk<'a'>),
       "always evaluate to its first argument, ignoring its second argument", ());
 
+    BIN_num(contains, (str, istr, num),
+      "true if the string contain the given substring", (
+      bool done = false, does;
+    ));
+
     BIN_num(div, (num, num, num),
       "divide the first number by the second number", ());
 
@@ -585,6 +590,11 @@ namespace sel {
     BIN_lst(duple, (unk<'a'>, tpl<unk<'a'>, unk<'a'>>),
       "create a pair off of a single item", (
       int did = 0;
+    ));
+
+    BIN_num(endswith, (str, str, num),
+      "true if the string ends with the given suffix", (
+      bool done = false, does;
     ));
 
     BIN_lst(filter, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
@@ -826,10 +836,12 @@ namespace sel {
       , codepoints_
       , conjunction_
       , const_
+      , contains_
       , div_
       , drop_
       , dropwhile_
       , duple_
+      , endswith_
       , filter_
       , flip_
       , give_

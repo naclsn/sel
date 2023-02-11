@@ -263,6 +263,31 @@ namespace sel {
       return &take;
     }
 
+    double contains_::value() {
+      if (!done) {
+        bind_args(substr, str);
+        std::ostringstream ossss;
+        substr.entire(ossss);
+        std::string ss = ossss.str();
+        auto sslen = ss.length();
+        does = false;
+        std::ostringstream oss;
+        while (!does && !str.end()) { // YYY: same as endswith_, this could do with a `sslen`-long circular buffer
+          auto plen = oss.str().length();
+          oss << str;
+          auto len = oss.str().length();
+          if (sslen <= len) { // have enough that searching is relevant
+            std::string s = oss.str();
+            for (auto k = plen < sslen ? sslen : plen; k <= len && !does; k++) { // only test over the range that was added
+              does = 0 == s.compare(k-sslen, sslen, ss);
+            }
+          }
+        }
+        done = true;
+      }
+      return does;
+    }
+
     double div_::value() {
       bind_args(a, b);
       return a.value() / b.value();
@@ -335,6 +360,24 @@ namespace sel {
     }
     bool duple_::end() {
       return 2 == did;
+    }
+
+    double endswith_::value() {
+      if (!done) {
+        bind_args(suffix, str);
+        std::ostringstream osssx;
+        suffix.entire(osssx);
+        std::string sx = osssx.str();
+        auto sxlen = sx.length();
+        std::ostringstream oss;
+        while (!str.end()) { // YYY: that's essentially '::entire', but endswith_ could leverage a circular buffer...
+          oss << str;
+        }
+        std::string s = oss.str();
+        does = sxlen <= s.length() && 0 == s.compare(s.length()-sxlen, sxlen, sx);
+        done = true;
+      }
+      return does;
     }
 
     Val* filter_::operator*() {
@@ -627,10 +670,9 @@ namespace sel {
       if (!done) {
         bind_args(prefix, str);
         std::ostringstream osspx;
-        osspx << prefix;
+        prefix.entire(osspx);
         std::string px = osspx.str();
         std::ostringstream oss;
-        // BOF: copies! copies everywhere~! (or does it? sais its a temporary object...)
         while (oss.str().length() < px.length() && 0 == px.compare(0, oss.str().length(), oss.str()) && !str.end()) {
           oss << str;
         }
