@@ -15,7 +15,7 @@ namespace sel {
   void NumLiteral::accept(Visitor& v) const { v.visitNumLiteral(ty, n); }
 
   std::ostream& StrLiteral::stream(std::ostream& out) { read = true; return out << s; }
-  bool StrLiteral::end() { return read; }
+  bool StrLiteral::end() { return read || s.empty(); }
   std::ostream& StrLiteral::entire(std::ostream& out) { read = true; return out << s; }
   Val* StrLiteral::copy() const { return new StrLiteral(app, s); }
   void StrLiteral::accept(Visitor& v) const { v.visitStrLiteral(ty, s); }
@@ -76,7 +76,9 @@ namespace sel {
     } // 0 < avail
     return out;
   }
-  bool Input::end() { return nowat == buffer->upto && buffer->in.eof(); }
+  bool Input::end() {
+    return nowat == buffer->upto && (buffer->in.eof() || std::istream::traits_type::eof() == buffer->in.peek());
+  }
   std::ostream& Input::entire(std::ostream& out) {
     // not at the end, get the rest
     if (!buffer->in.eof()) {
