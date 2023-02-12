@@ -88,16 +88,10 @@ $ ninja -C build test # needed by meson
 $ ninja -C build coverage
 ```
 
-Due to the stupid length of some debug symbols, release
-build are usually faster to compile:
-```console
-$ meson release --buildtype release
-$ ninja -C release
-```
-
 The folder [s/](s) contains the following shell scripts:
 - `s/el`: build and exec as the resulting binary
 - `s/el-db`: same idea, but use `gdb` (and thus cannot read from stdin)
+- `s/el-min`: same as `s/el`, but with a reduced set of functions (`bins_min`, in [lib/include/sel/builtins.hpp](lib/include/sel/builtins.hpp) -- it builds way faster, so can be used for testing by adding the needed functions to `bins_min`)
 - `s/test`: run the tests given, or all the tests by default
 - `s/cover`: generate coverage report (also `xdg-open`s it)
 
