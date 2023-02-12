@@ -183,6 +183,7 @@ namespace sel {
 
     std::ostringstream oss;
     oss << *v;
+    if (v->end()) oss.put(traits_type::eof());
     buffered = oss.str();
 
     char_type* cstr = (char_type*)(buffered.c_str());
