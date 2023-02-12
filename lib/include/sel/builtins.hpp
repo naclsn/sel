@@ -574,6 +574,12 @@ namespace sel {
       bool done = false, does;
     ));
 
+    BIN_num(count, (unk<'a'>, lst<unk<'a'>>, num),
+      "count occurrences of an item in a sequence (for now items are expected to be strings, until arbitraty value comparison)", (
+      bool done = false;
+      unsigned n;
+    ));
+
     BIN_num(div, (num, num, num),
       "divide the first number by the second number", ());
 
@@ -846,6 +852,7 @@ namespace sel {
       , conjunction_
       , const_
       , contains_
+      , count_
       , div_
       , drop_
       , dropwhile_

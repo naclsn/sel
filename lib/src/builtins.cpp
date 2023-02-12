@@ -288,6 +288,21 @@ namespace sel {
       return does;
     }
 
+    double count_::value() {
+      if (!done) {
+        bind_args(it, l);
+        std::ostringstream search; ((Str&)it).entire(search); // XXX
+        n = 0;
+        for (; !l.end(); ++l) {
+          std::ostringstream item; ((Str*)*l)->entire(item); // XXX
+          if (search.str() == item.str())
+            n++;
+        }
+        done = true;
+      }
+      return n;
+    }
+
     double div_::value() {
       bind_args(a, b);
       return a.value() / b.value();
