@@ -106,6 +106,8 @@ TEST(each) { return call_test<tested>::the(); }
 
 #define CALL(__f, ...) uncurry<__f##_, TPARAM_AUTO(REVERSE(__VA_ARGS__))>::the(REVERSE(__VA_ARGS__))
 
+#define LU(__f) static_lookup_name(app, __f)
+
 #define T(__f)                         \
   template <>                          \
   struct test<__f##_> : test_base {    \
@@ -261,6 +263,13 @@ T(oct) {
   return 0;
 }
 
+T(prefix) {
+  assert_str("abcxyz", CALL(prefix, "abc", "xyz"));
+  assert_str("abc", CALL(prefix, "abc", ""));
+  assert_str("xyz", CALL(prefix, "", "xyz"));
+  return 0;
+}
+
 T(startswith) {
   assert_num(1, CALL(startswith, "abc", "abc"));
   assert_num(1, CALL(startswith, "a", "abc"));
@@ -279,6 +288,21 @@ T(sub) {
   return 0;
 }
 
+T(suffix) {
+  assert_str("xyzabc", CALL(suffix, "abc", "xyz"));
+  assert_str("abc", CALL(suffix, "abc", ""));
+  assert_str("xyz", CALL(suffix, "", "xyz"));
+  return 0;
+}
+
+// T(surround) {
+//   assert_str("abccoucouxyz", CALL(surround, "abc", "xyz", "coucou"));
+//   assert_str("abccoucou", CALL(surround, "abc", "", "coucou"));
+//   assert_str("coucouxyz", CALL(surround, "", "xyz", "coucou"));
+//   assert_str("abcxyz", CALL(surround, "abc", "xyz", ""));
+//   return 0;
+// }
+
 T(take) {
   assert_lstnum(({5, 4}), CALL(take, 2, (ili<int>{5, 4, 3, 2, 1})));
   assert_lstnum((ili<int>{}), CALL(take, 0, (ili<int>{5, 4, 3, 2, 1})));
@@ -292,7 +316,7 @@ T(tonum) {
   assert_num(0, CALL(tonum, "garbage"));
   assert_num(-1, CALL(tonum, "-1"));
   assert_num(0.3, CALL(tonum, "0.3"));
-  // idk if that a behavior i'd wand to keep, but it's a thing still
+  // idk if that a behavior i'd wand to keep, but it's a thing for now
   auto x = CALL(tonum, "-0");
   assert_str("-0", CALL(tostr, x));
   return 0;

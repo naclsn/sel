@@ -670,6 +670,9 @@ namespace sel {
     BIN_num(pi, (num),
       "pi, what did you expect", ());
 
+    BIN_str(prefix, (str, istr, istr),
+      "prepend a prefix to a string", ());
+
     BIN_lst(repeat, (unk<'a'>, ilst<unk<'a'>>),
       "repeat an infinite amount of copies of the same value", ());
 
@@ -712,6 +715,12 @@ namespace sel {
 
     BIN_num(sub, (num, num, num),
       "substract the second number from the first", ());
+
+    BIN_str(suffix, (istr, str, istr),
+      "append a suffix to a string", ());
+
+    BIN_str(surround, (str, str, str, str),
+      "surround a string with a prefix and a suffix", ());
 
     BIN_lst(take, (num, ilst<unk<'a'>>, lst<unk<'a'>>),
       "return the prefix of a given length, or the entire list if it is shorter", (
@@ -860,6 +869,7 @@ namespace sel {
       , mul_
       , oct_
       , pi_
+      , prefix_
       , repeat_
       , replicate_
       , reverse_
@@ -867,6 +877,8 @@ namespace sel {
       , split_
       , startswith_
       , sub_
+      , suffix_
+      , surround_
       // , tail_
       , take_
       , takewhile_

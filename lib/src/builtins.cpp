@@ -579,6 +579,21 @@ namespace sel {
     bool oct_::end() { return read; }
     std::ostream& oct_::entire(std::ostream& out) { read = true; return out << std::oct << size_t(arg->value()); }
 
+    std::ostream& prefix_::stream(std::ostream& out) {
+      bind_args(px, s);
+      return !px.end()
+        ? out << px
+        : out << s;
+    }
+    bool prefix_::end() {
+      bind_args(px, s);
+      return px.end() && s.end();
+    }
+    std::ostream& prefix_::entire(std::ostream& out) {
+      bind_args(px, s);
+      return s.entire(px.entire(out));
+    }
+
     Val* repeat_::operator*() { return arg->copy(); }
     Lst& repeat_::operator++() { return *this; }
     bool repeat_::end() { return false; }
@@ -685,6 +700,37 @@ namespace sel {
     double sub_::value() {
       bind_args(a, b);
       return a.value() - b.value();
+    }
+
+    std::ostream& suffix_::stream(std::ostream& out) {
+      bind_args(sx, s);
+      return !s.end()
+        ? out << s
+        : out << sx;
+    }
+    bool suffix_::end() {
+      bind_args(sx, s);
+      return s.end() && sx.end();
+    }
+    std::ostream& suffix_::entire(std::ostream& out) {
+      bind_args(sx, s);
+      return sx.entire(s.entire(out));
+    }
+
+    std::ostream& surround_::stream(std::ostream& out) {
+      bind_args(px, sx, s);
+      return !px.end()
+        ? out << px : !s.end()
+        ? out << s
+        : out << sx;
+    }
+    bool surround_::end() {
+      bind_args(px, sx, s);
+      return px.end() && s.end() && sx.end();
+    }
+    std::ostream& surround_::entire(std::ostream& out) {
+      bind_args(px, sx, s);
+      return sx.entire(s.entire(px.entire(out)));
     }
 
     Val* take_::operator*() {
