@@ -41,12 +41,13 @@ template <typename F, typename... L> struct uncurry;
 template <typename F, typename H, typename... T>
 struct uncurry<F, H, T...> { static inline Val* the(H h, T... t) { return (*(Fun*)uncurry<typename F::Base, T...>::the(t...))(asval(h)); } };
 
-// FIXME: this one is wrong, it is supposed to catch BIN_unk s, but it was also used for eg. surround (arity >=3)
-// template <typename I, typename a, typename b, typename c, typename O>
-// struct uncurry<bins_helpers::_bin_be<I, ll::cons<fun<b, c>, a>>, O> { static inline Val* the(O o) { return (*(Fun*)new bins_helpers::_bin_be<I, ll::cons<fun<b, c>, a>>(app))(asval(o)); } };
+// eg. const_
+template <typename I, typename a, typename b, char c, typename O>
+struct uncurry<bins_helpers::_bin_be<I, ll::cons<fun<b, unk<c>>, a>>, O> { static inline Val* the(O o) { return (*(Fun*)new bins_helpers::_bin_be<I, ll::cons<fun<b, unk<c>>, a>>(app))(asval(o)); } };
 
-// template <typename Impl>
-// struct uncurry<bins_helpers::_fake_bin_be<Impl>> { static inline Val* the() { .. } };
+// eg. id_
+template <typename I>
+struct uncurry<bins_helpers::_fake_bin_be<I>> { static inline Val* the() { return new I(app); } };
 
 template <typename F>
 struct uncurry<F> { static inline Val* the() { return new F(app); } };
@@ -199,6 +200,7 @@ T(bytes) {
     ({ 97, 227, 129, 181, 98, 13, 10, 99, 240, 159, 143, 179, 226, 128, 141, 226, 154, 167, 100 }),
     CALL(bytes, "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
   );
+  assert_empty(CALL(bytes, ""));
   return 0;
 }
 
@@ -207,11 +209,12 @@ T(codepoints) {
     ({ 97, 12405, 98, 13, 10, 99, 127987, 8205, 9895, 100 }),
     CALL(codepoints, "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
   );
+  assert_empty(CALL(codepoints, ""));
   return 0;
 }
 
 T(const) {
-  // assert_str("coucou", CALL(const, "coucou", 1));
+  assert_str("coucou", CALL(const, "coucou", 1));
   return 0;
 }
 
@@ -259,19 +262,25 @@ T(graphemes) {
     ({ "\x61", "\xe3\x81\xb5", "\x62", "\x0d\x0a", "\x63", "\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7", "\x64" }),
     CALL(graphemes, "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
   );
+  assert_empty(CALL(graphemes, ""));
   return 0;
 }
 
-// T(head) {
-//   assert_num(1, CALL(head, (ili<int>{ 1, 2, 3 })));
-//   assert_num(1, CALL(head, (ili<int>{ 1 })));
-//   assert_lsterr(CALL(head, (ili<int>{})));
-//   return 0;
-// }
+T(head) {
+  assert_num(1, CALL(head, (ili<int>{ 1, 2, 3 })));
+  assert_num(1, CALL(head, (ili<int>{ 1 })));
+  assert_lsterr(CALL(head, (ili<int>{})));
+  return 0;
+}
 
 T(hex) {
   assert_str("2a", CALL(hex, 42));
   assert_str("0", CALL(hex, 0));
+  return 0;
+}
+
+T(id) {
+  assert_str("coucou", CALL(id, "coucou"));
   return 0;
 }
 
@@ -282,12 +291,12 @@ T(init) {
   return 0;
 }
 
-// T(last) {
-//   assert_num(3, CALL(last, (ili<int>{ 1, 2, 3 })));
-//   assert_num(1, CALL(last, (ili<int>{ 1 })));
-//   assert_lsterr(CALL(last, (ili<int>{})));
-//   return 0;
-// }
+T(last) {
+  assert_num(3, CALL(last, (ili<int>{ 1, 2, 3 })));
+  assert_num(1, CALL(last, (ili<int>{ 1 })));
+  assert_lsterr(CALL(last, (ili<int>{})));
+  return 0;
+}
 
 T(mul) {
   assert_num(8, CALL(mul, 4, 2));
@@ -385,6 +394,7 @@ T(unbytes) {
     "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64",
     CALL(unbytes, (ili<int>{ 97, 227, 129, 181, 98, 13, 10, 99, 240, 159, 143, 179, 226, 128, 141, 226, 154, 167, 100 }))
   );
+  assert_str("", CALL(unbytes, (ili<int>{})));
   return 0;
 }
 
@@ -393,6 +403,7 @@ T(uncodepoints) {
     "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64",
     CALL(uncodepoints, (ili<int>{ 97, 12405, 98, 13, 10, 99, 127987, 8205, 9895, 100 }))
   );
+  assert_str("", CALL(uncodepoints, (ili<int>{})));
   return 0;
 }
 
