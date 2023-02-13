@@ -416,6 +416,9 @@ namespace sel {
       return l.end();
     }
 
+    // FIXME: something is wrong with this where
+    // if op* is not used, ++op is essentially usl
+    // (ie. when tail_ skips one, it does not)
     Val* graphemes_::operator*() {
       bind_args(s);
       if (!did_once) {
@@ -442,6 +445,11 @@ namespace sel {
       bind_args(s);
       static std::istream_iterator<codepoint> const eos;
       return did_once ? eos == isi && past_end : s.end();
+    }
+
+    Val* head_::impl(LastArg& l) {
+      if (l.end()) throw RuntimeError("head of empty list");
+      return *l;
     }
 
     std::ostream& hex_::stream(std::ostream& out) { read = true; return out << std::hex << size_t(arg->value()); }
@@ -510,6 +518,35 @@ namespace sel {
       return found;
     }
 
+    Val* init_::operator*() {
+      bind_args(l);
+      if (!prev) {
+        if (l.end()) throw RuntimeError("init of empty list");
+        prev = *l;
+        ++l;
+      }
+      return prev;
+    }
+    Lst& init_::operator++() {
+      bind_args(l);
+      if (!prev) {
+        if (l.end()) throw RuntimeError("init of empty list");
+        ++l;
+      }
+      prev = *l;
+      ++l;
+      return *this;
+    }
+    bool init_::end() {
+      bind_args(l);
+      if (!prev) {
+        if (l.end()) throw RuntimeError("init of empty list");
+        prev = *l;
+        ++l;
+      }
+      return l.end();
+    }
+
     Val* iterate_::operator*() {
       bind_args(f, o);
       return !curr ? &o : curr;
@@ -554,6 +591,14 @@ namespace sel {
         ((Str*)*lst)->entire(out << ssep);
       }
       return out;
+    }
+
+    Val* last_::impl(LastArg& l) {
+      if (l.end()) throw RuntimeError("last of empty list");
+      Val* r = nullptr;
+      for (; !l.end(); ++l)
+        r = *l;
+      return r;
     }
 
     Val* map_::operator*() {
@@ -746,6 +791,35 @@ namespace sel {
     std::ostream& surround_::entire(std::ostream& out) {
       bind_args(px, sx, s);
       return sx.entire(s.entire(px.entire(out)));
+    }
+
+    Val* tail_::operator*() {
+      bind_args(l);
+      if (!done) {
+        if (l.end()) throw RuntimeError("tail of empty list");
+        ++l;
+        done = true;
+      }
+      return *l;
+    }
+    Lst& tail_::operator++() {
+      bind_args(l);
+      if (!done) {
+        if (l.end()) throw RuntimeError("tail of empty list");
+        ++l;
+        done = true;
+      }
+      ++l;
+      return *this;
+    }
+    bool tail_::end() {
+      bind_args(l);
+      if (!done) {
+        if (l.end()) throw RuntimeError("tail of empty list");
+        ++l;
+        done = true;
+      }
+      return l.end();
     }
 
     Val* take_::operator*() {

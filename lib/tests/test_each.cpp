@@ -135,28 +135,43 @@ TEST(each) { return call_test<tested>::the(); }
   assert_cmp(__should, (_fart.entire(oss), oss.str()));  \
 } while (0)
 
-#define assert_lstnum(__should, __have) do {                      \
-  Val* _habe = (__have);                                          \
-  assert_eq(Ty::LST, _habe->type().base);                         \
-  Lst& _fart = *((Lst*)_habe);                                    \
-  for (auto const& _it : __rem_par __should) {                    \
-    assert(!_fart.end(), "should not have reached the end yet");  \
-    assert_num(_it, *_fart);                                      \
-    ++_fart;                                                      \
-  }                                                               \
-  assert(_fart.end(), "should have reached the end by now");      \
+#define assert_lstnum(__should, __have) do {                                    \
+  Val* _habe = (__have);                                                        \
+  assert_eq(Ty::LST, _habe->type().base);                                       \
+  Lst& _fart = *((Lst*)_habe);                                                  \
+  for (auto const& _it : __rem_par __should) {                                  \
+    assert(!_fart.end(), #__have ":\n   should not have reached the end yet");  \
+    assert_num(_it, *_fart);                                                    \
+    ++_fart;                                                                    \
+  }                                                                             \
+  assert(_fart.end(), #__have ":\n   should have reached the end by now");      \
 } while(0)
 
-#define assert_lststr(__should, __have) do {                      \
-  Val* _habe = (__have);                                          \
-  assert_eq(Ty::LST, _habe->type().base);                         \
-  Lst& _fart = *((Lst*)_habe);                                    \
-  for (auto const& _it : __rem_par __should) {                    \
-    assert(!_fart.end(), "should not have reached the end yet");  \
-    assert_str(_it, *_fart);                                      \
-    ++_fart;                                                      \
-  }                                                               \
-  assert(_fart.end(), "should have reached the end by now");      \
+#define assert_lststr(__should, __have) do {                                    \
+  Val* _habe = (__have);                                                        \
+  assert_eq(Ty::LST, _habe->type().base);                                       \
+  Lst& _fart = *((Lst*)_habe);                                                  \
+  for (auto const& _it : __rem_par __should) {                                  \
+    assert(!_fart.end(), #__have ":\n   should not have reached the end yet");  \
+    assert_str(_it, *_fart);                                                    \
+    ++_fart;                                                                    \
+  }                                                                             \
+  assert(_fart.end(), #__have ":\n   should have reached the end by now");      \
+} while(0)
+
+#define assert_empty(__have) do {                             \
+  Val* _habe = (__have);                                      \
+  Lst& _fart = *((Lst*)_habe);                                \
+  assert(_fart.end(), "should have reached the end by now");  \
+} while(0)
+
+#define assert_lsterr(__throws) do {                 \
+  try {                                              \
+    ((Lst*)__throws)->end();                         \
+  } catch (RuntimeError const&) {                    \
+    break;                                           \
+  }                                                  \
+  fail("expected " #__throws " to throw an error");  \
 } while(0)
 
 
@@ -246,11 +261,32 @@ T(graphemes) {
   return 0;
 }
 
+// T(head) {
+//   assert_num(1, CALL(head, (ili<int>{ 1, 2, 3 })));
+//   assert_num(1, CALL(head, (ili<int>{ 1 })));
+//   assert_lsterr(CALL(head, (ili<int>{})));
+//   return 0;
+// }
+
 T(hex) {
   assert_str("2a", CALL(hex, 42));
   assert_str("0", CALL(hex, 0));
   return 0;
 }
+
+T(init) {
+  assert_lstnum(({ 1, 2 }), CALL(init, (ili<int>{ 1, 2, 3 })));
+  assert_empty(CALL(init, (ili<int>{ 1 })));
+  assert_lsterr(CALL(init, (ili<int>{})));
+  return 0;
+}
+
+// T(last) {
+//   assert_num(3, CALL(last, (ili<int>{ 1, 2, 3 })));
+//   assert_num(1, CALL(last, (ili<int>{ 1 })));
+//   assert_lsterr(CALL(last, (ili<int>{})));
+//   return 0;
+// }
 
 T(mul) {
   assert_num(8, CALL(mul, 4, 2));
@@ -302,6 +338,13 @@ T(suffix) {
 //   assert_str("abcxyz", CALL(surround, "abc", "xyz", ""));
 //   return 0;
 // }
+
+T(tail) {
+  assert_lstnum(({ 2, 3 }), CALL(tail, (ili<int>{ 1, 2, 3 })));
+  assert_empty(CALL(tail, (ili<int>{ 1 })));
+  assert_lsterr(CALL(tail, (ili<int>{})));
+  return 0;
+}
 
 T(take) {
   assert_lstnum(({5, 4}), CALL(take, 2, (ili<int>{5, 4, 3, 2, 1})));

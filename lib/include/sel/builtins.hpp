@@ -617,6 +617,9 @@ namespace sel {
       bool past_end = false;
     ));
 
+    BIN_unk(head, (ilst<unk<'a'>>, unk<'a'>),
+      "extract the first element of a list, which must not be empty", ());
+
     BIN_str(hex, (num, str),
       "convert a number to its hexadecimal textual representation (without leading '0x')", (
       bool read = false;
@@ -646,6 +649,11 @@ namespace sel {
       Val* found = nullptr;
     ));
 
+    BIN_lst(init, (lst<unk<'a'>>, lst<unk<'a'>>),
+      "extract the elements before the last one of a list, which must not be empty", (
+      Val* prev = nullptr;
+    ));
+
     BIN_lst(iterate, (fun<unk<'a'>, unk<'a'>>, unk<'a'>, ilst<unk<'a'>>),
       "return an infinite list of repeated applications of the function to the input", (
       Val* curr = nullptr;
@@ -656,6 +664,9 @@ namespace sel {
       std::string ssep;
       bool beginning = true;
     ));
+
+    BIN_unk(last, (lst<unk<'a'>>, unk<'a'>),
+      "extract the last element of a list, which must not be empty", ());
 
     BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, ilst<unk<'a'>>, ilst<unk<'b'>>),
       "make a new list by applying an unary operation to each value from a list", ());
@@ -708,7 +719,6 @@ namespace sel {
       std::string curr;
       bool at_end = false;
       bool at_past_end = false;
-      // std::vector<Val*> cache;
       bool init = false;
       void once();
       void next();
@@ -727,6 +737,11 @@ namespace sel {
 
     BIN_str(surround, (str, str, str, str),
       "surround a string with a prefix and a suffix", ());
+
+    BIN_lst(tail, (ilst<unk<'a'>>, ilst<unk<'a'>>),
+      "extract the elements after the first one of a list, which must not be empty", (
+      bool done = false;
+    ));
 
     BIN_lst(take, (num, ilst<unk<'a'>>, lst<unk<'a'>>),
       "return the prefix of a given length, or the entire list if it is shorter", (
@@ -862,15 +877,15 @@ namespace sel {
       , flip_
       , give_
       , graphemes_
-      // , head_
+      , head_
       , hex_
       , id_
       , if_
       , index_
-      // , init_
+      , init_
       , iterate_
       , join_
-      // , last_
+      , last_
       , ln_
       , map_
       , mul_
@@ -886,7 +901,7 @@ namespace sel {
       , sub_
       , suffix_
       , surround_
-      // , tail_
+      , tail_
       , take_
       , takewhile_
       , tonum_
