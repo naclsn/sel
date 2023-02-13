@@ -10,8 +10,10 @@
 
 #include <iostream>
 #include <ostream>
+#include <sstream>
 #include <string>
 #include <vector>
+#include <functional>
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/IRBuilder.h>
@@ -148,12 +150,68 @@ namespace sel {
     llvm::IRBuilder<> builder;
     llvm::Module module;
 
+    // TODO: move around
+    struct SymNumber {
+      std::function<void(void)> val;
+      SymNumber(std::function<void(void)> val)
+        : val(val) { }
+      void genValue() const { val(); }
+    };
+    struct SymGenerator {
+      std::function<void(void)> ent;
+      std::function<void(void)> chk;
+      std::function<void(void)> itr;
+      SymGenerator(std::function<void(void)> ent, std::function<void(void)> chk, std::function<void(void)> itr)
+        : ent(ent) , chk(chk) , itr(itr) { }
+      void genEntry() const { ent(); }
+      void genCheck(/* param: the block to break to, the block to continue to */) const { chk(); }
+      void genIter(std::function<void(void)> also) const {
+        itr();
+        also(/* param: the current buff, llvm side */);
+      }
+    };
+
+    struct Symbol {
+      enum class SyType { SYNUM, SYGEN } sty;
+      union SyV {
+        SymNumber synum;
+        SymGenerator sygen;
+
+        SyV() { }
+        ~SyV() { }
+
+        SyV(SymNumber const& num): synum(num) { }
+        SyV(SymGenerator const& gen): sygen(gen) { }
+      } v;
+
+      Symbol() { }
+      Symbol(Symbol const&);
+      ~Symbol();
+
+      Symbol(SymNumber const& num)
+        : sty(SyType::SYNUM)
+        , v(num)
+      { }
+      Symbol(SymGenerator const& gen)
+        : sty(SyType::SYGEN)
+        , v(gen)
+      { }
+
+      Symbol& operator=(Symbol const& other);
+    } symbol;
+
+    bool symbol_pending = false;
+    bool symbol_used = false;
+
+    void setSym(Symbol const& sym);
+    SymNumber const getSymNumber();
+    SymGenerator const getSymGenerator();
+
   public:
-    VisCodegen(char const* module_name)
-      : context()
-      , builder(context)
-      , module(module_name, context)
-    { }
+    // entry, preambule
+    VisCodegen(char const* module_name, App& app);
+    // exit, post-thingy
+    void* makeOutput();
 
     void dump() const { module.print(llvm::errs(), nullptr); }
 
@@ -166,9 +224,13 @@ namespace sel {
 
     void visit(bins::abs_::Base const&) override;
     void visit(bins::abs_ const&) override;
-    void visit(bins::add_::Base::Base const&) override;
-    void visit(bins::add_::Base const&) override;
-    void visit(bins::add_ const&) override;
+    // void visit(bins::add_::Base::Base const&) override;
+    // void visit(bins::add_::Base const&) override;
+    // void visit(bins::add_ const&) override;
+    void visit(bins::tonum_::Base const&) override;
+    void visit(bins::tonum_ const&) override;
+    void visit(bins::tostr_::Base const&) override;
+    void visit(bins::tostr_ const&) override;
   };
 
 } // namespace sel

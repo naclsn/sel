@@ -66,6 +66,7 @@ struct Options {
             case 'o':
               compile = true;
               if (hasv) compile_flags = argv+ ++k;
+              else usage("missing output file name");
               goto break_all;
 
             case 'f':

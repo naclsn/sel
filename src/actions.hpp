@@ -61,8 +61,7 @@ void compile(App& app, char const* const* flags) {
     while (*flags) cerr << "   " << quoted(*flags++) << "\n";
   } else cerr << ", no flags\n";
 
-  VisCodegen codegen(outfile);
-  app.accept(codegen);
+  VisCodegen codegen(outfile, app);
 
   cerr << "```llvm-ir\n";
   codegen.dump();
