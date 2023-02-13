@@ -416,9 +416,6 @@ namespace sel {
       return l.end();
     }
 
-    // FIXME: something is wrong with this where
-    // if op* is not used, ++op is essentially usl
-    // (ie. when tail_ skips one, it does not)
     Val* graphemes_::operator*() {
       bind_args(s);
       if (!did_once) {
@@ -434,6 +431,7 @@ namespace sel {
       if (!did_once) {
         isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
         did_once = true;
+        read_grapheme(isi, curr);
       }
       curr.clear();
       static std::istream_iterator<codepoint> const eos;
