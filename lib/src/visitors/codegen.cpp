@@ -59,6 +59,7 @@ namespace sel {
     throw "unreachable"; // shuts warnings
   }
 
+
   VisCodegen::VisCodegen(char const* module_name, App& app)
     : context()
     , builder(context)
@@ -110,20 +111,22 @@ namespace sel {
     );
 
     llvm::Function* main = module.getFunction("main");
-    llvm::BasicBlock* main_entry = llvm::BasicBlock::Create(context, "entry", main);
-    builder.SetInsertPoint(main_entry);
+    llvm::BasicBlock* main_entry = llvm::BasicBlock::Create(context, "main_entry", main);
+    llvm::BasicBlock* main_exit = llvm::BasicBlock::Create(context, "main_exit", main);
 
-    g.genEntry();
-
-    g.genCheck();
-    g.genIter([this, putchar] {
-      enter("output", "inject");
-      log << "the code for iter for output;\nis a call to @putbuff\n";
-      builder.CreateCall(putchar, {llvm::ConstantInt::get(context, llvm::APInt(32, 42))});
-      builder.CreateCall(putchar, {llvm::ConstantInt::get(context, llvm::APInt(32, 10))});
-      leave();
-    });
-
+    g.gen(
+      builder,
+      *main_entry,
+      *main_exit,
+      [this, putchar] (/*b*/) {
+        enter("output", "inject");
+        log << "the code for iter for output;\nis a call to @putbuff\n";
+        /*b*/
+        builder.CreateCall(putchar, {llvm::ConstantInt::get(context, llvm::APInt(32, 42))});
+        builder.CreateCall(putchar, {llvm::ConstantInt::get(context, llvm::APInt(32, 10))});
+        leave();
+      }
+    );
     builder.CreateRet(llvm::ConstantInt::get(context, llvm::APInt(32, 0)));
 
     return nullptr; // `void*` just a placeholder type
@@ -152,7 +155,7 @@ namespace sel {
 
   void VisCodegen::visitInput(Type const& type) {
     enter("visitInput", "");
-    gen(SyGen(
+    gen(SyGen("input",
       [this] {
         enter("input", "entry");
         // declare i32 @getchar()
@@ -162,19 +165,21 @@ namespace sel {
           "getchar",
           module
         );
-        builder.CreateCall(getchar, {}, "char");
         leave();
+        return getchar; // ZZZ
       },
 
-      [this] {
+      [this] (llvm::BasicBlock* brk, llvm::BasicBlock* cont, llvm::Value*) {
         enter("input", "check");
         log << "check eof\n";
+        builder.CreateCondBr(llvm::ConstantInt::get(context, llvm::APInt(1, 1)), brk, cont);
         leave();
       },
 
-      [this] {
+      [this] (llvm::Value* getchar) {
         enter("input", "iter");
         log << "get some input\n";
+        builder.CreateCall(getchar, {}, "char"); // ZZZ
         leave();
       }
     ));
@@ -219,20 +224,41 @@ namespace sel {
   void VisCodegen::visit(bins::tonum_::Base const& node) {
     enter(bins::tonum_::name, "");
     auto g = gen();
-    num(SyNum([this, g] {
-      enter(bins::tonum_::name, "value");
+    num(SyNum(
+      bins::tonum_::name,
+      [this, g] {
+        enter(bins::tonum_::name, "value");
+        auto* stored = builder.GetInsertBlock();
 
-      g.genEntry();
+        llvm::Function* tonum_outline = llvm::Function::Create(
+          llvm::FunctionType::get(llvm::Type::getInt32Ty(context), {}, false),
+          llvm::Function::ExternalLinkage,
+          "tonum_outline",
+          module
+        );
+        llvm::BasicBlock* entry = llvm::BasicBlock::Create(context, "tonum_arg_entry", tonum_outline);
+        llvm::BasicBlock* exit = llvm::BasicBlock::Create(context, "tonum_arg_exit", tonum_outline);
+        builder.SetInsertPoint(entry);
 
-      g.genCheck();
-      g.genIter([this] {
-        enter(bins::tonum_::name, "inject");
-        log << "the code for iter;\ncheck if still numeric;\n*10+ accumulate;\n";
+        /*n=*/g.gen(
+          builder,
+          *entry,
+          *exit,
+          [this] (/*b*/) {
+            enter(bins::tonum_::name, "inject");
+            log << "the code for iter;\ncheck if still numeric;\n*10+ accumulate;\n";
+            leave();
+          }
+        );
+        builder.CreateRet(/*n*/
+          llvm::ConstantInt::get(context, llvm::APInt(32, 110)));
+
+        builder.SetInsertPoint(stored);
+        /*n=*/builder.CreateCall(tonum_outline);
         leave();
-      });
-
-      leave();
-    }));
+        /*return n*/
+      }
+    ));
     leave();
   }
 
@@ -245,23 +271,33 @@ namespace sel {
     enter(bins::tostr_::name, "");
     auto g = num();
     gen(SyGen(
+      bins::tostr_::name,
       [this] {
         enter(bins::tostr_::name, "entry");
-        log << "have @tostr generated, alloca i1 'read'\n";
+        log << "have @tostr generated\n";
+        log << "%_isend = alloca i1\n";
+        llvm::Value* isend = builder.CreateAlloca(llvm::Type::getInt1Ty(context), nullptr, "tostr_isend");
+        builder.CreateStore(isend, llvm::ConstantInt::get(context, llvm::APInt(1, 0)));
         leave();
+        return isend;
       },
 
-      [this] {
+      [this] (llvm::BasicBlock* brk, llvm::BasicBlock* cont, llvm::Value* isend) {
         enter(bins::tostr_::name, "check");
-        log << "isend = false once then true\n";
+        log << "branch if %tostr_isend (ie. 1 iteration)\n";
+        builder.CreateCondBr(isend, brk, cont);
         leave();
       },
 
-      [this, g] {
+      [this, g] (llvm::Value* isend) {
         enter(bins::tostr_::name, "iter");
-        /*n=*/ g.genValue();
+        /*n=*/ g.gen();
         log << "call to @tostr, should only be here once\n";
+        /*b=*/
+        log << "store i1 1 %_isend\n";
+        builder.CreateStore(isend, llvm::ConstantInt::get(context, llvm::APInt(1, 1)));
         leave();
+        /*return b*/
       }
     ));
     leave();
