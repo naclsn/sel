@@ -55,17 +55,21 @@ void run(App& app) {
 void compile(App& app, char const* const* flags) {
   char const* outfile = *flags++;
 
-  // for now module_name == outfile
+  cerr << "outfile: " << quoted(outfile);
+
   if (*flags) {
     cerr << ", flags:\n";
     while (*flags) cerr << "   " << quoted(*flags++) << "\n";
   } else cerr << ", no flags\n";
 
+  // for now module_name == outfile
   VisCodegen codegen(outfile, app);
+  auto res = codegen.makeOutput();
+  cerr << "\nmakeOutput: " << res << "\n\n";
 
   cerr << "```llvm-ir\n";
   codegen.dump();
-  cerr << "```\n";
+  cerr << "```\n\n";
 
   throw NIYError("emit binary");
 }

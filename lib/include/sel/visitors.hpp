@@ -150,18 +150,24 @@ namespace sel {
     llvm::IRBuilder<> builder;
     llvm::Module module;
 
+    std::ostream& log;
+
     // TODO: move around
-    struct SymNumber {
+    /** symbol for a number (Num) */
+    struct SyNum {
       std::function<void(void)> val;
-      SymNumber(std::function<void(void)> val)
+      SyNum(): val() { }
+      SyNum(std::function<void(void)> val)
         : val(val) { }
       void genValue() const { val(); }
-    };
-    struct SymGenerator {
+    } synum;
+    /** symbol for a generator (Str/Lst) */
+    struct SyGen {
       std::function<void(void)> ent;
       std::function<void(void)> chk;
       std::function<void(void)> itr;
-      SymGenerator(std::function<void(void)> ent, std::function<void(void)> chk, std::function<void(void)> itr)
+      SyGen(): ent() , chk() , itr() { }
+      SyGen(std::function<void(void)> ent, std::function<void(void)> chk, std::function<void(void)> itr)
         : ent(ent) , chk(chk) , itr(itr) { }
       void genEntry() const { ent(); }
       void genCheck(/* param: the block to break to, the block to continue to */) const { chk(); }
@@ -169,43 +175,14 @@ namespace sel {
         itr();
         also(/* param: the current buff, llvm side */);
       }
-    };
+    } sygen;
 
-    struct Symbol {
-      enum class SyType { SYNUM, SYGEN } sty;
-      union SyV {
-        SymNumber synum;
-        SymGenerator sygen;
+    enum class SyType { NONE, SYNUM, SYGEN } pending = SyType::NONE;
 
-        SyV() { }
-        ~SyV() { }
-
-        SyV(SymNumber const& num): synum(num) { }
-        SyV(SymGenerator const& gen): sygen(gen) { }
-      } v;
-
-      Symbol() { }
-      Symbol(Symbol const&);
-      ~Symbol();
-
-      Symbol(SymNumber const& num)
-        : sty(SyType::SYNUM)
-        , v(num)
-      { }
-      Symbol(SymGenerator const& gen)
-        : sty(SyType::SYGEN)
-        , v(gen)
-      { }
-
-      Symbol& operator=(Symbol const& other);
-    } symbol;
-
-    bool symbol_pending = false;
-    bool symbol_used = false;
-
-    void setSym(Symbol const& sym);
-    SymNumber const getSymNumber();
-    SymGenerator const getSymGenerator();
+    void num(SyNum sy);
+    void gen(SyGen sy);
+    VisCodegen::SyNum num();
+    VisCodegen::SyGen gen();
 
   public:
     // entry, preambule

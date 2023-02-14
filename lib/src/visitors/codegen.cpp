@@ -3,65 +3,61 @@
 
 namespace sel {
 
-  VisCodegen::Symbol::Symbol(Symbol const& other) {
-    switch (sty = other.sty) {
-      case SyType::SYNUM: v.synum = other.v.synum; break;
-      case SyType::SYGEN: v.sygen = other.v.sygen; break;
+  void VisCodegen::num(SyNum sy) {
+    switch (pending) {
+      case SyType::NONE:
+        std::cerr << "--- setting new symbol (a number)\n";
+        synum = std::move(sy);
+        pending = SyType::SYNUM;
+        break;
+      case SyType::SYNUM: throw BaseError("codegen failure: overriding an unused symbol (a number)");
+      case SyType::SYGEN: throw BaseError("codegen failure: overriding an unused symbol (a generator)");
     }
   }
 
-  VisCodegen::Symbol::~Symbol() {
-    switch (sty) {
-      case SyType::SYNUM: v.synum.~SymNumber(); break;
-      case SyType::SYGEN: v.sygen.~SymGenerator(); break;
+  void VisCodegen::gen(SyGen sy) {
+    switch (pending) {
+      case SyType::NONE:
+        std::cerr << "--- setting new symbol (a generator)\n";
+        sygen = std::move(sy);
+        pending = SyType::SYGEN;
+        break;
+      case SyType::SYNUM: throw BaseError("codegen failure: overriding an unused symbol (a number)");
+      case SyType::SYGEN: throw BaseError("codegen failure: overriding an unused symbol (a generator)");
     }
   }
 
-  VisCodegen::Symbol& VisCodegen::Symbol::operator=(Symbol const& other) {
-    switch (sty = other.sty) {
-      case SyType::SYNUM: v.synum = other.v.synum; break;
-      case SyType::SYGEN: v.sygen = other.v.sygen; break;
+  VisCodegen::SyNum VisCodegen::num() {
+    switch (pending) {
+      case SyType::SYNUM:
+        std::cerr << "--- getting existing symbol (a number)\n";
+        pending = SyType::NONE;
+        return std::move(synum);
+      case SyType::NONE: throw BaseError("codegen failure: no pending symbol to access");
+      case SyType::SYGEN: throw BaseError("codegen failure: symbol type does not match (expected a number)");
     }
-    return *this;
+    throw "unreachable"; // shuts warnings
   }
 
-  void VisCodegen::setSym(Symbol const& sym) {
-    if (symbol_pending && !symbol_used)
-      throw BaseError("codegen failure: overriding an unused symbol");
-    symbol = sym;
-    symbol_pending = true;
-    symbol_used = false;
-  }
-
-  VisCodegen::SymNumber const VisCodegen::getSymNumber() {
-    if (!symbol_pending)
-      throw BaseError("codegen failure: no pending symbol to access");
-    if (Symbol::SyType::SYNUM != symbol.sty) {
-      throw BaseError("codegen failure: symbol type does not match (expected a number)");
+  VisCodegen::SyGen VisCodegen::gen() {
+    switch (pending) {
+      case SyType::SYGEN:
+        std::cerr << "--- getting existing symbol (a generator)\n";
+        pending = SyType::NONE;
+        return std::move(sygen);
+      case SyType::NONE: throw BaseError("codegen failure: no pending symbol to access");
+      case SyType::SYNUM: throw BaseError("codegen failure: symbol type does not match (expected a generator)");
     }
-    symbol_used = true;
-    symbol_pending = false;
-    return symbol.v.synum;
+    throw "unreachable"; // shuts warnings
   }
-
-  VisCodegen::SymGenerator const VisCodegen::getSymGenerator() {
-    if (!symbol_pending)
-      throw BaseError("codegen failure: no pending symbol to access");
-    if (Symbol::SyType::SYGEN != symbol.sty) {
-      throw BaseError("codegen failure: symbol type does not match (expected a generator)");
-    }
-    symbol_used = true;
-    symbol_pending = false;
-    return symbol.v.sygen;
-  }
-
 
   VisCodegen::VisCodegen(char const* module_name, App& app)
     : context()
     , builder(context)
     , module(module_name, context)
+    , log(std::cerr)
   {
-    std::cerr << "=== entry\n";
+    log << "=== entry\n";
 
     Val& f = app.get();
     Type const& ty = f.type();
@@ -71,16 +67,16 @@ namespace sel {
       throw TypeError((oss << "value of type " << ty << " is not a function", oss.str()));
     }
 
-    // input symbol
-    setSym(SymGenerator(
-      [] {
-        std::cerr << "input: things to do at startup\n";
+    // input symbol (could be in visitInput itself i guess)
+    gen(SyGen(
+      [this] {
+        log << "input: things to do at startup\n";
       },
-      [] {
-        std::cerr << "input: check eof\n";
+      [this] {
+        log << "input: check eof\n";
       },
-      [] {
-        std::cerr << "input: get some input\n";
+      [this] {
+        log << "input: get some input\n";
       }
     ));
 
@@ -90,18 +86,19 @@ namespace sel {
   }
 
   void* VisCodegen::makeOutput() {
-    std::cerr << "=== exit\n";
+    log << "=== exit\n";
     // generate @putbuff
 
     // last symbol is expected to be of Str
-    auto g = getSymGenerator();
+    auto g = gen();
+    log << "\n";
     // does not put a new symbol, but actually performs the generation
     g.genEntry();
 
-    g.genIter([] {
-      std::cerr << "output: the code for iter for output; is a call to @putbuff\n";
-    });
     g.genCheck();
+    g.genIter([this] {
+      log << "output: the code for iter for output; is a call to @putbuff\n";
+    });
 
     return nullptr; // `void*` just a placeholder type
   }
@@ -120,9 +117,9 @@ namespace sel {
   }
 
   void VisCodegen::visitFunChain(Type const& type, std::vector<Fun*> const& f) {
-    std::cerr << "visitFunChain: " << f.size() << " element/s\n";
+    log << "visitFunChain: " << f.size() << " element/s\n";
     for (auto const& it : f) {
-      std::cerr << '\t' << repr(*it) << '\n';
+      log << '\t' << repr(*it) << '\n';
       this->operator()(*it);
     }
   }
@@ -163,35 +160,35 @@ namespace sel {
   // }
 
   void VisCodegen::visit(bins::tonum_::Base const& node) {
-    std::cerr << "tonum_\n";
-    auto g = getSymGenerator();
-    setSym(SymNumber([g] {
-      std::cerr << "tonum_: gen for value asked\n";
+    log << "tonum_\n";
+    auto g = gen();
+    num(SyNum([this, g] {
+      log << "tonum_: gen for value asked\n";
 
       g.genEntry();
 
-      g.genIter([] {
-        std::cerr << "tonum_: the code for iter; check if still numeric; *10+ accumulate;\n";
-      });
       g.genCheck();
+      g.genIter([this] {
+        log << "tonum_: the code for iter; check if still numeric; *10+ accumulate;\n";
+      });
     }));
   }
   void VisCodegen::visit(bins::tonum_ const& node) {
   }
 
   void VisCodegen::visit(bins::tostr_::Base const& node) {
-    std::cerr << "tostr_\n";
-    auto g = getSymNumber();
-    setSym(SymGenerator(
-      [] {
-        std::cerr << "tostr_: have @tostr generated, alloca i1 'read'\n";
+    log << "tostr_\n";
+    auto g = num();
+    gen(SyGen(
+      [this] {
+        log << "tostr_: have @tostr generated, alloca i1 'read'\n";
       },
-      [] {
-        std::cerr << "tostr_: isend = false once then true\n";
+      [this] {
+        log << "tostr_: isend = false once then true\n";
       },
-      [g] {
+      [this, g] {
         /*n=*/ g.genValue();
-        std::cerr << "tostr_: call to @tostr, should only be here once\n";
+        log << "tostr_: call to @tostr, should only be here once\n";
       }
     ));
   }
