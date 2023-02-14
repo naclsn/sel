@@ -64,6 +64,49 @@ namespace sel {
   };
   std::ostream& operator<<(std::ostream& out, quoted q);
 
+  /**
+   * Seems 'boolalpha' was a more important thing
+   * than being able to do indentation out of the box.
+   * (this the 'buffer', see `indented`)
+   */
+  class indentedbuf : public std::streambuf {
+    char const* style;
+    size_t count;
+
+    unsigned cur = 0;
+    bool pending = true;
+
+    std::ostream& out;
+
+  protected:
+    int_type overflow(int_type c) override;
+
+  public:
+    indentedbuf(char const* style, std::ostream& out)
+      : style(style)
+      , count(std::char_traits<char_type>::length(style))
+      , out(out)
+    { }
+
+    void indent() { cur++; }
+    void dedent() { cur--; }
+  };
+
+  /**
+   * Seems 'boolalpha' was a more important thing
+   * than being able to do indentation out of the box.
+   */
+  class indented : private indentedbuf, public std::ostream {
+  public:
+    indented(char const* style, std::ostream& out)
+      : indentedbuf(style, out)
+      , std::ostream(this)
+    { }
+
+    indented& indent() { indentedbuf::indent(); return *this; }
+    indented& dedent() { indentedbuf::dedent(); return *this; }
+  };
+
 }
 
 #endif // SEL_UTILS_HPP

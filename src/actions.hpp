@@ -68,7 +68,7 @@ void compile(App& app, char const* const* flags) {
   cerr << "\nmakeOutput: " << res << "\n\n";
 
   cerr << "```llvm-ir\n";
-  codegen.dump();
+  codegen.dump(cerr);
   cerr << "```\n\n";
 
   throw NIYError("emit binary");

@@ -18,6 +18,7 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Module.h>
+#include <llvm/Support/raw_os_ostream.h>
 
 #include "types.hpp"
 #include "builtins.hpp"
@@ -150,7 +151,7 @@ namespace sel {
     llvm::IRBuilder<> builder;
     llvm::Module module;
 
-    std::ostream& log;
+    indented& log;
 
     // TODO: move around
     /** symbol for a number (Num) */
@@ -185,12 +186,16 @@ namespace sel {
     VisCodegen::SyGen gen();
 
   public:
+    ~VisCodegen() { delete &log; }
     // entry, preambule
     VisCodegen(char const* module_name, App& app);
     // exit, post-thingy
     void* makeOutput();
 
-    void dump() const { module.print(llvm::errs(), nullptr); }
+    void dump(std::ostream& out) const {
+      llvm::raw_os_ostream o(out);
+      module.print(o, nullptr);
+    }
 
     void visitNumLiteral(Type const& type, double n) override;
     void visitStrLiteral(Type const& type, std::string const& s) override;

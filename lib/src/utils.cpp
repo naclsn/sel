@@ -46,4 +46,15 @@ namespace sel {
     return out;
   }
 
+  indentedbuf::int_type indentedbuf::overflow(int_type c) {
+    if (pending) {
+      for (unsigned k = 0; k < cur; k++)
+        out.write(style, count);
+      pending = false;
+    }
+    out.put(c);
+    if ('\n' == c) pending = true;
+    return c;
+  }
+
 }
