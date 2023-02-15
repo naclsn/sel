@@ -1,13 +1,67 @@
 #include "sel/visitors.hpp"
 #include "sel/parser.hpp"
 
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/Support/TargetRegistry.h>
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Target/TargetOptions.h>
+
+using namespace llvm;
+#define llvmi(__b) llvm::Type::getInt##__b##Ty(context)
+#define llvmicst(__b, __n) llvm::ConstantInt::get(context, APInt(__b, __n))
+
+#define llvmbbcur(__builder) __builder.GetInsertBlock()
+#define llvmbb(__builder, __name) BasicBlock::Create(__builder.getContext(), __name, __builder.GetInsertBlock()->getParent());
+
 namespace sel {
+
+  void VisCodegen::SyNum::gen() const {
+    // (val may create new blocks, as long as it is internally consitent)
+    val();
+  }
+
+  void VisCodegen::SyGen::gen(IRBuilder<>& builder, std::function<void(void)> also) const {
+    // entry -> check <-> [iter -> inject]
+    //             `--------> exit (insert point ends up in exit, which is empty)
+
+    // {entry}
+    auto* v = ent();
+
+    // entry -> {check}
+    auto* check = llvmbb(builder, name+"_check");
+    builder.CreateBr(check);
+    builder.SetInsertPoint(check);
+
+    // {check}  -> [iter
+    //    `--------> exit
+    auto* exit = llvmbb(builder, name+"_exit");
+    auto* iter = llvmbb(builder, name+"_iter");
+    chk(exit, iter, v);
+
+    // [{iter}
+    builder.SetInsertPoint(iter);
+    /*b=*/itr(/*exit, check, */v);
+
+    // [iter -> {inject}]
+    auto* inject = llvmbb(builder, name+"_inject");
+    builder.CreateBr(inject);
+    builder.SetInsertPoint(inject);
+    also(/*b*/);
+
+    // check <-  [iter -> inject]
+    builder.CreateBr(check);
+
+    // {exit}
+    builder.SetInsertPoint(exit);
+  }
+
 
 #define enter(__n, __w) log << "{{ " << __n << " - " << __w << "\n"; log.indent(); auto _last_entered_n = (__n), _last_entered_w = (__w)
 #define leave() log.dedent() << "}} " << _last_entered_n << " - " << _last_entered_w << "\n\n"
 
 #define dumpv(__llval) do {       \
-    llvm::raw_os_ostream x(log);  \
+    raw_os_ostream x(log);  \
     __llval->print(x);            \
 } while(0)
 
@@ -77,9 +131,9 @@ namespace sel {
     }
 
     // define i32 main()
-    llvm::Function::Create(
-      llvm::FunctionType::get(llvm::Type::getInt32Ty(context), {}, false),
-      llvm::Function::ExternalLinkage,
+    Function::Create(
+      FunctionType::get(llvmi(32), {}, false),
+      Function::ExternalLinkage,
       "main",
       module
     );
@@ -103,33 +157,67 @@ namespace sel {
     // does not put a new symbol, but actually performs the generation
 
     // declare i32 @putchar()
-    llvm::Function* putchar = llvm::Function::Create(
-      llvm::FunctionType::get(llvm::Type::getInt32Ty(context), {llvm::Type::getInt32Ty(context)}, false),
-      llvm::Function::ExternalLinkage,
+    Function* putchar = Function::Create(
+      FunctionType::get(llvmi(32), {llvmi(32)}, false),
+      Function::ExternalLinkage,
       "putchar",
       module
     );
 
-    llvm::Function* main = module.getFunction("main");
-    llvm::BasicBlock* main_entry = llvm::BasicBlock::Create(context, "main_entry", main);
-    llvm::BasicBlock* main_exit = llvm::BasicBlock::Create(context, "main_exit", main);
-
+    auto* main = module.getFunction("main");
+    builder.SetInsertPoint(BasicBlock::Create(context, "entry", main));
     g.gen(
       builder,
-      *main_entry,
-      *main_exit,
       [this, putchar] (/*b*/) {
         enter("output", "inject");
         log << "the code for iter for output;\nis a call to @putbuff\n";
         /*b*/
-        builder.CreateCall(putchar, {llvm::ConstantInt::get(context, llvm::APInt(32, 42))});
-        builder.CreateCall(putchar, {llvm::ConstantInt::get(context, llvm::APInt(32, 10))});
+        builder.CreateCall(putchar, {llvmicst(32, 42)}, "_");
+        builder.CreateCall(putchar, {llvmicst(32, 10)}, "_");
         leave();
       }
     );
-    builder.CreateRet(llvm::ConstantInt::get(context, llvm::APInt(32, 0)));
+    builder.CreateRet(llvmicst(32, 0));
 
+    //main->viewCFG();
     return nullptr; // `void*` just a placeholder type
+  }
+
+  // this is hell and it does not even work (segfault at `pass->run(module)`)
+  // @see https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl08.html
+  void VisCodegen::dothething(char const* outfile) {
+    auto triple = sys::getDefaultTargetTriple();
+
+    InitializeAllTargetInfos();
+    InitializeAllTargets();
+    InitializeAllTargetMCs();
+    InitializeAllAsmParsers();
+    InitializeAllAsmPrinters();
+
+    std::string errmsg;
+    auto* target = TargetRegistry::lookupTarget(triple, errmsg);
+    if (nullptr == target) throw BaseError(errmsg);
+
+    char const* cpu = "generic";
+    char const* features = "";
+
+    TargetOptions opts;
+    auto* machine = target->createTargetMachine(triple, cpu, features, opts, Optional<Reloc::Model>());
+
+    module.setDataLayout(machine->createDataLayout());
+    module.setTargetTriple(triple);
+
+    std::error_code errcode;
+    raw_fd_ostream dest(outfile, errcode);
+    if (errcode) throw BaseError(errcode.message());
+
+    legacy::PassManager pass;
+    // add a single emit pass
+    if (machine->addPassesToEmitFile(pass, dest, nullptr, TargetMachine::CodeGenFileType::CGFT_ObjectFile))
+      throw BaseError("can't emit a file of this type");
+
+    pass.run(module);
+    dest.flush();
   }
 
 
@@ -159,9 +247,9 @@ namespace sel {
       [this] {
         enter("input", "entry");
         // declare i32 @getchar()
-        llvm::Function* getchar = llvm::Function::Create(
-          llvm::FunctionType::get(llvm::Type::getInt32Ty(context), {}, false),
-          llvm::Function::ExternalLinkage,
+        Function* getchar = Function::Create(
+          FunctionType::get(llvmi(32), {}, false),
+          Function::ExternalLinkage,
           "getchar",
           module
         );
@@ -169,14 +257,14 @@ namespace sel {
         return getchar; // ZZZ
       },
 
-      [this] (llvm::BasicBlock* brk, llvm::BasicBlock* cont, llvm::Value*) {
+      [this] (BasicBlock* brk, BasicBlock* cont, Value*) {
         enter("input", "check");
         log << "check eof\n";
-        builder.CreateCondBr(llvm::ConstantInt::get(context, llvm::APInt(1, 1)), brk, cont);
+        builder.CreateCondBr(llvmicst(1, 1), brk, cont);
         leave();
       },
 
-      [this] (llvm::Value* getchar) {
+      [this] (Value* getchar) {
         enter("input", "iter");
         log << "get some input\n";
         builder.CreateCall(getchar, {}, "char"); // ZZZ
@@ -224,37 +312,20 @@ namespace sel {
   void VisCodegen::visit(bins::tonum_::Base const& node) {
     enter(bins::tonum_::name, "");
     auto g = gen();
-    num(SyNum(
-      bins::tonum_::name,
+    num(SyNum(bins::tonum_::name,
       [this, g] {
         enter(bins::tonum_::name, "value");
-        auto* stored = builder.GetInsertBlock();
-
-        llvm::Function* tonum_outline = llvm::Function::Create(
-          llvm::FunctionType::get(llvm::Type::getInt32Ty(context), {}, false),
-          llvm::Function::ExternalLinkage,
-          "tonum_outline",
-          module
-        );
-        llvm::BasicBlock* entry = llvm::BasicBlock::Create(context, "tonum_arg_entry", tonum_outline);
-        llvm::BasicBlock* exit = llvm::BasicBlock::Create(context, "tonum_arg_exit", tonum_outline);
-        builder.SetInsertPoint(entry);
 
         /*n=*/g.gen(
           builder,
-          *entry,
-          *exit,
           [this] (/*b*/) {
             enter(bins::tonum_::name, "inject");
             log << "the code for iter;\ncheck if still numeric;\n*10+ accumulate;\n";
             leave();
+            /*return n*/
           }
         );
-        builder.CreateRet(/*n*/
-          llvm::ConstantInt::get(context, llvm::APInt(32, 110)));
 
-        builder.SetInsertPoint(stored);
-        /*n=*/builder.CreateCall(tonum_outline);
         leave();
         /*return n*/
       }
@@ -270,32 +341,32 @@ namespace sel {
   void VisCodegen::visit(bins::tostr_::Base const& node) {
     enter(bins::tostr_::name, "");
     auto g = num();
-    gen(SyGen(
-      bins::tostr_::name,
+    gen(SyGen(bins::tostr_::name,
       [this] {
         enter(bins::tostr_::name, "entry");
         log << "have @tostr generated\n";
         log << "%_isend = alloca i1\n";
-        llvm::Value* isend = builder.CreateAlloca(llvm::Type::getInt1Ty(context), nullptr, "tostr_isend");
-        builder.CreateStore(isend, llvm::ConstantInt::get(context, llvm::APInt(1, 0)));
+        Value* isend = builder.CreateAlloca(llvmi(1), nullptr, "tostr_isend");
+        builder.CreateStore(llvmicst(1, 0), isend);
         leave();
         return isend;
       },
 
-      [this] (llvm::BasicBlock* brk, llvm::BasicBlock* cont, llvm::Value* isend) {
+      [this] (BasicBlock* brk, BasicBlock* cont, Value* isend) {
         enter(bins::tostr_::name, "check");
         log << "branch if %tostr_isend (ie. 1 iteration)\n";
-        builder.CreateCondBr(isend, brk, cont);
+        auto* at_isend = builder.CreateLoad(isend, "at_tostr_isend");
+        builder.CreateCondBr(at_isend, brk, cont);
         leave();
       },
 
-      [this, g] (llvm::Value* isend) {
+      [this, g] (Value* isend) {
         enter(bins::tostr_::name, "iter");
         /*n=*/ g.gen();
         log << "call to @tostr, should only be here once\n";
         /*b=*/
         log << "store i1 1 %_isend\n";
-        builder.CreateStore(isend, llvm::ConstantInt::get(context, llvm::APInt(1, 1)));
+        builder.CreateStore(llvmicst(1, 1), isend);
         leave();
         /*return b*/
       }

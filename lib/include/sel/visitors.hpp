@@ -153,23 +153,27 @@ namespace sel {
 
     indented& log;
 
-    // TODO: move around
     /** symbol for a number (Num) */
     struct SyNum {
       std::string name;
       std::function<void(void)> val;
+
       SyNum(): val() { }
-      SyNum(char const* name, std::function<void(void)> val)
+      SyNum(char const* name,
+        std::function<void(void)> val)
         : name(name), val(val) { }
-      void gen() const { val(); }
+
+      void gen() const;
     } synum;
 
     /** symbol for a generator (Str/Lst) */
     struct SyGen {
       std::string name;
       std::function<llvm::Value*(void)> ent;
-      std::function<void(llvm::BasicBlock*, llvm::BasicBlock*, llvm::Value*)> chk;
+      /// chk is responsible for branching to exit and iter
+      std::function<void(llvm::BasicBlock* exit, llvm::BasicBlock* iter, llvm::Value*)> chk;
       std::function<void(llvm::Value*)> itr;
+
       SyGen(): ent() , chk() , itr() { }
       SyGen(char const* name,
         std::function<llvm::Value*(void)> ent,
@@ -177,24 +181,7 @@ namespace sel {
         std::function<void(llvm::Value*)> itr)
         : name(name), ent(ent), chk(chk), itr(itr) { }
 
-      void gen(llvm::IRBuilder<>& builder, llvm::BasicBlock& entry, llvm::BasicBlock& exit, std::function<void(void)> also) const {
-        builder.SetInsertPoint(&entry);
-        auto* v = ent();
-
-        auto* check = llvm::BasicBlock::Create(builder.getContext(), name+"_check", entry.getParent());
-        auto* iter = llvm::BasicBlock::Create(builder.getContext(), name+"_iter", entry.getParent());
-        builder.CreateBr(check);
-
-        builder.SetInsertPoint(check);
-        chk(&exit, iter, v);
-
-        builder.SetInsertPoint(iter);
-        /*b=*/itr(/*&exit, check, */v);
-        also(/*b*/);
-        builder.CreateBr(check);
-
-        builder.SetInsertPoint(&exit);
-      }
+      void gen(llvm::IRBuilder<>& builder, std::function<void(void)> also) const;
     } sygen;
 
     enum class SyType { NONE, SYNUM, SYGEN } pending = SyType::NONE;
@@ -215,6 +202,7 @@ namespace sel {
       llvm::raw_os_ostream o(out);
       module.print(o, nullptr);
     }
+    void dothething(char const* outfile);
 
     void visitNumLiteral(Type const& type, double n) override;
     void visitStrLiteral(Type const& type, std::string const& s) override;

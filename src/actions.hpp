@@ -71,7 +71,34 @@ void compile(App& app, char const* const* flags) {
   codegen.dump(cerr);
   cerr << "```\n\n";
 
-  throw NIYError("emit binary");
+  // codegen.dothething(outfile);
+  { // temporary dothething
+    std::string n = outfile;
+
+    {
+      ofstream ll(n + ".ll");
+      if (!ll.is_open()) throw BaseError("could not open file");
+      codegen.dump(ll);
+      ll.flush();
+      ll.close();
+    }
+
+    // $ llc -filetype=obj hello-world.ll -o hello-world.o
+    {
+      ostringstream oss;
+      int r = std::system((oss << "llc -filetype=obj " << n << ".ll -o " << n << ".o", oss.str().c_str()));
+      cerr << "============ " << r << "\n";
+      if (0 != r) throw BaseError("see above");
+    }
+
+    // $ clang hello-world.o -o hello-world
+    {
+      ostringstream oss;
+      int r = std::system((oss << "clang " << n << ".o -o " << n, oss.str().c_str()));
+      cerr << "============ " << r << "\n";
+      if (0 != r) throw BaseError("see above");
+    }
+  }
 }
 
 #endif // SELI_ACTIONS_HPP
