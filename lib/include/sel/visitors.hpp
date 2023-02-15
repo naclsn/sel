@@ -156,32 +156,35 @@ namespace sel {
     /** symbol for a number (Num) */
     struct SyNum {
       std::string name;
-      std::function<void(void)> val;
+      /// val returns a pointer to the result value (YYY: for now all is i32)
+      std::function<llvm::Value*(void)> val;
 
       SyNum(): val() { }
       SyNum(char const* name,
-        std::function<void(void)> val)
+        std::function<llvm::Value*(void)> val)
         : name(name), val(val) { }
 
-      void gen() const;
+      llvm::Value* gen() const;
     } synum;
 
     /** symbol for a generator (Str/Lst) */
     struct SyGen {
       std::string name;
       std::function<llvm::Value*(void)> ent;
-      /// chk is responsible for branching to exit and iter
+      /// chk is responsible for branching to exit or iter
       std::function<void(llvm::BasicBlock* exit, llvm::BasicBlock* iter, llvm::Value*)> chk;
-      std::function<void(llvm::Value*)> itr;
+      /// itr gets the value produced from ent, and must forward a value for the injection (YYY: would be a ptr-len buffer)
+      std::function<llvm::Value*(llvm::Value*)> itr;
 
       SyGen(): ent() , chk() , itr() { }
       SyGen(char const* name,
         std::function<llvm::Value*(void)> ent,
         std::function<void(llvm::BasicBlock*, llvm::BasicBlock*, llvm::Value*)> chk,
-        std::function<void(llvm::Value*)> itr)
+        std::function<llvm::Value*(llvm::Value*)> itr)
         : name(name), ent(ent), chk(chk), itr(itr) { }
 
-      void gen(llvm::IRBuilder<>& builder, std::function<void(void)> also) const;
+      /// the injection (also) must branch to exit or iter
+      void gen(llvm::IRBuilder<>& builder, std::function<void(llvm::BasicBlock*, llvm::BasicBlock*, llvm::Value*)> also) const;
     } sygen;
 
     enum class SyType { NONE, SYNUM, SYGEN } pending = SyType::NONE;
