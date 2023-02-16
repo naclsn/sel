@@ -8,17 +8,38 @@
 #include <llvm/Target/TargetOptions.h>
 
 using namespace llvm;
-#define llvmi(__b) llvm::Type::getInt##__b##Ty(context)
-#define llvmicst(__b, __n) llvm::ConstantInt::get(context, APInt(__b, __n))
 
-#define llvmbbcur(__builder) __builder.GetInsertBlock()
+// [NOTE: should probly change this away from macro, but this makes it easier
+// for now with things like `make_buf_loop` - although this kind of thing
+// may /also/ be moved into VisCodegen]
+
+#define bool_type llvm::Type::getInt1Ty(context)
+#define bool_true llvm::ConstantInt::get(context, APInt(1, 1))
+#define bool_false llvm::ConstantInt::get(context, APInt(1, 0))
+
+/// i32 -- type (and constant values) for Num
+/// NOTE: will likely use 'double' (ie. f64) for consistency, a hybrid /could/ be envisioned further down
+#define num_type llvm::Type::getInt32Ty(context)
+#define num_val(__n) llvm::ConstantInt::get(context, APInt(32, __n))
+
+/// i8 -- type (and constant values) for the contained units in Str
+#define oct_type llvm::Type::getInt8Ty(context)
+#define oct_val(__n) llvm::ConstantInt::get(context, APInt(8, __n))
+
+/// i32 -- type (and constant values) for the counters and lengths (so for Str/Lst)
+/// NOTE: for now this 32, but might be 64 (or target-dependent)
+#define len_type llvm::Type::getInt32Ty(context)
+#define len_val(__n) llvm::ConstantInt::get(context, APInt(32, __n))
+
+// TODO: also move as member method
 #define llvmbb(__builder, __name) BasicBlock::Create(__builder.getContext(), __name, __builder.GetInsertBlock()->getParent());
 
 namespace sel {
 
   // internal
-  // note that the `body` function gets the pointer to byte (well, for now its a i32 tho),
-  // not the iteration variable
+  // note that the `body` function gets the pointer to octet (well, for now its a i32 tho),
+  // not the iteration variable (YYY: this will probly change
+  // for the octet at location directly)
   typedef std::function<void(Value*)> clo_loop;
 
   // internal
@@ -33,20 +54,21 @@ namespace sel {
 
     // before -> {loop}    after
     //     `----------------^
-    auto* isempty = builder.CreateICmpEQ(len, llvmicst(32, 0), name+"_loop_isempty");
+    auto* isempty = builder.CreateICmpEQ(len, len_val(0), name+"_loop_isempty");
     builder.CreateCondBr(isempty, after_bb, loop_bb);
     builder.SetInsertPoint(loop_bb);
 
     // when first entering, init to 0
-    auto* k = builder.CreatePHI(llvmi(32), 2, name+"_loop_k");
-    k->addIncoming(llvmicst(32, 0), before_bb);
+    auto* k = builder.CreatePHI(len_type, 2, name+"_loop_k");
+    k->addIncoming(len_val(0), before_bb);
 
     // actual loop body
-    auto* it = builder.CreateGEP(llvmi(32), ptr, k, name+"_loop_it");
-    body(it);
+    auto* it = builder.CreateGEP(oct_type, ptr, k, name+"_loop_it");
+    auto* at = builder.CreateLoad(it, name+"_loop_at");
+    body(at);
 
     // when from continue, take the ++
-    auto* kpp = builder.CreateAdd(k, llvmicst(32, 1), name+"_loop_kpp");
+    auto* kpp = builder.CreateAdd(k, len_val(1), name+"_loop_kpp");
     k->addIncoming(kpp, builder.GetInsertBlock()); // block 'body' ends in (which can be loop_bb if it did not create any)
 
     // loop -> {after}
@@ -57,7 +79,6 @@ namespace sel {
   }
 
   // internal
-  // not that the `body` function gets the pointer to byte (well, for now its a i32 tho), not the iteration variable
   static inline void make_buf_loop(IRBuilder<>& builder, std::string const name, std::pair<Value*, Value*> ptr_len, clo_loop body) {
     make_buf_loop(builder, name, std::get<0>(ptr_len), std::get<1>(ptr_len), body);
   }
@@ -178,7 +199,7 @@ namespace sel {
 
     // define i32 main()
     Function::Create(
-      FunctionType::get(llvmi(32), {}, false),
+      FunctionType::get(llvm::Type::getInt32Ty(context), {}, false),
       Function::ExternalLinkage,
       "main",
       module
@@ -203,7 +224,7 @@ namespace sel {
 
     // declare i32 @putchar()
     Function* putchar = Function::Create(
-      FunctionType::get(llvmi(32), {llvmi(32)}, false),
+      FunctionType::get(llvm::Type::getInt32Ty(context), {llvm::Type::getInt32Ty(context)}, false),
       Function::ExternalLinkage,
       "putchar",
       module
@@ -216,20 +237,20 @@ namespace sel {
       [=] (BasicBlock* brk, BasicBlock* cont, std::pair<Value*, Value*> ptr_len) {
         enter("output", "inject");
 
-        make_buf_loop(builder, "output", ptr_len, [&] (Value* it) {
-          auto* chara = builder.CreateLoad(it, "output_chara");
-          builder.CreateCall(putchar, {chara}, "_");
+        make_buf_loop(builder, "output", ptr_len, [&] (Value* at) {
+          auto* write_xchar = builder.CreateZExt(at, llvm::Type::getInt32Ty(context), "output_xchar");
+          builder.CreateCall(putchar, {write_xchar}, "_");
         });
 
         // ZZZ: this just so produced output easier to understand
-        builder.CreateCall(putchar, {llvmicst(32, '\n')}, "_");
+        builder.CreateCall(putchar, {ConstantInt::get(context, APInt(32, '\n'))}, "_");
 
         // no reason to break out, just continue
         builder.CreateBr(cont);
         leave();
       }
     );
-    builder.CreateRet(llvmicst(32, 0));
+    builder.CreateRet(ConstantInt::get(context, APInt(32, 0)));
 
     //main->viewCFG();
     return nullptr; // `void*` just a placeholder type
@@ -301,22 +322,23 @@ namespace sel {
 
         // declare i32 @getchar()
         Function* getchar = Function::Create(
-          FunctionType::get(llvmi(32), {}, false),
+          FunctionType::get(llvm::Type::getInt32Ty(context), {}, false),
           Function::ExternalLinkage,
           "getchar",
           module
         );
 
-        auto* chara = builder.CreateAlloca(llvmi(32), nullptr, "input_chara");
+        auto* b_1char = builder.CreateAlloca(oct_type, nullptr, "input_b_1char");
 
         auto chk = [=] (BasicBlock* brk, BasicBlock* cont) {
           enter("input", "check");
 
-          auto* read_chara = builder.CreateCall(getchar, {}, "input_read_chara");
-          builder.CreateStore(read_chara, chara);
+          auto* read_xchar = builder.CreateCall(getchar, {}, "input_xchar");
+          auto* read_char = builder.CreateTrunc(read_xchar, oct_type, "input_char");
+          builder.CreateStore(read_char, b_1char);
 
           // check for eof (-1)
-          auto* iseof = builder.CreateICmpEQ(llvmicst(32, -1), read_chara, "input_iseof");
+          auto* iseof = builder.CreateICmpEQ(oct_val(-1), read_char, "input_iseof");
           builder.CreateCondBr(iseof, brk, cont);
 
           leave();
@@ -327,7 +349,7 @@ namespace sel {
           // simply returns the character read in the last pass through block 'check'
           // XXX: for now this is a 1-char buffer
           leave();
-          return std::make_pair(chara, llvmicst(32, 1));
+          return std::make_pair(b_1char, len_val(1));
         };
 
         leave();
@@ -379,20 +401,19 @@ namespace sel {
       [=] {
         enter(bins::tonum_::name, "value");
 
-        auto* acc = builder.CreateAlloca(llvmi(32), nullptr, "tonum_acc");
-        builder.CreateStore(llvmicst(32, 0), acc);
+        auto* acc = builder.CreateAlloca(num_type, nullptr, "tonum_acc");
+        builder.CreateStore(num_val(0), acc);
 
         g.gen(
           builder,
           [=] (BasicBlock* brk, BasicBlock* cont, std::pair<Value*, Value*> ptr_len) {
             enter(bins::tonum_::name, "inject");
 
-            make_buf_loop(builder, "tonum", ptr_len, [&] (Value* it) {
-              auto* chara = builder.CreateLoad(it, "tonum_chara");
-              auto* digit = builder.CreateSub(chara, llvmicst(32, '0'), "tonum_digit");
+            make_buf_loop(builder, "tonum", ptr_len, [&] (Value* at) {
+              auto* digit = builder.CreateSub(at, oct_val('0'), "tonum_digit");
 
-              auto* isdigit_lower = builder.CreateICmpSLE(llvmicst(32, 0), digit, "tonum_isdigit_lower");
-              auto* isdigit_upper = builder.CreateICmpSLE(digit, llvmicst(32, 9), "tonum_isdigit_upper");
+              auto* isdigit_lower = builder.CreateICmpSLE(oct_val(0), digit, "tonum_isdigit_lower");
+              auto* isdigit_upper = builder.CreateICmpSLE(digit, oct_val(9), "tonum_isdigit_upper");
               auto* isdigit = builder.CreateAnd(isdigit_lower, isdigit_upper, "tonum_isdigit");
 
               auto* acc_if_isdigit = llvmbb(builder, "tonum_acc_if_isdigit");
@@ -402,9 +423,10 @@ namespace sel {
               builder.SetInsertPoint(acc_if_isdigit);
 
               // acc = acc * 10 + digit
+              auto* xdigit = builder.CreateZExt(digit, num_type);
               auto* acc_prev = builder.CreateLoad(acc, "acc_prev");
-              auto* acc_temp = builder.CreateMul(acc_prev, llvmicst(32, 10), "acc_temp");
-              auto* acc_next = builder.CreateAdd(acc_temp, digit, "acc_next");
+              auto* acc_temp = builder.CreateMul(acc_prev, num_val(10), "acc_temp");
+              auto* acc_next = builder.CreateAdd(acc_temp, xdigit, "acc_next");
               builder.CreateStore(acc_next, acc);
 
               // continue buffer loop
@@ -439,10 +461,10 @@ namespace sel {
 
         log << "have @tostr generated\n";
 
-        Value* isend = builder.CreateAlloca(llvmi(1), nullptr, "tostr_isend");
-        builder.CreateStore(llvmicst(1, 0), isend);
+        Value* isend = builder.CreateAlloca(bool_type, nullptr, "tostr_isend");
+        builder.CreateStore(bool_false, isend);
 
-        auto* b_1char = builder.CreateAlloca(llvmi(32), nullptr, "tostr_b_1char");
+        auto* b_1char = builder.CreateAlloca(oct_type, nullptr, "tostr_b_1char");
 
         auto chk = [=] (BasicBlock* brk, BasicBlock* cont) {
           enter(bins::tostr_::name, "check");
@@ -460,14 +482,15 @@ namespace sel {
           /*b=*/
 
           // also for now 1-char buffer, we only do digits here
-          auto* temp_1char = builder.CreateAdd(num, llvmicst(32, '0'), "tostr_temp_1char");
+          auto* temp_1xchar = builder.CreateAdd(num, num_val('0'), "tostr_temp_1xchar");
+          auto* temp_1char = builder.CreateTrunc(temp_1xchar, oct_type, "tostr_temp_char");
           builder.CreateStore(temp_1char, b_1char);
 
           // this is the only iteration, mark end
-          builder.CreateStore(llvmicst(1, 1), isend);
+          builder.CreateStore(bool_true, isend);
 
           leave();
-          return std::make_pair(b_1char, llvmicst(32, 1));
+          return std::make_pair(b_1char, len_val(1));
         };
 
         leave();
