@@ -156,13 +156,13 @@ namespace sel {
     /** symbol for a number (Num) */
     struct SyNum {
       std::string name;
-      /// val returns a pointer to the result value (YYY: for now all is i32)
-      std::function<llvm::Value*(void)> val;
 
-      SyNum(): val() { }
-      SyNum(char const* name,
-        std::function<llvm::Value*(void)> val)
-        : name(name), val(val) { }
+      /// val returns a pointer to the result value (YYY: for now all is i32)
+      typedef std::function<llvm::Value*(void)> clo_type;
+      clo_type val;
+
+      SyNum() { }
+      SyNum(char const* name, clo_type val): name(name), val(val) { }
 
       llvm::Value* gen() const;
     } synum;
@@ -170,21 +170,28 @@ namespace sel {
     /** symbol for a generator (Str/Lst) */
     struct SyGen {
       std::string name;
-      std::function<llvm::Value*(void)> ent;
-      /// chk is responsible for branching to exit or iter
-      std::function<void(llvm::BasicBlock* exit, llvm::BasicBlock* iter, llvm::Value*)> chk;
-      /// itr gets the value produced from ent, and must forward a value for the injection (YYY: would be a ptr-len buffer)
-      std::function<llvm::Value*(llvm::Value*)> itr;
 
-      SyGen(): ent() , chk() , itr() { }
-      SyGen(char const* name,
-        std::function<llvm::Value*(void)> ent,
-        std::function<void(llvm::BasicBlock*, llvm::BasicBlock*, llvm::Value*)> chk,
-        std::function<llvm::Value*(llvm::Value*)> itr)
-        : name(name), ent(ent), chk(chk), itr(itr) { }
+      /// ent generates the entry point and returns the 2 chk and itr
+      /// - chk is responsible for branching to exit or iter
+      /// - itr must forward a value for the injection (YYY: would be a ptr-len buffer)
+      typedef std::function
+        < std::pair
+          < std::function<void(llvm::BasicBlock* exit, llvm::BasicBlock* iter)>
+          , std::function<llvm::Value*()>
+          >(void)
+        > clo_type;
+      clo_type ent;
 
-      /// the injection (also) must branch to exit or iter
-      void gen(llvm::IRBuilder<>& builder, std::function<void(llvm::BasicBlock*, llvm::BasicBlock*, llvm::Value*)> also) const;
+      /// the injection (sometimes `also`) must branch to exit or iter
+      typedef std::function
+        < void
+          (llvm::BasicBlock* exit, llvm::BasicBlock* iter, llvm::Value* buff)
+        > inject_clo_type;
+
+      SyGen() { }
+      SyGen(char const* name, clo_type ent): name(name), ent(ent) { }
+
+      void gen(llvm::IRBuilder<>& builder, inject_clo_type also) const;
     } sygen;
 
     enum class SyType { NONE, SYNUM, SYGEN } pending = SyType::NONE;

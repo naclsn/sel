@@ -27,7 +27,9 @@ namespace sel {
     //           `-------------> exit (insert point ends up in exit, which is empty)
 
     // {entry}
-    auto* v = ent();
+    auto chk_itr = ent();
+    auto chk = std::get<0>(chk_itr);
+    auto itr = std::get<1>(chk_itr);
 
     // entry -> {check}
     auto* check = llvmbb(builder, name+"_check");
@@ -39,11 +41,11 @@ namespace sel {
     // (responsibility of chk)
     // {check}  -> [iter
     //    `--------> exit
-    chk(exit, iter, v);
+    chk(exit, iter);
 
     // [{iter}
     builder.SetInsertPoint(iter);
-    auto* b = itr(v);
+    auto* b = itr();
 
     // [iter -> {inject}]
     auto* inject = llvmbb(builder, name+"_inject");
@@ -166,7 +168,7 @@ namespace sel {
     builder.SetInsertPoint(BasicBlock::Create(context, "entry", main));
     g.gen(
       builder,
-      [this, putchar] (BasicBlock* brk, BasicBlock* cont, Value* b) {
+      [=] (BasicBlock* brk, BasicBlock* cont, Value* b) {
         enter("output", "inject");
 
         // XXX: for now i know the buffer is a 1-char (as it
@@ -248,7 +250,7 @@ namespace sel {
   void VisCodegen::visitInput(Type const& type) {
     enter("visitInput", "");
     gen(SyGen("input",
-      [this] {
+      [=] {
         enter("input", "entry");
 
         // declare i32 @getchar()
@@ -261,31 +263,30 @@ namespace sel {
 
         auto* chara = builder.CreateAlloca(llvmi(32), nullptr, "input_chara");
 
+        auto chk = [=] (BasicBlock* brk, BasicBlock* cont) {
+          enter("input", "check");
+
+          auto* read_chara = builder.CreateCall(getchar, {}, "input_read_chara");
+          builder.CreateStore(read_chara, chara);
+
+          // check for eof (-1)
+          auto* iseof = builder.CreateICmpEQ(llvmicst(32, -1), read_chara, "input_iseof");
+          builder.CreateCondBr(iseof, brk, cont);
+
+          leave();
+        };
+
+        auto itr = [=] () {
+          enter("input", "iter");
+          // simply returns the character read in the last pass through block 'check'
+          // XXX: for now it passes that, will need to pass a ptr-len to the (for now 1-char) buffer
+          // auto* at_chara = builder.CreateLoad(chara, "input_at_chara");
+          leave();
+          return chara;
+        };
+
         leave();
-        return chara;
-      },
-
-      [this] (BasicBlock* brk, BasicBlock* cont, Value* chara) {
-        enter("input", "check");
-
-        auto* getchar = module.getFunction("getchar");
-        auto* read_chara = builder.CreateCall(getchar, {}, "input_read_chara");
-        builder.CreateStore(read_chara, chara);
-
-        // check for eof (-1)
-        auto* iseof = builder.CreateICmpEQ(llvmicst(32, -1), read_chara, "input_iseof");
-        builder.CreateCondBr(iseof, brk, cont);
-
-        leave();
-      },
-
-      [this] (Value* chara) {
-        enter("input", "iter");
-        // simply returns the character read in the last pass through block 'check'
-        // XXX: for now it passes that, will need to pass a ptr-len to the (for now 1-char) buffer
-        // auto* at_chara = builder.CreateLoad(chara, "input_at_chara");
-        leave();
-        return chara;
+        return std::make_pair(chk, itr);
       }
     ));
     leave();
@@ -330,7 +331,7 @@ namespace sel {
     enter(bins::tonum_::name, "");
     auto g = gen();
     num(SyNum(bins::tonum_::name,
-      [this, g] {
+      [=] {
         enter(bins::tonum_::name, "value");
 
         auto* acc = builder.CreateAlloca(llvmi(32), nullptr, "tonum_acc");
@@ -338,7 +339,7 @@ namespace sel {
 
         g.gen(
           builder,
-          [this, acc] (BasicBlock* brk, BasicBlock* cont, Value* b) {
+          [=] (BasicBlock* brk, BasicBlock* cont, Value* b) {
             enter(bins::tonum_::name, "inject");
 
             // for now b is a single character (i know it because it comes from 'input')
@@ -384,7 +385,7 @@ namespace sel {
     enter(bins::tostr_::name, "");
     auto n = num();
     gen(SyGen(bins::tostr_::name,
-      [this] {
+      [=] {
         enter(bins::tostr_::name, "entry");
 
         log << "have @tostr generated\n";
@@ -392,46 +393,37 @@ namespace sel {
         Value* isend = builder.CreateAlloca(llvmi(1), nullptr, "tostr_isend");
         builder.CreateStore(llvmicst(1, 0), isend);
 
-        leave();
-        return isend;
-      },
+        auto* b_1char = builder.CreateAlloca(llvmi(32), nullptr, "tostr_b_1char");
 
-      [this] (BasicBlock* brk, BasicBlock* cont, Value* isend) {
-        enter(bins::tostr_::name, "check");
-        auto* at_isend = builder.CreateLoad(isend, "at_tostr_isend");
-        builder.CreateCondBr(at_isend, brk, cont);
-        leave();
-      },
+        auto chk = [=] (BasicBlock* brk, BasicBlock* cont) {
+          enter(bins::tostr_::name, "check");
+          auto* at_isend = builder.CreateLoad(isend, "at_tostr_isend");
+          builder.CreateCondBr(at_isend, brk, cont);
+          leave();
+        };
 
-      [this, n] (Value* isend) {
-        enter(bins::tostr_::name, "iter");
+        auto itr = [=] () {
+          enter(bins::tostr_::name, "iter");
 
-        auto* num = n.gen();
-        auto* at_num = builder.CreateLoad(num, "tostr_at_num");
+          auto* num = n.gen();
+          auto* at_num = builder.CreateLoad(num, "tostr_at_num");
 
-        log << "call to @tostr, should only be here once\n";
-        /*b=*/
+          log << "call to @tostr, should only be here once\n";
+          /*b=*/
 
-        // XXX: this should not be here, but in enter..
-        // in this specific case it does not matter too much
-        // but this shows the limitation of passing a single
-        // Value* through...
-        // one idea was to shove a full structure each time
-        // it needs to pass something more complex,
-        // an other is to have this lambda and the one above
-        // (chk and itr) be as return from the first one (ent)
-        // and these would capture anything they need (and
-        // that would be closer to what we have with eg. tonum)
-        auto* b = builder.CreateAlloca(llvmi(32), nullptr, "tostr_b_1char");
-        // also for now 1-char buffer, we only do digits here
-        auto* temp_1char = builder.CreateAdd(at_num, llvmicst(32, '0'), "tostr_temp_1char");
-        builder.CreateStore(temp_1char, b);
+          // also for now 1-char buffer, we only do digits here
+          auto* temp_1char = builder.CreateAdd(at_num, llvmicst(32, '0'), "tostr_temp_1char");
+          builder.CreateStore(temp_1char, b_1char);
 
-        // this is the only iteration, mark end
-        builder.CreateStore(llvmicst(1, 1), isend);
+          // this is the only iteration, mark end
+          builder.CreateStore(llvmicst(1, 1), isend);
+
+          leave();
+          return b_1char;
+        };
 
         leave();
-        return b;
+        return std::make_pair(chk, itr);
       }
     ));
     leave();
