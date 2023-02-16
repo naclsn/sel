@@ -16,12 +16,56 @@ using namespace llvm;
 
 namespace sel {
 
+  // internal
+  // not that the `body` function gets the pointer to byte (well, for now its a i32 tho), not the iteration variable
+  static inline void make_buf_loop(IRBuilder<>& builder, std::string const name, Value* ptr, Value* len, std::function<void(Value*)> body) {
+    auto& context = builder.getContext();
+
+    // FIXME: missing condition on '0 == len' before loop
+
+    // loop over buffer (ptr + 0..len)
+    // {before} -> loop -> after
+    //             `--'
+    auto* before_bb = builder.GetInsertBlock();
+    auto* loop_bb = llvmbb(builder, name+"_loop_body");
+    // FIXME: with this, the body is not allowed to break early (eg tonum)
+    auto* after_bb = llvmbb(builder, name+"_loop_break")
+    // before -> {loop}
+    builder.CreateBr(loop_bb);
+    builder.SetInsertPoint(loop_bb);
+
+    // when first entering, init to 0
+    auto* k = builder.CreatePHI(llvmi(32), 2, name+"_loop_k");
+    k->addIncoming(llvmicst(32, 0), before_bb);
+
+    // actual loop body
+    auto* it = ptr;
+    // TODO: builder.CreateGEP(..);
+    body(it);
+
+    // when from continue, take the ++
+    auto* kpp = builder.CreateAdd(k, llvmicst(32, 1), name+"_loop_kpp");
+    k->addIncoming(kpp, loop_bb);
+
+    // loop -> {after}
+    // `--'
+    auto* isend = builder.CreateICmpEQ(len, kpp, name+"_loop_isend");
+    builder.CreateCondBr(isend, after_bb, loop_bb);
+    builder.SetInsertPoint(after_bb);
+  }
+
+  // internal
+  // not that the `body` function gets the pointer to byte (well, for now its a i32 tho), not the iteration variable
+  static inline void make_buf_loop(IRBuilder<>& builder, std::string const name, std::pair<Value*, Value*> ptr_len, std::function<void(Value*)> body) {
+    make_buf_loop(builder, name, std::get<0>(ptr_len), std::get<1>(ptr_len), body);
+  }
+
   Value* VisCodegen::SyNum::gen() const {
     // (val may create new blocks, as long as it is internally consitent)
     return val();
   }
 
-  void VisCodegen::SyGen::gen(IRBuilder<>& builder, std::function<void(BasicBlock*, BasicBlock*, Value*)> also) const {
+  void VisCodegen::SyGen::gen(IRBuilder<>& builder, inject_clo_type also) const {
     // entry -> check -> [iter -> inject] (inject must branch to exit or check)
     //           |  ^-------------' v
     //           `-------------> exit (insert point ends up in exit, which is empty)
@@ -45,7 +89,7 @@ namespace sel {
 
     // [{iter}
     builder.SetInsertPoint(iter);
-    auto* b = itr();
+    auto ptr_len = itr();
 
     // [iter -> {inject}]
     auto* inject = llvmbb(builder, name+"_inject");
@@ -55,7 +99,7 @@ namespace sel {
     // check -> [iter -> inject]
     //  |  ^-------------' v
     //  `-------------> exit
-    also(exit, check, b);
+    also(exit, check, ptr_len);
 
     // {exit}
     builder.SetInsertPoint(exit);
@@ -148,7 +192,6 @@ namespace sel {
 
   void* VisCodegen::makeOutput() {
     log << "=== exit\n";
-    // generate @putbuff
 
     // last symbol is expected to be of Str
     auto g = gen();
@@ -168,14 +211,21 @@ namespace sel {
     builder.SetInsertPoint(BasicBlock::Create(context, "entry", main));
     g.gen(
       builder,
-      [=] (BasicBlock* brk, BasicBlock* cont, Value* b) {
+      [=] (BasicBlock* brk, BasicBlock* cont, std::pair<Value*, Value*> ptr_len) {
         enter("output", "inject");
 
-        // XXX: for now i know the buffer is a 1-char (as it
-        // comes from tostr -- see over there)
-        auto* chara = builder.CreateLoad(b, "output_chara");
+        // // XXX: for now i know the buffer is a 1-char (as it
+        // // comes from tostr -- see over there)
+        // auto* ptr = std::get<0>(ptr_len);
+        // auto* len = std::get<1>(ptr_len);
+        // auto* b = ptr;
 
-        builder.CreateCall(putchar, {chara}, "_");
+        make_buf_loop(builder, "output", ptr_len, [&] (Value* it) {
+          auto* chara = builder.CreateLoad(it, "output_chara");
+          builder.CreateCall(putchar, {chara}, "_");
+        });
+
+        // ZZZ: this just so produced output easier to understand
         builder.CreateCall(putchar, {llvmicst(32, '\n')}, "_");
 
         // no reason to break out, just continue
@@ -279,10 +329,9 @@ namespace sel {
         auto itr = [=] () {
           enter("input", "iter");
           // simply returns the character read in the last pass through block 'check'
-          // XXX: for now it passes that, will need to pass a ptr-len to the (for now 1-char) buffer
-          // auto* at_chara = builder.CreateLoad(chara, "input_at_chara");
+          // XXX: for now this is a 1-char buffer
           leave();
-          return chara;
+          return std::make_pair(chara, llvmicst(32, 1));
         };
 
         leave();
@@ -339,11 +388,17 @@ namespace sel {
 
         g.gen(
           builder,
-          [=] (BasicBlock* brk, BasicBlock* cont, Value* b) {
+          [=] (BasicBlock* brk, BasicBlock* cont, std::pair<Value*, Value*> ptr_len) {
             enter(bins::tonum_::name, "inject");
 
             // for now b is a single character (i know it because it comes from 'input')
-            auto* chara = builder.CreateLoad(b, "input_at_chara");
+            auto* ptr = std::get<0>(ptr_len);
+            auto* len = std::get<1>(ptr_len);
+            auto* b = ptr;
+
+            // TODO: use `make_buf_loop`, but for now it cannot
+            // break out of it (see FIXME up there)
+            auto* chara = builder.CreateLoad(b, "tonum_at_chara");
             auto* digit = builder.CreateSub(chara, llvmicst(32, '0'), "tonum_digit");
 
             auto* isdigit_lower = builder.CreateICmpSLE(llvmicst(32, 0), digit, "tonum_isdigit_lower");
@@ -419,7 +474,7 @@ namespace sel {
           builder.CreateStore(llvmicst(1, 1), isend);
 
           leave();
-          return b_1char;
+          return std::make_pair(b_1char, llvmicst(32, 1));
         };
 
         leave();

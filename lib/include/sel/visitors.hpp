@@ -157,7 +157,7 @@ namespace sel {
     struct SyNum {
       std::string name;
 
-      /// val returns a pointer to the result value (YYY: for now all is i32)
+      /// val returns a llvm register with the result (YYY: for now all is i32)
       typedef std::function<llvm::Value*(void)> clo_type;
       clo_type val;
 
@@ -171,13 +171,16 @@ namespace sel {
     struct SyGen {
       std::string name;
 
+      /// a type to hold a ptr-len buffer (both values are llvm registers)
+      typedef std::pair<llvm::Value*, llvm::Value*> ptr_len;
+
       /// ent generates the entry point and returns the 2 chk and itr
       /// - chk is responsible for branching to exit or iter
-      /// - itr must forward a value for the injection (YYY: would be a ptr-len buffer)
+      /// - itr returns a pair of llvm registers for the buffer (ptr-len)
       typedef std::function
         < std::pair
           < std::function<void(llvm::BasicBlock* exit, llvm::BasicBlock* iter)>
-          , std::function<llvm::Value*()>
+          , std::function<ptr_len()>
           >(void)
         > clo_type;
       clo_type ent;
@@ -185,7 +188,7 @@ namespace sel {
       /// the injection (sometimes `also`) must branch to exit or iter
       typedef std::function
         < void
-          (llvm::BasicBlock* exit, llvm::BasicBlock* iter, llvm::Value* buff)
+          (llvm::BasicBlock* exit, llvm::BasicBlock* iter, ptr_len buff)
         > inject_clo_type;
 
       SyGen() { }
