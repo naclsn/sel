@@ -42,8 +42,7 @@ namespace sel {
     k->addIncoming(llvmicst(32, 0), before_bb);
 
     // actual loop body
-    auto* it = ptr;
-    // TODO: builder.CreateGEP(..);
+    auto* it = builder.CreateGEP(llvmi(32), ptr, k, name+"_loop_it");
     body(it);
 
     // when from continue, take the ++
