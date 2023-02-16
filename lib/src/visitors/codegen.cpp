@@ -17,21 +17,24 @@ using namespace llvm;
 namespace sel {
 
   // internal
-  // not that the `body` function gets the pointer to byte (well, for now its a i32 tho), not the iteration variable
-  static inline void make_buf_loop(IRBuilder<>& builder, std::string const name, Value* ptr, Value* len, std::function<void(Value*)> body) {
+  // note that the `body` function gets the pointer to byte (well, for now its a i32 tho),
+  // not the iteration variable
+  typedef std::function<void(Value*)> clo_loop;
+
+  // internal
+  static inline void make_buf_loop(IRBuilder<>& builder, std::string const name, Value* ptr, Value* len, clo_loop body) {
     auto& context = builder.getContext();
-
-    // FIXME: missing condition on '0 == len' before loop
-
-    // loop over buffer (ptr + 0..len)
     // {before} -> loop -> after
-    //             `--'
+    //      \      `--'     ^
+    //       `-------------'
     auto* before_bb = builder.GetInsertBlock();
     auto* loop_bb = llvmbb(builder, name+"_loop_body");
-    // FIXME: with this, the body is not allowed to break early (eg tonum)
-    auto* after_bb = llvmbb(builder, name+"_loop_break")
-    // before -> {loop}
-    builder.CreateBr(loop_bb);
+    auto* after_bb = llvmbb(builder, name+"_loop_break");
+
+    // before -> {loop}    after
+    //     `----------------^
+    auto* isempty = builder.CreateICmpEQ(len, llvmicst(32, 0), name+"_loop_isempty");
+    builder.CreateCondBr(isempty, after_bb, loop_bb);
     builder.SetInsertPoint(loop_bb);
 
     // when first entering, init to 0
@@ -45,7 +48,7 @@ namespace sel {
 
     // when from continue, take the ++
     auto* kpp = builder.CreateAdd(k, llvmicst(32, 1), name+"_loop_kpp");
-    k->addIncoming(kpp, loop_bb);
+    k->addIncoming(kpp, builder.GetInsertBlock()); // block 'body' ends in (which can be loop_bb if it did not create any)
 
     // loop -> {after}
     // `--'
@@ -56,7 +59,7 @@ namespace sel {
 
   // internal
   // not that the `body` function gets the pointer to byte (well, for now its a i32 tho), not the iteration variable
-  static inline void make_buf_loop(IRBuilder<>& builder, std::string const name, std::pair<Value*, Value*> ptr_len, std::function<void(Value*)> body) {
+  static inline void make_buf_loop(IRBuilder<>& builder, std::string const name, std::pair<Value*, Value*> ptr_len, clo_loop body) {
     make_buf_loop(builder, name, std::get<0>(ptr_len), std::get<1>(ptr_len), body);
   }
 
@@ -213,12 +216,6 @@ namespace sel {
       builder,
       [=] (BasicBlock* brk, BasicBlock* cont, std::pair<Value*, Value*> ptr_len) {
         enter("output", "inject");
-
-        // // XXX: for now i know the buffer is a 1-char (as it
-        // // comes from tostr -- see over there)
-        // auto* ptr = std::get<0>(ptr_len);
-        // auto* len = std::get<1>(ptr_len);
-        // auto* b = ptr;
 
         make_buf_loop(builder, "output", ptr_len, [&] (Value* it) {
           auto* chara = builder.CreateLoad(it, "output_chara");
@@ -391,41 +388,39 @@ namespace sel {
           [=] (BasicBlock* brk, BasicBlock* cont, std::pair<Value*, Value*> ptr_len) {
             enter(bins::tonum_::name, "inject");
 
-            // for now b is a single character (i know it because it comes from 'input')
-            auto* ptr = std::get<0>(ptr_len);
-            auto* len = std::get<1>(ptr_len);
-            auto* b = ptr;
+            make_buf_loop(builder, "tonum", ptr_len, [&] (Value* it) {
+              auto* chara = builder.CreateLoad(it, "tonum_chara");
+              auto* digit = builder.CreateSub(chara, llvmicst(32, '0'), "tonum_digit");
 
-            // TODO: use `make_buf_loop`, but for now it cannot
-            // break out of it (see FIXME up there)
-            auto* chara = builder.CreateLoad(b, "tonum_at_chara");
-            auto* digit = builder.CreateSub(chara, llvmicst(32, '0'), "tonum_digit");
+              auto* isdigit_lower = builder.CreateICmpSLE(llvmicst(32, 0), digit, "tonum_isdigit_lower");
+              auto* isdigit_upper = builder.CreateICmpSLE(digit, llvmicst(32, 9), "tonum_isdigit_upper");
+              auto* isdigit = builder.CreateAnd(isdigit_lower, isdigit_upper, "tonum_isdigit");
 
-            auto* isdigit_lower = builder.CreateICmpSLE(llvmicst(32, 0), digit, "tonum_isdigit_lower");
-            auto* isdigit_upper = builder.CreateICmpSLE(digit, llvmicst(32, 9), "tonum_isdigit_upper");
-            auto* isdigit = builder.CreateAnd(isdigit_lower, isdigit_upper, "tonum_isdigit");
+              auto* acc_if_isdigit = llvmbb(builder, "tonum_acc_if_isdigit");
 
-            auto* acc_if_isdigit = llvmbb(builder, "tonum_acc_if_isdigit");
+              // break if no longer digit
+              builder.CreateCondBr(isdigit, acc_if_isdigit, brk);
+              builder.SetInsertPoint(acc_if_isdigit);
 
-            // break if no longer digit
-            builder.CreateCondBr(isdigit, acc_if_isdigit, brk);
-            builder.SetInsertPoint(acc_if_isdigit);
+              // acc = acc * 10 + digit
+              auto* acc_prev = builder.CreateLoad(acc, "acc_prev");
+              auto* acc_temp = builder.CreateMul(acc_prev, llvmicst(32, 10), "acc_temp");
+              auto* acc_next = builder.CreateAdd(acc_temp, digit, "acc_next");
+              builder.CreateStore(acc_next, acc);
 
-            // acc = acc * 10 + digit
-            auto* acc_prev = builder.CreateLoad(acc, "acc_prev");
-            auto* acc_temp = builder.CreateMul(acc_prev, llvmicst(32, 10), "acc_temp");
-            auto* acc_next = builder.CreateAdd(acc_temp, digit, "acc_next");
-            builder.CreateStore(acc_next, acc);
+              // continue buffer loop
+            });
 
-            // continue
+            // continue generator loop
             builder.CreateBr(cont);
 
             leave();
           }
         );
 
+        auto* res = builder.CreateLoad(acc, "tonum_res");
         leave();
-        return acc;
+        return res;
       }
     ));
     leave();
@@ -461,13 +456,12 @@ namespace sel {
           enter(bins::tostr_::name, "iter");
 
           auto* num = n.gen();
-          auto* at_num = builder.CreateLoad(num, "tostr_at_num");
 
           log << "call to @tostr, should only be here once\n";
           /*b=*/
 
           // also for now 1-char buffer, we only do digits here
-          auto* temp_1char = builder.CreateAdd(at_num, llvmicst(32, '0'), "tostr_temp_1char");
+          auto* temp_1char = builder.CreateAdd(num, llvmicst(32, '0'), "tostr_temp_1char");
           builder.CreateStore(temp_1char, b_1char);
 
           // this is the only iteration, mark end
