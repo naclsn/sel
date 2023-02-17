@@ -362,9 +362,31 @@ namespace sel {
 
 
   void VisCodegen::visit(bins::abs_::Base const& node) {
+    replaceSymbol<SyNum, SyNum>([this] (SyNum const& n) { return SyNum(bins::abs_::name, [=] {
+      auto* in = n.make();
+
+      auto* before = builder.GetInsertBlock();
+      auto* negate = makeBlock(builder, "abs_negate");
+      auto* after = makeBlock(builder, "abs_after");
+
+      auto* isnegative = builder.CreateFCmpOLT(in, num_val(0), "abs_isnegative");
+      builder.CreateCondBr(isnegative, negate, after);
+
+      builder.SetInsertPoint(negate);
+        auto* pos = builder.CreateFNeg(in, "abs_pos");
+        builder.CreateBr(after);
+
+      builder.SetInsertPoint(after);
+        auto* out = builder.CreatePHI(num_type, 2, "abs_out");
+        out->addIncoming(in, before);
+        out->addIncoming(pos, negate);
+
+      return out;
+    }); });
   }
+
   void VisCodegen::visit(bins::abs_ const& node) {
-    this->operator()(*node.arg);
+    throw NIYError("codegen abs no arg");
   }
 
 
