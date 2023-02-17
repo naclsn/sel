@@ -231,9 +231,9 @@ namespace sel {
     llvm::Type* bool_type;
     llvm::Constant* bool_true;
     llvm::Constant* bool_false;
-    /// i32 -- type (and constant values) for Num
+    /// double -- type (and constant values) for Num
     llvm::Type* num_type;
-    inline llvm::Constant* num_val(/*double*/int v) { return llvm::ConstantInt::get(context, llvm::APInt(32, v)); }
+    inline llvm::Constant* num_val(double v) { return llvm::ConstantFP::get(context, llvm::APFloat(v)); }
     /// i8 -- type (and constant values) for the contained units in Str
     llvm::Type* chr_type;
     inline llvm::Constant* chr_val(int8_t v) { return llvm::ConstantInt::get(context, llvm::APInt(8, v)); }

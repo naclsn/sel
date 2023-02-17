@@ -134,7 +134,7 @@ namespace sel {
     , bool_type(llvm::Type::getInt1Ty(context))
     , bool_true(ConstantInt::get(context, APInt(1, 1)))
     , bool_false(ConstantInt::get(context, APInt(1, 0)))
-    , num_type(llvm::Type::getInt32Ty/*double*/(context))
+    , num_type(llvm::Type::getDoubleTy(context))
     , chr_type(llvm::Type::getInt8Ty(context))
     , len_type(llvm::Type::getInt32Ty/*64*/(context))
   {
@@ -407,10 +407,10 @@ namespace sel {
               builder.SetInsertPoint(acc_if_isdigit);
 
               // acc = acc * 10 + digit
-              auto* xdigit = builder.CreateZExt(digit, num_type);
-              auto* acc_prev = builder.CreateLoad(acc, "acc_prev");
-              auto* acc_temp = builder.CreateMul(acc_prev, num_val(10), "acc_temp");
-              auto* acc_next = builder.CreateAdd(acc_temp, xdigit, "acc_next");
+              auto* xdigit = builder.CreateUIToFP(digit, num_type, "tonum_xdigit");
+              auto* acc_prev = builder.CreateLoad(acc, "tonum_acc_prev");
+              auto* acc_temp = builder.CreateFMul(acc_prev, num_val(10), "tonum_acc_temp");
+              auto* acc_next = builder.CreateFAdd(acc_temp, xdigit, "tonum_acc_next");
               builder.CreateStore(acc_next, acc);
 
               // continue buffer loop
@@ -465,7 +465,8 @@ namespace sel {
           /*b=*/
 
           // also for now 1-char buffer, we only do digits here
-          auto* temp_1xchar = builder.CreateAdd(num, num_val('0'), "tostr_temp_1xchar");
+          auto* inum = builder.CreateFPToUI(num, len_type, "tostr_temp_inum");
+          auto* temp_1xchar = builder.CreateAdd(inum, len_val('0'), "tostr_temp_1xchar");
           auto* temp_1char = builder.CreateTrunc(temp_1xchar, chr_type, "tostr_temp_char");
           builder.CreateStore(temp_1char, b_1char);
 
