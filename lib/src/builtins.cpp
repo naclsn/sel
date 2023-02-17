@@ -235,6 +235,10 @@ namespace sel {
       return s.end() && buff.length() <= off;
     }
 
+    std::ostream& chr_::stream(std::ostream& out) { read = true; return out << codepoint(arg->value()); }
+    bool chr_::end() { return read; }
+    std::ostream& chr_::entire(std::ostream& out) { read = true; return out << codepoint(arg->value()); }
+
     Val* codepoints_::operator*() {
       bind_args(s);
       if (!did_once) {
@@ -636,6 +640,12 @@ namespace sel {
     std::ostream& oct_::stream(std::ostream& out) { read = true; return out << std::oct << size_t(arg->value()); }
     bool oct_::end() { return read; }
     std::ostream& oct_::entire(std::ostream& out) { read = true; return out << std::oct << size_t(arg->value()); }
+
+    double ord_::value() {
+      codepoint c;
+      Str_istream(arg) >> c;
+      return c.u;
+    }
 
     std::ostream& prefix_::stream(std::ostream& out) {
       bind_args(px, s);

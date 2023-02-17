@@ -204,6 +204,11 @@ T(bytes) {
   return 0;
 }
 
+T(chr) {
+  assert_str("*", CALL(chr, 42));
+  return 0;
+}
+
 T(codepoints) {
   assert_lstnum(
     ({ 97, 12405, 98, 13, 10, 99, 127987, 8205, 9895, 100 }),
@@ -306,6 +311,12 @@ T(mul) {
 T(oct) {
   assert_str("52", CALL(oct, 42));
   assert_str("0", CALL(oct, 0));
+  return 0;
+}
+
+T(ord) {
+  assert_num(42, CALL(ord, "*"));
+  assert_num(0, CALL(ord, ""));
   return 0;
 }
 

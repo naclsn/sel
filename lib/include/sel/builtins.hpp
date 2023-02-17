@@ -552,6 +552,11 @@ namespace sel {
       std::string::size_type off = std::string::npos;
     ));
 
+    BIN_str(chr, (num, str),
+      "make a string of a single character with the given unicode codepoint", (
+      bool read = false;
+    ));
+
     BIN_lst(codepoints, (istr, ilst<num>),
       "split a string of bytes into its Unicode codepoints", (
       bool did_once = false;
@@ -683,6 +688,9 @@ namespace sel {
       "convert a number to its octal textual representation (without leading '0o')", (
       bool read = false;
     ));
+
+    BIN_num(ord, (istr, num),
+      "give the codepoint of the (first) character", ());
 
     BIN_num(pi, (num),
       "pi, what did you expect", ());
@@ -863,6 +871,7 @@ namespace sel {
       , add_
       , bin_
       , bytes_
+      , chr_
       , codepoints_
       , conjunction_
       , const_
@@ -890,6 +899,7 @@ namespace sel {
       , map_
       , mul_
       , oct_
+      , ord_
       , pi_
       , prefix_
       , repeat_

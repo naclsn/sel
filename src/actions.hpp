@@ -54,19 +54,26 @@ void lookup(char const* const names[]) {
   } // if "::"
 
   else {
+    vector<char const*> not_found;
+
     while (*names) {
       auto* it = lookup_name(app, *names);
-      if (!it) {
-        cerr << "Unknown name: " << quoted(*names) << "\n";
-        exit(EXIT_FAILURE);
-      }
-
-      cout << *names << " :: " << it->type() << "\n";
-      help(*it);
-      wwcout << endl;
+      if (it) {
+        cout << *names << " :: " << it->type() << "\n";
+        help(*it);
+        wwcout << endl;
+      } else not_found.push_back(*names);
 
       if (*++names) cout << endl;
       delete it;
+    }
+
+    if (!not_found.empty()) {
+      cerr << "Unknown name" << (1 == not_found.size() ? "" : "s") << ":";
+      for (auto const& it : not_found)
+        cerr << " " << quoted(it);
+      cerr << "\n";
+      exit(EXIT_FAILURE);
     }
   } // if not "::"
 
