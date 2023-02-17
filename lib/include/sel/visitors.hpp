@@ -246,7 +246,7 @@ namespace sel {
   public:
     ~VisCodegen() { delete &log; }
     // entry, preambule
-    VisCodegen(char const* module_name, App& app);
+    VisCodegen(char const* file_name, char const* module_name, App& app);
     // exit, post-thingy
     void* makeOutput();
 

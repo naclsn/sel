@@ -1,3 +1,5 @@
+#include <fstream>
+
 #include "sel/visitors.hpp"
 #include "sel/parser.hpp"
 
@@ -61,8 +63,8 @@ namespace sel {
   void VisCodegen::replaceSymbol(std::function<SyPlace(SyTake const&)> replacer) {
     if (sytype_for_sy<SyTake>::the != pending) {
       std::ostringstream oss;
-      throw BaseError((oss
-        << "codegen failure: expected symbol to be a " << sy_to_string<SyTake>::the
+      throw CodegenError((oss
+        << "expected symbol to be a " << sy_to_string<SyTake>::the
         << " (replacing with a " << sy_to_string<SyPlace>::the << ")"
       , oss.str()));
     }
@@ -123,7 +125,7 @@ namespace sel {
 #define enter(__n, __w) log << "{{ " << __n << " - " << __w << "\n"; log.indent(); auto _last_entered_n = (__n), _last_entered_w = (__w)
 #define leave() log.dedent() << "}} " << _last_entered_n << " - " << _last_entered_w << "\n\n"
 
-  VisCodegen::VisCodegen(char const* module_name, App& app)
+  VisCodegen::VisCodegen(char const* file_name, char const* module_name, App& app)
     : context()
     , builder(context)
     , module(module_name, context)
@@ -136,6 +138,7 @@ namespace sel {
     , chr_type(llvm::Type::getInt8Ty(context))
     , len_type(llvm::Type::getInt32Ty/*64*/(context))
   {
+    module.setSourceFileName(file_name);
     log << "=== entry\n";
 
     Val& f = app.get(); // ZZZ: temporary dum accessor
@@ -165,9 +168,9 @@ namespace sel {
   void* VisCodegen::makeOutput() {
     log << "=== exit\n";
 
-    // last symbol is expected to be of Str
+    // final symbol is expected to be of a Str
     if (SyType::SYGEN != pending)
-      throw BaseError("codegen failure: expected last symbol to be a generator");
+      throw CodegenError("expected final symbol to be a generator");
     log << "\n";
 
     // does not put a new symbol, but actually performs the generation
@@ -206,6 +209,37 @@ namespace sel {
     return nullptr; // `void*` just a placeholder type
   }
 
+
+  // temporary dothething
+  void VisCodegen::dothething(char const* outfile) {
+    std::string const n = outfile;
+
+    {
+      std::ofstream ll(n + ".ll");
+      if (!ll.is_open()) throw BaseError("could not open file");
+      dump(ll);
+      ll.flush();
+      ll.close();
+    }
+
+    // $ llc -filetype=obj hello-world.ll -o hello-world.o
+    {
+      std::ostringstream oss;
+      int r = std::system((oss << "llc -filetype=obj " << n << ".ll -o " << n << ".o", oss.str().c_str()));
+      std::cerr << "============ " << r << "\n";
+      if (0 != r) throw BaseError("see above");
+    }
+
+    // $ clang hello-world.o -o hello-world
+    {
+      std::ostringstream oss;
+      int r = std::system((oss << "clang " << n << ".o -o " << n, oss.str().c_str()));
+      std::cerr << "============ " << r << "\n";
+      if (0 != r) throw BaseError("see above");
+    }
+  }
+
+#if 0
   // this is hell and it does not even work (segfault at `pass->run(module)`)
   // @see https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl08.html
   void VisCodegen::dothething(char const* outfile) {
@@ -219,7 +253,7 @@ namespace sel {
 
     std::string errmsg;
     auto* target = TargetRegistry::lookupTarget(triple, errmsg);
-    if (nullptr == target) throw BaseError(errmsg);
+    if (nullptr == target) throw CodegenError(errmsg);
 
     char const* cpu = "generic";
     char const* features = "";
@@ -232,16 +266,17 @@ namespace sel {
 
     std::error_code errcode;
     raw_fd_ostream dest(outfile, errcode);
-    if (errcode) throw BaseError(errcode.message());
+    if (errcode) throw CodegenError(errcode.message());
 
     legacy::PassManager pass;
     // add a single emit pass
     if (machine->addPassesToEmitFile(pass, dest, nullptr, TargetMachine::CodeGenFileType::CGFT_ObjectFile))
-      throw BaseError("can't emit a file of this type");
+      throw CodegenError("can't emit a file of this type");
 
     pass.run(module);
     dest.flush();
   }
+#endif
 
 
   void VisCodegen::visitNumLiteral(Type const& type, double n) {

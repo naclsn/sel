@@ -52,7 +52,7 @@ void run(App& app) {
   }
 }
 
-void compile(App& app, char const* const* flags) {
+void compile(App& app, char const* infile, char const* const* flags) {
   char const* outfile = *flags++;
 
   cerr << "outfile: " << quoted(outfile);
@@ -62,42 +62,37 @@ void compile(App& app, char const* const* flags) {
     while (*flags) cerr << "   " << quoted(*flags++) << "\n";
   } else cerr << ", no flags\n";
 
-  // for now module_name == outfile
-  VisCodegen codegen(outfile, app);
-  auto res = codegen.makeOutput();
-  cerr << "\nmakeOutput: " << res << "\n\n";
+  try {
+    std::string tmp = outfile;
+    auto st = tmp.rfind('/')+1;
+    auto ed = tmp.rfind('.');
+    std::string name = tmp.substr(st, ed-st);
 
-  cerr << "```llvm-ir\n";
-  codegen.dump(cerr);
-  cerr << "```\n\n";
+    VisCodegen codegen(infile, name.c_str(), app);
+    auto res = codegen.makeOutput();
+    cerr << "\nmakeOutput: " << res << "\n\n";
 
-  // codegen.dothething(outfile);
-  { // temporary dothething
-    std::string n = outfile;
+    cerr << "```llvm-ir\n";
+    codegen.dump(cerr);
+    cerr << "```\n\n";
 
-    {
-      ofstream ll(n + ".ll");
-      if (!ll.is_open()) throw BaseError("could not open file");
-      codegen.dump(ll);
-      ll.flush();
-      ll.close();
-    }
+    codegen.dothething(outfile);
+  }
 
-    // $ llc -filetype=obj hello-world.ll -o hello-world.o
-    {
-      ostringstream oss;
-      int r = std::system((oss << "llc -filetype=obj " << n << ".ll -o " << n << ".o", oss.str().c_str()));
-      cerr << "============ " << r << "\n";
-      if (0 != r) throw BaseError("see above");
-    }
+  catch (CodegenError const& err) {
+    cerr
+      << "Codegen error: "
+      << err.what() << '\n'
+    ;
+    exit(EXIT_FAILURE);
+  }
 
-    // $ clang hello-world.o -o hello-world
-    {
-      ostringstream oss;
-      int r = std::system((oss << "clang " << n << ".o -o " << n, oss.str().c_str()));
-      cerr << "============ " << r << "\n";
-      if (0 != r) throw BaseError("see above");
-    }
+  catch (BaseError const& err) {
+    cerr
+      << "Error (while compiling application): "
+      << err.what() << '\n'
+    ;
+    exit(EXIT_FAILURE);
   }
 }
 

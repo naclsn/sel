@@ -58,6 +58,12 @@ namespace sel {
     { }
   };
 
+  struct CodegenError : BaseError {
+    CodegenError(std::string const& msg)
+      : BaseError(msg)
+    { }
+  };
+
 } // namespace sel
 
 #endif // SEL_ERROR_HPP
