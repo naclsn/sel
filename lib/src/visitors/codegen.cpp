@@ -388,31 +388,57 @@ namespace sel {
         auto* acc = builder.CreateAlloca(num_type, nullptr, "tonum_acc");
         builder.CreateStore(num_val(0), acc);
 
+        auto* isminus = builder.CreateAlloca(bool_type, nullptr, "tonum_isminus");
+        builder.CreateStore(bool_false, isminus);
+        // auto* isdot = builder.CreateAlloca(bool_type, nullptr, "tonum_isdot");
+        // builder.CreateStore(bool_false, isdot);
+
         g.make(
           builder,
           [=] (BasicBlock* brk, BasicBlock* cont, std::pair<Value*, Value*> ptr_len) {
             enter(bins::tonum_::name, "inject");
 
             makeBufferLoop("tonum", ptr_len, [&] (Value* at) {
-              auto* digit = builder.CreateSub(at, chr_val('0'), "tonum_digit");
+              // _ -> setnegate -> after
+              // `-> accumulate ---^
+              auto* setnegate = makeBlock(builder, "tonum_setnegate");
+              auto* accumulate = makeBlock(builder, "tonum_accumulate");
+              auto* after = makeBlock(builder, "tonum_after");
 
-              auto* isdigit_lower = builder.CreateICmpSLE(chr_val(0), digit, "tonum_isdigit_lower");
-              auto* isdigit_upper = builder.CreateICmpSLE(digit, chr_val(9), "tonum_isdigit_upper");
-              auto* isdigit = builder.CreateAnd(isdigit_lower, isdigit_upper, "tonum_isdigit");
+              auto* ch_is_minus = builder.CreateICmpEQ(chr_val('-'), at, "tonum_ch_is_minus");
+              auto* l_isminus = builder.CreateLoad(isminus, "tonum_l_isminus");
+              auto* not_minus_yet = builder.CreateICmpEQ(bool_false, l_isminus, "tonum_not_minus_yet");
+              auto* isnegate = builder.CreateAnd(ch_is_minus, not_minus_yet, "tonum_isnegate");
+              builder.CreateCondBr(isnegate, setnegate, accumulate);
+              builder.CreateBr(accumulate);
 
-              auto* acc_if_isdigit = makeBlock(builder, "tonum_acc_if_isdigit");
+              builder.SetInsertPoint(setnegate);
+                builder.CreateStore(bool_true, isminus);
+                builder.CreateBr(after);
+                //builder.CreateCondBr(l_isminus, brk, after);
 
-              // break if no longer digit
-              builder.CreateCondBr(isdigit, acc_if_isdigit, brk);
-              builder.SetInsertPoint(acc_if_isdigit);
+              builder.SetInsertPoint(accumulate);
+                auto* digit = builder.CreateSub(at, chr_val('0'), "tonum_digit");
 
-              // acc = acc * 10 + digit
-              auto* xdigit = builder.CreateUIToFP(digit, num_type, "tonum_xdigit");
-              auto* acc_prev = builder.CreateLoad(acc, "tonum_acc_prev");
-              auto* acc_temp = builder.CreateFMul(acc_prev, num_val(10), "tonum_acc_temp");
-              auto* acc_next = builder.CreateFAdd(acc_temp, xdigit, "tonum_acc_next");
-              builder.CreateStore(acc_next, acc);
+                auto* isdigit_lower = builder.CreateICmpSLE(chr_val(0), digit, "tonum_isdigit_lower");
+                auto* isdigit_upper = builder.CreateICmpSLE(digit, chr_val(9), "tonum_isdigit_upper");
+                auto* isdigit = builder.CreateAnd(isdigit_lower, isdigit_upper, "tonum_isdigit");
 
+                auto* acc_if_isdigit = makeBlock(builder, "tonum_acc_if_isdigit");
+                // break if no longer digit
+                builder.CreateCondBr(isdigit, acc_if_isdigit, brk);
+
+                builder.SetInsertPoint(acc_if_isdigit);
+                  // acc = acc * 10 + digit
+                  auto* xdigit = builder.CreateUIToFP(digit, num_type, "tonum_xdigit");
+                  auto* acc_prev = builder.CreateLoad(acc, "tonum_acc_prev");
+                  auto* acc_temp = builder.CreateFMul(acc_prev, num_val(10), "tonum_acc_temp");
+                  auto* acc_next = builder.CreateFAdd(acc_temp, xdigit, "tonum_acc_next");
+                  builder.CreateStore(acc_next, acc);
+
+                builder.CreateBr(after);
+
+              builder.SetInsertPoint(after);
               // continue buffer loop
             });
 
@@ -424,8 +450,25 @@ namespace sel {
         );
 
         auto* res = builder.CreateLoad(acc, "tonum_res");
+
+        auto* nonegate = builder.GetInsertBlock();
+        auto* negate = makeBlock(builder, "tonum_negate");
+        auto* retres = makeBlock(builder, "tonum_retres");
+
+        auto* l_isminus = builder.CreateLoad(isminus, "tonum_l_isminus");
+        builder.CreateCondBr(l_isminus, negate, retres);
+
+        builder.SetInsertPoint(negate);
+          auto* nres = builder.CreateFNeg(res, "tonum_nres");
+          builder.CreateBr(retres);
+
+        builder.SetInsertPoint(retres);
+          auto* final_res = builder.CreatePHI(num_type, 2, "tonum_final_res");
+          final_res->addIncoming(nres, negate);
+          final_res->addIncoming(res, nonegate);
+
         leave();
-        return res;
+        return final_res;
       }
     ); });
     leave();
@@ -447,7 +490,8 @@ namespace sel {
         Value* isend = builder.CreateAlloca(bool_type, nullptr, "tostr_isend");
         builder.CreateStore(bool_false, isend);
 
-        auto* b_1char = builder.CreateAlloca(chr_type, nullptr, "tostr_b_1char");
+        auto* b_1char = builder.CreateAlloca(chr_type, len_val(2), "tostr_b_1char");
+        auto* at_2nd_char = builder.CreateGEP(b_1char, len_val(1), "tostr_at_2nd_char");
 
         auto chk = [=] (BasicBlock* brk, BasicBlock* cont) {
           enter(bins::tostr_::name, "check");
@@ -464,17 +508,46 @@ namespace sel {
           log << "call to @tostr, should only be here once\n";
           /*b=*/
 
-          // also for now 1-char buffer, we only do digits here
-          auto* inum = builder.CreateFPToUI(num, len_type, "tostr_temp_inum");
-          auto* temp_1xchar = builder.CreateAdd(inum, len_val('0'), "tostr_temp_1xchar");
-          auto* temp_1char = builder.CreateTrunc(temp_1xchar, chr_type, "tostr_temp_char");
-          builder.CreateStore(temp_1char, b_1char);
+          // nominus -> minus -> common
+          //     `-----------------^
+          auto* nominus = builder.GetInsertBlock();
+          auto* minus = makeBlock(builder, "tostr_minus");
+          auto* common = makeBlock(builder, "tostr_common");
+
+          auto* isnegative = builder.CreateFCmpOLT(num, num_val(0), "tostr_isnegative");
+          builder.CreateCondBr(isnegative, minus, common);
+
+          builder.SetInsertPoint(minus);
+            auto* pnum = builder.CreateFNeg(num, "tostr_pnum");
+            builder.CreateStore(chr_val('-'), b_1char);
+            builder.CreateBr(common);
+
+          builder.SetInsertPoint(common);
+            auto* positive = builder.CreatePHI(num_type, 2, "tostr_positive");
+            positive->addIncoming(pnum, minus);
+            positive->addIncoming(num, nominus);
+
+            // now we also do negative digits!
+            auto* store_at = builder.CreatePHI(llvm::Type::getInt8PtrTy(context), 2, "tostr_store_at");
+            store_at->addIncoming(at_2nd_char, minus);
+            store_at->addIncoming(b_1char, nominus);
+
+            auto* total_len = builder.CreatePHI(len_type, 2, "tostr_total_len");
+            total_len->addIncoming(len_val(2), minus);
+            total_len->addIncoming(len_val(1), nominus);
+
+            // also for now 1-char buffer, we only do digits here
+            auto* inum = builder.CreateFPToUI(positive, len_type, "tostr_temp_inum");
+            auto* temp_1xchar = builder.CreateAdd(inum, len_val('0'), "tostr_temp_1xchar");
+            auto* temp_1char = builder.CreateTrunc(temp_1xchar, chr_type, "tostr_temp_char");
+
+            builder.CreateStore(temp_1char, store_at);
 
           // this is the only iteration, mark end
           builder.CreateStore(bool_true, isend);
 
           leave();
-          return std::make_pair(b_1char, len_val(1));
+          return std::make_pair(b_1char, total_len);
         };
 
         leave();
