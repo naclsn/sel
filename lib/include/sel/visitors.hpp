@@ -153,18 +153,33 @@ namespace sel {
 
     indented& log;
 
+    //{{{ some codegen utils
+
+    static inline llvm::BasicBlock* makeBlock(llvm::IRBuilder<>& builder, std::string const name) { return llvm::BasicBlock::Create(builder.getContext(), name, builder.GetInsertBlock()->getParent()); }
+
+    // note that the `body` function gets the bytes pointed at,
+    // not the iteration variable (ie a chr, not chr* nor len)
+    typedef std::function<void(llvm::Value*)> clo_loop;
+    inline void makeBufferLoop(std::string const name, llvm::Value* ptr, llvm::Value* len, clo_loop body);
+    inline void makeBufferLoop(std::string const name, std::pair<llvm::Value*, llvm::Value*> ptr_len, clo_loop body);
+
+    //}}} some codegen utils
+
+    //{{{ symbol shenanigan
+
     /** symbol for a number (Num) */
     struct SyNum {
       std::string name;
 
-      /// val returns a llvm register with the result (YYY: for now all is i32)
+      /// val returns a llvm register with the result (a num)
       typedef std::function<llvm::Value*(void)> clo_type;
       clo_type val;
 
       SyNum() { }
       SyNum(char const* name, clo_type val): name(name), val(val) { }
+      // SyNum(SyNum const&) = delete;
 
-      llvm::Value* gen() const;
+      llvm::Value* make() const;
     } synum;
 
     /** symbol for a generator (Str/Lst) */
@@ -193,16 +208,40 @@ namespace sel {
 
       SyGen() { }
       SyGen(char const* name, clo_type ent): name(name), ent(ent) { }
+      // SyGen(SyGen const&) = delete;
 
-      void gen(llvm::IRBuilder<>& builder, inject_clo_type also) const;
+      void make(llvm::IRBuilder<>& builder, inject_clo_type also) const;
     } sygen;
 
-    enum class SyType { NONE, SYNUM, SYGEN } pending = SyType::NONE;
+  public:
+    enum class SyType { SYNUM, SYGEN } pending = SyType::SYGEN; // initial value is gen for input
+  private:
 
-    void num(SyNum sy);
-    void gen(SyGen sy);
-    VisCodegen::SyNum num();
-    VisCodegen::SyGen gen();
+    template <typename SyTake, typename SyPlace>
+    void replaceSymbol(std::function<SyPlace(SyTake const&)>);
+    template <typename SyPlace>
+    SyPlace& _replacePlace();
+    template <typename SyTake>
+    SyTake const& _replaceTake();
+
+    //}}} symbol shenanigan
+
+    //{{{ llvm types and values
+
+    llvm::Type* bool_type;
+    llvm::Constant* bool_true;
+    llvm::Constant* bool_false;
+    /// i32 -- type (and constant values) for Num
+    llvm::Type* num_type;
+    inline llvm::Constant* num_val(/*double*/int v) { return llvm::ConstantInt::get(context, llvm::APInt(32, v)); }
+    /// i8 -- type (and constant values) for the contained units in Str
+    llvm::Type* chr_type;
+    inline llvm::Constant* chr_val(int8_t v) { return llvm::ConstantInt::get(context, llvm::APInt(8, v)); }
+    /// i32 -- type (and constant values) for the counters and lengths (so for Str/Lst)
+    llvm::Type* len_type;
+    inline llvm::Constant* len_val(size_t v) { return llvm::ConstantInt::get(context, llvm::APInt(/*64*/32, v)); }
+
+    //}}} llvm types and values
 
   public:
     ~VisCodegen() { delete &log; }

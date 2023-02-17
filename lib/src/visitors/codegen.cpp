@@ -9,48 +9,15 @@
 
 using namespace llvm;
 
-// [NOTE: should probly change this away from macro, but this makes it easier
-// for now with things like `make_buf_loop` - although this kind of thing
-// may /also/ be moved into VisCodegen]
-
-#define bool_type llvm::Type::getInt1Ty(context)
-#define bool_true llvm::ConstantInt::get(context, APInt(1, 1))
-#define bool_false llvm::ConstantInt::get(context, APInt(1, 0))
-
-/// i32 -- type (and constant values) for Num
-/// NOTE: will likely use 'double' (ie. f64) for consistency, a hybrid /could/ be envisioned further down
-#define num_type llvm::Type::getInt32Ty(context)
-#define num_val(__n) llvm::ConstantInt::get(context, APInt(32, __n))
-
-/// i8 -- type (and constant values) for the contained units in Str
-#define oct_type llvm::Type::getInt8Ty(context)
-#define oct_val(__n) llvm::ConstantInt::get(context, APInt(8, __n))
-
-/// i32 -- type (and constant values) for the counters and lengths (so for Str/Lst)
-/// NOTE: for now this 32, but might be 64 (or target-dependent)
-#define len_type llvm::Type::getInt32Ty(context)
-#define len_val(__n) llvm::ConstantInt::get(context, APInt(32, __n))
-
-// TODO: also move as member method
-#define llvmbb(__builder, __name) BasicBlock::Create(__builder.getContext(), __name, __builder.GetInsertBlock()->getParent());
-
 namespace sel {
 
-  // internal
-  // note that the `body` function gets the pointer to octet (well, for now its a i32 tho),
-  // not the iteration variable (YYY: this will probly change
-  // for the octet at location directly)
-  typedef std::function<void(Value*)> clo_loop;
-
-  // internal
-  static inline void make_buf_loop(IRBuilder<>& builder, std::string const name, Value* ptr, Value* len, clo_loop body) {
-    auto& context = builder.getContext();
+  void VisCodegen::makeBufferLoop(std::string const name, Value* ptr, Value* len, clo_loop body) {
     // {before} -> loop -> after
     //      \      `--'     ^
     //       `-------------'
     auto* before_bb = builder.GetInsertBlock();
-    auto* loop_bb = llvmbb(builder, name+"_loop_body");
-    auto* after_bb = llvmbb(builder, name+"_loop_break");
+    auto* loop_bb = makeBlock(builder, name+"_loop_body");
+    auto* after_bb = makeBlock(builder, name+"_loop_break");
 
     // before -> {loop}    after
     //     `----------------^
@@ -63,7 +30,7 @@ namespace sel {
     k->addIncoming(len_val(0), before_bb);
 
     // actual loop body
-    auto* it = builder.CreateGEP(oct_type, ptr, k, name+"_loop_it");
+    auto* it = builder.CreateGEP(chr_type, ptr, k, name+"_loop_it");
     auto* at = builder.CreateLoad(it, name+"_loop_at");
     body(at);
 
@@ -78,17 +45,41 @@ namespace sel {
     builder.SetInsertPoint(after_bb);
   }
 
-  // internal
-  static inline void make_buf_loop(IRBuilder<>& builder, std::string const name, std::pair<Value*, Value*> ptr_len, clo_loop body) {
-    make_buf_loop(builder, name, std::get<0>(ptr_len), std::get<1>(ptr_len), body);
+  void VisCodegen::makeBufferLoop(std::string const name, std::pair<Value*, Value*> ptr_len, clo_loop body) {
+    makeBufferLoop(name, std::get<0>(ptr_len), std::get<1>(ptr_len), body);
   }
 
-  Value* VisCodegen::SyNum::gen() const {
+  template <typename Sy> struct sytype_for_sy;
+  template <> struct sytype_for_sy<VisCodegen::SyNum> { static constexpr VisCodegen::SyType the = VisCodegen::SyType::SYNUM; };
+  template <> struct sytype_for_sy<VisCodegen::SyGen> { static constexpr VisCodegen::SyType the = VisCodegen::SyType::SYGEN; };
+
+  template <typename Sy> struct sy_to_string;
+  template <> struct sy_to_string<VisCodegen::SyNum> { static constexpr char const* the = "number"; };
+  template <> struct sy_to_string<VisCodegen::SyGen> { static constexpr char const* the = "generator"; };
+
+  template <typename SyTake, typename SyPlace>
+  void VisCodegen::replaceSymbol(std::function<SyPlace(SyTake const&)> replacer) {
+    if (sytype_for_sy<SyTake>::the != pending) {
+      std::ostringstream oss;
+      throw BaseError((oss
+        << "codegen failure: expected symbol to be a " << sy_to_string<SyTake>::the
+        << " (replacing with a " << sy_to_string<SyPlace>::the << ")"
+      , oss.str()));
+    }
+    pending = sytype_for_sy<SyPlace>::the;
+    _replacePlace<SyPlace>() = replacer(_replaceTake<SyTake>());
+  }
+  template <> VisCodegen::SyNum& VisCodegen::_replacePlace<VisCodegen::SyNum>() { return synum; }
+  template <> VisCodegen::SyGen& VisCodegen::_replacePlace<VisCodegen::SyGen>() { return sygen; }
+  template <> VisCodegen::SyNum const& VisCodegen::_replaceTake<VisCodegen::SyNum>() { return synum; }
+  template <> VisCodegen::SyGen const& VisCodegen::_replaceTake<VisCodegen::SyGen>() { return sygen; }
+
+  Value* VisCodegen::SyNum::make() const {
     // (val may create new blocks, as long as it is internally consitent)
     return val();
   }
 
-  void VisCodegen::SyGen::gen(IRBuilder<>& builder, inject_clo_type also) const {
+  void VisCodegen::SyGen::make(IRBuilder<>& builder, inject_clo_type also) const {
     // entry -> check -> [iter -> inject] (inject must branch to exit or check)
     //           |  ^-------------' v
     //           `-------------> exit (insert point ends up in exit, which is empty)
@@ -99,12 +90,12 @@ namespace sel {
     auto itr = std::get<1>(chk_itr);
 
     // entry -> {check}
-    auto* check = llvmbb(builder, name+"_check");
+    auto* check = makeBlock(builder, name+"_check");
     builder.CreateBr(check);
     builder.SetInsertPoint(check);
 
-    auto* exit = llvmbb(builder, name+"_exit");
-    auto* iter = llvmbb(builder, name+"_iter");
+    auto* exit = makeBlock(builder, name+"_exit");
+    auto* iter = makeBlock(builder, name+"_iter");
     // (responsibility of chk)
     // {check}  -> [iter
     //    `--------> exit
@@ -115,7 +106,7 @@ namespace sel {
     auto ptr_len = itr();
 
     // [iter -> {inject}]
-    auto* inject = llvmbb(builder, name+"_inject");
+    auto* inject = makeBlock(builder, name+"_inject");
     builder.CreateBr(inject);
     builder.SetInsertPoint(inject);
     // (responsibility of also)
@@ -132,60 +123,18 @@ namespace sel {
 #define enter(__n, __w) log << "{{ " << __n << " - " << __w << "\n"; log.indent(); auto _last_entered_n = (__n), _last_entered_w = (__w)
 #define leave() log.dedent() << "}} " << _last_entered_n << " - " << _last_entered_w << "\n\n"
 
-  void VisCodegen::num(SyNum sy) {
-    switch (pending) {
-      case SyType::NONE:
-        log << "--- setting new symbol (a number)\n";
-        synum = std::move(sy);
-        pending = SyType::SYNUM;
-        break;
-      case SyType::SYNUM: throw BaseError("codegen failure: overriding an unused symbol (a number)");
-      case SyType::SYGEN: throw BaseError("codegen failure: overriding an unused symbol (a generator)");
-    }
-  }
-
-  void VisCodegen::gen(SyGen sy) {
-    switch (pending) {
-      case SyType::NONE:
-        log << "--- setting new symbol (a generator)\n";
-        sygen = std::move(sy);
-        pending = SyType::SYGEN;
-        break;
-      case SyType::SYNUM: throw BaseError("codegen failure: overriding an unused symbol (a number)");
-      case SyType::SYGEN: throw BaseError("codegen failure: overriding an unused symbol (a generator)");
-    }
-  }
-
-  VisCodegen::SyNum VisCodegen::num() {
-    switch (pending) {
-      case SyType::SYNUM:
-        log << "--- getting existing symbol (a number)\n";
-        pending = SyType::NONE;
-        return std::move(synum);
-      case SyType::NONE: throw BaseError("codegen failure: no pending symbol to access");
-      case SyType::SYGEN: throw BaseError("codegen failure: symbol type does not match (expected a number)");
-    }
-    throw "unreachable"; // shuts warnings
-  }
-
-  VisCodegen::SyGen VisCodegen::gen() {
-    switch (pending) {
-      case SyType::SYGEN:
-        log << "--- getting existing symbol (a generator)\n";
-        pending = SyType::NONE;
-        return std::move(sygen);
-      case SyType::NONE: throw BaseError("codegen failure: no pending symbol to access");
-      case SyType::SYNUM: throw BaseError("codegen failure: symbol type does not match (expected a generator)");
-    }
-    throw "unreachable"; // shuts warnings
-  }
-
-
   VisCodegen::VisCodegen(char const* module_name, App& app)
     : context()
     , builder(context)
     , module(module_name, context)
     , log(*new indented("   ", std::cerr))
+
+    , bool_type(llvm::Type::getInt1Ty(context))
+    , bool_true(ConstantInt::get(context, APInt(1, 1)))
+    , bool_false(ConstantInt::get(context, APInt(1, 0)))
+    , num_type(llvm::Type::getInt32Ty/*double*/(context))
+    , chr_type(llvm::Type::getInt8Ty(context))
+    , len_type(llvm::Type::getInt32Ty/*64*/(context))
   {
     log << "=== entry\n";
 
@@ -208,16 +157,17 @@ namespace sel {
     // input symbol
     visitInput(Type());
 
-    // coerse<Val>(*this, new Input(*this, in), ty.from()); // TODO: input coersion (Str* -> a)
+    // coerse<Val>(app, new Input(app, in), ty.from()); // TODO: input coersion (Str* -> a)
     this->operator()(f);
-    // coerse<Str>(*this, (*(Fun*)f)(), Type(Ty::STR, {0}, TyFlag::IS_INF)); // TODO: output coersion (b -> Str*)
+    // coerse<Str>(app, (*(Fun*)f)(), Type(Ty::STR, {0}, TyFlag::IS_INF)); // TODO: output coersion (b -> Str*)
   }
 
   void* VisCodegen::makeOutput() {
     log << "=== exit\n";
 
     // last symbol is expected to be of Str
-    auto g = gen();
+    if (SyType::SYGEN != pending)
+      throw BaseError("codegen failure: expected last symbol to be a generator");
     log << "\n";
 
     // does not put a new symbol, but actually performs the generation
@@ -232,12 +182,12 @@ namespace sel {
 
     auto* main = module.getFunction("main");
     builder.SetInsertPoint(BasicBlock::Create(context, "entry", main));
-    g.gen(
+    sygen.make(
       builder,
       [=] (BasicBlock* brk, BasicBlock* cont, std::pair<Value*, Value*> ptr_len) {
         enter("output", "inject");
 
-        make_buf_loop(builder, "output", ptr_len, [&] (Value* at) {
+        makeBufferLoop("output", ptr_len, [&] (Value* at) {
           auto* write_xchar = builder.CreateZExt(at, llvm::Type::getInt32Ty(context), "output_xchar");
           builder.CreateCall(putchar, {write_xchar}, "_");
         });
@@ -316,7 +266,7 @@ namespace sel {
 
   void VisCodegen::visitInput(Type const& type) {
     enter("visitInput", "");
-    gen(SyGen("input",
+    sygen = SyGen("input",
       [=] {
         enter("input", "entry");
 
@@ -328,17 +278,17 @@ namespace sel {
           module
         );
 
-        auto* b_1char = builder.CreateAlloca(oct_type, nullptr, "input_b_1char");
+        auto* b_1char = builder.CreateAlloca(chr_type, nullptr, "input_b_1char");
 
         auto chk = [=] (BasicBlock* brk, BasicBlock* cont) {
           enter("input", "check");
 
           auto* read_xchar = builder.CreateCall(getchar, {}, "input_xchar");
-          auto* read_char = builder.CreateTrunc(read_xchar, oct_type, "input_char");
+          auto* read_char = builder.CreateTrunc(read_xchar, chr_type, "input_char");
           builder.CreateStore(read_char, b_1char);
 
           // check for eof (-1)
-          auto* iseof = builder.CreateICmpEQ(oct_val(-1), read_char, "input_iseof");
+          auto* iseof = builder.CreateICmpEQ(chr_val(-1), read_char, "input_iseof");
           builder.CreateCondBr(iseof, brk, cont);
 
           leave();
@@ -355,7 +305,7 @@ namespace sel {
         leave();
         return std::make_pair(chk, itr);
       }
-    ));
+    );
     leave();
   }
 
@@ -396,27 +346,26 @@ namespace sel {
 
   void VisCodegen::visit(bins::tonum_::Base const& node) {
     enter(bins::tonum_::name, "");
-    auto g = gen();
-    num(SyNum(bins::tonum_::name,
+    replaceSymbol<SyGen, SyNum>([this] (SyGen const& g) { return SyNum(bins::tonum_::name,
       [=] {
         enter(bins::tonum_::name, "value");
 
         auto* acc = builder.CreateAlloca(num_type, nullptr, "tonum_acc");
         builder.CreateStore(num_val(0), acc);
 
-        g.gen(
+        g.make(
           builder,
           [=] (BasicBlock* brk, BasicBlock* cont, std::pair<Value*, Value*> ptr_len) {
             enter(bins::tonum_::name, "inject");
 
-            make_buf_loop(builder, "tonum", ptr_len, [&] (Value* at) {
-              auto* digit = builder.CreateSub(at, oct_val('0'), "tonum_digit");
+            makeBufferLoop("tonum", ptr_len, [&] (Value* at) {
+              auto* digit = builder.CreateSub(at, chr_val('0'), "tonum_digit");
 
-              auto* isdigit_lower = builder.CreateICmpSLE(oct_val(0), digit, "tonum_isdigit_lower");
-              auto* isdigit_upper = builder.CreateICmpSLE(digit, oct_val(9), "tonum_isdigit_upper");
+              auto* isdigit_lower = builder.CreateICmpSLE(chr_val(0), digit, "tonum_isdigit_lower");
+              auto* isdigit_upper = builder.CreateICmpSLE(digit, chr_val(9), "tonum_isdigit_upper");
               auto* isdigit = builder.CreateAnd(isdigit_lower, isdigit_upper, "tonum_isdigit");
 
-              auto* acc_if_isdigit = llvmbb(builder, "tonum_acc_if_isdigit");
+              auto* acc_if_isdigit = makeBlock(builder, "tonum_acc_if_isdigit");
 
               // break if no longer digit
               builder.CreateCondBr(isdigit, acc_if_isdigit, brk);
@@ -443,7 +392,7 @@ namespace sel {
         leave();
         return res;
       }
-    ));
+    ); });
     leave();
   }
 
@@ -454,8 +403,7 @@ namespace sel {
 
   void VisCodegen::visit(bins::tostr_::Base const& node) {
     enter(bins::tostr_::name, "");
-    auto n = num();
-    gen(SyGen(bins::tostr_::name,
+    replaceSymbol<SyNum, SyGen>([this] (SyNum const& n) { return SyGen(bins::tostr_::name,
       [=] {
         enter(bins::tostr_::name, "entry");
 
@@ -464,7 +412,7 @@ namespace sel {
         Value* isend = builder.CreateAlloca(bool_type, nullptr, "tostr_isend");
         builder.CreateStore(bool_false, isend);
 
-        auto* b_1char = builder.CreateAlloca(oct_type, nullptr, "tostr_b_1char");
+        auto* b_1char = builder.CreateAlloca(chr_type, nullptr, "tostr_b_1char");
 
         auto chk = [=] (BasicBlock* brk, BasicBlock* cont) {
           enter(bins::tostr_::name, "check");
@@ -476,14 +424,14 @@ namespace sel {
         auto itr = [=] () {
           enter(bins::tostr_::name, "iter");
 
-          auto* num = n.gen();
+          auto* num = n.make();
 
           log << "call to @tostr, should only be here once\n";
           /*b=*/
 
           // also for now 1-char buffer, we only do digits here
           auto* temp_1xchar = builder.CreateAdd(num, num_val('0'), "tostr_temp_1xchar");
-          auto* temp_1char = builder.CreateTrunc(temp_1xchar, oct_type, "tostr_temp_char");
+          auto* temp_1char = builder.CreateTrunc(temp_1xchar, chr_type, "tostr_temp_char");
           builder.CreateStore(temp_1char, b_1char);
 
           // this is the only iteration, mark end
@@ -496,7 +444,7 @@ namespace sel {
         leave();
         return std::make_pair(chk, itr);
       }
-    ));
+    ); });
     leave();
   }
 
