@@ -69,6 +69,8 @@ namespace sel {
       , oss.str()));
     }
     pending = sytype_for_sy<SyPlace>::the;
+    log << "< taking " << quoted(_replaceTake<SyTake>().name) << "\n";
+    log << "> placing " << quoted(_replaceTake<SyPlace>().name) << "\n";
     _replacePlace<SyPlace>() = replacer(_replaceTake<SyTake>());
   }
   template <> VisCodegen::SyNum& VisCodegen::_replacePlace<VisCodegen::SyNum>() { return synum; }
@@ -280,6 +282,10 @@ namespace sel {
 
 
   void VisCodegen::visitNumLiteral(Type const& type, double n) {
+    synum = SyNum(std::to_string(n), [this, n] {
+      log << "this should be a\n";
+      return num_val(n);
+    });
   }
 
   void VisCodegen::visitStrLiteral(Type const& type, std::string const& s) {
@@ -386,25 +392,58 @@ namespace sel {
   }
 
   void VisCodegen::visit(bins::abs_ const& node) {
-    throw NIYError("codegen abs no arg");
+    bind_args(a);
+    throw NIYError("codegen `abs a`");
   }
 
 
-  // void VisCodegen::visit(bins::add_::Base::Base const& node) {
-  // }
-  // void VisCodegen::visit(bins::add_::Base const& node) {
-  // }
-  // void VisCodegen::visit(bins::add_ const& node) {
-  //   bind_args(a, b);
-  //   this->operator()(a);
-  //   this->operator()(b);
-  // }
+  void VisCodegen::visit(bins::add_::Base::Base const& node) {
+    ;
+  }
+
+  void VisCodegen::visit(bins::add_::Base const& node) {
+    replaceSymbol<SyNum, SyNum>([this, node] (SyNum const b_sy) { // need to make a copy because the reference would get overriden
+      bind_args(a);
+      // if the app typechecks, a /has/ to be a value and not a function
+      // which means it does not expect any symbol (which is great because
+      // there is no symbol for now)
+      // [XXX: in that case, re-introduce NONE, add takeSymbol and placeSymbol]
+      this->operator()(a);
+      // now there should be a number symbol
+
+      auto a_sy = synum;
+
+      // now we have a_sy and b_sy
+      return SyNum(std::string(bins::add_::name) + "$a",
+        [=] {
+          auto* a = a_sy.make();
+          auto* b = b_sy.make();
+      // throw BaseError("generates twice the same symbol");
+          auto* res = builder.CreateFAdd(a, b, "add_res");
+          return res;
+        }
+      );
+    });
+
+    // throw NIYError("codegen `add a`");
+    // this->operator()(*node.base);
+  }
+
+  void VisCodegen::visit(bins::add_ const& node) {
+    throw NIYError("codegen `add a b`");
+    bind_args(a, b);
+    this->operator()(a);
+    this->operator()(b);
+    // this->operator()(*node.base);
+  }
 
 
+  // not perfect (eg '1-' is parsed as -1), but will do for now
   void VisCodegen::visit(bins::tonum_::Base const& node) {
     enter(bins::tonum_::name, "");
     replaceSymbol<SyGen, SyNum>([this] (SyGen const& g) { return SyNum(bins::tonum_::name,
       [=] {
+        log << "this should be b\n";
         enter(bins::tonum_::name, "value");
 
         auto* acc = builder.CreateAlloca(num_type, nullptr, "tonum_acc");
@@ -432,12 +471,10 @@ namespace sel {
               auto* not_minus_yet = builder.CreateICmpEQ(bool_false, l_isminus, "tonum_not_minus_yet");
               auto* isnegate = builder.CreateAnd(ch_is_minus, not_minus_yet, "tonum_isnegate");
               builder.CreateCondBr(isnegate, setnegate, accumulate);
-              builder.CreateBr(accumulate);
 
               builder.SetInsertPoint(setnegate);
                 builder.CreateStore(bool_true, isminus);
                 builder.CreateBr(after);
-                //builder.CreateCondBr(l_isminus, brk, after);
 
               builder.SetInsertPoint(accumulate);
                 auto* digit = builder.CreateSub(at, chr_val('0'), "tonum_digit");
@@ -497,7 +534,8 @@ namespace sel {
   }
 
   void VisCodegen::visit(bins::tonum_ const& node) {
-    throw NIYError("codegen tonum no arg");
+    bind_args(a);
+    throw NIYError("codegen `tonum a`");
   }
 
 
@@ -580,7 +618,8 @@ namespace sel {
   }
 
   void VisCodegen::visit(bins::tostr_ const& node) {
-    throw NIYError("codegen tostr no arg");
+    bind_args(a);
+    throw NIYError("codegen `tostr a`");
   }
 
 } // namespace sel

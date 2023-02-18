@@ -176,7 +176,7 @@ namespace sel {
       clo_type val;
 
       SyNum() { }
-      SyNum(char const* name, clo_type val): name(name), val(val) { }
+      SyNum(std::string const name, clo_type val): name(name), val(val) { }
       // SyNum(SyNum const&) = delete;
 
       llvm::Value* make() const;
@@ -207,7 +207,7 @@ namespace sel {
         > inject_clo_type;
 
       SyGen() { }
-      SyGen(char const* name, clo_type ent): name(name), ent(ent) { }
+      SyGen(std::string const name, clo_type ent): name(name), ent(ent) { }
       // SyGen(SyGen const&) = delete;
 
       void make(llvm::IRBuilder<>& builder, inject_clo_type also) const;
@@ -265,9 +265,9 @@ namespace sel {
 
     void visit(bins::abs_::Base const&) override;
     void visit(bins::abs_ const&) override;
-    // void visit(bins::add_::Base::Base const&) override;
-    // void visit(bins::add_::Base const&) override;
-    // void visit(bins::add_ const&) override;
+    void visit(bins::add_::Base::Base const&) override;
+    void visit(bins::add_::Base const&) override;
+    void visit(bins::add_ const&) override;
     void visit(bins::tonum_::Base const&) override;
     void visit(bins::tonum_ const&) override;
     void visit(bins::tostr_::Base const&) override;
