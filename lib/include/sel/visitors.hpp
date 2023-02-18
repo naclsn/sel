@@ -14,6 +14,8 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <stack>
+#include <list>
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/IRBuilder.h>
@@ -180,7 +182,7 @@ namespace sel {
       // SyNum(SyNum const&) = delete;
 
       llvm::Value* make() const;
-    } synum;
+    };
 
     /** symbol for a generator (Str/Lst) */
     struct SyGen {
@@ -211,18 +213,62 @@ namespace sel {
       // SyGen(SyGen const&) = delete;
 
       void make(llvm::IRBuilder<>& builder, inject_clo_type also) const;
-    } sygen;
+    };
 
-  public:
-    enum class SyType { SYNUM, SYGEN } pending = SyType::SYGEN; // initial value is gen for input
-  private:
+    class Symbol {
+      union {
+        SyNum synum;
+        SyGen sygen;
+      } const;
+      enum { SYNUM, SYGEN } const tag;
 
-    template <typename SyTake, typename SyPlace>
-    void replaceSymbol(std::function<SyPlace(SyTake const&)>);
+    public:
+      Symbol(SyNum const& sy): synum(sy), tag(SYNUM) { }
+      Symbol(SyGen const& sy): sygen(sy), tag(SYGEN) { }
+
+      Symbol(Symbol const& other): tag(other.tag) {
+        switch (tag) {
+          case SYNUM: new(&synum) SyNum(other.synum); break;
+          case SYGEN: new(&sygen) SyGen(other.sygen); break;
+        }
+      }
+      ~Symbol() {
+        switch (tag) {
+          case SYNUM: synum.~SyNum(); break;
+          case SYGEN: sygen.~SyGen(); break;
+        }
+      }
+
+      operator SyNum() {
+        if (Symbol::SYNUM != tag) throw CodegenError("expected a number symbol");
+        return synum;
+      }
+      operator SyGen() {
+        if (Symbol::SYGEN != tag) throw CodegenError("expected a generator symbol");
+        return sygen;
+      }
+    };
+
+    std::stack<Symbol, std::list<Symbol>> systack;
+
     template <typename SyPlace>
-    SyPlace& _replacePlace();
+    void push(SyPlace const& sy) {
+      systack.push(sy);
+    }
+    // template <typename SyPlace, typename ...Args>
+
     template <typename SyTake>
-    SyTake const& _replaceTake();
+    SyTake const pop() {
+      SyTake r = systack.top();
+      systack.pop();
+      return r;
+    }
+
+    // template <typename SyTake, typename SyPlace>
+    // void replace(std::function<SyPlace(SyTake const)> replacer) {
+    //   push(replacer(pop<SyTake>()));
+    // }
+
 
     //}}} symbol shenanigan
 

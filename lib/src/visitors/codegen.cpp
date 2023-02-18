@@ -51,33 +51,6 @@ namespace sel {
     makeBufferLoop(name, std::get<0>(ptr_len), std::get<1>(ptr_len), body);
   }
 
-  template <typename Sy> struct sytype_for_sy;
-  template <> struct sytype_for_sy<VisCodegen::SyNum> { static constexpr VisCodegen::SyType the = VisCodegen::SyType::SYNUM; };
-  template <> struct sytype_for_sy<VisCodegen::SyGen> { static constexpr VisCodegen::SyType the = VisCodegen::SyType::SYGEN; };
-
-  template <typename Sy> struct sy_to_string;
-  template <> struct sy_to_string<VisCodegen::SyNum> { static constexpr char const* the = "number"; };
-  template <> struct sy_to_string<VisCodegen::SyGen> { static constexpr char const* the = "generator"; };
-
-  template <typename SyTake, typename SyPlace>
-  void VisCodegen::replaceSymbol(std::function<SyPlace(SyTake const&)> replacer) {
-    if (sytype_for_sy<SyTake>::the != pending) {
-      std::ostringstream oss;
-      throw CodegenError((oss
-        << "expected symbol to be a " << sy_to_string<SyTake>::the
-        << " (replacing with a " << sy_to_string<SyPlace>::the << ")"
-      , oss.str()));
-    }
-    pending = sytype_for_sy<SyPlace>::the;
-    log << "< taking " << quoted(_replaceTake<SyTake>().name) << "\n";
-    log << "> placing " << quoted(_replaceTake<SyPlace>().name) << "\n";
-    _replacePlace<SyPlace>() = replacer(_replaceTake<SyTake>());
-  }
-  template <> VisCodegen::SyNum& VisCodegen::_replacePlace<VisCodegen::SyNum>() { return synum; }
-  template <> VisCodegen::SyGen& VisCodegen::_replacePlace<VisCodegen::SyGen>() { return sygen; }
-  template <> VisCodegen::SyNum const& VisCodegen::_replaceTake<VisCodegen::SyNum>() { return synum; }
-  template <> VisCodegen::SyGen const& VisCodegen::_replaceTake<VisCodegen::SyGen>() { return sygen; }
-
   Value* VisCodegen::SyNum::make() const {
     // (val may create new blocks, as long as it is internally consitent)
     return val();
@@ -171,8 +144,9 @@ namespace sel {
     log << "=== exit\n";
 
     // final symbol is expected to be of a Str
-    if (SyType::SYGEN != pending)
-      throw CodegenError("expected final symbol to be a generator");
+    auto g = pop<SyGen>();
+    if (!systack.empty())
+      throw CodegenError("symbol stack should be empty at the end");
     log << "\n";
 
     // does not put a new symbol, but actually performs the generation
@@ -187,7 +161,7 @@ namespace sel {
 
     auto* main = module.getFunction("main");
     builder.SetInsertPoint(BasicBlock::Create(context, "entry", main));
-    sygen.make(
+    g.make(
       builder,
       [=] (BasicBlock* brk, BasicBlock* cont, std::pair<Value*, Value*> ptr_len) {
         enter("output", "inject");
@@ -282,10 +256,10 @@ namespace sel {
 
 
   void VisCodegen::visitNumLiteral(Type const& type, double n) {
-    synum = SyNum(std::to_string(n), [this, n] {
+    push(SyNum(std::to_string(n), [this, n] {
       log << "this should be a\n";
       return num_val(n);
-    });
+    }));
   }
 
   void VisCodegen::visitStrLiteral(Type const& type, std::string const& s) {
@@ -307,7 +281,7 @@ namespace sel {
 
   void VisCodegen::visitInput(Type const& type) {
     enter("visitInput", "");
-    sygen = SyGen("input",
+    push(SyGen("input",
       [=] {
         enter("input", "entry");
 
@@ -346,7 +320,7 @@ namespace sel {
         leave();
         return std::make_pair(chk, itr);
       }
-    );
+    ));
     leave();
   }
 
@@ -368,27 +342,30 @@ namespace sel {
 
 
   void VisCodegen::visit(bins::abs_::Base const& node) {
-    replaceSymbol<SyNum, SyNum>([this] (SyNum const& n) { return SyNum(bins::abs_::name, [=] {
-      auto* in = n.make();
+    SyNum const n = pop<SyNum>();
+    push<SyNum>(SyNum(bins::abs_::name,
+      [=] {
+        auto* in = n.make();
 
-      auto* before = builder.GetInsertBlock();
-      auto* negate = makeBlock(builder, "abs_negate");
-      auto* after = makeBlock(builder, "abs_after");
+        auto* before = builder.GetInsertBlock();
+        auto* negate = makeBlock(builder, "abs_negate");
+        auto* after = makeBlock(builder, "abs_after");
 
-      auto* isnegative = builder.CreateFCmpOLT(in, num_val(0), "abs_isnegative");
-      builder.CreateCondBr(isnegative, negate, after);
+        auto* isnegative = builder.CreateFCmpOLT(in, num_val(0), "abs_isnegative");
+        builder.CreateCondBr(isnegative, negate, after);
 
-      builder.SetInsertPoint(negate);
-        auto* pos = builder.CreateFNeg(in, "abs_pos");
-        builder.CreateBr(after);
+        builder.SetInsertPoint(negate);
+          auto* pos = builder.CreateFNeg(in, "abs_pos");
+          builder.CreateBr(after);
 
-      builder.SetInsertPoint(after);
-        auto* out = builder.CreatePHI(num_type, 2, "abs_out");
-        out->addIncoming(in, before);
-        out->addIncoming(pos, negate);
+        builder.SetInsertPoint(after);
+          auto* out = builder.CreatePHI(num_type, 2, "abs_out");
+          out->addIncoming(in, before);
+          out->addIncoming(pos, negate);
 
-      return out;
-    }); });
+        return out;
+      }
+    ));
   }
 
   void VisCodegen::visit(bins::abs_ const& node) {
@@ -402,31 +379,39 @@ namespace sel {
   }
 
   void VisCodegen::visit(bins::add_::Base const& node) {
-    replaceSymbol<SyNum, SyNum>([this, node] (SyNum const b_sy) { // need to make a copy because the reference would get overriden
-      bind_args(a);
-      // if the app typechecks, a /has/ to be a value and not a function
-      // which means it does not expect any symbol (which is great because
-      // there is no symbol for now)
-      // [XXX: in that case, re-introduce NONE, add takeSymbol and placeSymbol]
-      this->operator()(a);
-      // now there should be a number symbol
+    bind_args(a);
+    SyNum const b_sy = pop<SyNum>();
 
-      auto a_sy = synum;
+    this->operator()(a);
+    // invokeFor(a, +1);
+    /*
+    VisCodegen::invokeFor(Val& arg, int expect) {
+      size_t size = systack.size();
+      this->operator()(arg);
+      if (systack.size() != size + expect) {
+        std::string got = std::string("got a change of ...");
+        if (0 == expect)
+          throw CodegenError("expected no change on stack; " + got);
+        if (0 < expect)
+          throw CodegenError("expected n more symbols on stack; " + got);
+        else
+          throw CodegenError("expected n fewer symbols on stack; " + got);
+      }
+    }
+    */
 
-      // now we have a_sy and b_sy
-      return SyNum(std::string(bins::add_::name) + "$a",
-        [=] {
-          auto* a = a_sy.make();
-          auto* b = b_sy.make();
-      // throw BaseError("generates twice the same symbol");
-          auto* res = builder.CreateFAdd(a, b, "add_res");
-          return res;
-        }
-      );
-    });
+    SyNum const a_sy = pop<SyNum>();
 
-    // throw NIYError("codegen `add a`");
-    // this->operator()(*node.base);
+    // invokeFor(*node.base, -2+1);
+
+    push<SyNum>(SyNum(std::string(bins::add_::name) + "$a",
+      [=] {
+        auto* a = a_sy.make();
+        auto* b = b_sy.make();
+        auto* res = builder.CreateFAdd(a, b, "add_res");
+        return res;
+      }
+    ));
   }
 
   void VisCodegen::visit(bins::add_ const& node) {
@@ -441,7 +426,8 @@ namespace sel {
   // not perfect (eg '1-' is parsed as -1), but will do for now
   void VisCodegen::visit(bins::tonum_::Base const& node) {
     enter(bins::tonum_::name, "");
-    replaceSymbol<SyGen, SyNum>([this] (SyGen const& g) { return SyNum(bins::tonum_::name,
+    SyGen const g = pop<SyGen>();
+    push<SyNum>(SyNum(bins::tonum_::name,
       [=] {
         log << "this should be b\n";
         enter(bins::tonum_::name, "value");
@@ -529,7 +515,7 @@ namespace sel {
         leave();
         return final_res;
       }
-    ); });
+    ));
     leave();
   }
 
@@ -541,7 +527,8 @@ namespace sel {
 
   void VisCodegen::visit(bins::tostr_::Base const& node) {
     enter(bins::tostr_::name, "");
-    replaceSymbol<SyNum, SyGen>([this] (SyNum const& n) { return SyGen(bins::tostr_::name,
+    SyNum const n = pop<SyNum>();
+    push(SyGen(bins::tostr_::name,
       [=] {
         enter(bins::tostr_::name, "entry");
 
@@ -613,7 +600,7 @@ namespace sel {
         leave();
         return std::make_pair(chk, itr);
       }
-    ); });
+    ));
     leave();
   }
 
