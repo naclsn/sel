@@ -96,9 +96,73 @@ namespace sel {
     builder.SetInsertPoint(exit);
   }
 
+  VisCodegen::Symbol::Symbol(Symbol const& other): tag(other.tag) {
+    switch (tag) {
+      case SYNUM: new(&synum) SyNum(other.synum); break;
+      case SYGEN: new(&sygen) SyGen(other.sygen); break;
+    }
+  }
+  VisCodegen::Symbol::~Symbol() {
+    switch (tag) {
+      case SYNUM: synum.~SyNum(); break;
+      case SYGEN: sygen.~SyGen(); break;
+    }
+  }
 
-#define enter(__n, __w) log << "{{ " << __n << " - " << __w << "\n"; log.indent(); auto _last_entered_n = (__n), _last_entered_w = (__w)
-#define leave() log.dedent() << "}} " << _last_entered_n << " - " << _last_entered_w << "\n\n"
+  VisCodegen::Symbol::operator VisCodegen::SyNum() {
+    if (Symbol::SYNUM != tag) throw CodegenError("expected a number symbol");
+    return synum;
+  }
+  VisCodegen::Symbol::operator VisCodegen::SyGen() {
+    if (Symbol::SYGEN != tag) throw CodegenError("expected a generator symbol");
+    return sygen;
+  }
+
+
+  template <typename SyPlace, typename ...Args>
+  void VisCodegen::place(Args... args) {
+    systack.push(SyPlace(args...));
+  }
+
+  template <typename SyTake>
+  SyTake const VisCodegen::take() {
+    SyTake r = systack.top();
+    systack.pop();
+    return r;
+  }
+
+  void VisCodegen::swap() {
+    Symbol const a = systack.top();
+    systack.pop();
+    Symbol const b = systack.top();
+    systack.pop();
+    systack.push(a);
+    systack.push(b);
+  }
+
+  void VisCodegen::invoke(Val const& arg, int expected) {
+      size_t size = systack.size();
+      this->operator()(arg);
+      int change = systack.size() - size;
+
+      if (change != expected) {
+        std::ostringstream oss("expected ", std::ios::ate);
+
+        if (0 == expected) oss << "no change on stack";
+        else oss << std::abs(expected) << (0 < expected ? " more" : " fewer") << " symbols on stack";
+
+        oss << " but got ";
+
+        if (0 == change) oss << "no change";
+        else oss << std::abs(change) << (0 < change ? " more" : " fewer");
+
+        throw CodegenError(oss.str());
+      }
+  }
+
+
+// #define enter(__n, __w) log << "{{ " << __n << " - " << __w << "\n"; log.indent(); auto _last_entered_n = (__n), _last_entered_w = (__w)
+// #define leave() log.dedent() << "}} " << _last_entered_n << " - " << _last_entered_w << "\n\n"
 
   VisCodegen::VisCodegen(char const* file_name, char const* module_name, App& app)
     : context()
@@ -124,6 +188,7 @@ namespace sel {
       throw TypeError((oss << "value of type " << ty << " is not a function", oss.str()));
     }
 
+    // `::getOrInsertFunction`?
     // define i32 main()
     Function::Create(
       FunctionType::get(llvm::Type::getInt32Ty(context), {}, false),
@@ -136,7 +201,8 @@ namespace sel {
     visitInput(Type());
 
     // coerse<Val>(app, new Input(app, in), ty.from()); // TODO: input coersion (Str* -> a)
-    this->operator()(f);
+    // this->operator()(f);
+    invoke(f, 0);
     // coerse<Str>(app, (*(Fun*)f)(), Type(Ty::STR, {0}, TyFlag::IS_INF)); // TODO: output coersion (b -> Str*)
   }
 
@@ -144,7 +210,7 @@ namespace sel {
     log << "=== exit\n";
 
     // final symbol is expected to be of a Str
-    auto g = pop<SyGen>();
+    auto g = take<SyGen>();
     if (!systack.empty())
       throw CodegenError("symbol stack should be empty at the end");
     log << "\n";
@@ -164,8 +230,6 @@ namespace sel {
     g.make(
       builder,
       [=] (BasicBlock* brk, BasicBlock* cont, std::pair<Value*, Value*> ptr_len) {
-        enter("output", "inject");
-
         makeBufferLoop("output", ptr_len, [&] (Value* at) {
           auto* write_xchar = builder.CreateZExt(at, llvm::Type::getInt32Ty(context), "output_xchar");
           builder.CreateCall(putchar, {write_xchar}, "_");
@@ -176,7 +240,6 @@ namespace sel {
 
         // no reason to break out, just continue
         builder.CreateBr(cont);
-        leave();
       }
     );
     builder.CreateRet(ConstantInt::get(context, APInt(32, 0)));
@@ -256,10 +319,9 @@ namespace sel {
 
 
   void VisCodegen::visitNumLiteral(Type const& type, double n) {
-    push(SyNum(std::to_string(n), [this, n] {
-      log << "this should be a\n";
+    place<SyNum>(std::to_string(n), [this, n] {
       return num_val(n);
-    }));
+    });
   }
 
   void VisCodegen::visitStrLiteral(Type const& type, std::string const& s) {
@@ -272,19 +334,14 @@ namespace sel {
   }
 
   void VisCodegen::visitFunChain(Type const& type, std::vector<Fun*> const& f) {
-    enter("visitFunChain", "");
     log << f.size() << " element/s\n";
     for (auto const& it : f)
       this->operator()(*it);
-    leave();
   }
 
   void VisCodegen::visitInput(Type const& type) {
-    enter("visitInput", "");
-    push(SyGen("input",
+    place<SyGen>("input",
       [=] {
-        enter("input", "entry");
-
         // declare i32 @getchar()
         Function* getchar = Function::Create(
           FunctionType::get(llvm::Type::getInt32Ty(context), {}, false),
@@ -296,8 +353,6 @@ namespace sel {
         auto* b_1char = builder.CreateAlloca(chr_type, nullptr, "input_b_1char");
 
         auto chk = [=] (BasicBlock* brk, BasicBlock* cont) {
-          enter("input", "check");
-
           auto* read_xchar = builder.CreateCall(getchar, {}, "input_xchar");
           auto* read_char = builder.CreateTrunc(read_xchar, chr_type, "input_char");
           builder.CreateStore(read_char, b_1char);
@@ -305,23 +360,17 @@ namespace sel {
           // check for eof (-1)
           auto* iseof = builder.CreateICmpEQ(chr_val(-1), read_char, "input_iseof");
           builder.CreateCondBr(iseof, brk, cont);
-
-          leave();
         };
 
         auto itr = [=] () {
-          enter("input", "iter");
           // simply returns the character read in the last pass through block 'check'
           // XXX: for now this is a 1-char buffer
-          leave();
           return std::make_pair(b_1char, len_val(1));
         };
 
-        leave();
         return std::make_pair(chk, itr);
       }
-    ));
-    leave();
+    );
   }
 
 #define _depth(__depth) _depth_ ## __depth
@@ -342,8 +391,8 @@ namespace sel {
 
 
   void VisCodegen::visit(bins::abs_::Base const& node) {
-    SyNum const n = pop<SyNum>();
-    push<SyNum>(SyNum(bins::abs_::name,
+    SyNum const n = take<SyNum>();
+    place<SyNum>(SyNum(bins::abs_::name,
       [=] {
         auto* in = n.make();
 
@@ -375,63 +424,74 @@ namespace sel {
 
 
   void VisCodegen::visit(bins::add_::Base::Base const& node) {
-    ;
+    // stack: ... b a
+    SyNum const a_sy = take<SyNum>();
+    SyNum const b_sy = take<SyNum>();
+    // stack: ...
+    place<SyNum>(SyNum(std::string(bins::add_::name),
+      [=] {
+        return builder.CreateFAdd(a_sy.make(), b_sy.make(), "add_res");
+      }
+    ));
+    // stack: ... [add a b]
   }
 
   void VisCodegen::visit(bins::add_::Base const& node) {
     bind_args(a);
-    SyNum const b_sy = pop<SyNum>();
-
-    this->operator()(a);
-    // invokeFor(a, +1);
-    /*
-    VisCodegen::invokeFor(Val& arg, int expect) {
-      size_t size = systack.size();
-      this->operator()(arg);
-      if (systack.size() != size + expect) {
-        std::string got = std::string("got a change of ...");
-        if (0 == expect)
-          throw CodegenError("expected no change on stack; " + got);
-        if (0 < expect)
-          throw CodegenError("expected n more symbols on stack; " + got);
-        else
-          throw CodegenError("expected n fewer symbols on stack; " + got);
-      }
-    }
-    */
-
-    SyNum const a_sy = pop<SyNum>();
-
-    // invokeFor(*node.base, -2+1);
-
-    push<SyNum>(SyNum(std::string(bins::add_::name) + "$a",
-      [=] {
-        auto* a = a_sy.make();
-        auto* b = b_sy.make();
-        auto* res = builder.CreateFAdd(a, b, "add_res");
-        return res;
-      }
-    ));
+    // stack: ... b
+    invoke(a, +1);
+    // stack: ... b a
+    invoke(*node.base, -2+1);
+    // stack: ... [add a b]
   }
 
   void VisCodegen::visit(bins::add_ const& node) {
-    throw NIYError("codegen `add a b`");
     bind_args(a, b);
-    this->operator()(a);
-    this->operator()(b);
-    // this->operator()(*node.base);
+    // stack: ...
+    invoke(b, +1);
+    // stack: ... b
+    invoke(*node.base, 0);
+    // stack: ... [add a b]
+  }
+
+
+  void VisCodegen::visit(bins::sub_::Base::Base const& node) {
+    // stack: ... b a
+    SyNum const a_sy = take<SyNum>();
+    SyNum const b_sy = take<SyNum>();
+    // stack: ...
+    place<SyNum>(SyNum(std::string(bins::sub_::name),
+      [=] {
+        return builder.CreateFSub(a_sy.make(), b_sy.make(), "sub_res");
+      }
+    ));
+    // stack: ... [sub a b]
+  }
+
+  void VisCodegen::visit(bins::sub_::Base const& node) {
+    bind_args(a);
+    // stack: ... b
+    invoke(a, +1);
+    // stack: ... b a
+    invoke(*node.base, -2+1);
+    // stack: ... [sub a b]
+  }
+
+  void VisCodegen::visit(bins::sub_ const& node) {
+    bind_args(a, b);
+    // stack: ...
+    invoke(b, +1);
+    // stack: ... b
+    invoke(*node.base, 0);
+    // stack: ... [sub a b]
   }
 
 
   // not perfect (eg '1-' is parsed as -1), but will do for now
   void VisCodegen::visit(bins::tonum_::Base const& node) {
-    enter(bins::tonum_::name, "");
-    SyGen const g = pop<SyGen>();
-    push<SyNum>(SyNum(bins::tonum_::name,
+    SyGen const g = take<SyGen>();
+    place<SyNum>(SyNum(bins::tonum_::name,
       [=] {
-        log << "this should be b\n";
-        enter(bins::tonum_::name, "value");
-
         auto* acc = builder.CreateAlloca(num_type, nullptr, "tonum_acc");
         builder.CreateStore(num_val(0), acc);
 
@@ -443,7 +503,6 @@ namespace sel {
         g.make(
           builder,
           [=] (BasicBlock* brk, BasicBlock* cont, std::pair<Value*, Value*> ptr_len) {
-            enter(bins::tonum_::name, "inject");
 
             makeBufferLoop("tonum", ptr_len, [&] (Value* at) {
               // _ -> setnegate -> after
@@ -489,8 +548,6 @@ namespace sel {
 
             // continue generator loop
             builder.CreateBr(cont);
-
-            leave();
           }
         );
 
@@ -512,26 +569,25 @@ namespace sel {
           final_res->addIncoming(nres, negate);
           final_res->addIncoming(res, nonegate);
 
-        leave();
         return final_res;
       }
     ));
-    leave();
   }
 
   void VisCodegen::visit(bins::tonum_ const& node) {
-    bind_args(a);
-    throw NIYError("codegen `tonum a`");
+    bind_args(s);
+    // stack: ...
+    invoke(s, +1);
+    // stack: ... s
+    invoke(*node.base, -1+1);
+    // stack: ... [tonum s]
   }
 
 
   void VisCodegen::visit(bins::tostr_::Base const& node) {
-    enter(bins::tostr_::name, "");
-    SyNum const n = pop<SyNum>();
-    push(SyGen(bins::tostr_::name,
+    SyNum const n = take<SyNum>();
+    place<SyGen>(bins::tostr_::name,
       [=] {
-        enter(bins::tostr_::name, "entry");
-
         log << "have @tostr generated\n";
 
         Value* isend = builder.CreateAlloca(bool_type, nullptr, "tostr_isend");
@@ -541,15 +597,11 @@ namespace sel {
         auto* at_2nd_char = builder.CreateGEP(b_1char, len_val(1), "tostr_at_2nd_char");
 
         auto chk = [=] (BasicBlock* brk, BasicBlock* cont) {
-          enter(bins::tostr_::name, "check");
           auto* at_isend = builder.CreateLoad(isend, "at_tostr_isend");
           builder.CreateCondBr(at_isend, brk, cont);
-          leave();
         };
 
-        auto itr = [=] () {
-          enter(bins::tostr_::name, "iter");
-
+        auto itr = [=] {
           auto* num = n.make();
 
           log << "call to @tostr, should only be here once\n";
@@ -593,20 +645,21 @@ namespace sel {
           // this is the only iteration, mark end
           builder.CreateStore(bool_true, isend);
 
-          leave();
           return std::make_pair(b_1char, total_len);
         };
 
-        leave();
         return std::make_pair(chk, itr);
       }
-    ));
-    leave();
+    );
   }
 
   void VisCodegen::visit(bins::tostr_ const& node) {
-    bind_args(a);
-    throw NIYError("codegen `tostr a`");
+    bind_args(n);
+    // stack: ...
+    invoke(n, +1);
+    // stack: ... n
+    invoke(*node.base, -1+1);
+    // stack: ... [tostr n]
   }
 
 } // namespace sel

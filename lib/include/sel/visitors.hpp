@@ -226,49 +226,19 @@ namespace sel {
       Symbol(SyNum const& sy): synum(sy), tag(SYNUM) { }
       Symbol(SyGen const& sy): sygen(sy), tag(SYGEN) { }
 
-      Symbol(Symbol const& other): tag(other.tag) {
-        switch (tag) {
-          case SYNUM: new(&synum) SyNum(other.synum); break;
-          case SYGEN: new(&sygen) SyGen(other.sygen); break;
-        }
-      }
-      ~Symbol() {
-        switch (tag) {
-          case SYNUM: synum.~SyNum(); break;
-          case SYGEN: sygen.~SyGen(); break;
-        }
-      }
+      Symbol(Symbol const& other);
+      ~Symbol();
 
-      operator SyNum() {
-        if (Symbol::SYNUM != tag) throw CodegenError("expected a number symbol");
-        return synum;
-      }
-      operator SyGen() {
-        if (Symbol::SYGEN != tag) throw CodegenError("expected a generator symbol");
-        return sygen;
-      }
+      operator SyNum();
+      operator SyGen();
     };
 
     std::stack<Symbol, std::list<Symbol>> systack;
+    template <typename SyPlace, typename ...Args> void place(Args...);
+    template <typename SyTake> SyTake const take();
+    void swap();
 
-    template <typename SyPlace>
-    void push(SyPlace const& sy) {
-      systack.push(sy);
-    }
-    // template <typename SyPlace, typename ...Args>
-
-    template <typename SyTake>
-    SyTake const pop() {
-      SyTake r = systack.top();
-      systack.pop();
-      return r;
-    }
-
-    // template <typename SyTake, typename SyPlace>
-    // void replace(std::function<SyPlace(SyTake const)> replacer) {
-    //   push(replacer(pop<SyTake>()));
-    // }
-
+    void invoke(Val const&, int);
 
     //}}} symbol shenanigan
 
@@ -314,6 +284,9 @@ namespace sel {
     void visit(bins::add_::Base::Base const&) override;
     void visit(bins::add_::Base const&) override;
     void visit(bins::add_ const&) override;
+    void visit(bins::sub_::Base::Base const&) override;
+    void visit(bins::sub_::Base const&) override;
+    void visit(bins::sub_ const&) override;
     void visit(bins::tonum_::Base const&) override;
     void visit(bins::tonum_ const&) override;
     void visit(bins::tostr_::Base const&) override;
