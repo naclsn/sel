@@ -20,48 +20,52 @@ namespace sel {
   void VisCodegen::makeBufferLoop(std::string const name
     , Value* ptr
     , Value* len
-    , std::function<void(llvm::Value* at)> body
+    , std::function<void(BasicBlock* brk, BasicBlock* cont, Value* at)> body
     )
   {
-    // {before} -> loop -> after
-    //      \      `--'     ^
-    //       `-------------'
+    // {before} -> body -> incr -> after
+    //      \       | ^----'       ^
+    //       `------+-------------'
 
     auto* before_bb = builder.GetInsertBlock();
-    auto* loop_bb = makeBlock(name+"_loop_body");
+    auto* body_bb = makeBlock(name+"_loop_body");
+    auto* incr_bb = makeBlock(name+"_loop_incr");
     auto* after_bb = makeBlock(name+"_loop_break");
 
-    // before -> {loop}    after
+    // before -> {body}    after
     //     `----------------^
 
     auto* isempty = builder.CreateICmpEQ(len, len_val(0), name+"_loop_isempty");
-    builder.CreateCondBr(isempty, after_bb, loop_bb);
-    builder.SetInsertPoint(loop_bb);
+    builder.CreateCondBr(isempty, after_bb, body_bb);
 
+    builder.SetInsertPoint(body_bb);
     // when first entering, init to 0
     auto* k = builder.CreatePHI(len_type, 2, name+"_loop_k");
     k->addIncoming(len_val(0), before_bb);
 
     // actual loop body
+    // body -> incr   after
+    //  `-------------^
     auto* it = builder.CreateGEP(chr_type, ptr, k, name+"_loop_it");
     auto* at = builder.CreateLoad(it, name+"_loop_at");
-    body(at);
+    body(after_bb, incr_bb, at);
 
+    builder.SetInsertPoint(incr_bb);
     // when from continue, take the ++
     auto* kpp = builder.CreateAdd(k, len_val(1), name+"_loop_kpp");
-    k->addIncoming(kpp, builder.GetInsertBlock()); // block 'body' ends in (which can be loop_bb if it did not create any)
+    k->addIncoming(kpp, incr_bb);
 
-    // loop -> {after}
-    // `--'
+    // body    incr -> {after}
+    //    ^----'
     auto* isend = builder.CreateICmpEQ(len, kpp, name+"_loop_isend");
-    builder.CreateCondBr(isend, after_bb, loop_bb);
+    builder.CreateCondBr(isend, after_bb, body_bb);
     builder.SetInsertPoint(after_bb);
   }
 
   void VisCodegen::makeStream(std::string const name
-    , std::function<void(llvm::BasicBlock* brk, llvm::BasicBlock* cont)> chk
+    , std::function<void(BasicBlock* brk, BasicBlock* cont)> chk
     , std::function<Generated()> itr
-    , std::function<void(llvm::BasicBlock* brk, llvm::BasicBlock* cont, Generated it)> also
+    , std::function<void(BasicBlock* brk, BasicBlock* cont, Generated it)> also
     )
   {
     // entry -> check -> [iter -> inject] (inject must branch to exit or check)
@@ -236,11 +240,10 @@ namespace sel {
     builder.SetInsertPoint(BasicBlock::Create(context, "entry", main));
 
     g.make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
-      auto ptr = std::get<0>(it.ptr_len);
-      auto len = std::get<1>(it.ptr_len);
-      makeBufferLoop("output", ptr, len, [&] (Value* at) {
+      makeBufferLoop("output", it.ptr, it.len, [&] (BasicBlock* brk, BasicBlock* cont, Value* at) {
         auto* write_xchar = builder.CreateZExt(at, llvm::Type::getInt32Ty(context), "output_xchar");
         builder.CreateCall(putchar, {write_xchar}, "_");
+        builder.CreateBr(cont);
       });
 
       // ZZZ: this just so produced output easier to understand
@@ -478,9 +481,7 @@ namespace sel {
     SyGen const s = take<SyGen>();
     place<SyGen>("bytes", [=] (SyGen::inject_clo_type also) {
       s.make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
-        auto ptr = std::get<0>(it.ptr_len);
-        auto len = std::get<1>(it.ptr_len);
-        makeBufferLoop("bytes's " + s.name, ptr, len, [=] (Value* at) {
+        makeBufferLoop("bytes's " + s.name, it.ptr, it.len, [=] (BasicBlock* brk, BasicBlock* cont, Value* at) {
           auto* n = builder.CreateUIToFP(at, num_type, "bytes_n");
           also(brk, cont, Generated(n));
         });
@@ -527,9 +528,7 @@ namespace sel {
       // builder.CreateStore(bool_false, isdot);
 
       g.make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
-        auto ptr = std::get<0>(it.ptr_len);
-        auto len = std::get<1>(it.ptr_len);
-        makeBufferLoop("tonum", ptr, len, [&] (Value* at) {
+        makeBufferLoop("tonum", it.ptr, it.len, [&] (BasicBlock* brk, BasicBlock* cont, Value* at) {
           // _ -> setnegate -> after
           // `-> accumulate ---^
           auto* setnegate = makeBlock("tonum_setnegate");
@@ -568,7 +567,9 @@ namespace sel {
             builder.CreateBr(after);
 
           builder.SetInsertPoint(after);
+
           // continue buffer loop
+          builder.CreateBr(cont);
         });
 
         // continue generator loop

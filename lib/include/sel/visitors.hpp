@@ -158,10 +158,12 @@ namespace sel {
     // things that can come out of SyGen, passed to the injection `also(brk, cont, <>)`
     union Generated {
       llvm::Value* num;
-      std::pair<llvm::Value*, llvm::Value*> ptr_len;
+      struct { llvm::Value* ptr; llvm::Value* len; };
+      // Symbol sy;
 
       Generated(llvm::Value* num): num(num) { }
-      Generated(llvm::Value* ptr, llvm::Value* len): ptr_len(std::make_pair(ptr, len)) { }
+      Generated(llvm::Value* ptr, llvm::Value* len): ptr(ptr), len(len) { }
+      // Generated(Symbol sy): sy(sy) { }
     };
 
     //{{{ some codegen utils
@@ -173,7 +175,7 @@ namespace sel {
     void makeBufferLoop(std::string const name
       , llvm::Value* ptr
       , llvm::Value* len
-      , std::function<void(llvm::Value* at)> body
+      , std::function<void(llvm::BasicBlock* brk, llvm::BasicBlock* cont, llvm::Value* at)> body
       );
 
     void makeStream(std::string const name
