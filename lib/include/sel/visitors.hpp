@@ -250,8 +250,9 @@ namespace sel {
     /// double -- type (and constant values) for Num
     llvm::Type* num_type;
     inline llvm::Constant* num_val(double v) { return llvm::ConstantFP::get(context, llvm::APFloat(v)); }
-    /// i8 -- type (and constant values) for the contained units in Str
+    /// i8 -- types (and constant values) for the contained units in Str
     llvm::Type* chr_type;
+    llvm::Type* ptr_type;
     inline llvm::Constant* chr_val(int8_t v) { return llvm::ConstantInt::get(context, llvm::APInt(8, v)); }
     /// i32 -- type (and constant values) for the counters and lengths (so for Str/Lst)
     llvm::Type* len_type;

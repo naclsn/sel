@@ -161,9 +161,6 @@ namespace sel {
   }
 
 
-// #define enter(__n, __w) log << "{{ " << __n << " - " << __w << "\n"; log.indent(); auto _last_entered_n = (__n), _last_entered_w = (__w)
-// #define leave() log.dedent() << "}} " << _last_entered_n << " - " << _last_entered_w << "\n\n"
-
   VisCodegen::VisCodegen(char const* file_name, char const* module_name, App& app)
     : context()
     , builder(context)
@@ -175,6 +172,7 @@ namespace sel {
     , bool_false(ConstantInt::get(context, APInt(1, 0)))
     , num_type(llvm::Type::getDoubleTy(context))
     , chr_type(llvm::Type::getInt8Ty(context))
+    , ptr_type(llvm::Type::getInt8PtrTy(context))
     , len_type(llvm::Type::getInt32Ty/*64*/(context))
   {
     module.setSourceFileName(file_name);
@@ -325,6 +323,34 @@ namespace sel {
   }
 
   void VisCodegen::visitStrLiteral(Type const& type, std::string const& s) {
+    place<SyGen>(s, [this, s] {
+      auto* read = builder.CreateAlloca(bool_type, nullptr, "s_read");
+      builder.CreateStore(bool_false, read);
+
+      auto* arr_type = llvm::ArrayType::get(chr_type, s.length());
+      char const* name = s.length() < 16 ? s.c_str() : ""; // unnamed if too long
+      auto* buffer = module.getOrInsertGlobal(name, arr_type, [&] {
+        return new GlobalVariable(
+          module,
+          arr_type, true, // it is constant
+          GlobalValue::PrivateLinkage,
+          ConstantDataArray::getString(context, s, false), // don't add null
+          name
+        );
+      });
+
+      return std::make_pair(
+        [=] (BasicBlock* brk, BasicBlock* cont) {
+          auto* at_isend = builder.CreateLoad(read, "l_s_read");
+          builder.CreateCondBr(at_isend, brk, cont);
+        },
+        [=] {
+          auto* at_buffer = builder.CreateGEP(buffer, {len_val(0), len_val(0)}, "s_at_buffer");
+          builder.CreateStore(bool_true, read);
+          return std::make_pair(at_buffer, len_val(s.length()));
+        }
+      );
+    });
   }
 
   void VisCodegen::visitLstLiteral(Type const& type, std::vector<Val*> const& v) {
@@ -362,7 +388,7 @@ namespace sel {
           builder.CreateCondBr(iseof, brk, cont);
         };
 
-        auto itr = [=] () {
+        auto itr = [=] {
           // simply returns the character read in the last pass through block 'check'
           // XXX: for now this is a 1-char buffer
           return std::make_pair(b_1char, len_val(1));
@@ -418,72 +444,50 @@ namespace sel {
   }
 
   void VisCodegen::visit(bins::abs_ const& node) {
-    bind_args(a);
-    throw NIYError("codegen `abs a`");
+    invoke(*node.arg, +1);
+    invoke(*node.base, -1+1);
   }
 
 
   void VisCodegen::visit(bins::add_::Base::Base const& node) {
-    // stack: ... b a
-    SyNum const a_sy = take<SyNum>();
-    SyNum const b_sy = take<SyNum>();
-    // stack: ...
+    SyNum const a = take<SyNum>();
+    SyNum const b = take<SyNum>();
     place<SyNum>(SyNum(std::string(bins::add_::name),
       [=] {
-        return builder.CreateFAdd(a_sy.make(), b_sy.make(), "add_res");
+        return builder.CreateFAdd(a.make(), b.make(), "add_res");
       }
     ));
-    // stack: ... [add a b]
   }
 
   void VisCodegen::visit(bins::add_::Base const& node) {
-    bind_args(a);
-    // stack: ... b
-    invoke(a, +1);
-    // stack: ... b a
+    invoke(*node.arg, +1);
     invoke(*node.base, -2+1);
-    // stack: ... [add a b]
   }
 
   void VisCodegen::visit(bins::add_ const& node) {
-    bind_args(a, b);
-    // stack: ...
-    invoke(b, +1);
-    // stack: ... b
-    invoke(*node.base, 0);
-    // stack: ... [add a b]
+    invoke(*node.arg, +1);
+    invoke(*node.base, -1+1);
   }
 
 
   void VisCodegen::visit(bins::sub_::Base::Base const& node) {
-    // stack: ... b a
-    SyNum const a_sy = take<SyNum>();
-    SyNum const b_sy = take<SyNum>();
-    // stack: ...
+    SyNum const a = take<SyNum>();
+    SyNum const b = take<SyNum>();
     place<SyNum>(SyNum(std::string(bins::sub_::name),
       [=] {
-        return builder.CreateFSub(a_sy.make(), b_sy.make(), "sub_res");
+        return builder.CreateFSub(a.make(), b.make(), "sub_res");
       }
     ));
-    // stack: ... [sub a b]
   }
 
   void VisCodegen::visit(bins::sub_::Base const& node) {
-    bind_args(a);
-    // stack: ... b
-    invoke(a, +1);
-    // stack: ... b a
+    invoke(*node.arg, +1);
     invoke(*node.base, -2+1);
-    // stack: ... [sub a b]
   }
 
   void VisCodegen::visit(bins::sub_ const& node) {
-    bind_args(a, b);
-    // stack: ...
-    invoke(b, +1);
-    // stack: ... b
-    invoke(*node.base, 0);
-    // stack: ... [sub a b]
+    invoke(*node.arg, +1);
+    invoke(*node.base, -1+1);
   }
 
 
@@ -575,12 +579,8 @@ namespace sel {
   }
 
   void VisCodegen::visit(bins::tonum_ const& node) {
-    bind_args(s);
-    // stack: ...
-    invoke(s, +1);
-    // stack: ... s
+    invoke(*node.arg, +1);
     invoke(*node.base, -1+1);
-    // stack: ... [tonum s]
   }
 
 
@@ -627,7 +627,7 @@ namespace sel {
             positive->addIncoming(num, nominus);
 
             // now we also do negative digits!
-            auto* store_at = builder.CreatePHI(llvm::Type::getInt8PtrTy(context), 2, "tostr_store_at");
+            auto* store_at = builder.CreatePHI(ptr_type, 2, "tostr_store_at");
             store_at->addIncoming(at_2nd_char, minus);
             store_at->addIncoming(b_1char, nominus);
 
@@ -654,12 +654,8 @@ namespace sel {
   }
 
   void VisCodegen::visit(bins::tostr_ const& node) {
-    bind_args(n);
-    // stack: ...
-    invoke(n, +1);
-    // stack: ... n
+    invoke(*node.arg, +1);
     invoke(*node.base, -1+1);
-    // stack: ... [tostr n]
   }
 
 } // namespace sel
