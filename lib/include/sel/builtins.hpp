@@ -705,15 +705,18 @@ namespace sel {
     // now `bins_min` is not used
     typedef cons_l
       < add_
+, bytes_
       , codepoints_
       , div_
       , flip_
       , graphemes_
       , index_
+, map_
       , mul_
       , sub_
       , tonum_
       , tostr_
+, unbytes_
       >::the bins_min;
 
     // XXX: still would love if this list could be built automatically

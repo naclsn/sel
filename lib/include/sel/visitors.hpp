@@ -155,15 +155,32 @@ namespace sel {
 
     indented& log;
 
+    // things that can come out of SyGen, passed to the injection `also(brk, cont, <>)`
+    union Generated {
+      llvm::Value* num;
+      std::pair<llvm::Value*, llvm::Value*> ptr_len;
+
+      Generated(llvm::Value* num): num(num) { }
+      Generated(llvm::Value* ptr, llvm::Value* len): ptr_len(std::make_pair(ptr, len)) { }
+    };
+
     //{{{ some codegen utils
 
-    static inline llvm::BasicBlock* makeBlock(llvm::IRBuilder<>& builder, std::string const name) { return llvm::BasicBlock::Create(builder.getContext(), name, builder.GetInsertBlock()->getParent()); }
+    llvm::BasicBlock* makeBlock(std::string const name);
 
     // note that the `body` function gets the bytes pointed at,
     // not the iteration variable (ie a chr, not chr* nor len)
-    typedef std::function<void(llvm::Value*)> clo_loop;
-    inline void makeBufferLoop(std::string const name, llvm::Value* ptr, llvm::Value* len, clo_loop body);
-    inline void makeBufferLoop(std::string const name, std::pair<llvm::Value*, llvm::Value*> ptr_len, clo_loop body);
+    void makeBufferLoop(std::string const name
+      , llvm::Value* ptr
+      , llvm::Value* len
+      , std::function<void(llvm::Value* at)> body
+      );
+
+    void makeStream(std::string const name
+      , std::function<void(llvm::BasicBlock* brk, llvm::BasicBlock* cont)> chk
+      , std::function<Generated()> itr
+      , std::function<void(llvm::BasicBlock* brk, llvm::BasicBlock* cont, Generated it)> also
+      );
 
     //}}} some codegen utils
 
@@ -173,13 +190,14 @@ namespace sel {
     struct SyNum {
       std::string name;
 
+      // NOTE: can be changed to have an unified symbol with `inject_clo_type`
+
       /// val returns a llvm register with the result (a num)
       typedef std::function<llvm::Value*(void)> clo_type;
       clo_type val;
 
       SyNum() { }
       SyNum(std::string const name, clo_type val): name(name), val(val) { }
-      // SyNum(SyNum const&) = delete;
 
       llvm::Value* make() const;
     };
@@ -188,31 +206,18 @@ namespace sel {
     struct SyGen {
       std::string name;
 
-      /// a type to hold a ptr-len buffer (both values are llvm registers)
-      typedef std::pair<llvm::Value*, llvm::Value*> ptr_len;
-
-      /// ent generates the entry point and returns the 2 chk and itr
-      /// - chk is responsible for branching to exit or iter
-      /// - itr returns a pair of llvm registers for the buffer (ptr-len)
-      typedef std::function
-        < std::pair
-          < std::function<void(llvm::BasicBlock* exit, llvm::BasicBlock* iter)>
-          , std::function<ptr_len()>
-          >(void)
-        > clo_type;
-      clo_type ent;
-
       /// the injection (sometimes `also`) must branch to exit or iter
       typedef std::function
         < void
-          (llvm::BasicBlock* exit, llvm::BasicBlock* iter, ptr_len buff)
+          (llvm::BasicBlock* brk, llvm::BasicBlock* cont, Generated it)
         > inject_clo_type;
+      typedef std::function<void(inject_clo_type)> clo_type;
+      clo_type ent;
 
       SyGen() { }
       SyGen(std::string const name, clo_type ent): name(name), ent(ent) { }
-      // SyGen(SyGen const&) = delete;
 
-      void make(llvm::IRBuilder<>& builder, inject_clo_type also) const;
+      void make(inject_clo_type also) const;
     };
 
     class Symbol {
@@ -285,6 +290,11 @@ namespace sel {
     void visit(bins::add_::Base::Base const&) override;
     void visit(bins::add_::Base const&) override;
     void visit(bins::add_ const&) override;
+    void visit(bins::bytes_::Base const&) override;
+    void visit(bins::bytes_ const&) override;
+    // void visit(bins::map_::Base::Base const&) override;
+    // void visit(bins::map_::Base const&) override;
+    // void visit(bins::map_ const&) override;
     void visit(bins::sub_::Base::Base const&) override;
     void visit(bins::sub_::Base const&) override;
     void visit(bins::sub_ const&) override;
@@ -292,6 +302,8 @@ namespace sel {
     void visit(bins::tonum_ const&) override;
     void visit(bins::tostr_::Base const&) override;
     void visit(bins::tostr_ const&) override;
+    void visit(bins::unbytes_::Base const&) override;
+    void visit(bins::unbytes_ const&) override;
   };
 
 } // namespace sel
