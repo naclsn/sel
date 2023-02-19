@@ -133,6 +133,9 @@ namespace sel {
   }
 
 
+  void VisCodegen::place(Symbol sy) {
+    systack.push(sy);
+  }
   template <typename SyPlace, typename ...Args>
   void VisCodegen::place(Args... args) {
     systack.push(SyPlace(args...));
@@ -491,6 +494,38 @@ namespace sel {
   }
 
   void VisCodegen::visit(bins::bytes_ const& node) {
+    invoke(*node.arg, +1);
+    invoke(*node.base, -1+1);
+  }
+
+
+  void VisCodegen::visit(bins::id_ const& node) {
+    // take && place -> noop
+  }
+
+
+  void VisCodegen::visit(bins::map_::Base::Base const& node) {
+    throw NIYError("map with no argument");
+  }
+
+  void VisCodegen::visit(bins::map_::Base const& node) {
+    // bind_args(f);
+    // f is an unary function
+    // as such, invoke(f) can be used after a correct place(num)
+    SyGen const l = take<SyGen>();
+    place<SyGen>("map", [=] (SyGen::inject_clo_type also) {
+      l.make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
+        place(*it.sy);
+        invoke(*node.arg, -1+1);
+        auto sy = take<Symbol>();
+        also(brk, cont, Generated(&sy)); // :-(
+        builder.CreateBr(cont);
+      });
+    });
+  }
+
+  void VisCodegen::visit(bins::map_ const& node) {
+    // bind_args(f, l);
     invoke(*node.arg, +1);
     invoke(*node.base, -1+1);
   }

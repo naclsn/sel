@@ -710,6 +710,7 @@ namespace sel {
       , div_
       , flip_
       , graphemes_
+, id_
       , index_
 , map_
       , mul_

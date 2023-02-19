@@ -155,15 +155,19 @@ namespace sel {
 
     indented& log;
 
+    class Symbol;
     // things that can come out of SyGen, passed to the injection `also(brk, cont, <>)`
-    union Generated {
-      llvm::Value* num;
-      struct { llvm::Value* ptr; llvm::Value* len; };
-      // Symbol sy;
+    struct Generated {
+      union {
+        llvm::Value* num;
+        struct { llvm::Value* ptr; llvm::Value* len; };
+        Symbol* sy;
+      };
+      bool is_sy;
 
-      Generated(llvm::Value* num): num(num) { }
-      Generated(llvm::Value* ptr, llvm::Value* len): ptr(ptr), len(len) { }
-      // Generated(Symbol sy): sy(sy) { }
+      Generated(llvm::Value* num): num(num), is_sy(false) { }
+      Generated(llvm::Value* ptr, llvm::Value* len): ptr(ptr), len(len), is_sy(false) { }
+      Generated(Symbol* sy): sy(sy), is_sy(true) { }
     };
 
     //{{{ some codegen utils
@@ -241,6 +245,7 @@ namespace sel {
     };
 
     std::stack<Symbol, std::list<Symbol>> systack;
+    void place(Symbol);
     template <typename SyPlace, typename ...Args> void place(Args...);
     template <typename SyTake> SyTake const take();
     void swap();
@@ -294,9 +299,10 @@ namespace sel {
     void visit(bins::add_ const&) override;
     void visit(bins::bytes_::Base const&) override;
     void visit(bins::bytes_ const&) override;
-    // void visit(bins::map_::Base::Base const&) override;
-    // void visit(bins::map_::Base const&) override;
-    // void visit(bins::map_ const&) override;
+    void visit(bins::id_ const&) override;
+    void visit(bins::map_::Base::Base const&) override;
+    void visit(bins::map_::Base const&) override;
+    void visit(bins::map_ const&) override;
     void visit(bins::sub_::Base::Base const&) override;
     void visit(bins::sub_::Base const&) override;
     void visit(bins::sub_ const&) override;
