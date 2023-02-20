@@ -112,19 +112,15 @@ namespace sel {
     return r;
   }
 
-  void VisCodegen::invoke(Val const& arg, int expected) {
-      size_t size = systack.size();
-      log << "invoke(" << std::showpos << expected << "):\n" << repr(arg, false) << "\n";
+  void VisCodegen::invoke(Val const& arg) {
+      size_t before = systack.size();
+
+      log << "invoke:\n" << repr(arg, false) << "\n";
       this->operator()(arg);
-      int change = systack.size() - size;
 
-      if (change != expected) {
-        std::ostringstream oss("expected ", std::ios::ate);
-
-        if (0 == expected) oss << "no change on stack";
-        else oss << std::abs(expected) << (0 < expected ? " more" : " fewer") << " symbols on stack";
-
-        oss << " but got ";
+      int change = systack.size() - before;
+      if (1 != change) {
+        std::ostringstream oss("expected 1 more symbols on stack but got ", std::ios::ate);
 
         if (0 == change) oss << "no change";
         else oss << std::abs(change) << (0 < change ? " more" : " fewer");
@@ -169,21 +165,15 @@ namespace sel {
     );
 
     // input symbol
-    // []
     visitInput(Type());
-    // [in]
 
     // coerse<Val>(app, new Input(app, in), ty.from()); // TODO: input coersion (Str* -> a)
-    // [in]
-    invoke(f, +1);
-    // [in f]
+    invoke(f);
     // coerse<Str>(app, (*(Fun*)f)(), Type(Ty::STR, {0}, TyFlag::IS_INF)); // TODO: output coersion (b -> Str*)
   }
 
   void* VisCodegen::makeOutput() {
-    log << "=== exit\n";
-
-    log << "\n";
+    log << "=== exit\n\n";
 
     // declare i32 @putchar()
     Function* putchar = Function::Create(
@@ -198,28 +188,22 @@ namespace sel {
 
     // does not put a new symbol, but actually performs the generation
 
-    // [in f]
-    auto f = take();
-    // [in]
-
-    f.make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
+    take().make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
       makeBufferLoop("output", it.ptr, it.len, [&] (BasicBlock* brk, BasicBlock* cont, Value* at) {
         auto* write_xchar = builder.CreateZExt(at, llvm::Type::getInt32Ty(context), "output_xchar");
         builder.CreateCall(putchar, {write_xchar}, "_");
         builder.CreateBr(cont);
       });
 
-      // ZZZ: this just so produced output easier to understand
-      builder.CreateCall(putchar, {ConstantInt::get(context, APInt(32, '\n'))}, "_");
+      // // ZZZ: this just so produced output easier to understand
+      // builder.CreateCall(putchar, {ConstantInt::get(context, APInt(32, '\n'))}, "_");
 
       // no reason to break out, just continue
       builder.CreateBr(cont);
     });
     builder.CreateRet(ConstantInt::get(context, APInt(32, 0)));
 
-    // []
-    if (!systack.empty())
-      throw CodegenError("symbol stack should be empty at the end");
+    if (!systack.empty()) throw CodegenError("symbol stack should be empty at the end");
 
     //main->viewCFG();
     return nullptr; // `void*` just a placeholder type
@@ -342,34 +326,20 @@ namespace sel {
   }
 
   void VisCodegen::visitFunChain(Type const& type, std::vector<Fun*> const& f) {
-    // [...]
     place("chain_of_" + std::to_string(f.size()), [=] (inject_clo_type also) {
-      // [... first]
       size_t k = 0;
       for (auto const& it : f) {
-        // [... prev]
-        invoke(*it, +1);
-        // [... prev curr]
+        invoke(*it);
         auto const curr = take();
-        // [... prev]
         place("chain_f_" + std::to_string(++k), [=] (inject_clo_type also) {
-          // [... prev]
           curr.make(also);
-          // [...]
         });
-        // [... prev next]
       }
-      // [... first..last]
-      auto const last = take();
-      // [... first..]
-      last.make(also);
-      // [...]
+      take().make(also);
     });
-    // [... chain_of_f]
   }
 
   void VisCodegen::visitInput(Type const& type) {
-    // [...]
     place("input", [=] (inject_clo_type also) {
       // declare i32 @getchar()
       Function* getchar = Function::Create(
@@ -399,7 +369,6 @@ namespace sel {
 
       makeStream("input", chk, itr, also);
     });
-    // [... in]
   }
 
 #define _depth(__depth) _depth_ ## __depth
@@ -420,11 +389,8 @@ namespace sel {
 
 
   void VisCodegen::visit(bins::abs_::Base const& node) {
-    // [...]
     place(bins::abs_::name, [=] (inject_clo_type also) {
-      // [... n]
       auto const n = take();
-      // [...]
 
       n.make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
         auto* in = it.num;
@@ -448,83 +414,50 @@ namespace sel {
         also(cont, cont, out);
       });
     });
-    // [... abs]
   }
 
   void VisCodegen::visit(bins::abs_ const& node) {
-    // [...]
     place("abs_n", [=] (inject_clo_type also) {
-      // [...]
-      invoke(*node.arg, +1);
-      // [... n]
-      invoke(*node.base, -1+1);
-      // [... n abs]
-      auto const abs = take();
-      // [... n]
-      abs.make(also);
-      // [...]
+      invoke(*node.arg);
+      invoke(*node.base);
+      take().make(also);
     });
-    // [... [abs n]]
   }
 
 
   void VisCodegen::visit(bins::add_::Base::Base const& node) {
-    // [...]
     place("add", [=] (inject_clo_type also) {
-      // [... b a]
       auto const a = take();
       auto const b = take();
-      // [...]
       a.make([=] (BasicBlock *brk, BasicBlock *cont, Generated a) {
         b.make([=] (BasicBlock *brk, BasicBlock *cont, Generated b) {
           also(brk, cont, builder.CreateFAdd(a.num, b.num, "add_res"));
         });
         builder.CreateBr(cont);
       });
-      // [...]
     });
-    // [... add]
   }
 
   void VisCodegen::visit(bins::add_::Base const& node) {
-    // [...]
     place("add_a", [=] (inject_clo_type also) {
-      // [... b]
-      invoke(*node.arg, +1);
-      // [... b a]
-      invoke(*node.base, +1);
-      // [... b a add]
-      auto const add = take();
-      // [... b a]
-      add.make(also);
-      // [...]
+      invoke(*node.arg);
+      invoke(*node.base);
+      take().make(also);
     });
-    // [... [add a]]
   }
 
   void VisCodegen::visit(bins::add_ const& node) {
-    // [...]
     place("add_a_b", [=] (inject_clo_type also) {
-      // [...]
-      invoke(*node.arg, +1);
-      // [... b]
-      invoke(*node.base, +1);
-      // [... b [add a]]
-      auto const add_a = take();
-      // [... b]
-      add_a.make(also);
-      // [...]
+      invoke(*node.arg);
+      invoke(*node.base);
+      take().make(also);
     });
-    // [... [add a b]]
   }
 
 
   void VisCodegen::visit(bins::bytes_::Base const& node) {
-    // [...]
     place("bytes", [=] (inject_clo_type also) {
-      // [... s]
       auto const s = take();
-      // [...]
       s.make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
         makeBufferLoop("bytes's " + s.name, it.ptr, it.len, [=] (BasicBlock* brk, BasicBlock* cont, Value* at) {
           auto* n = builder.CreateUIToFP(at, num_type, "bytes_n");
@@ -532,25 +465,15 @@ namespace sel {
         });
         builder.CreateBr(cont);
       });
-      // [...]
     });
-    // [... bytes]
   }
 
   void VisCodegen::visit(bins::bytes_ const& node) {
-    // [...]
     place("bytes_s", [=] (inject_clo_type also) {
-      // [...]
-      invoke(*node.arg, +1);
-      // [... s]
-      invoke(*node.base, +1);
-      // [... s bytes]
-      auto const bytes = take();
-      // [... s]
-      bytes.make(also);
-      // [...]
+      invoke(*node.arg);
+      invoke(*node.base);
+      take().make(also);
     });
-    // [... [bytes s]]
   }
 
 
@@ -562,58 +485,33 @@ namespace sel {
 
 
   void VisCodegen::visit(bins::map_::Base::Base const& node) {
-    // [...]
     place("map", [=] (inject_clo_type also) {
-      // [... l f]
       auto const f = take();
       auto const l = take();
-      // [...]
       l.make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
-        // [...]
         place("map's it", [=] (inject_clo_type also) {
           also(brk, cont, it);
         });
-        // [... it]
         f.make(also);
-        // [...]
-        // no reason to break out (but eg. take_ would..)
         builder.CreateBr(cont);
       });
-      // [...]
     });
-    // [... map]
   }
 
   void VisCodegen::visit(bins::map_::Base const& node) {
-    // [...]
     place("map_f", [=] (inject_clo_type also) {
-      // [... l]
-      invoke(*node.arg, +1);
-      // [... l f]
-      invoke(*node.base, +1);
-      // [... l f map]
-      auto const map = take();
-      // [... l f]
-      map.make(also);
-      // [...]
+      invoke(*node.arg);
+      invoke(*node.base);
+      take().make(also);
     });
-    // [... [map f]]
   }
 
   void VisCodegen::visit(bins::map_ const& node) {
-    // [...]
     place("map_f_l", [=] (inject_clo_type also) {
-      // [...]
-      invoke(*node.arg, +1);
-      // [... l]
-      invoke(*node.base, +1);
-      // [... l [map f]]
-      auto const map_f = take();
-      // [... l]
-      map_f.make(also);
-      // [...]
+      invoke(*node.arg);
+      invoke(*node.base);
+      take().make(also);
     });
-    // [... [map f l]]
   }
 
 
@@ -632,16 +530,16 @@ namespace sel {
 
   void VisCodegen::visit(bins::sub_::Base const& node) {
     place("sub_a", [=] (inject_clo_type also) {
-      invoke(*node.arg, +1);
-      invoke(*node.base, +1);
+      invoke(*node.arg);
+      invoke(*node.base);
       take().make(also);
     });
   }
 
   void VisCodegen::visit(bins::sub_ const& node) {
     place("sub_a_b", [=] (inject_clo_type also) {
-      invoke(*node.arg, +1);
-      invoke(*node.base, +1);
+      invoke(*node.arg);
+      invoke(*node.base);
       take().make(also);
     });
   }
@@ -649,11 +547,8 @@ namespace sel {
 
   // not perfect (eg '1-' is parsed as -1), but will do for now
   void VisCodegen::visit(bins::tonum_::Base const& node) {
-    // [...]
     place("tonum", [=] (inject_clo_type also) {
-      // [... s]
-      auto const g = take();
-      // [...]
+      auto const s = take();
 
       auto* acc = builder.CreateAlloca(num_type, nullptr, "tonum_acc");
       builder.CreateStore(num_val(0), acc);
@@ -663,7 +558,7 @@ namespace sel {
       // auto* isdot = builder.CreateAlloca(bool_type, nullptr, "tonum_isdot");
       // builder.CreateStore(bool_false, isdot);
 
-      g.make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
+      s.make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
         makeBufferLoop("tonum", it.ptr, it.len, [&] (BasicBlock* brk, BasicBlock* cont, Value* at) {
           // _ -> setnegate -> after
           // `-> accumulate ---^
@@ -734,32 +629,20 @@ namespace sel {
       also(after, after, final_res);
       builder.SetInsertPoint(after);
     });
-    // [... tonum]
   }
 
   void VisCodegen::visit(bins::tonum_ const& node) {
-    // [...]
     place("tonum_s", [=] (inject_clo_type also) {
-      // [...]
-      invoke(*node.arg, +1);
-      // [... s]
-      invoke(*node.base, +1);
-      // [... s tonum]
-      auto const tonum = take();
-      // [... s]
-      tonum.make(also);
-      // [...]
+      invoke(*node.arg);
+      invoke(*node.base);
+      take().make(also);
     });
-    // [... [tonum s]]
   }
 
 
   void VisCodegen::visit(bins::tostr_::Base const& node) {
-    // [...]
     place("tostr", [=] (inject_clo_type also) {
-      // [... n]
       auto const n = take();
-      // [...]
 
       n.make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
         log << "have @tostr generated\n";
@@ -826,51 +709,35 @@ namespace sel {
         builder.CreateBr(cont);
       });
     });
-    // [... tostr]
   }
 
   void VisCodegen::visit(bins::tostr_ const& node) {
-    // [...]
     place("tostr_s", [=] (inject_clo_type also) {
-      // [...]
-      invoke(*node.arg, +1);
-      // [... s]
-      invoke(*node.base, -1+1);
-      // [... s tostr]
-      auto const tostr = take();
-      // [... s]
-      tostr.make(also);
-      // [...]
+      invoke(*node.arg);
+      invoke(*node.base);
+      take().make(also);
     });
-    // [... [tostr n]]
   }
 
 
   void VisCodegen::visit(bins::unbytes_::Base const& node) {
-    // [...]
     place("unbytes", [=] (inject_clo_type also) {
-      // [... l]
       auto const l = take();
-      // [...]
       auto* b = builder.CreateAlloca(chr_type, nullptr, "unbytes_1char_buffer");
       l.make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
         auto* chr = builder.CreateFPToUI(it.num, chr_type, "unbytes_chr");
         builder.CreateStore(chr, b);
         also(brk, cont, Generated(b, len_val(1)));
       });
-      // [...]
     });
-    // [... unbytes]
   }
 
   void VisCodegen::visit(bins::unbytes_ const& node) {
-    // [...]
     place("unbytes_l", [=] (inject_clo_type also) {
-      invoke(*node.arg, +1);
-      invoke(*node.base, +1);
+      invoke(*node.arg);
+      invoke(*node.base);
       take().make(also);
     });
-    // [... [unbytes l]]
   }
 
 } // namespace sel

@@ -212,7 +212,7 @@ namespace sel {
     void place(std::string const, clo_type doobidoo);
     Symbol const take();
 
-    void invoke(Val const&, int);
+    void invoke(Val const&);
 
     //}}} symbol shenanigan
 
