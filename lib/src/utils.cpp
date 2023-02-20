@@ -24,7 +24,7 @@ namespace sel {
   }
 
   std::ostream& operator<<(std::ostream& out, repr me) {
-    VisRepr(out, {.single_line=true})(me.val);
+    VisRepr(out, {.single_line=me.single_line})(me.val);
     return out;
   }
 

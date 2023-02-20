@@ -51,7 +51,8 @@ namespace sel {
    */
   struct repr {
     Val const& val;
-    inline repr(Val const& val): val(val) { }
+    bool single_line;
+    inline repr(Val const& val, bool single_line=true): val(val), single_line(single_line) { }
   };
   std::ostream& operator<<(std::ostream& out, repr me);
 

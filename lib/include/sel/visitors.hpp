@@ -155,19 +155,14 @@ namespace sel {
 
     indented& log;
 
-    class Symbol;
     // things that can come out of SyGen, passed to the injection `also(brk, cont, <>)`
     struct Generated {
       union {
         llvm::Value* num;
         struct { llvm::Value* ptr; llvm::Value* len; };
-        Symbol* sy;
       };
-      bool is_sy;
-
-      Generated(llvm::Value* num): num(num), is_sy(false) { }
-      Generated(llvm::Value* ptr, llvm::Value* len): ptr(ptr), len(len), is_sy(false) { }
-      Generated(Symbol* sy): sy(sy), is_sy(true) { }
+      Generated(llvm::Value* num): num(num) { }
+      Generated(llvm::Value* ptr, llvm::Value* len): ptr(ptr), len(len) { }
     };
 
     //{{{ some codegen utils
@@ -192,63 +187,30 @@ namespace sel {
 
     //{{{ symbol shenanigan
 
-    /** symbol for a number (Num) */
-    struct SyNum {
+    /// the injection (sometimes `also`) must branch to exit or iter
+    /// in the case of a SyNum, brk and cont are both the same
+    typedef std::function
+      < void
+        (llvm::BasicBlock* brk, llvm::BasicBlock* cont, Generated it)
+      > inject_clo_type;
+    typedef std::function<void(inject_clo_type)> clo_type;
+
+    struct Symbol {
       std::string name;
+      clo_type doobidoo;
 
-      // NOTE: can be changed to have an unified symbol with `inject_clo_type`
+      Symbol(std::string const name, clo_type doobidoo)
+        : name(name)
+        , doobidoo(doobidoo)
+      { }
+      virtual ~Symbol() { }
 
-      /// val returns a llvm register with the result (a num)
-      typedef std::function<llvm::Value*(void)> clo_type;
-      clo_type val;
-
-      SyNum() { }
-      SyNum(std::string const name, clo_type val): name(name), val(val) { }
-
-      llvm::Value* make() const;
-    };
-
-    /** symbol for a generator (Str/Lst) */
-    struct SyGen {
-      std::string name;
-
-      /// the injection (sometimes `also`) must branch to exit or iter
-      typedef std::function
-        < void
-          (llvm::BasicBlock* brk, llvm::BasicBlock* cont, Generated it)
-        > inject_clo_type;
-      typedef std::function<void(inject_clo_type)> clo_type;
-      clo_type ent;
-
-      SyGen() { }
-      SyGen(std::string const name, clo_type ent): name(name), ent(ent) { }
-
-      void make(inject_clo_type also) const;
-    };
-
-    class Symbol {
-      union {
-        SyNum synum;
-        SyGen sygen;
-      } const;
-      enum { SYNUM, SYGEN } const tag;
-
-    public:
-      Symbol(SyNum const& sy): synum(sy), tag(SYNUM) { }
-      Symbol(SyGen const& sy): sygen(sy), tag(SYGEN) { }
-
-      Symbol(Symbol const& other);
-      ~Symbol();
-
-      operator SyNum();
-      operator SyGen();
+      virtual void make(inject_clo_type also) const { doobidoo(also); }
     };
 
     std::stack<Symbol, std::list<Symbol>> systack;
-    void place(Symbol);
-    template <typename SyPlace, typename ...Args> void place(Args...);
-    template <typename SyTake> SyTake const take();
-    void swap();
+    void place(std::string const, clo_type doobidoo);
+    Symbol const take();
 
     void invoke(Val const&, int);
 
