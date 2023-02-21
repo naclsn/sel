@@ -21,6 +21,7 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/raw_os_ostream.h>
+namespace tll { template <typename Ty> struct let; }
 
 #include "types.hpp"
 #include "builtins.hpp"
@@ -156,25 +157,16 @@ namespace sel {
     indented& log;
 
     // things that can come out of SyGen, passed to the injection `also(brk, cont, <>)`
-    struct Generated {
-      union {
-        llvm::Value* num;
-        struct { llvm::Value* ptr; llvm::Value* len; };
-      };
-      Generated(llvm::Value* num): num(num) { }
-      Generated(llvm::Value* ptr, llvm::Value* len): ptr(ptr), len(len) { }
-    };
+    struct Generated;
 
     //{{{ some codegen utils
-
-    llvm::BasicBlock* makeBlock(std::string const name);
 
     // note that the `body` function gets the bytes pointed at,
     // not the iteration variable (ie a chr, not chr* nor len)
     void makeBufferLoop(std::string const name
-      , llvm::Value* ptr
-      , llvm::Value* len
-      , std::function<void(llvm::BasicBlock* brk, llvm::BasicBlock* cont, llvm::Value* at)> body
+      , tll::let<char const*> ptr
+      , tll::let<int> len
+      , std::function<void(llvm::BasicBlock* brk, llvm::BasicBlock* cont, tll::let<char> at)> body
       );
 
     void makeStream(std::string const name
@@ -215,24 +207,6 @@ namespace sel {
     void invoke(Val const&);
 
     //}}} symbol shenanigan
-
-    //{{{ llvm types and values
-
-    llvm::Type* bool_type;
-    llvm::Constant* bool_true;
-    llvm::Constant* bool_false;
-    /// double -- type (and constant values) for Num
-    llvm::Type* num_type;
-    inline llvm::Constant* num_val(double v) { return llvm::ConstantFP::get(context, llvm::APFloat(v)); }
-    /// i8 -- types (and constant values) for the contained units in Str
-    llvm::Type* chr_type;
-    llvm::Type* ptr_type;
-    inline llvm::Constant* chr_val(int8_t v) { return llvm::ConstantInt::get(context, llvm::APInt(8, v)); }
-    /// i32 -- type (and constant values) for the counters and lengths (so for Str/Lst)
-    llvm::Type* len_type;
-    inline llvm::Constant* len_val(size_t v) { return llvm::ConstantInt::get(context, llvm::APInt(/*64*/32, v)); }
-
-    //}}} llvm types and values
 
   public:
     ~VisCodegen() { delete &log; }

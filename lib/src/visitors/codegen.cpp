@@ -11,55 +11,87 @@
 
 using namespace llvm;
 
+#include "_templlate.hpp"
+
+using namespace tll;
+
 namespace sel {
 
-  llvm::BasicBlock* VisCodegen::makeBlock(std::string const name) {
-    return llvm::BasicBlock::Create(builder.getContext(), name, builder.GetInsertBlock()->getParent());
-  }
+  struct VisCodegen::Generated {
+    union {
+      let<double> _num;
+      struct { let<char const*> ptr; let<int> len; } _buf;
+    };
+    enum { NUM, BUF } tag;
+
+    Generated(let<double> num): _num(num), tag(NUM) { }
+    Generated(let<char const*> ptr, let<int> len): _buf{ptr, len}, tag(BUF) { }
+
+    inline let<double> const& num() const { return _num; }
+    inline decltype(_buf) const& buf() const { return _buf; }
+
+    Generated(Generated const& other): tag(other.tag) {
+      switch (tag) {
+        case NUM:
+          new(&_num) auto(other._num);
+          break;
+        case BUF:
+          new(&_buf.ptr) auto(other._buf.ptr);
+          new(&_buf.len) auto(other._buf.len);
+          break;
+      }
+    }
+    ~Generated() {
+      switch (tag) {
+        case NUM:
+          _num.~let<double>();
+          break;
+        case BUF:
+          _buf.ptr.~let<char const*>();
+          _buf.len.~let<int>();
+          break;
+      }
+    }
+  };
 
   void VisCodegen::makeBufferLoop(std::string const name
-    , Value* ptr
-    , Value* len
-    , std::function<void(BasicBlock* brk, BasicBlock* cont, Value* at)> body
+    , let<char const*> ptr
+    , let<int> len
+    , std::function<void(BasicBlock* brk, BasicBlock* cont, let<char> at)> body
     )
   {
     // {before} -> body -> incr -> after
     //      \       | ^----'       ^
     //       `------+-------------'
 
-    auto* before_bb = builder.GetInsertBlock();
-    auto* body_bb = makeBlock(name+"_loop_body");
-    auto* incr_bb = makeBlock(name+"_loop_incr");
-    auto* after_bb = makeBlock(name+"_loop_break");
+    auto* before_bb = here();
+    auto* body_bb = block(name+"_loop_body");
+    auto* incr_bb = block(name+"_loop_incr");
+    auto* after_bb = block(name+"_loop_break");
 
     // before -> {body}    after
     //     `----------------^
+    cond(len == let<int>(0), after_bb, body_bb);
 
-    auto* isempty = builder.CreateICmpEQ(len, len_val(0), name+"_loop_isempty");
-    builder.CreateCondBr(isempty, after_bb, body_bb);
-
-    builder.SetInsertPoint(body_bb);
+    point(body_bb);
     // when first entering, init to 0
-    auto* k = builder.CreatePHI(len_type, 2, name+"_loop_k");
-    k->addIncoming(len_val(0), before_bb);
+    letPHI<int> k;
+    k.incoming(let<int>(0), before_bb);
 
     // actual loop body
     // body -> incr   after
     //  `-------------^
-    auto* it = builder.CreateGEP(chr_type, ptr, k, name+"_loop_it");
-    auto* at = builder.CreateLoad(it, name+"_loop_at");
-    body(after_bb, incr_bb, at);
+    body(after_bb, incr_bb, (Value*)let<char>(ptr[k]));
 
-    builder.SetInsertPoint(incr_bb);
+    point(incr_bb);
     // when from continue, take the ++
-    auto* kpp = builder.CreateAdd(k, len_val(1), name+"_loop_kpp");
-    k->addIncoming(kpp, incr_bb);
+    auto kpp = k + let<int>(1);
+    k.incoming(kpp, incr_bb);
 
     // body    incr -> {after}
     //    ^----'
-    auto* isend = builder.CreateICmpEQ(len, kpp, name+"_loop_isend");
-    builder.CreateCondBr(isend, after_bb, body_bb);
-    builder.SetInsertPoint(after_bb);
+    cond(len == kpp, after_bb, body_bb);
+    point(after_bb);
   }
 
   void VisCodegen::makeStream(std::string const name
@@ -73,25 +105,25 @@ namespace sel {
     //           `-------------> exit (insert point ends up in exit, which is empty)
 
     // entry -> {check}
-    auto* check = makeBlock(name+"_check");
-    builder.CreateBr(check);
-    builder.SetInsertPoint(check);
+    auto* check = block(name+"_check");
+    br(check);
+    point(check);
 
-    auto* exit = makeBlock(name+"_exit");
-    auto* iter = makeBlock(name+"_iter");
+    auto* exit = block(name+"_exit");
+    auto* iter = block(name+"_iter");
     // (responsibility of chk)
     // {check}  -> [iter
     //    `--------> exit
     chk(exit, iter);
 
     // [{iter}
-    builder.SetInsertPoint(iter);
+    point(iter);
     auto ptr_len = itr();
 
     // [iter -> {inject}]
-    auto* inject = makeBlock(name+"_inject");
-    builder.CreateBr(inject);
-    builder.SetInsertPoint(inject);
+    auto* inject = block(name+"_inject");
+    br(inject);
+    point(inject);
     // (responsibility of also)
     // check -> [iter -> inject]
     //  |  ^-------------' v
@@ -99,7 +131,7 @@ namespace sel {
     also(exit, check, ptr_len);
 
     // {exit}
-    builder.SetInsertPoint(exit);
+    point(exit);
   }
 
   void VisCodegen::place(std::string const name, clo_type doobidoo) {
@@ -135,15 +167,9 @@ namespace sel {
     , builder(context)
     , module(module_name, context)
     , log(*new indented("   ", std::cerr))
-
-    , bool_type(llvm::Type::getInt1Ty(context))
-    , bool_true(ConstantInt::get(context, APInt(1, 1)))
-    , bool_false(ConstantInt::get(context, APInt(1, 0)))
-    , num_type(llvm::Type::getDoubleTy(context))
-    , chr_type(llvm::Type::getInt8Ty(context))
-    , ptr_type(llvm::Type::getInt8PtrTy(context))
-    , len_type(llvm::Type::getInt32Ty/*64*/(context))
   {
+    tll::builder(builder);
+
     module.setSourceFileName(file_name);
     log << "=== entry\n";
 
@@ -155,14 +181,7 @@ namespace sel {
       throw TypeError((oss << "value of type " << ty << " is not a function", oss.str()));
     }
 
-    // `::getOrInsertFunction`?
-    // define i32 main()
-    Function::Create(
-      FunctionType::get(llvm::Type::getInt32Ty(context), {}, false),
-      Function::ExternalLinkage,
-      "main",
-      module
-    );
+    let<int()> main("main", module, Function::ExternalLinkage);
 
     // input symbol
     visitInput(Type());
@@ -175,33 +194,23 @@ namespace sel {
   void* VisCodegen::makeOutput() {
     log << "=== exit\n\n";
 
-    // declare i32 @putchar()
-    Function* putchar = Function::Create(
-      FunctionType::get(llvm::Type::getInt32Ty(context), {llvm::Type::getInt32Ty(context)}, false),
-      Function::ExternalLinkage,
-      "putchar",
-      module
-    );
+    let<int(int)> putchar("putchar", module, Function::ExternalLinkage);
 
-    auto* main = module.getFunction("main");
-    builder.SetInsertPoint(BasicBlock::Create(context, "entry", main));
+    // get existing "main"
+    let<int()> main("main", module);
+    point(main["entry"]);
 
     // does not put a new symbol, but actually performs the generation
 
     take().make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
-      makeBufferLoop("output", it.ptr, it.len, [&] (BasicBlock* brk, BasicBlock* cont, Value* at) {
-        auto* write_xchar = builder.CreateZExt(at, llvm::Type::getInt32Ty(context), "output_xchar");
-        builder.CreateCall(putchar, {write_xchar}, "_");
-        builder.CreateBr(cont);
+      makeBufferLoop("output", it.buf().ptr, it.buf().len, [&] (BasicBlock* brk, BasicBlock* cont, let<char> at) {
+        putchar(at.into<int>());
+        br(cont);
       });
-
-      // // ZZZ: this just so produced output easier to understand
-      // builder.CreateCall(putchar, {ConstantInt::get(context, APInt(32, '\n'))}, "_");
-
-      // no reason to break out, just continue
-      builder.CreateBr(cont);
+      br(cont);
     });
-    builder.CreateRet(ConstantInt::get(context, APInt(32, 0)));
+
+    main.ret(0);
 
     if (!systack.empty()) throw CodegenError("symbol stack should be empty at the end");
 
@@ -280,39 +289,28 @@ namespace sel {
 
 
   void VisCodegen::visitNumLiteral(Type const& type, double n) {
-    place(std::to_string(n), [this, n] (inject_clo_type also) {
-      auto* after = makeBlock(std::to_string(n)+"_inject");
-      also(after, after, num_val(n));
-      builder.SetInsertPoint(after);
+    place(std::to_string(n), [n] (inject_clo_type also) {
+      auto* after = block(std::to_string(n)+"_inject");
+      also(after, after, let<double>(n));
+      point(after);
     });
   }
 
   void VisCodegen::visitStrLiteral(Type const& type, std::string const& s) {
     place(s, [this, s] (inject_clo_type also) {
-      auto* read = builder.CreateAlloca(bool_type, nullptr, "s_read");
-      builder.CreateStore(bool_false, read);
+      auto isread = let<bool>::alloc();
+      *isread = false;
 
-      auto* arr_type = llvm::ArrayType::get(chr_type, s.length());
       char const* name = s.length() < 16 ? s.c_str() : ""; // unnamed if too long
-      auto* buffer = module.getOrInsertGlobal(name, arr_type, [&] {
-        return new GlobalVariable(
-          module,
-          arr_type, true, // it is constant
-          GlobalValue::PrivateLinkage,
-          ConstantDataArray::getString(context, s, false), // don't add null
-          name
-        );
-      });
+      auto buffer = let<char const**>(name, module, GlobalValue::PrivateLinkage, s, false); // don't add null
 
       makeStream(name,
         [=] (BasicBlock* brk, BasicBlock* cont) {
-          auto* at_isend = builder.CreateLoad(read, "l_s_read");
-          builder.CreateCondBr(at_isend, brk, cont);
+          cond(*isread, brk, cont);
         },
         [=] {
-          auto* at_buffer = builder.CreateGEP(buffer, {len_val(0), len_val(0)}, "s_at_buffer");
-          builder.CreateStore(bool_true, read);
-          return Generated(at_buffer, len_val(s.length()));
+          *isread = true;
+          return Generated(*buffer, let<int>(s.length()));
         },
         also
       );
@@ -341,51 +339,42 @@ namespace sel {
 
   void VisCodegen::visitInput(Type const& type) {
     place("input", [=] (inject_clo_type also) {
-      // declare i32 @getchar()
-      Function* getchar = Function::Create(
-        FunctionType::get(llvm::Type::getInt32Ty(context), {}, false),
-        Function::ExternalLinkage,
-        "getchar",
-        module
-      );
+      let<int()> getchar("getchar", module, Function::ExternalLinkage);
 
-      auto* b_1char = builder.CreateAlloca(chr_type, nullptr, "input_b_1char");
+      auto b_1char = let<char>::alloc();
 
       auto chk = [=] (BasicBlock* brk, BasicBlock* cont) {
-        auto* read_xchar = builder.CreateCall(getchar, {}, "input_xchar");
-        auto* read_char = builder.CreateTrunc(read_xchar, chr_type, "input_char");
-        builder.CreateStore(read_char, b_1char);
-
+        auto read_char = getchar().into<char>();
+        *b_1char = read_char;
         // check for eof (-1)
-        auto* iseof = builder.CreateICmpEQ(chr_val(-1), read_char, "input_iseof");
-        builder.CreateCondBr(iseof, brk, cont);
+        cond(read_char == -1, brk, cont);
       };
 
       auto itr = [=] {
         // simply returns the character read in the last pass through block 'check'
         // XXX: for now this is a 1-char buffer
-        return Generated(b_1char, len_val(1));
+        return Generated(b_1char, let<int>(1));
       };
 
       makeStream("input", chk, itr, also);
     });
   }
 
-#define _depth(__depth) _depth_ ## __depth
-#define _depth_0 arg
-#define _depth_1 base->_depth_0
-#define _depth_2 base->_depth_1
-#define _depth_3 base->_depth_2
+// #define _depth(__depth) _depth_ ## __depth
+// #define _depth_0 arg
+// #define _depth_1 base->_depth_0
+// #define _depth_2 base->_depth_1
+// #define _depth_3 base->_depth_2
 
-#define _bind_some(__count) _bind_some_ ## __count
-#define _bind_some_1(a)          _bind_one(a, 0)
-#define _bind_some_2(a, b)       _bind_one(a, 1); _bind_some_1(b)
-#define _bind_some_3(a, b, c)    _bind_one(a, 2); _bind_some_2(b, c)
-#define _bind_some_4(a, b, c, d) _bind_one(a, 3); _bind_some_3(b, c, d)
+// #define _bind_some(__count) _bind_some_ ## __count
+// #define _bind_some_1(a)          _bind_one(a, 0)
+// #define _bind_some_2(a, b)       _bind_one(a, 1); _bind_some_1(b)
+// #define _bind_some_3(a, b, c)    _bind_one(a, 2); _bind_some_2(b, c)
+// #define _bind_some_4(a, b, c, d) _bind_one(a, 3); _bind_some_3(b, c, d)
 
-#define _bind_count(__count, ...) _bind_some(__count)(__VA_ARGS__)
-#define _bind_one(__name, __depth) auto& __name = *node._depth(__depth); (void)__name
-#define bind_args(...) _bind_count(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
+// #define _bind_count(__count, ...) _bind_some(__count)(__VA_ARGS__)
+// #define _bind_one(__name, __depth) auto& __name = *node._depth(__depth); (void)__name
+// #define bind_args(...) _bind_count(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
 
 
   void VisCodegen::visit(bins::abs_::Base const& node) {
@@ -393,23 +382,22 @@ namespace sel {
       auto const n = take();
 
       n.make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
-        auto* in = it.num;
+        auto* before = here();
+        auto* negate = block("abs_negate");
+        auto* after = block("abs_after");
 
-        auto* before = builder.GetInsertBlock();
-        auto* negate = makeBlock("abs_negate");
-        auto* after = makeBlock("abs_after");
+        auto in = it.num();
+        cond(in < 0., negate, after);
 
-        auto* isnegative = builder.CreateFCmpOLT(in, num_val(0), "abs_isnegative");
-        builder.CreateCondBr(isnegative, negate, after);
+        point(negate);
+          auto pos = -in;
+          br(after);
 
-        builder.SetInsertPoint(negate);
-          auto* pos = builder.CreateFNeg(in, "abs_pos");
-          builder.CreateBr(after);
-
-        builder.SetInsertPoint(after);
-          auto* out = builder.CreatePHI(num_type, 2, "abs_out");
-          out->addIncoming(in, before);
-          out->addIncoming(pos, negate);
+        point(after);
+          letPHI<double> out({
+            std::make_pair(in, before),
+            std::make_pair(pos, negate),
+          });
 
         also(cont, cont, out);
       });
@@ -431,9 +419,9 @@ namespace sel {
       auto const b = take();
       a.make([=] (BasicBlock *brk, BasicBlock *cont, Generated a) {
         b.make([=] (BasicBlock *brk, BasicBlock *cont, Generated b) {
-          also(brk, cont, builder.CreateFAdd(a.num, b.num, "add_res"));
+          also(cont, cont, a.num() + b.num());
         });
-        builder.CreateBr(cont);
+        br(cont);
       });
     });
   }
@@ -459,11 +447,10 @@ namespace sel {
     place("bytes", [=] (inject_clo_type also) {
       auto const s = take();
       s.make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
-        makeBufferLoop("bytes's " + s.name, it.ptr, it.len, [=] (BasicBlock* brk, BasicBlock* cont, Value* at) {
-          auto* n = builder.CreateUIToFP(at, num_type, "bytes_n");
-          also(brk, cont, Generated(n));
+        makeBufferLoop("bytes's " + s.name, it.buf().ptr, it.buf().len, [=] (BasicBlock* brk, BasicBlock* cont, let<char> at) {
+          also(brk, cont, at.into<double>());
         });
-        builder.CreateBr(cont);
+        br(cont);
       });
     });
   }
@@ -493,7 +480,7 @@ namespace sel {
           also(brk, cont, it);
         });
         f.make(also);
-        builder.CreateBr(cont);
+        br(cont);
       });
     });
   }
@@ -521,9 +508,9 @@ namespace sel {
       auto const b = take();
       a.make([=] (BasicBlock* brk, BasicBlock* cont, Generated a) {
         b.make([=] (BasicBlock* brk, BasicBlock* cont, Generated b) {
-          also(cont, cont, builder.CreateFSub(a.num, b.num, "sub_res"));
+          also(cont, cont, a.num() - b.num());
         });
-        builder.CreateBr(cont);
+        br(cont);
       });
     });
   }
@@ -550,84 +537,70 @@ namespace sel {
     place("tonum", [=] (inject_clo_type also) {
       auto const s = take();
 
-      auto* acc = builder.CreateAlloca(num_type, nullptr, "tonum_acc");
-      builder.CreateStore(num_val(0), acc);
+      auto acc = let<double>::alloc();
+      *acc = 0.;
 
-      auto* isminus = builder.CreateAlloca(bool_type, nullptr, "tonum_isminus");
-      builder.CreateStore(bool_false, isminus);
-      // auto* isdot = builder.CreateAlloca(bool_type, nullptr, "tonum_isdot");
-      // builder.CreateStore(bool_false, isdot);
+      auto isminus = let<bool>::alloc();
+      *isminus = false;
+      // auto isdot = let<bool>::alloc();
+      // *isdot = false;
 
       s.make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
-        makeBufferLoop("tonum", it.ptr, it.len, [&] (BasicBlock* brk, BasicBlock* cont, Value* at) {
+        makeBufferLoop("tonum", it.buf().ptr, it.buf().len, [&] (BasicBlock* brk, BasicBlock* cont, let<char> at) {
           // _ -> setnegate -> after
           // `-> accumulate ---^
-          auto* setnegate = makeBlock("tonum_setnegate");
-          auto* accumulate = makeBlock("tonum_accumulate");
-          auto* after = makeBlock("tonum_after");
+          auto* setnegate = block("tonum_setnegate");
+          auto* accumulate = block("tonum_accumulate");
+          auto* after = block("tonum_after");
 
-          auto* ch_is_minus = builder.CreateICmpEQ(chr_val('-'), at, "tonum_ch_is_minus");
-          auto* l_isminus = builder.CreateLoad(isminus, "tonum_l_isminus");
-          auto* not_minus_yet = builder.CreateICmpEQ(bool_false, l_isminus, "tonum_not_minus_yet");
-          auto* isnegate = builder.CreateAnd(ch_is_minus, not_minus_yet, "tonum_isnegate");
-          builder.CreateCondBr(isnegate, setnegate, accumulate);
+          auto isnegate = at == '-' && !let<bool>(*isminus);
+          cond(isnegate, setnegate, accumulate);
 
-          builder.SetInsertPoint(setnegate);
-            builder.CreateStore(bool_true, isminus);
-            builder.CreateBr(after);
+          point(setnegate);
+            *isminus = true;
+            br(after);
 
-          builder.SetInsertPoint(accumulate);
-            auto* digit = builder.CreateSub(at, chr_val('0'), "tonum_digit");
-
-            auto* isdigit_lower = builder.CreateICmpSLE(chr_val(0), digit, "tonum_isdigit_lower");
-            auto* isdigit_upper = builder.CreateICmpSLE(digit, chr_val(9), "tonum_isdigit_upper");
-            auto* isdigit = builder.CreateAnd(isdigit_lower, isdigit_upper, "tonum_isdigit");
-
-            auto* acc_if_isdigit = makeBlock("tonum_acc_if_isdigit");
+          point(accumulate);
+            auto* acc_if_isdigit = block("tonum_acc_if_isdigit");
             // break if no longer digit
-            builder.CreateCondBr(isdigit, acc_if_isdigit, brk);
+            cond(at >= '0' && at <= '9', acc_if_isdigit, brk);
 
-            builder.SetInsertPoint(acc_if_isdigit);
-              // acc = acc * 10 + digit
-              auto* xdigit = builder.CreateUIToFP(digit, num_type, "tonum_xdigit");
-              auto* acc_prev = builder.CreateLoad(acc, "tonum_acc_prev");
-              auto* acc_temp = builder.CreateFMul(acc_prev, num_val(10), "tonum_acc_temp");
-              auto* acc_next = builder.CreateFAdd(acc_temp, xdigit, "tonum_acc_next");
-              builder.CreateStore(acc_next, acc);
+            point(acc_if_isdigit);
+              *acc = let<double>(*acc)*10 + (at-let<char>('0')).into<double>();
 
-            builder.CreateBr(after);
+            br(after);
 
-          builder.SetInsertPoint(after);
+          point(after);
 
           // continue buffer loop
-          builder.CreateBr(cont);
+          br(cont);
         });
 
         // continue generator loop
-        builder.CreateBr(cont);
+        br(cont);
       });
 
-      auto* res = builder.CreateLoad(acc, "tonum_res");
+      auto res = let<double>(*acc);
 
-      auto* nonegate = builder.GetInsertBlock();
-      auto* negate = makeBlock("tonum_negate");
-      auto* retres = makeBlock("tonum_retres");
+      auto* nonegate = here();
+      auto* negate = block("tonum_negate");
+      auto* retres = block("tonum_retres");
 
-      auto* l_isminus = builder.CreateLoad(isminus, "tonum_l_isminus");
-      builder.CreateCondBr(l_isminus, negate, retres);
+      cond(*isminus, negate, retres);
 
-      builder.SetInsertPoint(negate);
-        auto* nres = builder.CreateFNeg(res, "tonum_nres");
-        builder.CreateBr(retres);
+      point(negate);
+        auto nres = -res;
+        br(retres);
 
-      builder.SetInsertPoint(retres);
-        auto* final_res = builder.CreatePHI(num_type, 2, "tonum_final_res");
-        final_res->addIncoming(nres, negate);
-        final_res->addIncoming(res, nonegate);
+      point(retres);
+        letPHI<double> final_res({
+          std::make_pair(nres, negate),
+          std::make_pair(res, nonegate),
+        });
 
-      auto* after = makeBlock("tonum_inject");
+      auto* after = block("tonum_inject");
       also(after, after, final_res);
-      builder.SetInsertPoint(after);
+      point(after);
     });
   }
 
@@ -647,66 +620,62 @@ namespace sel {
       n.make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
         log << "have @tostr generated\n";
 
-        Value* isend = builder.CreateAlloca(bool_type, nullptr, "tostr_isend");
-        builder.CreateStore(bool_false, isend);
+        auto isread = let<bool>::alloc();
+        *isread = false;
 
-        auto* b_1char = builder.CreateAlloca(chr_type, len_val(2), "tostr_b_1char");
-        auto* at_2nd_char = builder.CreateGEP(b_1char, len_val(1), "tostr_at_2nd_char");
+        auto b_1char = let<char>::alloc(2);
+        auto at_2nd_char = b_1char + 1;
 
         auto chk = [=] (BasicBlock* brk, BasicBlock* cont) {
-          auto* at_isend = builder.CreateLoad(isend, "at_tostr_isend");
-          builder.CreateCondBr(at_isend, brk, cont);
+          cond(*isread, brk, cont);
         };
 
         auto itr = [=] {
-          auto* num = it.num;
+          auto num = let<double>(it.num());
 
           log << "call to @tostr, should only be here once\n";
           /*b=*/
 
           // nominus -> minus -> common
           //     `-----------------^
-          auto* nominus = builder.GetInsertBlock();
-          auto* minus = makeBlock("tostr_minus");
-          auto* common = makeBlock("tostr_common");
+          auto* nominus = here();
+          auto* minus = block("tostr_minus");
+          auto* common = block("tostr_common");
 
-          auto* isnegative = builder.CreateFCmpOLT(num, num_val(0), "tostr_isnegative");
-          builder.CreateCondBr(isnegative, minus, common);
+          cond(num < 0., minus, common);
 
-          builder.SetInsertPoint(minus);
-            auto* pnum = builder.CreateFNeg(num, "tostr_pnum");
-            builder.CreateStore(chr_val('-'), b_1char);
-            builder.CreateBr(common);
+          point(minus);
+            auto pnum = -num;
+            *b_1char = '-';
+            br(common);
 
-          builder.SetInsertPoint(common);
-            auto* positive = builder.CreatePHI(num_type, 2, "tostr_positive");
-            positive->addIncoming(pnum, minus);
-            positive->addIncoming(num, nominus);
+          point(common);
+            letPHI<double> positive({
+              std::make_pair(pnum, minus),
+              std::make_pair(num, nominus),
+            });
 
-            // now we also do negative digits!
-            auto* store_at = builder.CreatePHI(ptr_type, 2, "tostr_store_at");
-            store_at->addIncoming(at_2nd_char, minus);
-            store_at->addIncoming(b_1char, nominus);
+            letPHI<char*> store_at({
+              std::make_pair(at_2nd_char, minus),
+              std::make_pair(b_1char, nominus),
+            });
 
-            auto* total_len = builder.CreatePHI(len_type, 2, "tostr_total_len");
-            total_len->addIncoming(len_val(2), minus);
-            total_len->addIncoming(len_val(1), nominus);
+            letPHI<int> total_len({
+              std::make_pair(2, minus),
+              std::make_pair(1, nominus),
+            });
 
             // also for now 1-char buffer, we only do digits here
-            auto* inum = builder.CreateFPToUI(positive, len_type, "tostr_temp_inum");
-            auto* temp_1xchar = builder.CreateAdd(inum, len_val('0'), "tostr_temp_1xchar");
-            auto* temp_1char = builder.CreateTrunc(temp_1xchar, chr_type, "tostr_temp_char");
-
-            builder.CreateStore(temp_1char, store_at);
+            *store_at = positive.into<char>() + let<char>('0');
 
           // this is the only iteration, mark end
-          builder.CreateStore(bool_true, isend);
+          *isread = true;
 
           return Generated(b_1char, total_len);
         };
 
         makeStream("tostr", chk, itr, also);
-        builder.CreateBr(cont);
+        br(cont);
       });
     });
   }
@@ -723,11 +692,10 @@ namespace sel {
   void VisCodegen::visit(bins::unbytes_::Base const& node) {
     place("unbytes", [=] (inject_clo_type also) {
       auto const l = take();
-      auto* b = builder.CreateAlloca(chr_type, nullptr, "unbytes_1char_buffer");
+      auto b = let<char>::alloc();
       l.make([=] (BasicBlock* brk, BasicBlock* cont, Generated it) {
-        auto* chr = builder.CreateFPToUI(it.num, chr_type, "unbytes_chr");
-        builder.CreateStore(chr, b);
-        also(brk, cont, Generated(b, len_val(1)));
+        *b = let<double>(it.num()).into<char>();
+        also(brk, cont, Generated(b, let<int>(1)));
       });
     });
   }
