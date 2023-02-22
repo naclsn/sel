@@ -26,7 +26,7 @@ int main(int argc, char* argv[]) {
   }
 
   if (opts.compile) {
-    compile(app, opts.filename, opts.compile_flags);
+    compile(app, opts.filename, opts);
     return EXIT_SUCCESS;
   }
 

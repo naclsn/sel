@@ -1,0 +1,37 @@
+#!/bin/bash
+if test -z "$2"
+  then
+    echo 'Usage: step <name> <...script>'                           >&2
+    echo '   incremental tests: compiles the script into `name.ll`' >&2
+    echo '   if a previous version of `name.ll` already exists,'    >&2
+    echo '   it is first save, then compared with the new version;' >&2
+    echo '   answering "b" "bad" .. at the prompt will restore'     >&2
+    exit 1
+fi
+
+f=$1
+shift
+
+dir=`mktemp -d`
+trap "rm '$dir/$f.ll' '$dir/$f-p.ll' |:; rmdir '$dir' |:" EXIT
+
+cp $f.ll $f-p.ll "$dir" |:
+mv $f.ll $f-p.ll |:
+
+if s/el-min -f <(echo "$@") -o $f
+  then
+    if `command -v colordiff || echo diff` -u $f-p.ll $f.ll
+      then echo [no diff]
+      else
+        read -p 'good/bad? ' r
+        if test "${r#b}" = "$r"
+          then echo [kept]
+          else
+            mv "$dir/$f.ll" "$dir/$f-p.ll" . |:
+            echo [restored]
+        fi
+    fi
+  else
+    mv "$dir/$f.ll" "$dir/$f-p.ll" . |:
+    echo [restored]
+fi

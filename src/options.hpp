@@ -26,8 +26,13 @@ struct Options {
   bool strict = false; // -s
   bool any_type = false; // -t (allows the app to be of any type)
 
-  bool compile = false; // -o (niy)
-  char** compile_flags = NULL; // everything after -o (niy)
+  bool compile = false; // -o
+  char** _compile_flags = NULL; // (everything after -o)
+  // compile sub-command
+  char const* outfile = NULL; // -o outfile (required)
+  char const* funname = NULL; // -N funname (if set, no `main`)
+  bool no_link = false; // -c (do not link)
+  bool no_assemble = false; // -S (do not compile)
 
   Options(int argc, char* argv[])
     : argc(argc--)
@@ -65,12 +70,15 @@ struct Options {
 
             case 'o':
               compile = true;
-              if (hasv) compile_flags = argv+ ++k;
+              if (*++arg) outfile = arg;
+              else if (hasv) outfile = argv[++k];
               else usage("missing output file name");
+              _compile_flags = argv+ ++k;
               goto break_all;
 
             case 'f':
-              if (hasv) filename = argv[++k];
+              if (*++arg) filename = arg;
+              else if (hasv) filename = argv[++k];
               else usage("missing file name");
               // check file readable here?
               goto break_one;
@@ -104,7 +112,36 @@ struct Options {
     } // for argv
     break_all:;
 
+    if (compile) compile_subparser();
+
     verify();
+  }
+
+  void compile_subparser() {
+    while (*_compile_flags) {
+      char const* arg = *_compile_flags;
+
+      if ('-' == arg[0]) {
+        while (*++arg) {
+          switch (*arg) {
+            case 'N':
+              if (*++arg) funname = arg;
+              else if (*++_compile_flags) funname = *_compile_flags;
+              else usage("missing function name");
+              goto break_one;
+
+            case 'c': no_link = true;     break;
+            case 'S': no_assemble = true; break;
+
+            default: usage((string("unknown flag '")+*arg+'\'').c_str());
+          } // switch *arg
+        }
+        break_one:;
+
+      } else usage((string("unexpected argument '")+arg+'\'').c_str());
+
+      _compile_flags++;
+    } // while compile_flags
   }
 
   void usage(char const* reason) {
@@ -112,7 +149,7 @@ struct Options {
     cerr
       << "Usage: " << prog << " [-Dnst] <script...> | -f <file>\n"
       << "       " << prog << " -l [<names...>]\n"
-      << "       " << prog << " [-s] -f <file> [-o <bin> <flags...>]\n"
+      << "       " << prog << " [-s] -f <file> [-o <bin> [-N <name> -cS]]\n"
     ;
     exit(EXIT_FAILURE);
   }

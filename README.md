@@ -100,7 +100,7 @@ $ ninja -C release
 $ build/sel -h
 Usage: build/sel [-Dns] <script...> | -f <file>
        build/sel -l [<names...>]
-       build/sel [-s] -f <file> [-o <bin> <flags...>]
+       build/sel [-s] -f <file> [-o <bin> [-N <name> -cS]]
 ```
 
 In the first form, `sel` runs a script that is read either

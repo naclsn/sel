@@ -191,65 +191,104 @@ namespace sel {
   }
 
 
-  VisCodegen::VisCodegen(char const* file_name, char const* module_name, App& app)
+  // `i8* get(i32*)` and `put(i8*, i32)`
+  typedef let<void(char const*(int*), void(char const*, int))> app_t;
+
+  VisCodegen::VisCodegen(char const* file_name, char const* module_name, char const* function_name, App& app)
     : context()
     , builder(context)
     , module(module_name, context)
     , log(*new indented("   ", std::cerr))
+    , funname(function_name)
   {
     tll::builder(builder);
 
     module.setSourceFileName(file_name);
-    log << "=== entry\n";
 
     Val& f = app.get(); // ZZZ: temporary dum accessor
-    Type const& ty = f.type();
-
-    if (Ty::FUN != ty.base) {
-      std::ostringstream oss;
-      throw TypeError((oss << "value of type " << ty << " is not a function", oss.str()));
+    // type-check (for now it only can do `Str* -> Str*`)
+    {
+      Type const& ty = f.type();
+      if (Ty::FUN != ty.base) {
+        std::ostringstream oss;
+        throw TypeError((oss << "value of type " << ty << " is not a function", oss.str()));
+      }
+      if (Ty::STR != ty.from().base || Ty::STR != ty.to().base) {
+        bool still_ok = false; // special case for eg. id_, hacked in for dev
+        if (Ty::UNK == ty.from().base && Ty::UNK == ty.to().base)
+          if (*ty.from().p.name == *ty.to().p.name)
+            still_ok = true;
+        if (!still_ok) {
+          std::ostringstream oss;
+          throw NIYError((oss << "compiling an application of type '" << ty << "', only 'Str* -> Str*' is supported", oss.str()));
+        }
+      }
     }
 
-    if (Ty::STR != ty.from().base || Ty::STR != ty.to().base) {
-      std::ostringstream oss;
-      throw NIYError((oss << "compiling an application of type '" << ty << "', only 'Str* -> Str*' is supported", oss.str()));
-    }
+    app_t app_f(funname, module, Function::ExternalLinkage);
+    point(app_f.entry());
 
-    let<int()> main("main", module, Function::ExternalLinkage);
-
-    // input symbol
+    // place input symbol
     visitInput(Type());
 
+    // build the whole stack
     // coerse<Val>(app, new Input(app, in), ty.from()); // TODO: input coersion (Str* -> a)
     invoke(f);
     // coerse<Str>(app, (*(Fun*)f)(), Type(Ty::STR, {0}, TyFlag::IS_INF)); // TODO: output coersion (b -> Str*)
-  }
 
-  void* VisCodegen::makeOutput() {
-    log << "=== exit\n\n";
+    auto put = tll::get<1>(app_f);
 
-    let<int(int)> putchar("putchar", module, Function::ExternalLinkage);
-
-    // get existing "main"
-    let<int()> main("main", module);
-    point(main["entry"]);
-
-    // does not put a new symbol, but actually performs the generation
-
-    take().make([this, &putchar](BasicBlock* brk, BasicBlock* cont, Generated it) {
-      makeBufferLoop("output", it.buf().ptr, it.buf().len, [&putchar](BasicBlock* brk, BasicBlock* cont, let<char> at) {
-        putchar(at.into<int>());
-        br(cont);
-      });
+    // start taking from the stack and generate the output
+    take().make([&put](BasicBlock* brk, BasicBlock* cont, Generated it) {
+      (*put)(it.buf().ptr, it.buf().len);
       br(cont);
     });
 
-    main.ret(0);
+    app_f.ret();
 
     if (!systack.empty()) throw CodegenError("symbol stack should be empty at the end");
+  }
 
-    //main->viewCFG();
-    return nullptr; // `void*` just a placeholder type
+  void VisCodegen::makeMain() {
+    // reclaim existing function
+    app_t app_f(funname, module);
+
+    log << "generating a `main` entry point\n";
+    let<int()> main("main", module, Function::ExternalLinkage);
+
+    let<char const*(int*)> get("get", module, Function::PrivateLinkage);
+    let<void(char const*, int)> put("put", module, Function::PrivateLinkage);
+
+    point(main.entry()); {
+      app_f(*get, *put);
+      main.ret(0);
+    }
+
+    point(get.entry()); {
+      // uses a static 1-char buffer for now
+      auto b = let<char**>("buf", module, GlobalValue::PrivateLinkage, " ", false); // don't add null
+
+      let<int()> getchar("getchar", module, Function::ExternalLinkage);
+      **b = getchar().into<char>();
+
+      auto l = tll::get<0>(get);
+      *l = let<int>(1);
+
+      get.ret(*b);
+    }
+
+    point(put.entry()); {
+      auto b = tll::get<0>(put);
+      auto l = tll::get<1>(put);
+
+      let<int(int)> putchar("putchar", module, Function::ExternalLinkage);
+      makeBufferLoop("", b, l, [&putchar](BasicBlock* brk, BasicBlock* cont, let<char> at) {
+        putchar(at.into<int>());
+        br(cont);
+      });
+
+      put.ret();
+    }
   }
 
 
@@ -260,7 +299,7 @@ namespace sel {
     {
       std::ofstream ll(n + ".ll");
       if (!ll.is_open()) throw BaseError("could not open file");
-      dump(ll);
+      print(ll);
       ll.flush();
       ll.close();
     }
@@ -376,6 +415,10 @@ namespace sel {
 
   void VisCodegen::visitInput(Type const& type) {
     place("input", [this](inject_clo_type also) {
+      // TODO:
+      // app_t app_f(funname, module);
+      // auto get = tll::get<0>(app_f);
+
       let<int()> getchar("getchar", module, Function::ExternalLinkage);
 
       auto b_1char = let<char>::alloc();

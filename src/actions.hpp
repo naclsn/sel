@@ -2,6 +2,7 @@
 #define SELI_ACTIONS_HPP
 
 #include "buildapp.hpp"
+#include "options.hpp"
 
 void lookup(char const* const names[]) {
   if (!names || !*names) {
@@ -52,31 +53,35 @@ void run(App& app) {
   }
 }
 
-void compile(App& app, char const* infile, char const* const* flags) {
-  char const* outfile = *flags++;
+void compile(App& app, char const* infile, Options const& opts) {
 
-  cerr << "outfile: " << quoted(outfile);
+  cerr << "infile: " << infile << "\n";
+  cerr << "outfile: " << opts.outfile << "\n";
+  cerr << "funname: " << (opts.funname ? opts.funname : "-nil-") << "\n";
+  cerr << "no_link: " << opts.no_link << "\n";
+  cerr << "no_assemble: " << opts.no_assemble << "\n";
 
-  if (*flags) {
-    cerr << ", flags:\n";
-    while (*flags) cerr << "   " << quoted(*flags++) << "\n";
-  } else cerr << ", no flags\n";
+  std::string tmp = opts.outfile;
+  auto st = tmp.rfind('/')+1;
+  auto ed = tmp.rfind('.');
+  std::string name = tmp.substr(st, ed-st);
 
   try {
-    std::string tmp = outfile;
-    auto st = tmp.rfind('/')+1;
-    auto ed = tmp.rfind('.');
-    std::string name = tmp.substr(st, ed-st);
+    // if no name provided, used the module name as function name
+    char const* used_funname = opts.funname ? opts.funname : name.c_str();
+    VisCodegen codegen(infile, name.c_str(), used_funname, app);
 
-    VisCodegen codegen(infile, name.c_str(), app);
-    auto res = codegen.makeOutput();
-    cerr << "\nmakeOutput: " << res << "\n\n";
+    if (!opts.funname) codegen.makeMain();
 
-    cerr << "```llvm-ir\n";
-    codegen.dump(cerr);
-    cerr << "```\n\n";
+    if (opts.no_assemble) {
+      std::ofstream ll(opts.outfile);
+      if (!ll.is_open()) throw BaseError("could not open file");
+      codegen.print(ll);
 
-    codegen.dothething(outfile);
+    } else {
+      // opts.no_link
+      codegen.dothething(opts.outfile);
+    }
   }
 
   catch (CodegenError const& err) {

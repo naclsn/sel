@@ -217,13 +217,15 @@ namespace sel {
     //}}} symbol shenanigan
 
   public:
-    ~VisCodegen() { delete &log; }
-    // entry, preambule
-    VisCodegen(char const* file_name, char const* module_name, App& app);
-    // exit, post-thingy
-    void* makeOutput();
+    char const* funname;
 
-    void dump(std::ostream& out) const {
+    VisCodegen(char const* file_name, char const* module_name, char const* function_name, App& app);
+    ~VisCodegen() { delete &log; }
+
+    // generate a `i32 main()` that calls the generated function
+    void makeMain();
+
+    void print(std::ostream& out) const {
       llvm::raw_os_ostream o(out);
       module.print(o, nullptr);
     }
