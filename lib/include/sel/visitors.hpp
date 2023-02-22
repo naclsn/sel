@@ -149,6 +149,7 @@ namespace sel {
     VisHelp(std::ostream& res): _VisHelp(res) { }
   };
 
+
   class VisCodegen : public Visitor {
     llvm::LLVMContext context;
     llvm::IRBuilder<> builder;
@@ -158,6 +159,13 @@ namespace sel {
 
     // things that can come out of SyGen, passed to the injection `also(brk, cont, <>)`
     struct Generated;
+
+    // structure for 'segments' of a bin
+    struct Segment; // virtual void operator(inject_clo_type also) = 0;
+    // the `visit(::Head)` will be the actual implementation
+    struct Head; // : Segment
+    // excluding the Head, each part that are `{arg, base}` closures
+    struct NotHead; // : Segment
 
     //{{{ some codegen utils
 
