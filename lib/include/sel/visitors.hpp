@@ -235,6 +235,8 @@ namespace sel {
     void visit(bins::add_ const&) override;
     void visit(bins::bytes_::Base const&) override;
     void visit(bins::bytes_ const&) override;
+    void visit(bins::const_::Base const&) override;
+    void visit(bins::const_ const&) override;
     void visit(bins::id_ const&) override;
     void visit(bins::map_::Base::Base const&) override;
     void visit(bins::map_::Base const&) override;
