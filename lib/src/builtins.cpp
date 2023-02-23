@@ -85,8 +85,8 @@ namespace sel {
       TRACE(copyBody, a::the::Base::Next::name);
       return new _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>(
         this->app,
-        (a::Base*)base->copy(),
-        (a::Arg*)arg->copy()
+        (a::Base*)_base->copy(),
+        (a::Arg*)_arg->copy()
       ); // copyBody
     }
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
@@ -100,8 +100,8 @@ namespace sel {
       TRACE(copyTail1, a::the::Base::Next::name);
       return new typename a::Base::Next(
         this->app,
-        (typename a::Base*)base->copy(),
-        (typename a::Arg*)arg->copy()
+        (typename a::Base*)_base->copy(),
+        (typename a::Arg*)_arg->copy()
       ); // copyTail1
     }
     template <typename NextT, typename last_to, typename last_from>
@@ -110,8 +110,8 @@ namespace sel {
       TRACE(copyTail2, a::the::Base::Next::name);
       return new typename a::Base::Next(
         this->app,
-        (typename a::Base*)base->copy(),
-        (typename a::Arg*)arg->copy()
+        (typename a::Base*)_base->copy(),
+        (typename a::Arg*)_arg->copy()
       ); // copyTail2
     }
     template <typename NextT, typename last_to, typename last_from>
@@ -133,10 +133,10 @@ namespace sel {
   } // namespace bins_helpers
 
 #define _depth(__depth) _depth_ ## __depth
-#define _depth_0 arg
-#define _depth_1 base->_depth_0
-#define _depth_2 base->_depth_1
-#define _depth_3 base->_depth_2
+#define _depth_0 _arg
+#define _depth_1 _base->_depth_0
+#define _depth_2 _base->_depth_1
+#define _depth_3 _base->_depth_2
 
 #define _bind_some(__count) _bind_some_ ## __count
 #define _bind_some_1(a)          _bind_one(a, 0)
@@ -154,7 +154,7 @@ namespace sel {
   namespace bins {
 
     double abs_::value() {
-      return std::abs(arg->value());
+      return std::abs(_arg->value());
     }
 
     double add_::value() {
@@ -164,7 +164,7 @@ namespace sel {
 
     std::ostream& bin_::stream(std::ostream& out) {
       read = true;
-      uint64_t a = arg->value();
+      uint64_t a = _arg->value();
       char b[64+1]; b[64] = '\0';
       char* head = b+64;
       do { *--head = '0' + (a & 1); } while (a>>= 1);
@@ -235,9 +235,9 @@ namespace sel {
       return s.end() && buff.length() <= off;
     }
 
-    std::ostream& chr_::stream(std::ostream& out) { read = true; return out << codepoint(arg->value()); }
+    std::ostream& chr_::stream(std::ostream& out) { read = true; return out << codepoint(_arg->value()); }
     bool chr_::end() { return read; }
-    std::ostream& chr_::entire(std::ostream& out) { read = true; return out << codepoint(arg->value()); }
+    std::ostream& chr_::entire(std::ostream& out) { read = true; return out << codepoint(_arg->value()); }
 
     Val* codepoints_::operator*() {
       bind_args(s);
@@ -454,9 +454,9 @@ namespace sel {
       return *l;
     }
 
-    std::ostream& hex_::stream(std::ostream& out) { read = true; return out << std::hex << size_t(arg->value()); }
+    std::ostream& hex_::stream(std::ostream& out) { read = true; return out << std::hex << size_t(_arg->value()); }
     bool hex_::end() { return read; }
-    std::ostream& hex_::entire(std::ostream& out) { read = true; return out << std::hex << size_t(arg->value()); }
+    std::ostream& hex_::entire(std::ostream& out) { read = true; return out << std::hex << size_t(_arg->value()); }
 
     Val* flip_::impl(LastArg& a) {
       bind_args(fun, b);
@@ -637,13 +637,13 @@ namespace sel {
       return M_PI;
     }
 
-    std::ostream& oct_::stream(std::ostream& out) { read = true; return out << std::oct << size_t(arg->value()); }
+    std::ostream& oct_::stream(std::ostream& out) { read = true; return out << std::oct << size_t(_arg->value()); }
     bool oct_::end() { return read; }
-    std::ostream& oct_::entire(std::ostream& out) { read = true; return out << std::oct << size_t(arg->value()); }
+    std::ostream& oct_::entire(std::ostream& out) { read = true; return out << std::oct << size_t(_arg->value()); }
 
     double ord_::value() {
       codepoint c;
-      Str_istream(arg) >> c;
+      Str_istream(_arg) >> c;
       return c.u;
     }
 
@@ -662,7 +662,7 @@ namespace sel {
       return s.entire(px.entire(out));
     }
 
-    Val* repeat_::operator*() { return arg->copy(); }
+    Val* repeat_::operator*() { return _arg->copy(); }
     Lst& repeat_::operator++() { return *this; }
     bool repeat_::end() { return false; }
 
@@ -701,7 +701,7 @@ namespace sel {
       return l.end();
     }
 
-    Val* singleton_::operator*() { return arg; }
+    Val* singleton_::operator*() { return _arg; }
     Lst& singleton_::operator++() { done = true; return *this; }
     bool singleton_::end() { return done; }
 
@@ -870,9 +870,9 @@ namespace sel {
       return r;
     }
 
-    std::ostream& tostr_::stream(std::ostream& out) { read = true; return out << arg->value(); }
+    std::ostream& tostr_::stream(std::ostream& out) { read = true; return out << _arg->value(); }
     bool tostr_::end() { return read; }
-    std::ostream& tostr_::entire(std::ostream& out) { read = true; return out << arg->value(); }
+    std::ostream& tostr_::entire(std::ostream& out) { read = true; return out << _arg->value(); }
 
     Val* tuple_::operator*() {
       bind_args(a, b);

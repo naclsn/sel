@@ -103,6 +103,12 @@ namespace sel {
 
   } // namespace ll
 
+  struct Segment {
+    virtual Val const& base() const = 0;
+    virtual Val const& arg() const = 0;
+    virtual ~Segment() { }
+  };
+
   /**
    * namespace with types used to help constructing builtins
    */
@@ -239,6 +245,7 @@ namespace sel {
      * <-: Base
      *
      * Head <-> Body <..> Body <-> Tail
+     *          `------ Segment ------'
      *
      * Head: empty struct
      * Body and Tail: struct with base and arg fields
@@ -295,7 +302,6 @@ namespace sel {
         constexpr static unsigned args = 0;
 
         typedef typename last_arg::vat LastArg;
-        // LastArg* arg;
 
         the(App& app)
           : fun<last_arg, unk<b>>::ctor(app, Impl::name)
@@ -359,7 +365,7 @@ namespace sel {
           _is_unk_tail,
           num, // (YYY: anything that has `::ctor` with a fitting `virtual ::accept`)
           _ty_tail
-      >::type::ctor {
+      >::type::ctor, Segment {
         typedef _bin_be Head; // type instanciated in looking up by name
         typedef typename _one_to_nextmost<Head>::the Base; // type which instantiates `this`
 
@@ -367,21 +373,21 @@ namespace sel {
 
         constexpr static unsigned args = Base::args + 1;
 
-        Base* base;
-        Arg* arg;
+        Base* _base; Val const& base() const override { return *_base; }
+        Arg* _arg;   Val const& arg() const override { return *_arg; }
 
         // this is the (inherited) ctor for the tail type
         _the_when_not_unk(App& app, Base* base, Arg* arg)
           : _ty_tail::ctor(app, Base::Next::name, base->type(), arg->type())
-          , base(base)
-          , arg(arg)
+          , _base(base)
+          , _arg(arg)
         { }
 
         Val* copy() const override; // copyTail1
       };
 
       // is used when `_is_unk_tail` (eg. 'X(a) -> a')
-      struct _the_when_is_unk : _ty_one_to_tail::ctor {
+      struct _the_when_is_unk : _ty_one_to_tail::ctor, Segment {
         typedef _bin_be Head; // type instanciated in looking up by name
         typedef typename _one_to_nextmost<Head>::the Base; // type which instantiates `this`
 
@@ -389,15 +395,15 @@ namespace sel {
 
         constexpr static unsigned args = Base::args + 1;
 
-        Base* base;
-        Arg* arg;
+        Base* _base; Val const& base() const override { return *_base; }
+        Arg* _arg;   Val const& arg() const override { return *_arg; }
         typedef typename _fun_first_par_type<_ty_one_to_tail>::the::vat LastArg;
 
         // this is the (inherited) ctor for the tail type when ends on unk
         _the_when_is_unk(App& app, Base* base, Arg* arg)
           : _ty_one_to_tail::ctor(app, Base::Next::name, base->type(), arg->type())
-          , base(base)
-          , arg(arg)
+          , _base(base)
+          , _arg(arg)
         { }
 
         // to be overriden in `Implementation`
@@ -443,7 +449,7 @@ namespace sel {
     };
 
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
-    struct _bin_be<NextT, cons<to, cons<from, cons<from_again, from_more>>>> : fun<from, to>::ctor {
+    struct _bin_be<NextT, cons<to, cons<from, cons<from_again, from_more>>>> : fun<from, to>::ctor, Segment {
       typedef NextT Next; // type `this` instantiates in `op()`
       typedef _bin_be<_bin_be, cons<fun<from, to>, cons<from_again, from_more>>> Base; // type which instantiates `this`
 
@@ -454,14 +460,14 @@ namespace sel {
 
       constexpr static unsigned args = Base::args + 1;
 
-      Base* base;
-      Arg* arg;
+      Base* _base; Val const& base() const override { return *_base; }
+      Arg* _arg;   Val const& arg() const override { return *_arg; }
 
       // this is the ctor for body types
       _bin_be(App& app, Base* base, Arg* arg)
         : fun<from, to>::ctor(app, the::Base::Next::name, base->type(), arg->type())
-        , base(base)
-        , arg(arg)
+        , _base(base)
+        , _arg(arg)
       { }
 
       Val* operator()(Val* arg) override {

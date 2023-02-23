@@ -80,7 +80,7 @@ namespace sel {
   public:
     using _VisRepr<typename L::cdr>::visit;
     void visit(_b const& it) override {
-      this->visitCommon(it, typename std::conditional<!_b::args, std::true_type, std::false_type>::type{});
+      this->visitCommon((typename std::conditional<!_b::args, Val, Segment>::type&)it, it.type(), _b::the::Base::Next::name, _b::args, _b::the::args);
     }
   };
 
@@ -90,16 +90,17 @@ namespace sel {
     struct ReprField {
       char const* name;
       enum { DBL, STR, VAL } const data_ty;
-      union { double const dbl; std::string const* str; Val const* val; } const data;
+      union { double const dbl; std::string const* str; Val const* val; } const;
+      ReprField(char const* name, double dbl): name(name), data_ty(ReprField::DBL), dbl(dbl) { }
+      ReprField(char const* name, std::string const* str): name(name), data_ty(ReprField::STR), str(str) { }
+      ReprField(char const* name, Val const* val): name(name), data_ty(ReprField::VAL), val(val) { }
     };
     _VisRepr(std::ostream& res, _ReprCx cx): res(res), cx(cx) { }
     std::ostream& res;
     _ReprCx cx;
     void reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields);
-    template <typename T>
-    void visitCommon(T const&, std::false_type is_head);
-    template <typename T>
-    void visitCommon(T const&, std::true_type is_head);
+    void visitCommon(Segment const& it, Type const&, char const* name, unsigned args, unsigned max_args);
+    void visitCommon(Val const& it, Type const&, char const* name, unsigned args, unsigned max_args);
   };
 
   class VisRepr : public _VisRepr<bins_ll::bins_all> {
