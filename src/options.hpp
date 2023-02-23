@@ -128,6 +128,7 @@ struct Options {
               if (*++arg) funname = arg;
               else if (*++_compile_flags) funname = *_compile_flags;
               else usage("missing function name");
+              no_link = true;
               goto break_one;
 
             case 'c': no_link = true;     break;

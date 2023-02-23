@@ -229,7 +229,7 @@ namespace sel {
       llvm::raw_os_ostream o(out);
       module.print(o, nullptr);
     }
-    void dothething(char const* outfile);
+    void compile(char const* outfile, bool link);
 
     void visitNumLiteral(Type const& type, double n) override;
     void visitStrLiteral(Type const& type, std::string const& s) override;

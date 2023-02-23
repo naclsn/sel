@@ -18,10 +18,11 @@ namespace tll {
   template <typename Ty> struct let;
 
   template <typename Ty> struct llvm_info_for;
-  template <unsigned n>
+  template <unsigned n, typename Ty>
   struct llvm_info_for_i {
+    constexpr static unsigned bits = n;
     inline static llvm::Type* type() { return llvm::Type::getIntNTy(__tll_irb->getContext(), n); }
-    inline static llvm::ConstantInt* val(int v) { return llvm::ConstantInt::get(__tll_irb->getContext(), llvm::APInt(n, v)); }
+    inline static llvm::ConstantInt* val(Ty v) { return llvm::ConstantInt::get(__tll_irb->getContext(), llvm::APInt(n, v)); }
     inline static llvm::Value* add(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateAdd(a, b); }
     inline static llvm::Value* sub(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateSub(a, b); }
     inline static llvm::Value* mul(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateMul(a, b); }
@@ -33,9 +34,9 @@ namespace tll {
     inline static llvm::Value* eq(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateICmpEQ(a, b); }
     inline static llvm::Value* ne(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateICmpNE(a, b); }
   };
-  template <> struct llvm_info_for<int> : llvm_info_for_i<32> {};
-  template <> struct llvm_info_for<bool> : llvm_info_for_i<1> {};
-  template <> struct llvm_info_for<char> : llvm_info_for_i<8> {};
+  template <> struct llvm_info_for<int> : llvm_info_for_i<32, int> {};
+  template <> struct llvm_info_for<bool> : llvm_info_for_i<1, bool> {};
+  template <> struct llvm_info_for<char> : llvm_info_for_i<8, char> {};
   template <>
   struct llvm_info_for<double> {
     inline static llvm::Type* type() { return llvm::Type::getDoubleTy(__tll_irb->getContext()); }
@@ -54,6 +55,7 @@ namespace tll {
   template <typename Ty>
   struct llvm_info_for<Ty const> {
     inline static llvm::Type* type() { return llvm_info_for<Ty>::type(); }
+    inline static llvm::Constant* val(Ty v) { return llvm_info_for<Ty>::val(v); }
   };
   template <typename Ty>
   struct llvm_info_for<Ty*> {
@@ -70,28 +72,30 @@ namespace tll {
 
   // XXX: only signed
   template <typename From, typename To> struct llvm_conv;
-  template <unsigned n>
+  template <unsigned n, typename Ty>
   struct llvm_conv_to_i {
-    inline static llvm::Value* from(llvm::Value* v) { return __tll_irb->CreateFPToSI(v, llvm_info_for_i<n>::type()); }
+    inline static llvm::Value* from(llvm::Value* v) { return __tll_irb->CreateFPToSI(v, llvm_info_for_i<n, Ty>::type()); }
   };
-  template <> struct llvm_conv<double, int> : llvm_conv_to_i<32> {};
-  template <> struct llvm_conv<double, bool> : llvm_conv_to_i<1> {};
-  template <> struct llvm_conv<double, char> : llvm_conv_to_i<8> {};
-  template <unsigned n, unsigned n2>
+  template <> struct llvm_conv<double, int> : llvm_conv_to_i<32, int> {};
+  template <> struct llvm_conv<double, bool> : llvm_conv_to_i<1, bool> {};
+  template <> struct llvm_conv<double, char> : llvm_conv_to_i<8, char> {};
+  template <unsigned n, unsigned n2, typename Ty2>
   struct llvm_conv_between_i {
-    inline static llvm::Value* from(llvm::Value* v) { return __tll_irb->CreateSExtOrTrunc(v, llvm_info_for_i<n2>::type()); }
+    inline static llvm::Value* from(llvm::Value* v) { return __tll_irb->CreateSExtOrTrunc(v, llvm_info_for_i<n2, Ty2>::type()); }
   };
-  template <> struct llvm_conv<int, bool> : llvm_conv_between_i<32, 1> {};
-  template <> struct llvm_conv<int, char> : llvm_conv_between_i<32, 8> {};
-  template <> struct llvm_conv<bool, int> : llvm_conv_between_i<1, 32> {};
-  template <> struct llvm_conv<bool, char> : llvm_conv_between_i<1, 8> {};
-  template <> struct llvm_conv<char, int> : llvm_conv_between_i<8, 32> {};
-  template <> struct llvm_conv<char, bool> : llvm_conv_between_i<8, 1> {};
+  template <> struct llvm_conv<int, bool> : llvm_conv_between_i<32, 1, bool> {};
+  template <> struct llvm_conv<int, char> : llvm_conv_between_i<32, 8, char> {};
+  template <> struct llvm_conv<bool, int> : llvm_conv_between_i<1, 32, int> {};
+  template <> struct llvm_conv<bool, char> : llvm_conv_between_i<1, 8, char> {};
+  template <> struct llvm_conv<char, int> : llvm_conv_between_i<8, 32, int> {};
+  template <> struct llvm_conv<char, bool> : llvm_conv_between_i<8, 1, bool> {};
   template <typename From>
   struct llvm_conv<From, double> {
     static_assert(std::is_integral<From>{}, "source of 'to float' conversion does not have an integral type");
     inline static llvm::Value* from(llvm::Value* v) { return __tll_irb->CreateSIToFP(v, llvm_info_for<double>::type()); }
   };
+  template <typename From, typename To> struct llvm_conv<From const, To> : llvm_conv<From, To> {};
+  template <typename From, typename To> struct llvm_conv<From, To const> : llvm_conv<From, To> {};
 
   template <typename Ty>
   struct let : letBase {
@@ -135,8 +139,7 @@ namespace tll {
     inline static llvm::FunctionType* type() { return let<Ty>::type(); }
     let<Ty*> ptr;
     inline letAt(let<Ty*> ptr): ptr(ptr) { }
-    template <typename Ty2>
-    inline operator let<Ty2>() const { return let<Ty>(__tll_irb->CreateLoad(ptr)); }
+    inline operator let<Ty>() const { return let<Ty>(__tll_irb->CreateLoad(ptr)); }
     inline void operator=(let<Ty> sto) const { __tll_irb->CreateStore(sto, ptr); }
   };
   template <typename Ty>
@@ -144,8 +147,8 @@ namespace tll {
     inline static llvm::FunctionType* type() { return let<Ty>::type(); }
     let<Ty const*> ptr;
     inline letAt(let<Ty const*> ptr): ptr(ptr) { }
-    template <typename Ty2>
-    inline operator let<Ty2>() const { return let<Ty>(__tll_irb->CreateLoad(ptr)); }
+    inline operator let<Ty>() const { return let<Ty>(__tll_irb->CreateLoad(ptr)); }
+    inline operator let<Ty const>() const { return let<Ty const>(__tll_irb->CreateLoad(ptr)); }
     inline void operator=(let<Ty const> sto) = delete;
   };
   template <typename Ret, typename ...Args>
@@ -170,7 +173,7 @@ namespace tll {
   template <typename Ty>
   struct let<Ty*> : letBase {
     using letBase::letBase;
-    inline static llvm::PointerType* type() { return llvm_info_for<typename std::remove_const<Ty>::type*>::type(); }
+    inline static llvm::PointerType* type() { return llvm_info_for<Ty*>::type(); }
 
     inline operator let<Ty const*>() const { return let<Ty const*>((llvm::Value*)*this); }
 
@@ -269,33 +272,48 @@ namespace tll {
   template <size_t argn, typename Ret, typename ...Args>
   inline let<typename std::tuple_element<argn, std::tuple<Args...>>::type> get(let<Ret(Args...)> f) { return f[argn]; }
 
-  template <bool isconst>
-  struct letGlobal : letBase {
-    using letBase::letBase;
-    // letGlobal(llvm::Value*) = delete;
+  template <typename Ty> struct letGlobal;
 
-    inline letGlobal(llvm::StringRef globname, llvm::Module& module, llvm::GlobalVariable::LinkageTypes linkage, llvm::Constant* v)
-      : letBase(module.getOrInsertGlobal(globname, v->getType(), [&] {
-          return new llvm::GlobalVariable(module, v->getType(), isconst, linkage, v, globname);
-        }))
-    { }
+  template <typename Ty>
+  struct letGlobal<Ty*> : letBase {
+    using letBase::letBase;
+    letGlobal(llvm::Value*) = delete;
+    inline static llvm::Type* type() { return let<Ty*>::type(); }
+
     inline letGlobal(llvm::StringRef globname, llvm::Module& module)
       : letBase(module.getNamedGlobal(globname))
+    { }
+    inline letGlobal(llvm::StringRef globname, llvm::Module& module, llvm::GlobalVariable::LinkageTypes linkage, Ty v)
+      : letGlobal(globname, module, linkage, llvm_info_for<Ty>::val(v))
+    { }
+
+    inline operator let<Ty*>() const { return *this; }
+    // inline let<Ty> operator*() const { return __tll_irb->CreateGEP(*this, let<int>(0)); }
+    inline letAt<Ty> operator*() const { return letAt<Ty>(__tll_irb->CreateGEP(*this, let<int>(0))); }
+
+  protected:
+    inline letGlobal(llvm::StringRef globname, llvm::Module& module, llvm::GlobalVariable::LinkageTypes linkage, llvm::Constant* v)
+      : letBase(module.getOrInsertGlobal(globname, v->getType(), [&] {
+          return new llvm::GlobalVariable(module, v->getType(), std::is_const<Ty>::value, linkage, v, globname);
+        }))
     { }
   };
 
   template <typename Ty>
-  struct let<Ty**> : letGlobal<std::is_const<Ty>::value> {
-    using letGlobal<std::is_const<Ty>::value>::letGlobal;
-    // let(llvm::Value*) = delete;
+  struct letGlobal<Ty**> : letBase {
+    using letBase::letBase;
+    letGlobal(llvm::Value*) = delete;
     inline static llvm::ArrayType* type(unsigned len) { return llvm::ArrayType::get(let<Ty>::type(), len); }
 
-    inline let(llvm::StringRef globname, llvm::Module& module, llvm::GlobalVariable::LinkageTypes linkage, llvm::ArrayRef<Ty> v)
-      : let(globname, module, linkage, llvm::ConstantDataArray::get(__tll_irb->getContext(), v))
+    inline letGlobal(llvm::StringRef globname, llvm::Module& module)
+      : letBase(module.getNamedGlobal(globname))
     { }
-    inline let(llvm::StringRef globname, llvm::Module& module, llvm::GlobalVariable::LinkageTypes linkage, llvm::StringRef v, bool addnull=true)
-      : let(globname, module, linkage, llvm::ConstantDataArray::getString(__tll_irb->getContext(), v, addnull))
-    { static_assert(std::is_same<char, typename std::remove_const<Ty>::type>{}, "only char** can be initialized with a string"); }
+    inline letGlobal(llvm::StringRef globname, llvm::Module& module, llvm::GlobalVariable::LinkageTypes linkage, llvm::ArrayRef<Ty> v)
+      : letGlobal(globname, module, linkage, llvm::ConstantDataArray::get(__tll_irb->getContext(), v))
+    { }
+    inline letGlobal(llvm::StringRef globname, llvm::Module& module, llvm::GlobalVariable::LinkageTypes linkage, llvm::StringRef v, bool addnull=true)
+      : letGlobal(globname, module, linkage, llvm::ConstantDataArray::getString(__tll_irb->getContext(), v, addnull))
+    { static_assert(std::is_same<char, typename std::remove_const<Ty>::type>{}, "only char** or char const** can be initialized with a string"); }
 
     inline let<Ty*> operator*() const { return (*this)[0]; }
     template <typename off>
@@ -303,8 +321,10 @@ namespace tll {
     inline let<Ty*> operator[](int offset) const { return (*this)[(let<int>(offset))]; }
 
   protected:
-    inline let(llvm::StringRef globname, llvm::Module& module, llvm::GlobalVariable::LinkageTypes linkage, llvm::Constant* v)
-      : letGlobal<std::is_const<Ty>::value>(globname, module, linkage, v)
+    inline letGlobal(llvm::StringRef globname, llvm::Module& module, llvm::GlobalVariable::LinkageTypes linkage, llvm::Constant* v)
+      : letBase(module.getOrInsertGlobal(globname, v->getType(), [&] {
+          return new llvm::GlobalVariable(module, v->getType(), std::is_const<Ty>::value, linkage, v, globname);
+        }))
     { }
   };
 

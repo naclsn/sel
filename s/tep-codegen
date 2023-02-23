@@ -1,7 +1,7 @@
 #!/bin/bash
 if test -z "$2"
   then
-    echo 'Usage: step <name> <...script>'                           >&2
+    echo 'Usage: step <name> [-N] <...script>'                      >&2
     echo '   incremental tests: compiles the script into `name.ll`' >&2
     echo '   if a previous version of `name.ll` already exists,'    >&2
     echo '   it is first save, then compared with the new version;' >&2
@@ -11,6 +11,12 @@ fi
 
 f=$1
 shift
+N=
+if [ x-N = "x$1" ]
+  then
+    N=-N$f
+    shift
+fi
 
 dir=`mktemp -d`
 trap "rm '$dir/$f.ll' '$dir/$f-p.ll' |:; rmdir '$dir' |:" EXIT
@@ -18,7 +24,7 @@ trap "rm '$dir/$f.ll' '$dir/$f-p.ll' |:; rmdir '$dir' |:" EXIT
 cp $f.ll $f-p.ll "$dir" |:
 mv $f.ll $f-p.ll |:
 
-if s/el-min -f <(echo "$@") -o $f
+if s/el-min -f <(echo "$@") -o $f $N
   then
     if `command -v colordiff || echo diff` -u $f-p.ll $f.ll
       then echo [no diff]

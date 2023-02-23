@@ -79,8 +79,7 @@ void compile(App& app, char const* infile, Options const& opts) {
       codegen.print(ll);
 
     } else {
-      // opts.no_link
-      codegen.dothething(opts.outfile);
+      codegen.compile(opts.outfile, !opts.no_link);
     }
   }
 

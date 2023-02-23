@@ -97,7 +97,7 @@ namespace sel {
 
     // before -> {body}    after
     //     `----------------^
-    cond(len == let<int>(0), after_bb, body_bb);
+    cond(let<int>(0) < len, body_bb, after_bb);
 
     point(body_bb);
     // when first entering, init to 0
@@ -191,8 +191,8 @@ namespace sel {
   }
 
 
-  // `i8* get(i32*)` and `put(i8*, i32)`
-  typedef let<void(char const*(int*), void(char const*, int))> app_t;
+  // `i1 get(i8**, i32*)` and `put(i8*, i32)`
+  typedef let<void(bool(char const**, int*), void(char const*, int))> app_t;
 
   VisCodegen::VisCodegen(char const* file_name, char const* module_name, char const* function_name, App& app)
     : context()
@@ -256,7 +256,7 @@ namespace sel {
     log << "generating a `main` entry point\n";
     let<int()> main("main", module, Function::ExternalLinkage);
 
-    let<char const*(int*)> get("get", module, Function::PrivateLinkage);
+    let<bool(char const**, int*)> get("get", module, Function::PrivateLinkage);
     let<void(char const*, int)> put("put", module, Function::PrivateLinkage);
 
     point(main.entry()); {
@@ -265,16 +265,29 @@ namespace sel {
     }
 
     point(get.entry()); {
+      auto b = tll::get<0>(get);
+      auto l = tll::get<1>(get);
+
       // uses a static 1-char buffer for now
-      auto b = let<char**>("buf", module, GlobalValue::PrivateLinkage, " ", false); // don't add null
+      letGlobal<char**> buf("buf", module, GlobalValue::PrivateLinkage, " ", false); // don't add null
 
       let<int()> getchar("getchar", module, Function::ExternalLinkage);
-      **b = getchar().into<char>();
+      auto r = getchar();
+      auto* notend = block("notend");
+      auto* end = block("end");
+      cond(r == -1, end, notend);
 
-      auto l = tll::get<0>(get);
-      *l = let<int>(1);
+      point(notend); {
+        **buf = r.into<char>();
+        *b = *buf;
+        *l = let<int>(1);
+        get.ret(true);
+      }
 
-      get.ret(*b);
+      point(end); {
+        *l = let<int>(0);
+        get.ret(false);
+      }
     }
 
     point(put.entry()); {
@@ -293,7 +306,7 @@ namespace sel {
 
 
   // temporary dothething
-  void VisCodegen::dothething(char const* outfile) {
+  void VisCodegen::compile(char const* outfile, bool link) {
     std::string const n = outfile;
 
     {
@@ -313,7 +326,7 @@ namespace sel {
     }
 
     // $ clang hello-world.o -o hello-world
-    {
+    if (link) {
       std::ostringstream oss;
       int r = std::system((oss << "clang " << n << ".o -o " << n, oss.str().c_str()));
       std::cerr << "============ " << r << "\n";
@@ -376,7 +389,7 @@ namespace sel {
 
       auto len = s.length();
       char const* name = len < 16 ? s.c_str() : ""; // unnamed if too long
-      auto buffer = let<char const**>(name, module, GlobalValue::PrivateLinkage, s, false); // don't add null
+      letGlobal<char const**> buffer(name, module, GlobalValue::PrivateLinkage, s, false); // don't add null
 
       makeStream(name,
         [&isread](BasicBlock* brk, BasicBlock* cont) {
@@ -415,25 +428,29 @@ namespace sel {
 
   void VisCodegen::visitInput(Type const& type) {
     place("input", [this](inject_clo_type also) {
-      // TODO:
-      // app_t app_f(funname, module);
-      // auto get = tll::get<0>(app_f);
+      // TODO: would be nice (and somewhat make sense) just having this let<> as member
+      app_t app_f(funname, module);
+      auto get = tll::get<0>(app_f);
 
-      let<int()> getchar("getchar", module, Function::ExternalLinkage);
-
-      auto b_1char = let<char>::alloc();
+      auto buf = let<char const*>::alloc();
+      auto len = let<int>::alloc();
+      auto partial = let<bool>::alloc();
+      *partial = true;
 
       makeStream("input",
-        [&b_1char, &getchar](BasicBlock* brk, BasicBlock* cont) {
-          auto read_char = getchar().into<char>();
-          *b_1char = read_char;
-          // check for eof (-1)
-          cond(read_char == -1, brk, cont);
+        [&get, &buf, &len, &partial](BasicBlock* brk, BasicBlock* cont) {
+          auto* read = block("read");
+          // last `get` returned false (ie. not partial -> nothing more to get)
+          cond(*partial, read, brk);
+
+          point(read);
+          *partial = (*get)(buf, len);
+
+          // YYY: the condition `0 < *len` is checked by the `makeBufferLoop`
+          br(cont);
         },
-        [&b_1char] {
-          // simply returns the character read in the last pass through block 'check'
-          // XXX: for now this is a 1-char buffer
-          return Generated(b_1char, let<int>(1));
+        [&buf, &len] {
+          return Generated(*buf, *len);
         },
         also
       );
