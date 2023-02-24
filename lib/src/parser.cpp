@@ -1,7 +1,7 @@
-#include <iterator>
 #include <iostream>
-#include <sstream>
+#include <iterator>
 #include <limits>
+#include <sstream>
 
 #define TRACE(...)
 #include "sel/errors.hpp"
@@ -12,13 +12,11 @@ namespace sel {
 
   double NumLiteral::value() { return n; }
   Val* NumLiteral::copy() const { return new NumLiteral(app, n); }
-  void NumLiteral::accept(Visitor& v) const { v.visitNumLiteral(ty, n); }
 
   std::ostream& StrLiteral::stream(std::ostream& out) { read = true; return out << s; }
   bool StrLiteral::end() { return read || s.empty(); }
   std::ostream& StrLiteral::entire(std::ostream& out) { read = true; return out << s; }
   Val* StrLiteral::copy() const { return new StrLiteral(app, s); }
-  void StrLiteral::accept(Visitor& v) const { v.visitStrLiteral(ty, s); }
 
   Val* LstLiteral::operator*() { return v[c]; }
   Lst& LstLiteral::operator++() { c++; return *this; }
@@ -30,7 +28,6 @@ namespace sel {
       w.push_back(it->copy());
     return new LstLiteral(app, w, new std::vector<Type*>(ty.has()));
   }
-  void LstLiteral::accept(Visitor& v) const { v.visitLstLiteral(ty, this->v); }
 
   Val* FunChain::operator()(Val* arg) {
     Val* r = arg;
@@ -45,7 +42,6 @@ namespace sel {
       g.push_back((Fun*)it->copy());
     return new FunChain(app, g);
   }
-  void FunChain::accept(Visitor& v) const { v.visitFunChain(ty, f); }
 
   std::ostream& Input::stream(std::ostream& out) {
     // already read up to `upto`, so take from cache starting at `nowat`
@@ -100,7 +96,6 @@ namespace sel {
     return out << buffer->cache.str();
   }
   Val* Input::copy() const { return new Input(*this); }
-  void Input::accept(Visitor& v) const { v.visitInput(ty); }
 
   // internal
   struct Token {
@@ -688,14 +683,15 @@ namespace sel {
       .top_level= false,
       .single_line= cx.single_line
     };
+    VisRepr repr(out, ccx);
 
     std::string ind;
     ind.reserve(3 * ccx.indents);
     for (unsigned k = 0; k < ccx.indents; k++)
       ind.append("   ");
 
-    out << "App {\n";
-    VisRepr(out << ind << "f= ", ccx)(*f);
+    out << "App {\n" << ind << "f= ";
+    f->accept(repr);
     out << "\n";
 
     out << ind << "user= {";
@@ -706,7 +702,7 @@ namespace sel {
         out << ind << "[" << it.first << "]=";
         if (it.second) {
           out << it.second->type() << " ";
-          repr(*it.second);
+          it.second->accept(repr);
         } else out << " -nil-";
         out << "\n" << ind;
       }

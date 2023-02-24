@@ -6,8 +6,8 @@
 # define VC_EXTRALEAN
 # include <Windows.h>
 #else
-# include <sys/ioctl.h>
 # include <cstdio>
+# include <sys/ioctl.h>
 #endif
 
 int term_size(unsigned& width, unsigned& height) {

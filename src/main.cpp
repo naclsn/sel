@@ -1,5 +1,5 @@
-#include "options.hpp"
 #include "actions.hpp"
+#include "options.hpp"
 
 int main(int argc, char* argv[]) {
   ios_base::sync_with_stdio(false);

@@ -1,9 +1,9 @@
 #ifndef SELI_OPTIONS_HPP
 #define SELI_OPTIONS_HPP
 
-#include <string>
 #include <iostream>
 #include <sstream>
+#include <string>
 
 #include "sel/utils.hpp"
 

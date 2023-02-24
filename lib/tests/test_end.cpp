@@ -9,7 +9,7 @@ long unsigned count<Lst>(Lst& l) {
   size_t r = 0;
   while (!l.end()) {
     r++;
-    repr(**l);
+    (*l)->accept(repr);
     ++l;
   }
   return r;

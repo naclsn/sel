@@ -3,8 +3,8 @@
 #include <string>
 #include <vector>
 
-#include "sel/types.hpp"
 #include "sel/parser.hpp"
+#include "sel/types.hpp"
 
 using namespace std;
 using namespace sel;

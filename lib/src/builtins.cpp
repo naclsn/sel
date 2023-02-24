@@ -2,16 +2,13 @@
 
 #define TRACE(...)
 #include "sel/builtins.hpp"
-#include "sel/visitors.hpp"
 #include "sel/parser.hpp"
+#include "sel/visitors.hpp"
 
 namespace sel {
 
   Val* StrChunks::copy() const {
-    return new StrChunks(app, chunks);
-  }
-  void StrChunks::accept(Visitor& v) const {
-    v.visitStrChunks(type(), this->chunks);
+    return new StrChunks(app, chs);
   }
 
   // internal
@@ -48,8 +45,9 @@ namespace sel {
     static inline void the(std::vector<std::string>& _) { }
   };
 
+  // XXX: can rewrite with pack
   unsigned list_names(std::vector<std::string>& names) {
-    constexpr unsigned count = ll::count<bins_ll::bins>::the;
+    constexpr unsigned count = ll::count<bins_ll::bins>::value;
     names.reserve(count);
     push_names_into<bins_ll::bins>::the(names);
     return count;
@@ -63,20 +61,12 @@ namespace sel {
       TRACE(copyOne, a::the::Base::Next::name);
       return new typename a::Base::Next(this->app); // copyOne
     }
-    template <typename Impl, typename one>
-    void _bin_be<Impl, ll::cons<one, ll::nil>>::the::accept(Visitor& v) const {
-      v.visit(*(Impl*)this); // visitOne
-    }
 
     template <typename Impl, typename last_arg, char b>
     Val* _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::copy() const {
       typedef _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the a;
       TRACE(copyOne2, a::the::Base::Next::name);
       return new typename a::Base::Next(this->app); // copyOne2
-    }
-    template <typename Impl, typename last_arg, char b>
-    void _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::accept(Visitor& v) const {
-      v.visit(*(Impl*)this); // visitOne2
     }
 
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
@@ -88,10 +78,6 @@ namespace sel {
         (a::Base*)_base->copy(),
         (a::Arg*)_arg->copy()
       ); // copyBody
-    }
-    template <typename NextT, typename to, typename from, typename from_again, typename from_more>
-    void _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::accept(Visitor& v) const {
-      v.visit(*this); // visitBody
     }
 
     template <typename NextT, typename last_to, typename last_from>
@@ -114,20 +100,12 @@ namespace sel {
         (typename a::Arg*)_arg->copy()
       ); // copyTail2
     }
-    template <typename NextT, typename last_to, typename last_from>
-    void _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the::accept(Visitor& v) const {
-      v.visit(*(typename Base::Next*)this); // visitTail
-    }
 
     template <typename NextT, typename last_to, typename last_from>
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::copy() const {
       typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>> a;
       TRACE(copyHead, a::the::Base::Next::name);
       return new a(this->app); // copyHead
-    }
-    template <typename NextT, typename last_to, typename last_from>
-    void _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::accept(Visitor& v) const {
-      v.visit(*this); // visitHead
     }
 
   } // namespace bins_helpers
@@ -984,5 +962,20 @@ namespace sel {
     }
 
   } // namespace bins
+
+
+  template <typename PackItself> struct _make_bins_list;
+  template <typename ...Pack>
+  struct _make_bins_list<ll::pack<Pack...>> {
+    static char const* const names[];
+    constexpr static size_t count = sizeof...(Pack);
+  };
+  template<typename ...Pack>
+  constexpr char const* const _make_bins_list<ll::pack<Pack...>>::names[] = {Pack::name...};
+
+  // Val* bins_list::lookup(App& app, std::string const& name) { }
+  char const* const* const bins_list::names = _make_bins_list<bins_ll::bins_packed>::names;
+  size_t const bins_list::count = _make_bins_list<bins_ll::bins_packed>::count;
+
 
 } // namespace sel

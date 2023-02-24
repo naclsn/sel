@@ -7,15 +7,40 @@
  */
 
 #include <sstream>
+#include <tuple>
 #include <vector>
 
 #include "types.hpp"
 #include "unicode.hpp"
+#include "visitors.hpp"
 
 namespace sel {
 
-  class Visitor;
-  class App;
+  template <typename Vi>
+  using visit_table_entry = typename Vi::Ret(Vi&, Val const*);
+
+  template <typename PackItself> struct _VisitTable;
+  template <typename ...Pack>
+  struct _VisitTable<ll::pack<Pack...>> {
+    typedef std::tuple<visit_table_entry<Pack>*...> type;
+  };
+
+  typedef _VisitTable<visitors_ll::visitors>::type VisitTable;
+
+  template <typename Va, typename PackItself> struct _make_visit_table;
+  template <typename Va, typename ...Pack>
+  struct _make_visit_table<Va, ll::pack<Pack...>> {
+    constexpr inline static VisitTable function() {
+      return {(visit_table_entry<Pack>*)visit<Pack, Va>...};
+    }
+  };
+
+  template <typename VaP>
+  struct make_visit_table {
+    constexpr inline static VisitTable function() {
+      return _make_visit_table<typename std::remove_pointer<VaP>::type, visitors_ll::visitors>::function();
+    }
+  };
 
   /**
    * Abstract base class for every types of values. See
@@ -23,19 +48,28 @@ namespace sel {
    * these abstract class in turn describe the common
    * ground for values of a type.
    */
-  class Val {
+  struct Val {
   protected:
     App& app;
     Type const ty;
+
+    // used by janky visitor pattern, essentially manual v-table; use `make_visit_table`
+    virtual VisitTable visit_table() const = 0;
+
   public:
     Val(App& app, Type const& ty);
     virtual ~Val();
+
     Type const& type() const { return ty; }
     virtual Val* copy() const = 0;
-    virtual void accept(Visitor& v) const;
+
+    template <typename Vi>
+    typename Vi::Ret accept(Vi& visitor) const {
+      auto visit = std::get<ll::pack_index<Vi, visitors_ll::visitors>::value>(visit_table());
+      return visit(visitor, this);
+    }
   };
 
-  class App;
   /**
    * Coerse a value to a type. Returned pointer may be
    * the same or a newly allocated value.
@@ -54,8 +88,7 @@ namespace sel {
    * Numbers can be converted to common representation
    * (double for now).
    */
-  class Num : public Val {
-  public:
+  struct Num : Val {
     Num(App& app)
       : Val(app, Type(Ty::NUM, {0}, 0))
     { }
@@ -66,8 +99,7 @@ namespace sel {
    * Abstract class for `Str`-type compatible values.
    * Strings are "rewindable streams".
    */
-  class Str : public Val { //, public std::istream
-  public:
+  struct Str : Val { //, public std::istream
     Str(App& app, TyFlag is_inf)
       : Val(app, Type(Ty::STR, {0}, is_inf))
     { }
@@ -92,8 +124,7 @@ namespace sel {
    * Lists are more like "rewindable iterators". (Methods
    * `next` and `rewind`.)
    */
-  class Lst : public Val { //, public std::iterator<std::input_iterator_tag, Val>
-  public:
+  struct Lst : Val { //, public std::iterator<std::input_iterator_tag, Val>
     Lst(App& app, Type const& type)
       : Val(app, type)
     { }
@@ -123,8 +154,7 @@ namespace sel {
    * Functions can be applied an argument to produce
    * a new value.
    */
-  class Fun : public Val {
-  public:
+  struct Fun : Val {
     Fun(App& app, Type const& type)
       : Val(app, type)
     { }
@@ -132,7 +162,8 @@ namespace sel {
   };
 
 
-  class LstMapCoerse : public Lst {
+  struct LstMapCoerse : Lst {
+  private:
     Lst* v;
     size_t now_has;
     size_t has_size;
@@ -167,7 +198,13 @@ namespace sel {
     Val* copy() const override {
       return new LstMapCoerse(app, (Lst*)v->copy(), ty.has());
     }
-    void accept(Visitor& v) const override;
+
+    Lst const& source() const { return *v; }
+
+  protected:
+    VisitTable visit_table() const override {
+      return make_visit_table<decltype(this)>::function();
+    }
   };
 
 

@@ -1,11 +1,12 @@
 #include <iostream>
 
 #define TRACE(...)
-#include "sel/errors.hpp"
-#include "sel/engine.hpp"
-#include "sel/utils.hpp"
 #include "sel/builtins.hpp"
+#include "sel/engine.hpp"
+#include "sel/errors.hpp"
 #include "sel/parser.hpp"
+#include "sel/utils.hpp"
+#include "sel/visitors.hpp"
 
 namespace sel {
 
@@ -14,11 +15,6 @@ namespace sel {
     , ty(Type(ty))
   { app.push_back(this); }
   Val::~Val() { }
-
-  void Val::accept(Visitor& v) const {
-    // throw NIYError(std::string("'accept' of visitor pattern for this class: ") + typeid(*this).name());
-    throw NIYError("visitor pattern not supported at all on this value");
-  }
 
   template <typename To>
   To* coerse(App& app, Val* from, Type const& to);
@@ -156,10 +152,6 @@ namespace sel {
       case Ty::FUN: return coerse<Fun>(app, from, to);
     }
     throw TypeError("miss-initialized or corrupted type");
-  }
-
-  void LstMapCoerse::accept(Visitor& v) const {
-    v.visitLstMapCoerse(type(), *this->v);
   }
 
 

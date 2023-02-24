@@ -1,9 +1,9 @@
 #ifndef SELI_BUILDAPP_HPP
 #define SELI_BUILDAPP_HPP
 
-#include <string>
-#include <sstream>
 #include <fstream>
+#include <sstream>
+#include <string>
 
 #include "sel/errors.hpp"
 #include "sel/parser.hpp"

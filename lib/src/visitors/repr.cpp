@@ -1,8 +1,11 @@
+#include "sel/builtins.hpp"
+#include "sel/parser.hpp"
+#include "sel/utils.hpp"
 #include "sel/visitors.hpp"
 
 namespace sel {
 
-  void _VisRepr<bins_ll::nil>::reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields) {
+  void VisRepr::reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields) {
     bool isln = 1 < fields.size() && !cx.single_line;
 
     std::string ln = " ";
@@ -41,7 +44,7 @@ namespace sel {
           if (it.val) {
             bool was_top = cx.top_level;
             cx.top_level = false;
-            this->operator()(*it.val);
+            it.val->accept(*this);
             cx.top_level = was_top;
           } else res << " -nil-";
           break;
@@ -92,6 +95,10 @@ namespace sel {
     reprHelper(type, "FunChain", a);
   }
 
+  void VisRepr::visitInput(Type const& type) {
+    reprHelper(type, "Input", {});
+  }
+
   void VisRepr::visitStrChunks(Type const& type, std::vector<std::string> const& vs) {
     size_t c = vs.size();
     std::vector<char[16]> b(c);
@@ -110,11 +117,7 @@ namespace sel {
     });
   }
 
-  void VisRepr::visitInput(Type const& type) {
-    reprHelper(type, "Input", {});
-  }
-
-  void _VisRepr<bins_ll::nil>::visitCommon(Segment const& it, Type const& type, char const* name, unsigned args, unsigned max_args) {
+  void VisRepr::visitCommon(Segment const& it, Type const& type, char const* name, unsigned args, unsigned max_args) {
     std::string normalized // capitalizes first letter and append arity
       = (char)(name[0]+('A'-'a'))
       + ((name+1)
@@ -125,12 +128,43 @@ namespace sel {
     });
   }
 
-  void _VisRepr<bins_ll::nil>::visitCommon(Val const& it, Type const& type, char const* name, unsigned args, unsigned max_args) {
+  void VisRepr::visitCommon(Val const& it, Type const& type, char const* name, unsigned args, unsigned max_args) {
     std::string normalized // capitalizes first letter and append arity
       = (char)(name[0]+('A'-'a'))
       + ((name+1)
       + std::to_string(max_args-args));
     reprHelper(type, normalized.c_str(), {});
+  }
+
+  VisRepr::Ret VisRepr::visit(NumLiteral const& it) {
+    visitNumLiteral(it.type(), it.underlying());
+    return res;
+  }
+  VisRepr::Ret VisRepr::visit(StrLiteral const& it) {
+    visitStrLiteral(it.type(), it.underlying());
+    return res;
+  }
+  VisRepr::Ret VisRepr::visit(LstLiteral const& it) {
+    visitLstLiteral(it.type(), it.underlying());
+    return res;
+  }
+  VisRepr::Ret VisRepr::visit(FunChain const& it) {
+    visitFunChain(it.type(), it.underlying());
+    return res;
+  }
+
+  VisRepr::Ret VisRepr::visit(Input const& it) {
+    visitInput(it.type());
+    return res;
+  }
+
+  VisRepr::Ret VisRepr::visit(StrChunks const& it) {
+    visitStrChunks(it.type(), it.chunks());
+    return res;
+  }
+  VisRepr::Ret VisRepr::visit(LstMapCoerse const& it) {
+    visitLstMapCoerse(it.type(), it.source());
+    return res;
   }
 
 } // namespace sel

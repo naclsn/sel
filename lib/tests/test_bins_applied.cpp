@@ -2,8 +2,8 @@
 
 #define showv_test(__ident, __expct) do {  \
   ostringstream oss;                       \
-  VisRepr repr = VisRepr(oss);             \
-  repr(*__ident);                          \
+  VisRepr repr(oss);                       \
+  __ident->accept(repr);                   \
   cout << #__ident ": " << oss.str();      \
   assert_cmp(__expct, oss.str());          \
 } while (0)

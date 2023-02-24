@@ -1,9 +1,9 @@
 #include <unordered_map>
 
 #define TRACE(...)
-#include "sel/utils.hpp"
-#include "sel/types.hpp"
 #include "sel/errors.hpp"
+#include "sel/types.hpp"
+#include "sel/utils.hpp"
 
 namespace sel {
 

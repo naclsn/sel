@@ -2,45 +2,55 @@
 #define SEL_BUILTINS_HPP
 
 #include <sstream>
-#include <vector>
 #include <unordered_set>
+#include <vector>
 
-#include "utils.hpp"
 #include "engine.hpp"
 #include "errors.hpp"
+#include "ll.hpp"
+#include "utils.hpp"
 
 namespace sel {
 
-  class StrChunks : public Str {
+  struct StrChunks : Str {
+  private:
     typedef std::vector<std::string> ch_t;
-    ch_t chunks;
+    ch_t chs;
     ch_t::size_type at;
+
   public:
     StrChunks(App& app, std::vector<std::string> chunks)
       : Str(app, TyFlag::IS_FIN)
-      , chunks(chunks)
+      , chs(chunks)
       , at(0)
     { }
     StrChunks(App& app, std::string single)
       : StrChunks(app, std::vector<std::string>({single}))
     { }
     std::ostream& stream(std::ostream& out) override {
-      return out << chunks[at++];
+      return out << chs[at++];
     }
     bool end() override {
-      return chunks.size() <= at;
+      return chs.size() <= at;
     }
     std::ostream& entire(std::ostream& out) override {
-      for (auto const& it : chunks)
+      for (auto const& it : chs)
         out << it;
       return out;
     }
     Val* copy() const override;
-    void accept(Visitor& v) const override;
+
+    std::vector<std::string> const& chunks() const { return chs; }
+
+  protected:
+    VisitTable visit_table() const override {
+      return make_visit_table<decltype(this)>::function();
+    }
   };
 
   /**
    * Seach for a value by name, return nullptr if not found.
+   * TODO: rewrite with pack if possible (see bins_list at the verry end)
    */
   Val* lookup_name(App& app, std::string const& name);
 
@@ -49,59 +59,6 @@ namespace sel {
    * must be an identifier token.
    */
 #define static_lookup_name(__appref, __name) (new sel::bins::__name##_::Head(__appref))
-
-  /**
-   * Seach for a value by name, return nullptr if not found.
-   */
-  unsigned list_names(std::vector<std::string>& names);
-
-  /**
-   * (mostly internal) namespace for TMP linked list
-   */
-  namespace ll {
-
-    /**
-     * empty list, see `ll::cons`
-     */
-    struct nil { };
-
-    /**
-     * linked lists of type (car,cdr) style, see `ll::nil`
-     */
-    template <typename A, typename D>
-    struct cons { typedef A car; typedef D cdr; };
-    template <typename O>
-    struct cons<O, nil> { typedef O car; typedef nil cdr; };
-
-    /**
-     * make a linked lists of types (car,cdr) style from pack (see `ll::cons`)
-     */
-    template <typename H, typename... T>
-    struct cons_l { typedef cons<H, typename cons_l<T...>::the> the; };
-    template <typename O>
-    struct cons_l<O> { typedef cons<O, nil> the; };
-
-    template <typename from, typename into> struct _rev_impl;
-    /**
-     * reverse a list of types
-     */
-    template <typename list>
-    struct rev { typedef typename _rev_impl<list, nil>::the the; };
-    template <typename into>
-    struct _rev_impl<nil, into> { typedef into the; };
-    template <typename H, typename T, typename into>
-    struct _rev_impl<cons<H, T>, into> { typedef typename _rev_impl<T, cons<H, into>>::the the; };
-
-    /**
-     * count the number of element
-     */
-    template <typename list> struct count;
-    template <typename head, typename tail>
-    struct count<cons<head, tail>> { static constexpr unsigned the = count<tail>::the+1; };
-    template <typename only>
-    struct count<cons<only, nil>> { static constexpr unsigned the = 1; };
-
-  } // namespace ll
 
   struct Segment {
     virtual Val const& base() const = 0;
@@ -289,7 +246,11 @@ namespace sel {
         { }
 
         Val* copy() const override; // copyOne
-        void accept(Visitor& v) const override; // visitOne
+
+      protected:
+        VisitTable visit_table() const override {
+          return make_visit_table<decltype(this)>::function();
+        }
       };
     };
 
@@ -316,7 +277,11 @@ namespace sel {
           return impl(*last);
         }
         Val* copy() const override; // copyOne2
-        void accept(Visitor& v) const override; // visitOne2
+
+      protected:
+        VisitTable visit_table() const override {
+          return make_visit_table<decltype(this)>::function();
+        }
       };
     };
 
@@ -430,7 +395,11 @@ namespace sel {
         the(App& app, typename _the::Base* base, typename _the::Arg* arg)
           : _the(app, base, arg)
         { }
-        void accept(Visitor& v) const override; // visitTail
+
+      protected:
+        VisitTable visit_table() const override {
+          return make_visit_table<decltype(this)>::function();
+        }
       };
 
       constexpr static unsigned args = 0;
@@ -445,7 +414,11 @@ namespace sel {
         return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, this->type().from()));
       }
       Val* copy() const override; // visitHead
-      void accept(Visitor& v) const override; // visitHead
+
+    protected:
+      VisitTable visit_table() const override {
+        return make_visit_table<decltype(this)>::function();
+      }
     };
 
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
@@ -475,7 +448,11 @@ namespace sel {
         return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, this->type().from()));
       }
       Val* copy() const override; // copyBody
-      void accept(Visitor& v) const override; // visitBody
+
+    protected:
+      VisitTable visit_table() const override {
+        return make_visit_table<decltype(this)>::function();
+      }
     };
 
     template <typename list>
@@ -485,7 +462,7 @@ namespace sel {
 
     template <typename Implementation, typename type>
     struct builtin {
-      typedef typename _bin_be<Implementation, typename _make_fun_if_unk_tail<typename rev<type>::the>::the>::the the;
+      typedef typename _bin_be<Implementation, typename _make_fun_if_unk_tail<typename rev<type>::type>::the>::the the;
     };
 
   } // namespace bins_helpers
@@ -513,7 +490,7 @@ namespace sel {
 // SEE: https://stackoverflow.com/a/4225302
 #define BIN(__ident, __decl, __docstr, __body) \
     struct __ident##_ \
-        : bins_helpers::builtin<__ident##_, ll::cons_l<__rem_par __decl>::the>::the { \
+        : bins_helpers::builtin<__ident##_, ll::cons_l<__rem_par __decl>::type>::the { \
       constexpr static char const* name = #__ident; \
       constexpr static char const* doc = __docstr; \
       using the::the; \
@@ -831,23 +808,23 @@ namespace sel {
     struct _make_bins_all {
       typedef cons<
         typename TailL::car,
-        typename _make_bins_all<cons<typename TailL::car::Base, typename TailL::cdr>>::the
-      > the;
+        typename _make_bins_all<cons<typename TailL::car::Base, typename TailL::cdr>>::type
+      > type;
     };
     template <typename Next, typename last_to, typename last_from, typename TailL>
     struct _make_bins_all<cons<bins_helpers::_bin_be<Next, cons<last_to, cons<last_from, nil>>>, TailL>> {
       typedef cons<
         bins_helpers::_bin_be<Next, cons<last_to, cons<last_from, nil>>>,
-        typename _make_bins_all<TailL>::the
-      > the;
+        typename _make_bins_all<TailL>::type
+      > type;
     };
     template <>
     struct _make_bins_all<nil> {
-      typedef nil the;
+      typedef nil type;
     };
     template <typename Impl, typename cdr>
     struct _make_bins_all<cons<bins_helpers::_fake_bin_be<Impl>, cdr>> {
-      typedef typename _make_bins_all<cdr>::the the;
+      typedef typename _make_bins_all<cdr>::type type;
     };
 
     using namespace bins;
@@ -869,7 +846,7 @@ namespace sel {
       , sub_
       , tonum_
       , tostr_
-      >::the bins_min;
+      >::type bins_min;
 
     // XXX: still would love if this list could be built automatically
     typedef cons_l
@@ -930,7 +907,7 @@ namespace sel {
       , unhex_
       , unoct_
       , zipwith_
-      >::the bins_max;
+      >::type bins_max;
 
 // TODO: this is waiting for better answers (see also
 // test_each).  Idea is: building with the whole `bins_max`
@@ -968,9 +945,19 @@ namespace sel {
       static_assert(are_sorted<bins>::the(), "must be sorted");
     }
 
-    typedef _make_bins_all<bins>::the bins_all;
+    typedef _make_bins_all<bins>::type bins_all;
+
+    typedef packer<bins>::packed bins_packed;
+    typedef packer<bins_all>::packed bins_all_packed;
 
   } // namespace bins_ll
+
+
+  struct bins_list {
+    // static Val* lookup(App&, std::string const&);
+    static char const* const* const names;
+    static size_t const count;
+  };
 
 } // namespace sel
 
