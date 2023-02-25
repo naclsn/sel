@@ -2,14 +2,15 @@
 
 #include <fstream>
 
-#include "sel/visitors.hpp"
-#include "sel/parser.hpp"
-
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Support/TargetRegistry.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
+
+#include "sel/builtins.hpp"
+#include "sel/visitors.hpp"
+#include "sel/parser.hpp"
 
 using namespace llvm;
 
@@ -192,6 +193,9 @@ namespace sel {
       }
   }
 
+  void VisCodegen::visitCommon(Segment const& it, char const* name) {
+    place(name, NotHead(*this, it.arg(), it.base()));
+  }
 
   // `i1 get(i8**, i32*)` and `put(i8*, i32)`
   typedef let<void(bool(char const**, int*), void(char const*, int))> app_t;
@@ -230,8 +234,9 @@ namespace sel {
     app_t app_f(funname, module, Function::ExternalLinkage);
     point(app_f.entry());
 
-    // place input symbol
-    visitInput(Type());
+    // place input symbol (dont like having to construct a `Input` for this)
+    std::stringstream zin;
+    visit(Input(app, zin));
 
     // build the whole stack
     // coerse<Val>(app, new Input(app, in), ty.from()); // TODO: input coersion (Str* -> a)
@@ -376,7 +381,8 @@ namespace sel {
 #endif
 
 
-  void VisCodegen::visitNumLiteral(Type const& type, double n) {
+  void VisCodegen::visit(NumLiteral const& it) {
+    double n = it.underlying();
     place(std::to_string(n), [n](inject_clo_type also) {
       auto* after = block(std::to_string(n)+"_inject");
       also(after, after, Generated(n));
@@ -384,7 +390,8 @@ namespace sel {
     });
   }
 
-  void VisCodegen::visitStrLiteral(Type const& type, std::string const& s) {
+  void VisCodegen::visit(StrLiteral const& it) {
+    std::string const& s = it.underlying();
     place(s, [this, s](inject_clo_type also) {
       auto isread = let<bool>::alloc();
       *isread = false;
@@ -406,15 +413,13 @@ namespace sel {
     });
   }
 
-  void VisCodegen::visitLstLiteral(Type const& type, std::vector<Val*> const& v) {
+  void VisCodegen::visit(LstLiteral const& it) {
+    // std::vector<Val*> const& v = it.underlying();
     throw NIYError("generation of list literals");
   }
 
-  void VisCodegen::visitStrChunks(Type const& type, std::vector<std::string> const& vs) {
-    throw NIYError("generation of intermediary 'StrChunks'");
-  }
-
-  void VisCodegen::visitFunChain(Type const& type, std::vector<Fun*> const& f) {
+  void VisCodegen::visit(FunChain const& it) {
+    std::vector<Fun*> const& f = it.underlying();
     place("chain_of_" + std::to_string(f.size()), [this, &f](inject_clo_type also) {
       size_t k = 0;
       for (auto const& it : f) {
@@ -428,7 +433,7 @@ namespace sel {
     });
   }
 
-  void VisCodegen::visitInput(Type const& type) {
+  void VisCodegen::visit(Input const& it) {
     place("input", [this](inject_clo_type also) {
       // TODO: would be nice (and somewhat make sense) just having this let<> as member
       app_t app_f(funname, module);
@@ -459,6 +464,16 @@ namespace sel {
     });
   }
 
+  void VisCodegen::visit(StrChunks const& it) {
+    // std::vector<std::string> const& vs = it.chunks();
+    throw NIYError("generation of intermediary 'StrChunks'");
+  }
+
+  void VisCodegen::visit(LstMapCoerse const& it) {
+    // Lst const& l = it.source();
+    throw NIYError("generation of intermediary 'StrChunks'");
+  }
+
 // #define _depth(__depth) _depth_ ## __depth
 // #define _depth_0 arg
 // #define _depth_1 base->_depth_0
@@ -477,7 +492,7 @@ namespace sel {
 
 
   template <>
-  void VisCodegen::visit(bins::abs_::Base const&) {
+  void VisCodegen::visitCommon(bins::abs_::Base const&, char const*) {
     place(bins::abs_::name, [this](inject_clo_type also) {
       auto const n = take();
 
@@ -503,11 +518,10 @@ namespace sel {
       });
     });
   }
-  template <> void VisCodegen::visit(bins::abs_ const& node) { place("abs_n", NotHead(*this, node.arg(), node.base())); }
 
 
   template <>
-  void VisCodegen::visit(bins::add_::Base::Base const&) {
+  void VisCodegen::visitCommon(bins::add_::Base::Base const&, char const*) {
     place("add", [this](inject_clo_type also) {
       auto const a = take();
       auto const b = take();
@@ -519,12 +533,10 @@ namespace sel {
       });
     });
   }
-  template <> void VisCodegen::visit(bins::add_::Base const& node) { place("add_a", NotHead(*this, node.arg(), node.base())); }
-  template <> void VisCodegen::visit(bins::add_ const& node) { place("add_a_b", NotHead(*this, node.arg(), node.base())); }
 
 
   template <>
-  void VisCodegen::visit(bins::bytes_::Base const&) {
+  void VisCodegen::visitCommon(bins::bytes_::Base const&, char const*) {
     place("bytes", [this](inject_clo_type also) {
       auto const s = take();
       s.make([this, &also, &s](BasicBlock* brk, BasicBlock* cont, Generated it) {
@@ -535,17 +547,15 @@ namespace sel {
       });
     });
   }
-  template <> void VisCodegen::visit(bins::bytes_ const& node) { place("bytes_s", NotHead(*this, node.arg(), node.base())); }
 
 
   template <>
-  void VisCodegen::visit(bins::const_::Base const&) {
+  void VisCodegen::visitCommon(bins::const_::Base const&, char const*) {
     place("const", [this](inject_clo_type also) {
       take().make(also);
       take();
     });
   }
-  template <> void VisCodegen::visit(bins::const_ const& node) { place("const_a", NotHead(*this, node.arg(), node.base())); }
 
 
   template <>
@@ -557,7 +567,7 @@ namespace sel {
 
 
   template <>
-  void VisCodegen::visit(bins::map_::Base::Base const&) {
+  void VisCodegen::visitCommon(bins::map_::Base::Base const&, char const*) {
     place("map", [this](inject_clo_type also) {
       auto const f = take();
       auto const l = take();
@@ -570,12 +580,10 @@ namespace sel {
       });
     });
   }
-  template <> void VisCodegen::visit(bins::map_::Base const& node) { place("map_f", NotHead(*this, node.arg(), node.base())); }
-  template <> void VisCodegen::visit(bins::map_ const& node) { place("map_f_l", NotHead(*this, node.arg(), node.base())); }
 
 
   template <>
-  void VisCodegen::visit(bins::sub_::Base::Base const&) {
+  void VisCodegen::visitCommon(bins::sub_::Base::Base const&, char const*) {
     place(bins::sub_::name, [this](inject_clo_type also) {
       auto const a = take();
       auto const b = take();
@@ -587,13 +595,11 @@ namespace sel {
       });
     });
   }
-  template <> void VisCodegen::visit(bins::sub_::Base const& node) { place("sub_a", NotHead(*this, node.arg(), node.base())); }
-  template <> void VisCodegen::visit(bins::sub_ const& node) { place("sub_a_b", NotHead(*this, node.arg(), node.base())); }
 
 
   // not perfect (eg '1-' is parsed as -1), but will do for now
   template <>
-  void VisCodegen::visit(bins::tonum_::Base const&) {
+  void VisCodegen::visitCommon(bins::tonum_::Base const&, char const*) {
     place("tonum", [this](inject_clo_type also) {
       auto const s = take();
 
@@ -663,11 +669,10 @@ namespace sel {
       point(after);
     });
   }
-  template <> void VisCodegen::visit(bins::tonum_ const& node) { place("tonum_s", NotHead(*this, node.arg(), node.base())); }
 
 
   template <>
-  void VisCodegen::visit(bins::tostr_::Base const&) {
+  void VisCodegen::visitCommon(bins::tostr_::Base const&, char const*) {
     place("tostr", [this](inject_clo_type also) {
       auto const n = take();
 
@@ -733,11 +738,10 @@ namespace sel {
       });
     });
   }
-  template <> void VisCodegen::visit(bins::tostr_ const& node) { place("tostr_s", NotHead(*this, node.arg(), node.base())); }
 
 
   template <>
-  void VisCodegen::visit(bins::unbytes_::Base const&) {
+  void VisCodegen::visitCommon(bins::unbytes_::Base const&, char const*) {
     place("unbytes", [this](inject_clo_type also) {
       auto const l = take();
       auto b = let<char>::alloc();
@@ -747,7 +751,6 @@ namespace sel {
       });
     });
   }
-  template <> void VisCodegen::visit(bins::unbytes_ const& node) { place("unbytes_l", NotHead(*this, node.arg(), node.base())); }
 
 } // namespace sel
 

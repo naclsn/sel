@@ -121,7 +121,7 @@ namespace sel {
     struct Generated;
 
     // structure for 'segments' of a bin
-    struct Segment; // virtual void operator(inject_clo_type also) = 0;
+    // struct Segment; // virtual void operator(inject_clo_type also) = 0;
     // the `visit(::Head)` will be the actual implementation
     struct Head; // : Segment
     // excluding the Head, each part that are `{arg, base}` closures
@@ -176,6 +176,18 @@ namespace sel {
 
     //}}} symbol shenanigan
 
+    void visitCommon(Segment const& it, char const* name);
+    template <typename T>
+    void visitCommon(T const& it, char const* name) {
+      // XXX: how can i fix this mess without having recursive includes?
+      // maybe by forward-declaring every builtin?
+      // -> but that would not give access to their `::Head`, which is what we need here
+      // maybe this the wrong way round and engine.hpp should not include visitor.hpp?
+      // -> yeah, i tried and could not find any way to get this to work either
+      // a last resort solution is to resolve base on `name`, but that's a bit garbage
+      throw NIYError(std::string("head of ") + name);
+    }
+
   public:
     typedef void Ret;
     char const* funname;
@@ -192,15 +204,18 @@ namespace sel {
     }
     void compile(char const* outfile, bool link);
 
-    void visitNumLiteral(Type const& type, double n);
-    void visitStrLiteral(Type const& type, std::string const& s);
-    void visitLstLiteral(Type const& type, std::vector<Val*> const& v);
-    void visitStrChunks(Type const& type, std::vector<std::string> const& vs);
-    void visitFunChain(Type const& type, std::vector<Fun*> const& f);
-    void visitInput(Type const& type);
+    void visit(NumLiteral const& it);
+    void visit(StrLiteral const& it);
+    void visit(LstLiteral const& it);
+    void visit(FunChain const& it);
+    void visit(Input const& it);
+    void visit(StrChunks const& it);
+    void visit(LstMapCoerse const& it);
 
     template <typename T>
-    void visit(T const&) { throw NIYError("VisCodegen visitor pattern"); }
+    void visit(T const& it) {
+      visitCommon((typename std::conditional<!T::args, T, Segment>::type&)it, T::the::Base::Next::name);
+    }
 
     // void visit(bins::abs_::Base const&);
     // void visit(bins::abs_ const&);
