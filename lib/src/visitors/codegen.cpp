@@ -97,21 +97,21 @@ namespace sel {
 
     // before -> {body}    after
     //     `----------------^
-    cond(let<int>(0) < len, body_bb, after_bb);
+    cond(len > 0, body_bb, after_bb);
 
     point(body_bb);
     // when first entering, init to 0
     letPHI<int> k;
-    k.incoming(let<int>(0), before_bb);
+    k.incoming(0, before_bb);
 
     // actual loop body
     // body -> incr   after
     //  `-------------^
-    body(after_bb, incr_bb, (Value*)let<char>(ptr[k]));
+    body(after_bb, incr_bb, ptr[k]);
 
     point(incr_bb);
     // when from continue, take the ++
-    auto kpp = k + let<int>(1);
+    auto kpp = k + 1;
     k.incoming(kpp, incr_bb);
 
     // body    incr -> {after}
@@ -280,12 +280,12 @@ namespace sel {
       point(notend); {
         **buf = r.into<char>();
         *b = *buf;
-        *l = let<int>(1);
+        *l = 1;
         get.ret(true);
       }
 
       point(end); {
-        *l = let<int>(0);
+        *l = 0;
         get.ret(false);
       }
     }
@@ -377,7 +377,7 @@ namespace sel {
   void VisCodegen::visitNumLiteral(Type const& type, double n) {
     place(std::to_string(n), [n](inject_clo_type also) {
       auto* after = block(std::to_string(n)+"_inject");
-      also(after, after, let<double>(n));
+      also(after, after, Generated(n));
       point(after);
     });
   }
@@ -397,7 +397,7 @@ namespace sel {
         },
         [&isread, &buffer, len] {
           *isread = true;
-          return Generated(*buffer, let<int>(len));
+          return Generated(*buffer, len);
         },
         also
       );
@@ -603,7 +603,7 @@ namespace sel {
           auto* accumulate = block("tonum_accumulate");
           auto* after = block("tonum_after");
 
-          auto isnegate = at == '-' && !let<bool>(*isminus);
+          auto isnegate = at == '-' && !*isminus;
           cond(isnegate, setnegate, accumulate);
 
           point(setnegate);
@@ -616,7 +616,7 @@ namespace sel {
             cond(at >= '0' && at <= '9', acc_if_isdigit, brk);
 
             point(acc_if_isdigit);
-              *acc = let<double>(*acc)*10 + (at-let<char>('0')).into<double>();
+              *acc = let<double>(*acc)*10 + (at-'0').into<double>();
 
             br(after);
 
@@ -674,7 +674,7 @@ namespace sel {
             cond(*isread, brk, cont);
           },
           [this, &isread, &b_1char, &at_2nd_char, &it] {
-            auto num = let<double>(it.num());
+            auto num = it.num();
 
             log << "call to @tostr, should only be here once\n";
             /*b=*/
@@ -709,7 +709,7 @@ namespace sel {
               });
 
               // also for now 1-char buffer, we only do digits here
-              *store_at = positive.into<char>() + let<char>('0');
+              *store_at = positive.into<char>() + '0';
 
             // this is the only iteration, mark end
             *isread = true;
@@ -730,8 +730,8 @@ namespace sel {
       auto const l = take();
       auto b = let<char>::alloc();
       l.make([&also, &b](BasicBlock* brk, BasicBlock* cont, Generated it) {
-        *b = let<double>(it.num()).into<char>();
-        also(brk, cont, Generated(b, let<int>(1)));
+        *b = it.num().into<char>();
+        also(brk, cont, Generated(b, 1));
       });
     });
   }

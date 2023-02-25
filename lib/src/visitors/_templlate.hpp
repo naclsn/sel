@@ -11,9 +11,9 @@ namespace tll {
 
   struct letBase {
     llvm::Value* p;
-    inline letBase(llvm::Value* p): p(p) { }
+    explicit inline letBase(llvm::Value* p): p(p) { }
     virtual ~letBase() { }
-    operator llvm::Value*() const { return p; }
+    explicit inline operator llvm::Value*() const { return p; }
   };
   template <typename Ty> struct let;
 
@@ -104,51 +104,51 @@ namespace tll {
 
     inline let(Ty v): letBase(llvm_info_for<Ty>::val(v)) { }
     template <typename Ty2>
-    inline let<Ty2> into() const { return llvm_conv<Ty, Ty2>::from(*this); }
+    inline let<Ty2> into() const { return let<Ty2>(llvm_conv<Ty, Ty2>::from((llvm::Value*)*this)); }
 
-    inline static let<Ty*> alloc() { return __tll_irb->CreateAlloca(type(), nullptr); }
+    inline static let<Ty*> alloc() { return let<Ty*>(__tll_irb->CreateAlloca(type(), nullptr)); }
     template <typename sz>
     inline static let<Ty*> alloc(let<sz> size) {
       static_assert(std::is_integral<sz>{}, "allocated size should be from an intergal type");
-      return __tll_irb->CreateAlloca(type(), size);
+      return let<Ty*>(__tll_irb->CreateAlloca(type(), (llvm::Value*)size));
     }
     inline static let<Ty*> alloc(int size) { return alloc(let<int>(size)); }
 
-    inline let operator+(let other) const { return llvm_info_for<Ty>::add(*this, other); }
-    inline let operator-(let other) const { return llvm_info_for<Ty>::sub(*this, other); }
-    inline let operator*(let other) const { return llvm_info_for<Ty>::mul(*this, other); }
-    // inline let operator/(let other) const { return llvm_info_for<Ty>::div(*this, other); }
+    inline let operator+(let other) const { return let(llvm_info_for<Ty>::add((llvm::Value*)*this, (llvm::Value*)other)); }
+    inline let operator-(let other) const { return let(llvm_info_for<Ty>::sub((llvm::Value*)*this, (llvm::Value*)other)); }
+    inline let operator*(let other) const { return let(llvm_info_for<Ty>::mul((llvm::Value*)*this, (llvm::Value*)other)); }
+    // inline let operator/(let other) const { return let(llvm_info_for<Ty>::div((llvm::Value*)*this, (llvm::Value*)other)); }
 
     inline let operator-() const { return let((Ty)0)-*this; }
     inline let& operator+() const { return *this; }
 
-    inline let<bool> operator<(let other) const { return llvm_info_for<Ty>::lt(*this, other); }
-    inline let<bool> operator>(let other) const { return llvm_info_for<Ty>::gt(*this, other); }
-    inline let<bool> operator<=(let other) const { return llvm_info_for<Ty>::le(*this, other); }
-    inline let<bool> operator>=(let other) const { return llvm_info_for<Ty>::ge(*this, other); }
-    inline let<bool> operator==(let other) const { return llvm_info_for<Ty>::eq(*this, other); }
-    inline let<bool> operator!=(let other) const { return llvm_info_for<Ty>::ne(*this, other); }
+    inline let<bool> operator<(let other) const { return let<bool>(llvm_info_for<Ty>::lt((llvm::Value*)*this, (llvm::Value*)other)); }
+    inline let<bool> operator>(let other) const { return let<bool>(llvm_info_for<Ty>::gt((llvm::Value*)*this, (llvm::Value*)other)); }
+    inline let<bool> operator<=(let other) const { return let<bool>(llvm_info_for<Ty>::le((llvm::Value*)*this, (llvm::Value*)other)); }
+    inline let<bool> operator>=(let other) const { return let<bool>(llvm_info_for<Ty>::ge((llvm::Value*)*this, (llvm::Value*)other)); }
+    inline let<bool> operator==(let other) const { return let<bool>(llvm_info_for<Ty>::eq((llvm::Value*)*this, (llvm::Value*)other)); }
+    inline let<bool> operator!=(let other) const { return let<bool>(llvm_info_for<Ty>::ne((llvm::Value*)*this, (llvm::Value*)other)); }
   };
 
-  inline let<bool> operator||(let<bool> l, let<bool> r) { return __tll_irb->CreateOr(l, r); }
-  inline let<bool> operator&&(let<bool> l, let<bool> r) { return __tll_irb->CreateAnd(l, r); }
-  inline let<bool> operator!(let<bool> o) { return __tll_irb->CreateNot(o); }
+  inline let<bool> operator||(let<bool> l, let<bool> r) { return let<bool>(__tll_irb->CreateOr((llvm::Value*)l, (llvm::Value*)r)); }
+  inline let<bool> operator&&(let<bool> l, let<bool> r) { return let<bool>(__tll_irb->CreateAnd((llvm::Value*)l, (llvm::Value*)r)); }
+  inline let<bool> operator!(let<bool> o) { return let<bool>(__tll_irb->CreateNot((llvm::Value*)o)); }
 
   template <typename Ty>
   struct letAt {
     inline static llvm::FunctionType* type() { return let<Ty>::type(); }
     let<Ty*> ptr;
     inline letAt(let<Ty*> ptr): ptr(ptr) { }
-    inline operator let<Ty>() const { return let<Ty>(__tll_irb->CreateLoad(ptr)); }
-    inline void operator=(let<Ty> sto) const { __tll_irb->CreateStore(sto, ptr); }
+    inline operator let<Ty>() const { return let<Ty>(__tll_irb->CreateLoad((llvm::Value*)ptr)); }
+    inline void operator=(let<Ty> sto) const { __tll_irb->CreateStore((llvm::Value*)sto, (llvm::Value*)ptr); }
   };
   template <typename Ty>
   struct letAt<Ty const> {
     inline static llvm::FunctionType* type() { return let<Ty>::type(); }
     let<Ty const*> ptr;
     inline letAt(let<Ty const*> ptr): ptr(ptr) { }
-    inline operator let<Ty>() const { return let<Ty>(__tll_irb->CreateLoad(ptr)); }
-    inline operator let<Ty const>() const { return let<Ty const>(__tll_irb->CreateLoad(ptr)); }
+    inline operator let<Ty>() const { return let<Ty>(__tll_irb->CreateLoad((llvm::Value*)ptr)); }
+    inline operator let<Ty const>() const { return let<Ty const>(__tll_irb->CreateLoad((llvm::Value*)ptr)); }
     inline void operator=(let<Ty const> sto) = delete;
   };
   template <typename Ret, typename ...Args>
@@ -158,7 +158,7 @@ namespace tll {
     inline letAt(let<Ret(*)(Args...)> ptr): ptr(ptr) { }
     template <typename Ret2, typename ...Args2>
     inline void operator=(let<Ret(Args...)> sto) = delete;
-    inline let<Ret> operator()(let<Args>... args) const { return __tll_irb->CreateCall(type(), ptr, {args...}); }
+    inline let<Ret> operator()(let<Args>... args) const { return let<Ret>(__tll_irb->CreateCall(type(), (llvm::Value*)ptr, {(llvm::Value*)args...})); }
   };
   template <typename ...Args>
   struct letAt<void(Args...)> {
@@ -167,7 +167,7 @@ namespace tll {
     inline letAt(let<void(*)(Args...)> ptr): ptr(ptr) { }
     template <typename ...Args2>
     inline void operator=(let<void(Args...)> sto) = delete;
-    inline void operator()(let<Args>... args) const { __tll_irb->CreateCall(type(), ptr, {args...}); }
+    inline void operator()(let<Args>... args) const { __tll_irb->CreateCall(type(), (llvm::Value*)ptr, {(llvm::Value*)args...}); }
   };
 
   template <typename Ty>
@@ -177,11 +177,11 @@ namespace tll {
 
     inline operator let<Ty const*>() const { return let<Ty const*>((llvm::Value*)*this); }
 
-    inline static let<Ty**> alloc() { return __tll_irb->CreateAlloca(type(), nullptr); }
+    inline static let<Ty**> alloc() { return let<Ty**>(__tll_irb->CreateAlloca(type(), nullptr)); }
     template <typename sz>
     inline static let<Ty**> alloc(let<sz> size) {
       static_assert(std::is_integral<sz>{}, "allocated size should be from an intergal type");
-      return __tll_irb->CreateAlloca(type(), size);
+      return let<Ty**>(__tll_irb->CreateAlloca(type(), (llvm::Value*)size));
     }
     inline static let<Ty**> alloc(int size) { return alloc(let<int>(size)); }
 
@@ -193,7 +193,7 @@ namespace tll {
     template <typename off>
     inline let operator+(let<off> offset) const {
       static_assert(std::is_integral<off>{}, "index should be from an intergal type");
-      return __tll_irb->CreateGEP(*this, offset);
+      return let(__tll_irb->CreateGEP((llvm::Value*)*this, (llvm::Value*)offset));
     }
     inline let operator+(int offset) const { return (*this)+let<int>(offset); }
   };
@@ -213,15 +213,15 @@ namespace tll {
     inline let(llvm::StringRef funname, llvm::Module& module)
       : letBase(module.getFunction(funname))
     { }
-    inline operator llvm::Function*() const { return (llvm::Function*)p; }
+    explicit inline operator llvm::Function*() const { return (llvm::Function*)p; }
 
-    inline let<Ret> operator()(let<Args>... args) const { return __tll_irb->CreateCall(type(), *this, {args...}); }
-    inline let<Ret(*)(Args...)> operator*() const { return p; }
+    inline let<Ret> operator()(let<Args>... args) const { return let<Ret>(__tll_irb->CreateCall(type(), (llvm::Value*)*this, {(llvm::Value*)args...})); }
+    inline let<Ret(*)(Args...)> operator*() const { return let<Ret(*)(Args...)>(p); }
 
     llvm::BasicBlock* e = nullptr;
     inline llvm::BasicBlock* entry() {
       if (e) return e;
-      return e = llvm::BasicBlock::Create(__tll_irb->getContext(), "entry", *this);
+      return e = llvm::BasicBlock::Create(__tll_irb->getContext(), "entry", (llvm::Function*)*this);
     }
 
     // see `get<n>(f)` to get proper `let<>` typing
@@ -230,8 +230,7 @@ namespace tll {
       return a.begin() + argn;
     }
 
-    inline void ret(let<Ret> ret) const { __tll_irb->CreateRet(ret); }
-    inline void ret(Ret ret) const { __tll_irb->CreateRet(let<Ret>(ret)); }
+    inline void ret(let<Ret> ret) const { __tll_irb->CreateRet((llvm::Value*)ret); }
   };
 
   template <typename ...Args>
@@ -249,15 +248,15 @@ namespace tll {
     inline let(llvm::StringRef funname, llvm::Module& module)
       : letBase(module.getFunction(funname))
     { }
-    inline operator llvm::Function*() const { return (llvm::Function*)p; }
+    explicit inline operator llvm::Function*() const { return (llvm::Function*)p; }
 
-    inline void operator()(let<Args>... args) const { __tll_irb->CreateCall(type(), *this, {args...}); }
-    inline let<void(*)(Args...)> operator*() const { return p; }
+    inline void operator()(let<Args>... args) const { __tll_irb->CreateCall(type(), (llvm::Value*)*this, {(llvm::Value*)args...}); }
+    inline let<void(*)(Args...)> operator*() const { return let<void(*)(Args...)>(p); }
 
     llvm::BasicBlock* e = nullptr;
     inline llvm::BasicBlock* entry() {
       if (e) return e;
-      return e = llvm::BasicBlock::Create(__tll_irb->getContext(), "entry", *this);
+      return e = llvm::BasicBlock::Create(__tll_irb->getContext(), "entry", (llvm::Function*)*this);
     }
 
     // see `get<n>(f)` to get proper `let<>` typing
@@ -270,7 +269,9 @@ namespace tll {
   };
 
   template <size_t argn, typename Ret, typename ...Args>
-  inline let<typename std::tuple_element<argn, std::tuple<Args...>>::type> get(let<Ret(Args...)> f) { return f[argn]; }
+  inline let<typename std::tuple_element<argn, std::tuple<Args...>>::type> get(let<Ret(Args...)> f) {
+    return let<typename std::tuple_element<argn, std::tuple<Args...>>::type>(f[argn]);
+  }
 
   template <typename Ty> struct letGlobal;
 
@@ -289,7 +290,7 @@ namespace tll {
 
     inline operator let<Ty*>() const { return *this; }
     // inline let<Ty> operator*() const { return __tll_irb->CreateGEP(*this, let<int>(0)); }
-    inline letAt<Ty> operator*() const { return letAt<Ty>(__tll_irb->CreateGEP(*this, let<int>(0))); }
+    inline letAt<Ty> operator*() const { return letAt<Ty>(__tll_irb->CreateGEP((llvm::Value*)*this, (llvm::Value*)let<int>(0))); }
 
   protected:
     inline letGlobal(llvm::StringRef globname, llvm::Module& module, llvm::GlobalVariable::LinkageTypes linkage, llvm::Constant* v)
@@ -317,7 +318,7 @@ namespace tll {
 
     inline let<Ty*> operator*() const { return (*this)[0]; }
     template <typename off>
-    inline let<Ty*> operator[](let<off> offset) const { return __tll_irb->CreateGEP(*this, {let<int>(0), offset}); }
+    inline let<Ty*> operator[](let<off> offset) const { return let<Ty*>(__tll_irb->CreateGEP((llvm::Value*)*this, {(llvm::Value*)let<int>(0), (llvm::Value*)offset})); }
     inline let<Ty*> operator[](int offset) const { return (*this)[(let<int>(offset))]; }
 
   protected:
@@ -335,10 +336,11 @@ namespace tll {
 
     inline letPHI(std::initializer_list<std::pair<let<Ty>, llvm::BasicBlock*>> vb)
       : let<Ty>(__tll_irb->CreatePHI(let<Ty>::type(), vb.size()))
-    { for (auto const& it : vb) ((llvm::PHINode*)this->p)->addIncoming(std::get<0>(it), std::get<1>(it)); }
+    { for (auto const& it : vb) ((llvm::PHINode*)*this)->addIncoming((llvm::Value*)std::get<0>(it), std::get<1>(it)); }
     inline letPHI(): let<Ty>(__tll_irb->CreatePHI(let<Ty>::type(), 2)) { }
+    explicit inline operator llvm::PHINode*() const { return (llvm::PHINode*)letBase::p; }
 
-    inline void incoming(let<Ty> v, llvm::BasicBlock* b) { ((llvm::PHINode*)this->p)->addIncoming(v, b); }
+    inline void incoming(let<Ty> v, llvm::BasicBlock* b) { ((llvm::PHINode*)*this)->addIncoming((llvm::Value*)v, b); }
   };
 
   inline llvm::BasicBlock* here() { return __tll_irb->GetInsertBlock(); }
@@ -346,7 +348,7 @@ namespace tll {
   inline void point(llvm::BasicBlock* at) { __tll_irb->SetInsertPoint(at); }
 
   inline void br(llvm::BasicBlock* to) { __tll_irb->CreateBr(to); }
-  inline void cond(let<bool> ifis, llvm::BasicBlock* iftrue, llvm::BasicBlock* iffalse) { __tll_irb->CreateCondBr(ifis, iftrue, iffalse); }
+  inline void cond(let<bool> ifis, llvm::BasicBlock* iftrue, llvm::BasicBlock* iffalse) { __tll_irb->CreateCondBr((llvm::Value*)ifis, iftrue, iffalse); }
 
 }
 
