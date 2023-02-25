@@ -11,46 +11,10 @@ namespace sel {
     return new StrChunks(app, chs);
   }
 
-  // internal
-  template <typename list> struct linear_search;
-  template <typename car, typename cdr>
-  struct linear_search<bins_ll::cons<car, cdr>> {
-    static inline Val* the(App& app, std::string const& name) {
-      if (car::name == name) return new typename car::Head(app);
-      return linear_search<cdr>::the(app, name);
-    }
-  };
-  template <>
-  struct linear_search<bins_ll::nil> {
-    static inline Val* the(App& app, std::string const& _) {
-      return nullptr;
-    }
-  };
-
   Val* lookup_name(App& app, std::string const& name) {
-    return linear_search<bins_ll::bins>::the(app, name);
-  }
-
-  // internal
-  template <typename list> struct push_names_into;
-  template <typename car, typename cdr>
-  struct push_names_into<bins_ll::cons<car, cdr>> {
-    static inline void the(std::vector<std::string>& name) {
-      name.push_back(car::name);
-      push_names_into<cdr>::the(name);
-    }
-  };
-  template <>
-  struct push_names_into<bins_ll::nil> {
-    static inline void the(std::vector<std::string>& _) { }
-  };
-
-  // XXX: can rewrite with pack
-  unsigned list_names(std::vector<std::string>& names) {
-    constexpr unsigned count = ll::count<bins_ll::bins>::value;
-    names.reserve(count);
-    push_names_into<bins_ll::bins>::the(names);
-    return count;
+    auto itr = bins_list::map.find(name);
+    if (bins_list::map.end() == itr) return nullptr;
+    return (*itr).second(app);
   }
 
   namespace bins_helpers {
@@ -967,13 +931,21 @@ namespace sel {
   template <typename PackItself> struct _make_bins_list;
   template <typename ...Pack>
   struct _make_bins_list<ll::pack<Pack...>> {
+    static std::unordered_map<std::string, Val* (*)(App&)> const map;
     static char const* const names[];
     constexpr static size_t count = sizeof...(Pack);
   };
-  template<typename ...Pack>
+
+  template <typename ...Pack>
   constexpr char const* const _make_bins_list<ll::pack<Pack...>>::names[] = {Pack::name...};
 
-  // Val* bins_list::lookup(App& app, std::string const& name) { }
+  template <typename Va>
+  Val* _bin_new(App& app) { return new typename Va::Head(app); }
+  // XXX: static constructor
+  template <typename ...Pack>
+  std::unordered_map<std::string, Val* (*)(App&)> const _make_bins_list<ll::pack<Pack...>>::map = {{Pack::name, _bin_new<Pack>}...};
+
+  std::unordered_map<std::string, Val* (*)(App&)> const bins_list::map = _make_bins_list<bins_ll::bins_packed>::map;
   char const* const* const bins_list::names = _make_bins_list<bins_ll::bins_packed>::names;
   size_t const bins_list::count = _make_bins_list<bins_ll::bins_packed>::count;
 

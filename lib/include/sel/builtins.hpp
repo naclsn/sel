@@ -2,6 +2,7 @@
 #define SEL_BUILTINS_HPP
 
 #include <sstream>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -50,7 +51,6 @@ namespace sel {
 
   /**
    * Seach for a value by name, return nullptr if not found.
-   * TODO: rewrite with pack if possible (see bins_list at the verry end)
    */
   Val* lookup_name(App& app, std::string const& name);
 
@@ -954,7 +954,7 @@ namespace sel {
 
 
   struct bins_list {
-    // static Val* lookup(App&, std::string const&);
+    static std::unordered_map<std::string, Val* (*)(App&)> const map;
     static char const* const* const names;
     static size_t const count;
   };

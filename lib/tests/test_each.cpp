@@ -54,8 +54,6 @@ struct uncurry<F> { static inline Val* the() { return new F(app); } };
 
 
 struct test_base {
-  //App app;
-  //test_base(): app() { }
   virtual ~test_base() { }
   operator int() {
     int r = run_test();
@@ -66,26 +64,24 @@ struct test_base {
   virtual char const* get_name() = 0;
 };
 
-/** return true when failed */
-template <typename F> struct test : test_base {
+template <typename F>
+struct test : test_base {
+  /** return true when failed */
   int run_test() override { cout << "no test for '" << F::name << "'\n"; return 0; }
   char const* get_name() override { return F::name; }
 };
 
 
-template <typename list> struct call_test;
+template <typename PackItself> struct call_test;
+template <typename ...Pack>
+struct call_test<ll::pack<Pack...>> {
+  static inline int function() {
+    std::initializer_list<int> l{test<Pack>()...};
+    return std::accumulate(l.begin(), l.end(), 0);
+  }
+};
 
-template <typename car, typename cdr>
-struct call_test<bins_ll::cons<car, cdr>> { static inline int the() { return test<car>() + call_test<cdr>::the(); } };
-
-template <>
-struct call_test<bins_ll::nil> { static inline int the() { return 0; } };
-
-typedef
-  bins_ll::bins
-  //ll::cons_l<graphemes_>::the
-  tested;
-TEST(each) { return call_test<tested>::the(); }
+TEST(each) { return call_test<bins_ll::bins_packed>::function(); }
 
 
 #define __r(__n) __r ## __n
