@@ -492,8 +492,8 @@ namespace sel {
 
         point(after);
           letPHI<double> out({
-            std::make_pair(in, before),
-            std::make_pair(pos, negate),
+            {in, before},
+            {pos, negate},
           });
 
         also(cont, cont, out);
@@ -644,8 +644,8 @@ namespace sel {
 
       point(retres);
         letPHI<double> final_res({
-          std::make_pair(nres, negate),
-          std::make_pair(res, nonegate),
+          {nres, negate},
+          {res, nonegate},
         });
 
       auto* after = block("tonum_inject");
@@ -694,18 +694,18 @@ namespace sel {
 
             point(common);
               letPHI<double> positive({
-                std::make_pair(pnum, minus),
-                std::make_pair(num, nominus),
+                {pnum, minus},
+                {num, nominus},
               });
 
               letPHI<char*> store_at({
-                std::make_pair(at_2nd_char, minus),
-                std::make_pair(b_1char, nominus),
+                {at_2nd_char, minus},
+                {b_1char, nominus},
               });
 
               letPHI<int> total_len({
-                std::make_pair(2, minus),
-                std::make_pair(1, nominus),
+                {2, minus},
+                {1, nominus},
               });
 
               // also for now 1-char buffer, we only do digits here
