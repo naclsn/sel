@@ -2,3 +2,7 @@ option('bins_min',
   type : 'boolean',
   value : false,
 )
+option('llvm_codegen',
+  type : 'boolean',
+  value : false,
+)

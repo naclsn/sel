@@ -17,11 +17,13 @@
 #include <stack>
 #include <list>
 
+#ifdef LLVM_CODEGEN
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/raw_os_ostream.h>
 namespace tll { template <typename Ty> struct let; }
+#endif
 
 #include "errors.hpp"
 #include "forward.hpp"
@@ -106,6 +108,7 @@ namespace sel {
   };
 
 
+#ifdef LLVM_CODEGEN
   class VisCodegen : public Visitor {
     llvm::LLVMContext context;
     llvm::IRBuilder<> builder;
@@ -217,6 +220,21 @@ namespace sel {
     void visit(bins::unbytes_::Base const&) override;
     void visit(bins::unbytes_ const&) override;
   };
+#else
+  // still provide a stub
+  class VisCodegen {
+  public:
+    typedef void Ret;
+
+    VisCodegen(char const* file_name, char const* module_name, char const* function_name, App& app) { }
+    void makeMain() { }
+    void print(std::ostream& out) { }
+    void compile(char const* outfile, bool link) { }
+
+    template <typename T>
+    Ret visit(T const&) { throw NIYError("this was not compiled with the llvm_codegen option"); }
+  };
+#endif
 
   namespace visitors_ll {
     typedef ll::pack<VisRepr, VisHelp, VisCodegen> visitors;

@@ -1,3 +1,5 @@
+#ifdef LLVM_CODEGEN
+
 #include <fstream>
 
 #include "sel/visitors.hpp"
@@ -738,3 +740,5 @@ namespace sel {
   void VisCodegen::visit(bins::unbytes_ const& node) { place("unbytes_l", NotHead(*this, *node.arg, *node.base)); }
 
 } // namespace sel
+
+#endif
