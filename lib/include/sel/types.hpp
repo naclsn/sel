@@ -6,12 +6,11 @@
  * of helper functions to deal with the type system.
  */
 
-#include <ostream>
 #include <istream>
+#include <iterator>
+#include <ostream>
 #include <string>
 #include <vector>
-#include <iterator>
-
 
 namespace sel {
 
@@ -46,6 +45,8 @@ namespace sel {
     Type(Type const& ty);
     Type(Type&& ty) noexcept;
     ~Type();
+
+    void repr(std::ostream& out, unsigned indent=1);
 
     bool operator==(Type const& other) const;
     bool operator!=(Type const& other) const;

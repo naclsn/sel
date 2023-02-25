@@ -3,32 +3,76 @@
 
 #include "buildapp.hpp"
 #include "options.hpp"
+#include "termutils.hpp"
+#include "wordwrap.hpp"
 
 void lookup(char const* const names[]) {
   if (!names || !*names) {
-    vector<string> vs;
-    list_names(vs);
-    for (auto const& it : vs) cout << it << '\n';
+    for (size_t k = 0; k < bins_list::count; k++)
+      cout << bins_list::names[k] << '\n';
     exit(EXIT_SUCCESS);
   }
 
-  VisHelp help(cout);
+  unsigned w, h;
+  int a = term_size(w, h);
+
+  wordwrap<3> wwcout(0 == a ? w : -1, cout);
+  VisHelp help;
 
   App app;
-  while (*names) {
-    auto* it = lookup_name(app, *names);
-    if (!it) {
-      cerr << "Unknown name: " << quoted(*names) << "\n";
-      exit(EXIT_FAILURE);
+
+  if (string("::") == *names) {
+    ++names;
+
+    stringstream ss;
+    while (*names) ss << *names++ << ' ';
+
+    Type ty;
+    ss >> ty;
+
+    bool found = false;
+
+    for (size_t k = 0; k < bins_list::count; k++) {
+      char const* name = bins_list::names[k];
+      auto* it = lookup_name(app, name);
+
+      if (it->type() == ty) {
+        if (found) cout << "\n";
+        else found = true;
+
+        cout << name << " :: " << it->type() << "\n";
+        wwcout << it->accept(help) << endl;
+      }
     }
 
-    cout << *names << " :: " << it->type() << "\n\t";
-    help(*it); // TODO: (if stdout tty) auto line break at window width?
-    cout << endl;
+    if (!found) {
+      cerr << "None known with type: " << ty << "\n";
+      exit(EXIT_FAILURE);
+    }
+  } // if "::"
 
-    if (*++names) cout << endl;
-    delete it;
-  }
+  else {
+    vector<char const*> not_found;
+
+    while (*names) {
+      auto* it = lookup_name(app, *names);
+      if (it) {
+        cout << *names << " :: " << it->type() << "\n";
+        wwcout << it->accept(help) << endl;
+      } else not_found.push_back(*names);
+
+      if (*++names) cout << endl;
+      delete it;
+    }
+
+    if (!not_found.empty()) {
+      cerr << "Unknown name" << (1 == not_found.size() ? "" : "s") << ":";
+      for (auto const& it : not_found)
+        cerr << " " << quoted(it);
+      cerr << "\n";
+      exit(EXIT_FAILURE);
+    }
+  } // if not "::"
 
   exit(EXIT_SUCCESS);
 }

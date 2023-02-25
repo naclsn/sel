@@ -7,10 +7,9 @@ module.exports = grammar({
 
   rules: {
 
-    script: $ => $._elements1,
+    script: $ => seq($.element, repeat(seq(choice(',', ';'), $.element))),
     comment: _ => /#[^\n]*/,
 
-    _elements1: $ => seq($.element, repeat(seq(choice(',', ';'), $.element))),
     element: $ => seq($.atom, repeat($.atom)),
 
     atom: $ => choice(
@@ -27,11 +26,12 @@ module.exports = grammar({
     unop: _ => choice(...'%@'.split('')),
     binop: _ => choice(...'+-./=_'.split('')),
 
-    subscript: $ => seq('[', optional($._elements1), ']'),
+    //subscript: $ => seq('[', $.script, ']'),
+    subscript: $ => seq('[', seq($.element, repeat(seq(choice(',', ';'), $.element))), ']'),
 
     number: _ => /[0-9]+(\.[0-9]+)?|0x[0-9A-F]+|0b[01]+|0o[0-7]/,
     string: _ => token(seq(':', /([^\\:]|\\[abtnvfre]|::)*/, ':')),
-    list: $ => seq('{', $._elements1, '}'),
+    list: $ => seq('{', seq($.element, repeat(seq(',', $.element))), '}'),
 
     reserved: _ => /[~^]/,
 

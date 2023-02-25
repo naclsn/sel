@@ -6,20 +6,22 @@
  * Application from a user script.
  */
 
-#include <ostream>
 #include <istream>
+#include <ostream>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
-#include "engine.hpp"
 #include "builtins.hpp"
+#include "engine.hpp"
 #include "visitors.hpp"
 
 namespace sel {
 
-  class NumLiteral : public Num {
+  struct NumLiteral : Num {
+  private:
     double const n;
+
   public:
     NumLiteral(App& app, double n)
       : Num(app)
@@ -27,12 +29,20 @@ namespace sel {
     { }
     double value() override;
     Val* copy() const override;
-    void accept(Visitor& v) const override;
+
+    double underlying() const { return n; }
+
+  protected:
+    VisitTable visit_table() const override {
+      return make_visit_table<decltype(this)>::function();
+    }
   };
 
-  class StrLiteral : public Str {
+  struct StrLiteral : Str {
+  private:
     std::string const s;
     bool read;
+
   public:
     StrLiteral(App& app, std::string s)
       : Str(app, TyFlag::IS_FIN)
@@ -40,15 +50,23 @@ namespace sel {
       , read(false)
     { }
     std::ostream& stream(std::ostream& out) override;
-    bool end() const override;
+    bool end() override;
     std::ostream& entire(std::ostream& out) override;
     Val* copy() const override;
-    void accept(Visitor& v) const override;
+
+    std::string const& underlying() const { return s; }
+
+  protected:
+    VisitTable visit_table() const override {
+      return make_visit_table<decltype(this)>::function();
+    }
   };
 
-  class LstLiteral : public Lst {
+  struct LstLiteral : Lst {
+  private:
     std::vector<Val*> const v;
     size_t c;
+
   public:
     LstLiteral(App& app, std::vector<Val*> v)
       : Lst(app, Type(Ty::LST,
@@ -70,13 +88,21 @@ namespace sel {
     { }
     Val* operator*() override;
     Lst& operator++() override;
-    bool end() const override;
+    bool end() override;
     Val* copy() const override;
-    void accept(Visitor& v) const override;
+
+    std::vector<Val*> const& underlying() const { return v; }
+
+  protected:
+    VisitTable visit_table() const override {
+      return make_visit_table<decltype(this)>::function();
+    }
   };
 
-  class FunChain : public Fun {
+  struct FunChain : Fun {
+  private:
     std::vector<Fun*> const f;
+
   public:
     FunChain(App& app, std::vector<Fun*> f)
       : Fun(app, Type(Ty::FUN,
@@ -89,30 +115,49 @@ namespace sel {
     { }
     Val* operator()(Val* arg) override;
     Val* copy() const override;
-    void accept(Visitor& v) const override;
+
+    std::vector<Fun*> const& underlying() const { return f; }
+
+  protected:
+    VisitTable visit_table() const override {
+      return make_visit_table<decltype(this)>::function();
+    }
   };
 
-  class Input : public Str {
-    std::istream& in;
-    std::ostringstream cache;
-    std::streamsize nowat = 0, upto = 0;
-    Input(Input const& other)
-      : Str(other.app, TyFlag::IS_INF)
-      , in(other.in)
-      , cache(other.cache.str())
-      , nowat(other.nowat)
-      , upto(other.upto)
+  struct Input : Str {
+  private:
+    struct InputBuffer {
+      std::istream& in;
+      std::ostringstream cache;
+      std::streamsize upto = 0;
+      InputBuffer(std::istream& in): in(in) { }
+    }* buffer;
+    std::streamsize nowat = 0;
+    bool first;
+
+    Input(App& app, Input const& other)
+      : Str(app, TyFlag::IS_INF)
+      , buffer(other.buffer)
+      , first(false)
     { }
+
   public:
     Input(App& app, std::istream& in)
       : Str(app, TyFlag::IS_INF)
-      , in(in)
+      , buffer(new InputBuffer(in))
+      , first(true)
     { }
+    ~Input() { if (first) delete buffer; }
+
     std::ostream& stream(std::ostream& out) override;
-    bool end() const override;
+    bool end() override;
     std::ostream& entire(std::ostream& out) override;
     Val* copy() const override;
-    void accept(Visitor& v) const override;
+
+    protected:
+    VisitTable visit_table() const override {
+      return make_visit_table<decltype(this)>::function();
+    }
   };
 
   /**

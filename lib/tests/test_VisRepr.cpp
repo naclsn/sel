@@ -2,8 +2,8 @@
 
 int doTestEq(Val const& val, string const exp) {
   ostringstream oss;
-  VisRepr repr = VisRepr(oss, {.single_line=true});
-  repr(val);
+  VisRepr repr(oss, {.single_line=true});
+  val.accept(repr);
   cout << "repr: " << oss.str() << endl;
   assert_cmp(exp, oss.str());
 

@@ -7,15 +7,40 @@
  */
 
 #include <sstream>
+#include <tuple>
 #include <vector>
 
 #include "types.hpp"
 #include "unicode.hpp"
+#include "visitors.hpp"
 
 namespace sel {
 
-  class Visitor;
-  class App;
+  template <typename Vi>
+  using visit_table_entry = typename Vi::Ret(Vi&, Val const*);
+
+  template <typename PackItself> struct _VisitTable;
+  template <typename ...Pack>
+  struct _VisitTable<ll::pack<Pack...>> {
+    typedef std::tuple<visit_table_entry<Pack>*...> type;
+  };
+
+  typedef _VisitTable<visitors_ll::visitors>::type VisitTable;
+
+  template <typename Va, typename PackItself> struct _make_visit_table;
+  template <typename Va, typename ...Pack>
+  struct _make_visit_table<Va, ll::pack<Pack...>> {
+    constexpr inline static VisitTable function() {
+      return {(visit_table_entry<Pack>*)visit<Pack, Va>...};
+    }
+  };
+
+  template <typename VaP>
+  struct make_visit_table {
+    constexpr inline static VisitTable function() {
+      return _make_visit_table<typename std::remove_pointer<VaP>::type, visitors_ll::visitors>::function();
+    }
+  };
 
   /**
    * Abstract base class for every types of values. See
@@ -23,19 +48,28 @@ namespace sel {
    * these abstract class in turn describe the common
    * ground for values of a type.
    */
-  class Val {
+  struct Val {
   protected:
     App& app;
     Type const ty;
+
+    // used by janky visitor pattern, essentially manual v-table; use `make_visit_table`
+    virtual VisitTable visit_table() const = 0;
+
   public:
     Val(App& app, Type const& ty);
     virtual ~Val();
+
     Type const& type() const { return ty; }
     virtual Val* copy() const = 0;
-    virtual void accept(Visitor& v) const;
+
+    template <typename Vi>
+    typename Vi::Ret accept(Vi& visitor) const {
+      auto visit = std::get<ll::pack_index<Vi, visitors_ll::visitors>::value>(visit_table());
+      return visit(visitor, this);
+    }
   };
 
-  class App;
   /**
    * Coerse a value to a type. Returned pointer may be
    * the same or a newly allocated value.
@@ -45,14 +79,16 @@ namespace sel {
    */
   template <typename To>
   To* coerse(App& app, Val* from, Type const& to);
+  // forward (needed in LstMapCoerse)
+  template <>
+  Val* coerse<Val>(App& app, Val* from, Type const& to);
 
   /**
    * Abstract class for `Num`-type compatible values.
    * Numbers can be converted to common representation
    * (double for now).
    */
-  class Num : public Val {
-  public:
+  struct Num : Val {
     Num(App& app)
       : Val(app, Type(Ty::NUM, {0}, 0))
     { }
@@ -63,8 +99,7 @@ namespace sel {
    * Abstract class for `Str`-type compatible values.
    * Strings are "rewindable streams".
    */
-  class Str : public Val { //, public std::istream
-  public:
+  struct Str : Val { //, public std::istream
     Str(App& app, TyFlag is_inf)
       : Val(app, Type(Ty::STR, {0}, is_inf))
     { }
@@ -77,7 +112,7 @@ namespace sel {
      * `true` if there is no more bytes to stream. Calling
      * `stream` (or `entire`) at this point is probably undefined.
      */
-    virtual bool end() const = 0;
+    virtual bool end() = 0;
     /**
      * Stream the whole string of bytes.
      */
@@ -89,8 +124,7 @@ namespace sel {
    * Lists are more like "rewindable iterators". (Methods
    * `next` and `rewind`.)
    */
-  class Lst : public Val { //, public std::iterator<std::input_iterator_tag, Val>
-  public:
+  struct Lst : Val { //, public std::iterator<std::input_iterator_tag, Val>
     Lst(App& app, Type const& type)
       : Val(app, type)
     { }
@@ -112,7 +146,7 @@ namespace sel {
      * invalid for any operation)
      * this means an empty list will be end true right away
      */
-    virtual bool end() const = 0;
+    virtual bool end() = 0;
   };
 
   /**
@@ -120,8 +154,7 @@ namespace sel {
    * Functions can be applied an argument to produce
    * a new value.
    */
-  class Fun : public Val {
-  public:
+  struct Fun : Val {
     Fun(App& app, Type const& type)
       : Val(app, type)
     { }
@@ -129,27 +162,49 @@ namespace sel {
   };
 
 
-  // this hacked quickly (cause im lazy and wanna see it work)
-  // but XXX: this is crap and will fail!
-  template <typename ToHas>
-  class LstMapCoerse : public Lst {
+  struct LstMapCoerse : Lst {
+  private:
     Lst* v;
-    Type const& toto;
+    size_t now_has;
+    size_t has_size;
+
+    static inline std::vector<Type*>* cpy_has(std::vector<Type*> const& to_has) {
+      auto* r = new std::vector<Type*>();
+      r->reserve(to_has.size());
+      for (auto const& it : to_has)
+        r->push_back(new Type(*it));
+      return r;
+    }
+
   public:
-    LstMapCoerse(App& app, Lst* v, Type const& toto)
-      : Lst(app, Type(Ty::LST,
-          {.box_has=
-            new std::vector<Type*>({new Type(toto)})
-          }, TyFlag::IS_FIN
-        ))
+    LstMapCoerse(App& app, Lst* v, std::vector<Type*> const& to_has)
+      : Lst(app, Type(Ty::LST, {.box_has= cpy_has(to_has)}, v->type().flags))
       , v(v)
-      , toto(toto)
+      , now_has(0)
+      , has_size(ty.has().size())
     { }
-    Val* operator*() override { return coerse<ToHas>(app, *(*v), toto); }
-    Lst& operator++() override { ++(*v); return *this; }
-    bool end() const override { return v->end(); }
-    Val* copy() const override { return new LstMapCoerse<ToHas>(app, (Lst*)v->copy(), toto); }
-    void accept(Visitor& v) const override;
+
+    Val* operator*() override {
+      return coerse<Val>(app, *(*v), *ty.has()[now_has]);
+    }
+    Lst& operator++() override {
+      ++(*v);
+      if (has_size <= ++now_has)
+        now_has = 0;
+      return *this;
+    }
+    bool end() override { return v->end(); }
+
+    Val* copy() const override {
+      return new LstMapCoerse(app, (Lst*)v->copy(), ty.has());
+    }
+
+    Lst const& source() const { return *v; }
+
+  protected:
+    VisitTable visit_table() const override {
+      return make_visit_table<decltype(this)>::function();
+    }
   };
 
 

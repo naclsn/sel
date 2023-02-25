@@ -2,138 +2,83 @@
 
 #define TRACE(...)
 #include "sel/builtins.hpp"
-#include "sel/visitors.hpp"
 #include "sel/parser.hpp"
+#include "sel/visitors.hpp"
 
 namespace sel {
 
   Val* StrChunks::copy() const {
-    return new StrChunks(app, chunks);
+    return new StrChunks(app, chs);
   }
-  void StrChunks::accept(Visitor& v) const {
-    v.visitStrChunks(type(), this->chunks);
-  }
-
-  // internal
-  template <typename list> struct linear_search;
-  template <typename car, typename cdr>
-  struct linear_search<bins_ll::cons<car, cdr>> {
-    static inline Val* the(App& app, std::string const& name) {
-      if (car::name == name) return new typename car::Head(app);
-      return linear_search<cdr>::the(app, name);
-    }
-  };
-  template <>
-  struct linear_search<bins_ll::nil> {
-    static inline Val* the(App& app, std::string const& _) {
-      return nullptr;
-    }
-  };
 
   Val* lookup_name(App& app, std::string const& name) {
-    return linear_search<bins_ll::bins>::the(app, name);
-  }
-
-  // internal
-  template <typename list> struct push_names_into;
-  template <typename car, typename cdr>
-  struct push_names_into<bins_ll::cons<car, cdr>> {
-    static inline void the(std::vector<std::string>& name) {
-      name.push_back(car::name);
-      push_names_into<cdr>::the(name);
-    }
-  };
-  template <>
-  struct push_names_into<bins_ll::nil> {
-    static inline void the(std::vector<std::string>& _) { }
-  };
-
-  unsigned list_names(std::vector<std::string>& names) {
-    constexpr unsigned count = ll::count<bins_ll::bins>::the;
-    names.reserve(count);
-    push_names_into<bins_ll::bins>::the(names);
-    return count;
+    auto itr = bins_list::map.find(name);
+    if (bins_list::map.end() == itr) return nullptr;
+    return (*itr).second(app);
   }
 
   namespace bins_helpers {
 
     template <typename Impl, typename one>
     Val* _bin_be<Impl, ll::cons<one, ll::nil>>::the::copy() const {
-      // TRACE(copyOne, typeid(*this).name());
-      return new typename _bin_be<Impl, ll::cons<one, ll::nil>>::the::Base::Next(this->app); // copyOne
-    }
-    template <typename Impl, typename one>
-    void _bin_be<Impl, ll::cons<one, ll::nil>>::the::accept(Visitor& v) const {
-      v.visit(*(Impl*)this); // visitOne
+      typedef _bin_be<Impl, ll::cons<one, ll::nil>>::the a;
+      TRACE(copyOne, a::the::Base::Next::name);
+      return new typename a::Base::Next(this->app); // copyOne
     }
 
     template <typename Impl, typename last_arg, char b>
     Val* _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::copy() const {
-      // TRACE(copyOne2, typeid(*this).name());
-      return new typename _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::Base::Next(this->app); // copyOne2
-    }
-    template <typename Impl, typename last_arg, char b>
-    void _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::accept(Visitor& v) const {
-      v.visit(*(Impl*)this); // visitOne2
+      typedef _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the a;
+      TRACE(copyOne2, a::the::Base::Next::name);
+      return new typename a::Base::Next(this->app); // copyOne2
     }
 
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
     Val* _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::copy() const {
       typedef _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>> a;
-      // TRACE(copyBody, typeid(*this).name());
+      TRACE(copyBody, a::the::Base::Next::name);
       return new _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>(
         this->app,
-        (a::Base*)base->copy(),
-        (a::Arg*)arg->copy()
+        (a::Base*)_base->copy(),
+        (a::Arg*)_arg->copy()
       ); // copyBody
-    }
-    template <typename NextT, typename to, typename from, typename from_again, typename from_more>
-    void _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::accept(Visitor& v) const {
-      v.visit(*this); // visitBody
     }
 
     template <typename NextT, typename last_to, typename last_from>
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::_the_when_not_unk::copy() const {
       typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the a;
-      // TRACE(copyTail1, typeid(*this).name());
+      TRACE(copyTail1, a::the::Base::Next::name);
       return new typename a::Base::Next(
         this->app,
-        (typename a::Base*)base->copy(),
-        (typename a::Arg*)arg->copy()
+        (typename a::Base*)_base->copy(),
+        (typename a::Arg*)_arg->copy()
       ); // copyTail1
     }
     template <typename NextT, typename last_to, typename last_from>
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::_the_when_is_unk::copy() const {
       typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the a;
-      // TRACE(copyTail2, typeid(*this).name());
+      TRACE(copyTail2, a::the::Base::Next::name);
       return new typename a::Base::Next(
         this->app,
-        (typename a::Base*)base->copy(),
-        (typename a::Arg*)arg->copy()
+        (typename a::Base*)_base->copy(),
+        (typename a::Arg*)_arg->copy()
       ); // copyTail2
-    }
-    template <typename NextT, typename last_to, typename last_from>
-    void _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the::accept(Visitor& v) const {
-      v.visit(*(typename Base::Next*)this); // visitTail
     }
 
     template <typename NextT, typename last_to, typename last_from>
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::copy() const {
-      // TRACE(copyHead, typeid(*this).name());
-      return new _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>(this->app); // copyHead
-    }
-    template <typename NextT, typename last_to, typename last_from>
-    void _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::accept(Visitor& v) const {
-      v.visit(*this); // visitHead
+      typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>> a;
+      TRACE(copyHead, a::the::Base::Next::name);
+      return new a(this->app); // copyHead
     }
 
   } // namespace bins_helpers
 
 #define _depth(__depth) _depth_ ## __depth
-#define _depth_0 arg
-#define _depth_1 base->_depth_0
-#define _depth_2 base->_depth_1
-#define _depth_3 base->_depth_2
+#define _depth_0 _arg
+#define _depth_1 _base->_depth_0
+#define _depth_2 _base->_depth_1
+#define _depth_3 _base->_depth_2
 
 #define _bind_some(__count) _bind_some_ ## __count
 #define _bind_some_1(a)          _bind_one(a, 0)
@@ -151,7 +96,7 @@ namespace sel {
   namespace bins {
 
     double abs_::value() {
-      return std::abs(arg->value());
+      return std::abs(_arg->value());
     }
 
     double add_::value() {
@@ -161,13 +106,13 @@ namespace sel {
 
     std::ostream& bin_::stream(std::ostream& out) {
       read = true;
-      uint64_t a = arg->value();
+      uint64_t a = _arg->value();
       char b[64+1]; b[64] = '\0';
       char* head = b+64;
       do { *--head = '0' + (a & 1); } while (a>>= 1);
       return out << head;
     }
-    bool bin_::end() const { return read; }
+    bool bin_::end() { return read; }
     std::ostream& bin_::entire(std::ostream& out) { return out << *this; }
 
     void conjunction_::once() {
@@ -203,7 +148,7 @@ namespace sel {
       }
       return *this;
     }
-    bool conjunction_::end() const {
+    bool conjunction_::end() {
       bind_args(l, r);
       return (did_once ? inleft.empty() : l.end()) || r.end();
     }
@@ -215,7 +160,7 @@ namespace sel {
         buff = (oss << s, oss.str());
         off = 0;
       }
-      return new NumLiteral(app, buff[off]); // XXX: dont like how it makes it appear as a literal, may have a NumComputed similar to StrChunks
+      return new NumLiteral(app, (uint8_t)buff[off]); // XXX: dont like how it makes it appear as a literal, may have a NumComputed similar to StrChunks
     }
     Lst& bytes_::operator++() {
       bind_args(s);
@@ -227,10 +172,14 @@ namespace sel {
       }
       return *this;
     }
-    bool bytes_::end() const {
+    bool bytes_::end() {
       bind_args(s);
       return s.end() && buff.length() <= off;
     }
+
+    std::ostream& chr_::stream(std::ostream& out) { read = true; return out << codepoint(_arg->value()); }
+    bool chr_::end() { return read; }
+    std::ostream& chr_::entire(std::ostream& out) { read = true; return out << codepoint(_arg->value()); }
 
     Val* codepoints_::operator*() {
       bind_args(s);
@@ -249,7 +198,7 @@ namespace sel {
       isi++;
       return *this;
     }
-    bool codepoints_::end() const {
+    bool codepoints_::end() {
       bind_args(s);
       static std::istream_iterator<codepoint> eos;
       return did_once ? eos == isi : s.end();
@@ -258,6 +207,46 @@ namespace sel {
     Val* const_::impl(LastArg& ignore) {
       bind_args(take);
       return &take;
+    }
+
+    double contains_::value() {
+      if (!done) {
+        bind_args(substr, str);
+        std::ostringstream ossss;
+        substr.entire(ossss);
+        std::string ss = ossss.str();
+        auto sslen = ss.length();
+        does = false;
+        std::ostringstream oss;
+        while (!does && !str.end()) { // YYY: same as endswith_, this could do with a `sslen`-long circular buffer
+          auto plen = oss.str().length();
+          oss << str;
+          auto len = oss.str().length();
+          if (sslen <= len) { // have enough that searching is relevant
+            std::string s = oss.str();
+            for (auto k = plen < sslen ? sslen : plen; k <= len && !does; k++) { // only test over the range that was added
+              does = 0 == s.compare(k-sslen, sslen, ss);
+            }
+          }
+        }
+        done = true;
+      }
+      return does;
+    }
+
+    double count_::value() {
+      if (!done) {
+        bind_args(it, l);
+        std::ostringstream search; ((Str&)it).entire(search); // XXX
+        n = 0;
+        for (; !l.end(); ++l) {
+          std::ostringstream item; ((Str*)*l)->entire(item); // XXX
+          if (search.str() == item.str())
+            n++;
+        }
+        done = true;
+      }
+      return n;
     }
 
     double div_::value() {
@@ -284,7 +273,7 @@ namespace sel {
       ++l;
       return *this;
     }
-    bool drop_::end() const {
+    bool drop_::end() {
       bind_args(n, l);
       if (done) return l.end();
       size_t k;
@@ -313,13 +302,43 @@ namespace sel {
       ++l;
       return *this;
     }
-    bool dropwhile_::end() const {
+    bool dropwhile_::end() {
       bind_args(p, l);
       if (done) return l.end();
       while (!l.end() && p(*l))
         ++l;
       done = true;
       return l.end();
+    }
+
+    Val* duple_::operator*() {
+      bind_args(v);
+      return v.copy();
+    }
+    Lst& duple_::operator++() {
+      ++did;
+      return *this;
+    }
+    bool duple_::end() {
+      return 2 == did;
+    }
+
+    double endswith_::value() {
+      if (!done) {
+        bind_args(suffix, str);
+        std::ostringstream osssx;
+        suffix.entire(osssx);
+        std::string sx = osssx.str();
+        auto sxlen = sx.length();
+        std::ostringstream oss;
+        while (!str.end()) { // YYY: that's essentially '::entire', but endswith_ could leverage a circular buffer...
+          oss << str;
+        }
+        std::string s = oss.str();
+        does = sxlen <= s.length() && 0 == s.compare(s.length()-sxlen, sxlen, sx);
+        done = true;
+      }
+      return does;
     }
 
     Val* filter_::operator*() {
@@ -337,10 +356,9 @@ namespace sel {
       curr = *l;
       return *this;
     }
-    bool filter_::end() const {
+    bool filter_::end() {
       bind_args(p, l);
-      // TODO: no, there is no way to tell if we are at the
-      // end without iterating until either p(*l) or l.end
+      while (!l.end() && !((Num*)p(*l))->value()) ++l;
       return l.end();
     }
 
@@ -359,6 +377,7 @@ namespace sel {
       if (!did_once) {
         isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
         did_once = true;
+        read_grapheme(isi, curr);
       }
       curr.clear();
       static std::istream_iterator<codepoint> const eos;
@@ -366,19 +385,53 @@ namespace sel {
       else read_grapheme(isi, curr);
       return *this;
     }
-    bool graphemes_::end() const {
+    bool graphemes_::end() {
       bind_args(s);
       static std::istream_iterator<codepoint> const eos;
       return did_once ? eos == isi && past_end : s.end();
     }
 
-    std::ostream& hex_::stream(std::ostream& out) { read = true; return out << std::hex << size_t(arg->value()); }
-    bool hex_::end() const { return read; }
-    std::ostream& hex_::entire(std::ostream& out) { read = true; return out << std::hex << size_t(arg->value()); }
+    Val* head_::impl(LastArg& l) {
+      if (l.end()) throw RuntimeError("head of empty list");
+      return *l;
+    }
+
+    std::ostream& hex_::stream(std::ostream& out) { read = true; return out << std::hex << size_t(_arg->value()); }
+    bool hex_::end() { return read; }
+    std::ostream& hex_::entire(std::ostream& out) { read = true; return out << std::hex << size_t(_arg->value()); }
 
     Val* flip_::impl(LastArg& a) {
       bind_args(fun, b);
       return (*(Fun*)fun(&a))(&b);
+    }
+
+    void give_::once() {
+      bind_args(n, l);
+      size_t count = n.value();
+      circ.reserve(count);
+      for (; !l.end() && circ.size() < count; ++l)
+        circ.push_back(*l);
+      if (l.end()) at_when_end = at;
+      did_once = true;
+    }
+    Val* give_::operator*() {
+      bind_args(n, l);
+      if (!did_once) once();
+      return 0 != circ.size() ? circ[at] : *l;
+    }
+    Lst& give_::operator++() {
+      bind_args(n, l);
+      if (!did_once) once();
+      if (0 != circ.size())
+        circ[++at] = *l;
+      ++l;
+      if (l.end()) at_when_end = at;
+      return *this;
+    }
+    bool give_::end() {
+      bind_args(n, l);
+      if (!did_once) once();
+      return l.end() && at_when_end == at;
     }
 
     Val* id_::impl(LastArg& take) {
@@ -409,6 +462,35 @@ namespace sel {
       return found;
     }
 
+    Val* init_::operator*() {
+      bind_args(l);
+      if (!prev) {
+        if (l.end()) throw RuntimeError("init of empty list");
+        prev = *l;
+        ++l;
+      }
+      return prev;
+    }
+    Lst& init_::operator++() {
+      bind_args(l);
+      if (!prev) {
+        if (l.end()) throw RuntimeError("init of empty list");
+        ++l;
+      }
+      prev = *l;
+      ++l;
+      return *this;
+    }
+    bool init_::end() {
+      bind_args(l);
+      if (!prev) {
+        if (l.end()) throw RuntimeError("init of empty list");
+        prev = *l;
+        ++l;
+      }
+      return l.end();
+    }
+
     Val* iterate_::operator*() {
       bind_args(f, o);
       return !curr ? &o : curr;
@@ -418,7 +500,7 @@ namespace sel {
       curr = f(!curr ? &o : curr);
       return *this;
     }
-    bool iterate_::end() const { return false; }
+    bool iterate_::end() { return false; }
 
     std::ostream& join_::stream(std::ostream& out) {
       bind_args(sep, lst);
@@ -433,7 +515,7 @@ namespace sel {
       ++lst;
       return out;
     }
-    bool join_::end() const {
+    bool join_::end() {
       bind_args(sep, lst);
       return lst.end();
     }
@@ -455,6 +537,14 @@ namespace sel {
       return out;
     }
 
+    Val* last_::impl(LastArg& l) {
+      if (l.end()) throw RuntimeError("last of empty list");
+      Val* r = nullptr;
+      for (; !l.end(); ++l)
+        r = *l;
+      return r;
+    }
+
     Val* map_::operator*() {
       bind_args(f, l);
       return f(*l);
@@ -464,7 +554,7 @@ namespace sel {
       ++l;
       return *this;
     }
-    bool map_::end() const {
+    bool map_::end() {
       bind_args(f, l);
       return l.end();
     }
@@ -478,7 +568,7 @@ namespace sel {
       bind_args(s);
       return !s.end() ? out << s : (done = true, out << '\n');
     }
-    bool ln_::end() const { return done; }
+    bool ln_::end() { return done; }
     std::ostream& ln_::entire(std::ostream& out) {
       bind_args(s);
       done = true;
@@ -489,35 +579,53 @@ namespace sel {
       return M_PI;
     }
 
-    std::ostream& oct_::stream(std::ostream& out) { read = true; return out << std::oct << size_t(arg->value()); }
-    bool oct_::end() const { return read; }
-    std::ostream& oct_::entire(std::ostream& out) { read = true; return out << std::oct << size_t(arg->value()); }
+    std::ostream& oct_::stream(std::ostream& out) { read = true; return out << std::oct << size_t(_arg->value()); }
+    bool oct_::end() { return read; }
+    std::ostream& oct_::entire(std::ostream& out) { read = true; return out << std::oct << size_t(_arg->value()); }
 
-    Val* repeat_::operator*() { return arg; }
+    double ord_::value() {
+      codepoint c;
+      Str_istream(_arg) >> c;
+      return c.u;
+    }
+
+    std::ostream& prefix_::stream(std::ostream& out) {
+      bind_args(px, s);
+      return !px.end()
+        ? out << px
+        : out << s;
+    }
+    bool prefix_::end() {
+      bind_args(px, s);
+      return px.end() && s.end();
+    }
+    std::ostream& prefix_::entire(std::ostream& out) {
+      bind_args(px, s);
+      return s.entire(px.entire(out));
+    }
+
+    Val* repeat_::operator*() { return _arg->copy(); }
     Lst& repeat_::operator++() { return *this; }
-    bool repeat_::end() const { return false; }
+    bool repeat_::end() { return false; }
 
     Val* replicate_::operator*() {
       if (!did) did++;
       bind_args(n, o);
-      return &o;
+      return o.copy();
     }
     Lst& replicate_::operator++() {
       did++;
       return *this;
     }
-    bool replicate_::end() const {
+    bool replicate_::end() {
       bind_args(n, o);
       return 0 == n.value() || n.value() < did;
     }
 
     void reverse_::once() {
       bind_args(l);
-      if (!l.end()) {
+      for (; !l.end(); ++l)
         cache.push_back(*l);
-        while (!l.end())
-          cache.push_back(*(++l));
-      }
       did_once = true;
       curr = cache.size();
     }
@@ -529,15 +637,15 @@ namespace sel {
       curr--;
       return *this;
     }
-    bool reverse_::end() const {
+    bool reverse_::end() {
       if (did_once) return 0 == curr;
       bind_args(l);
       return l.end();
     }
 
-    Val* singleton_::operator*() { return arg; }
+    Val* singleton_::operator*() { return _arg; }
     Lst& singleton_::operator++() { done = true; return *this; }
-    bool singleton_::end() const { return done; }
+    bool singleton_::end() { return done; }
 
     void split_::once() {
       bind_args(sep, str);
@@ -579,7 +687,7 @@ namespace sel {
       next();
       return *this;
     }
-    bool split_::end() const {
+    bool split_::end() {
       return at_past_end;
     }
 
@@ -587,10 +695,9 @@ namespace sel {
       if (!done) {
         bind_args(prefix, str);
         std::ostringstream osspx;
-        osspx << prefix;
+        prefix.entire(osspx);
         std::string px = osspx.str();
         std::ostringstream oss;
-        // BOF: copies! copies everywhere~! (or does it? sais its a temporary object...)
         while (oss.str().length() < px.length() && 0 == px.compare(0, oss.str().length(), oss.str()) && !str.end()) {
           oss << str;
         }
@@ -605,6 +712,66 @@ namespace sel {
       return a.value() - b.value();
     }
 
+    std::ostream& suffix_::stream(std::ostream& out) {
+      bind_args(sx, s);
+      return !s.end()
+        ? out << s
+        : out << sx;
+    }
+    bool suffix_::end() {
+      bind_args(sx, s);
+      return s.end() && sx.end();
+    }
+    std::ostream& suffix_::entire(std::ostream& out) {
+      bind_args(sx, s);
+      return sx.entire(s.entire(out));
+    }
+
+    std::ostream& surround_::stream(std::ostream& out) {
+      bind_args(px, sx, s);
+      return !px.end()
+        ? out << px : !s.end()
+        ? out << s
+        : out << sx;
+    }
+    bool surround_::end() {
+      bind_args(px, sx, s);
+      return px.end() && s.end() && sx.end();
+    }
+    std::ostream& surround_::entire(std::ostream& out) {
+      bind_args(px, sx, s);
+      return sx.entire(s.entire(px.entire(out)));
+    }
+
+    Val* tail_::operator*() {
+      bind_args(l);
+      if (!done) {
+        if (l.end()) throw RuntimeError("tail of empty list");
+        ++l;
+        done = true;
+      }
+      return *l;
+    }
+    Lst& tail_::operator++() {
+      bind_args(l);
+      if (!done) {
+        if (l.end()) throw RuntimeError("tail of empty list");
+        ++l;
+        done = true;
+      }
+      ++l;
+      return *this;
+    }
+    bool tail_::end() {
+      bind_args(l);
+      if (!done) {
+        if (l.end()) throw RuntimeError("tail of empty list");
+        ++l;
+        done = true;
+      }
+      return l.end();
+    }
+
     Val* take_::operator*() {
       if (!did) did++;
       bind_args(n, l);
@@ -616,7 +783,7 @@ namespace sel {
       ++l;
       return *this;
     }
-    bool take_::end() const {
+    bool take_::end() {
       bind_args(n, l);
       auto x = n.value();
       return 0 == x || x < did || l.end();
@@ -631,7 +798,7 @@ namespace sel {
       ++l;
       return *this;
     }
-    bool takewhile_::end() const {
+    bool takewhile_::end() {
       bind_args(p, l);
       return l.end() || !((Num*)p(*l))->value();
     }
@@ -645,9 +812,40 @@ namespace sel {
       return r;
     }
 
-    std::ostream& tostr_::stream(std::ostream& out) { read = true; return out << arg->value(); }
-    bool tostr_::end() const { return read; }
-    std::ostream& tostr_::entire(std::ostream& out) { read = true; return out << arg->value(); }
+    std::ostream& tostr_::stream(std::ostream& out) { read = true; return out << _arg->value(); }
+    bool tostr_::end() { return read; }
+    std::ostream& tostr_::entire(std::ostream& out) { read = true; return out << _arg->value(); }
+
+    Val* tuple_::operator*() {
+      bind_args(a, b);
+      return 0 == did ? &a : &b;
+    }
+    Lst& tuple_::operator++() {
+      ++did;
+      return *this;
+    }
+    bool tuple_::end() {
+      return 2 == did;
+    }
+
+    double unbin_::value() {
+      if (!done) {
+        bind_args(s);
+        size_t n = 0;
+        while (!s.end()) {
+          std::ostringstream oss;
+          std::string buff = (oss << s, oss.str());
+          for (char const c : buff) {
+            if ('0' != c && '1' != c) goto out;
+            n = (n << 1) | (c - '0');
+          }
+        }
+      out:
+        r = n;
+        done = true;
+      }
+      return r;
+    }
 
     std::ostream& unbytes_::stream(std::ostream& out) {
       bind_args(l);
@@ -655,7 +853,7 @@ namespace sel {
       ++l;
       return out << b;
     }
-    bool unbytes_::end() const {
+    bool unbytes_::end() {
       bind_args(l);
       return l.end();
     }
@@ -672,7 +870,7 @@ namespace sel {
       ++l;
       return out << cp;
     }
-    bool uncodepoints_::end() const {
+    bool uncodepoints_::end() {
       bind_args(l);
       return l.end();
     }
@@ -688,6 +886,28 @@ namespace sel {
       return (*(Fun*)f(*pair))(*++pair);
     }
 
+    double unhex_::value() {
+      if (!done) {
+        bind_args(s);
+        size_t n = 0;
+        Str_istream(&s) >> std::hex >> n;
+        r = n;
+        done = true;
+      }
+      return r;
+    }
+
+    double unoct_::value() {
+      if (!done) {
+        bind_args(s);
+        size_t n = 0;
+        Str_istream(&s) >> std::oct >> n;
+        r = n;
+        done = true;
+      }
+      return r;
+    }
+
     Val* zipwith_::operator*() {
       bind_args(f, l1, l2);
       if (!curr) curr = (*(Fun*)f(*l1))(*l2);
@@ -700,11 +920,50 @@ namespace sel {
       ++l2;
       return *this;
     }
-    bool zipwith_::end() const {
+    bool zipwith_::end() {
       bind_args(f, l1, l2);
       return l1.end() || l2.end();
     }
 
   } // namespace bins
+
+// YYY: somehow, this seems to only be needed with BINS_MIN
+#ifdef BINS_MIN
+  namespace bins {
+    constexpr char const* const add_::name;
+    constexpr char const* const codepoints_::name;
+    constexpr char const* const div_::name;
+    constexpr char const* const flip_::name;
+    constexpr char const* const graphemes_::name;
+    constexpr char const* const index_::name;
+    constexpr char const* const join_::name;
+    constexpr char const* const mul_::name;
+    constexpr char const* const sub_::name;
+    constexpr char const* const tonum_::name;
+    constexpr char const* const tostr_::name;
+  }
+#endif
+
+  template <typename PackItself> struct _make_bins_list;
+  template <typename ...Pack>
+  struct _make_bins_list<ll::pack<Pack...>> {
+    static std::unordered_map<std::string, Val* (*)(App&)> const map;
+    static char const* const names[];
+    constexpr static size_t count = sizeof...(Pack);
+  };
+
+  template <typename ...Pack>
+  constexpr char const* const _make_bins_list<ll::pack<Pack...>>::names[] = {Pack::name...};
+
+  template <typename Va>
+  Val* _bin_new(App& app) { return new typename Va::Head(app); }
+  // XXX: static constructor
+  template <typename ...Pack>
+  std::unordered_map<std::string, Val* (*)(App&)> const _make_bins_list<ll::pack<Pack...>>::map = {{Pack::name, _bin_new<Pack>}...};
+
+  std::unordered_map<std::string, Val* (*)(App&)> const bins_list::map = _make_bins_list<bins_ll::bins>::map;
+  char const* const* const bins_list::names = _make_bins_list<bins_ll::bins>::names;
+  size_t const bins_list::count = _make_bins_list<bins_ll::bins>::count;
+
 
 } // namespace sel

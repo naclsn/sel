@@ -1,11 +1,12 @@
 #include <iostream>
 
 #define TRACE(...)
-#include "sel/errors.hpp"
-#include "sel/engine.hpp"
-#include "sel/utils.hpp"
 #include "sel/builtins.hpp"
+#include "sel/engine.hpp"
+#include "sel/errors.hpp"
 #include "sel/parser.hpp"
+#include "sel/utils.hpp"
+#include "sel/visitors.hpp"
 
 namespace sel {
 
@@ -15,15 +16,8 @@ namespace sel {
   { app.push_back(this); }
   Val::~Val() { }
 
-  void Val::accept(Visitor& v) const {
-    // throw NIYError(std::string("'accept' of visitor pattern for this class: ") + typeid(*this).name());
-    throw NIYError("visitor pattern not supported at all on this value");
-  }
-
   template <typename To>
   To* coerse(App& app, Val* from, Type const& to);
-  // forward
-  template <> Val* coerse<Val>(App& app, Val* from, Type const& to);
 
   // Str => Num: same as `tonum`
   template <> Num* coerse<Num>(App& app, Val* from, Type const& to) {
@@ -62,7 +56,10 @@ namespace sel {
 
   // Str => [Num]: same as `codepoints`
   // Str => [Str]: same as `graphems` - this is also fallback for Str => [a]
-  // [has] (recursively)
+  // [a..] => [b..]
+  // (a..) => (b..)
+  // (a..) => [b..]
+  // [a..] => (b..)
   template <> Lst* coerse<Lst>(App& app, Val* from, Type const& to) {
     TRACE(coerse<Lst>
       , "from: " << from->type()
@@ -70,28 +67,36 @@ namespace sel {
       );
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
-    Type const& toto = *to.has()[0];
+
+    std::vector<Type*> const& to_has = to.has();
+    auto const to_size = to_has.size();
 
     if (Ty::LST == ty.base) {
-      if (Ty::NUM == toto.base)
-        return new LstMapCoerse<Num>(app, (Lst*)from, toto);
-      if (Ty::STR == toto.base)
-        return new LstMapCoerse<Str>(app, (Lst*)from, toto);
-      if (Ty::LST == toto.base)
-        return new LstMapCoerse<Lst>(app, (Lst*)from, toto);
-      if (Ty::UNK == toto.base)
-        return (Lst*)from;
+      if (ty == to) return (Lst*)from;
+
+      // std::vector<Type*> const& ty_has = ty.has();
+      // auto const ty_size = ty_has.size();
+
+      // TODO: the actual conditions are bit more invloved, probly like:
+      //  - list to list may be always ok
+      //  - tuple to tuple ok when `to_size <= ty_size` -- (Str, Num) => (Str, Num, Str)
+      //  - tuple to list ok when `to_size <= ty_size` -- (Num, Num) => [Str]
+      //  - list to tuple ok when `to_size <= ty_size` -- [Num] => (Str, Num, Str)
+      // .. but what happens if falls short?
+      // if (ty_has.size() != size) {
+      //   std::ostringstream oss;
+      //   throw TypeError((oss << "content arity of " << ty << " does not match with " << to, oss.str()));
+      // }
+
+      return new LstMapCoerse(app, (Lst*)from, to_has);
     }
 
-    if (Ty::STR == ty.base) {
-      if (Ty::NUM == toto.base)
+    if (Ty::STR == ty.base && 1 == to_size) {
+      if (Ty::NUM == to_has[0]->base)
         return (Lst*)(*static_lookup_name(app, codepoints))(from);
-      if (Ty::STR == toto.base || Ty::UNK == toto.base)
+      if (Ty::STR == to_has[0]->base || Ty::UNK == to_has[0]->base)
         return (Lst*)(*static_lookup_name(app, graphemes))(from);
     }
-
-    //if (Ty::UNK == ty.base) // ?
-    //  return (Lst*)from;
 
     throw TypeError(ty, to);
   }
@@ -105,10 +110,29 @@ namespace sel {
       );
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
-    if (Ty::FUN == to.base) return (Fun*)from;
+    if (Ty::FUN == to.base) {
+
+      // performs as much as arity check (get return type
+      // until one is no longer Fun, if the other is still
+      // Fun then it does not check out)
+      // YYY: the pointer is to not invoque `operator=`
+      Type const* cy = &ty; bool still_y = false;
+      Type const* co = &to; bool still_o = false;
+      do {
+        cy = &cy->to(); still_y = Ty::FUN == cy->base;
+        co = &co->to(); still_o = Ty::FUN == co->base;
+      } while (still_y && still_o);
+
+      if (still_y || still_o) {
+        std::ostringstream oss;
+        throw TypeError((oss << "function arity of " << ty << " does not match with " << to, oss.str()));
+      }
+
+      return (Fun*)from;
+    }
 
     std::ostringstream oss;
-    throw TypeError((oss << "value of type " << to << " is not a function", oss.str()));
+    throw TypeError((oss << "value of type " << ty << " is not a function", oss.str()));
   }
 
   // dispatches to the correct one dynamically
@@ -128,11 +152,6 @@ namespace sel {
       case Ty::FUN: return coerse<Fun>(app, from, to);
     }
     throw TypeError("miss-initialized or corrupted type");
-  }
-
-  template <typename ToHas>
-  void LstMapCoerse<ToHas>::accept(Visitor& v) const {
-    v.visitLstMapCoerse(type(), *this->v);
   }
 
 

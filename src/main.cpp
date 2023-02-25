@@ -1,7 +1,10 @@
-#include "options.hpp"
 #include "actions.hpp"
+#include "options.hpp"
 
 int main(int argc, char* argv[]) {
+  ios_base::sync_with_stdio(false);
+  //cin.tie(nullptr);
+
   Options const opts(argc, argv);
 
   if (opts.lookup) lookup(opts.lookup_names);

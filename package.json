@@ -19,6 +19,7 @@
     "test/corpus/*"
   ],
   "scripts": {
+    "prepare": "tree-sitter generate",
     "build": "tree-sitter generate",
     "test": "tree-sitter test"
   },

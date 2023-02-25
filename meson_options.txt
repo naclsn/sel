@@ -1,0 +1,4 @@
+option('bins_min',
+  type : 'boolean',
+  value : false,
+)

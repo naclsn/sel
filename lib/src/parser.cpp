@@ -1,7 +1,7 @@
-#include <iterator>
 #include <iostream>
-#include <sstream>
+#include <iterator>
 #include <limits>
+#include <sstream>
 
 #define TRACE(...)
 #include "sel/errors.hpp"
@@ -12,17 +12,15 @@ namespace sel {
 
   double NumLiteral::value() { return n; }
   Val* NumLiteral::copy() const { return new NumLiteral(app, n); }
-  void NumLiteral::accept(Visitor& v) const { v.visitNumLiteral(ty, n); }
 
   std::ostream& StrLiteral::stream(std::ostream& out) { read = true; return out << s; }
-  bool StrLiteral::end() const { return read; }
+  bool StrLiteral::end() { return read || s.empty(); }
   std::ostream& StrLiteral::entire(std::ostream& out) { read = true; return out << s; }
   Val* StrLiteral::copy() const { return new StrLiteral(app, s); }
-  void StrLiteral::accept(Visitor& v) const { v.visitStrLiteral(ty, s); }
 
   Val* LstLiteral::operator*() { return v[c]; }
   Lst& LstLiteral::operator++() { c++; return *this; }
-  bool LstLiteral::end() const { return v.size() <= c; }
+  bool LstLiteral::end() { return v.size() <= c; }
   Val* LstLiteral::copy() const {
     std::vector<Val*> w;
     w.reserve(v.size());
@@ -30,7 +28,6 @@ namespace sel {
       w.push_back(it->copy());
     return new LstLiteral(app, w, new std::vector<Type*>(ty.has()));
   }
-  void LstLiteral::accept(Visitor& v) const { v.visitLstLiteral(ty, this->v); }
 
   Val* FunChain::operator()(Val* arg) {
     Val* r = arg;
@@ -45,48 +42,60 @@ namespace sel {
       g.push_back((Fun*)it->copy());
     return new FunChain(app, g);
   }
-  void FunChain::accept(Visitor& v) const { v.visitFunChain(ty, f); }
 
-  std::ostream& Input::stream(std::ostream& out) { // YYY: should it/not be reading c/c?
+  std::ostream& Input::stream(std::ostream& out) {
     // already read up to `upto`, so take from cache starting at `nowat`
-    if (nowat < upto) {
-      out << cache.str().substr(nowat, upto-nowat);
-      nowat = upto;
+    if (nowat < buffer->upto) {
+      out << buffer->cache.str().substr(nowat, buffer->upto-nowat);
+      nowat = buffer->upto;
       return out;
     }
     // at the end of cache, fetch for more
-    char c = in.get();
-    if (std::char_traits<char>::eof() != c) {
-      nowat++;
-      upto++;
-      out.put(c);
-      cache.put(c);
-    }
+    auto const avail = buffer->in.rdbuf()->in_avail();
+    //if (!avail) return out;
+    if (0 < avail) {
+      // try extrating multiple at once (usl/unreachable if `sync_with_stdio(true)`)
+      char small[avail];
+      buffer->in.read(small, avail);
+      nowat+= avail;
+      buffer->upto+= avail;
+      out.write(small, avail);
+    } else {
+      // can only get the next one; forward if not eof
+      char c = buffer->in.get();
+      if (std::char_traits<char>::eof() != c) {
+        nowat++;
+        buffer->upto++;
+        out.put(c);
+        buffer->cache.put(c);
+      }
+    } // 0 < avail
     return out;
   }
-  bool Input::end() const { return nowat == upto && in.eof(); }
+  bool Input::end() {
+    return nowat == buffer->upto && (buffer->in.eof() || std::istream::traits_type::eof() == buffer->in.peek());
+  }
   std::ostream& Input::entire(std::ostream& out) {
     // not at the end, get the rest
-    if (!in.eof()) {
-      char buffer[4096];
-      while (in.read(buffer, sizeof(buffer))) {
-        upto+= 4096;
-        out << buffer;
-        cache << buffer;
+    if (!buffer->in.eof()) {
+      char tmp[4096];
+      while (buffer->in.read(tmp, sizeof(tmp))) {
+        buffer->upto+= 4096;
+        out << tmp;
+        buffer->cache << tmp;
       }
-      auto end = in.gcount();
-      buffer[end] = '\0';
-      upto+= end;
-      out << buffer;
-      cache << buffer;
-      nowat = upto;
+      auto end = buffer->in.gcount();
+      tmp[end] = '\0';
+      buffer->upto+= end;
+      out << tmp;
+      buffer->cache << tmp;
+      nowat = buffer->upto;
       return out;
     }
-    nowat = upto;
-    return out << cache.str();
+    nowat = buffer->upto;
+    return out << buffer->cache.str();
   }
   Val* Input::copy() const { return new Input(*this); }
-  void Input::accept(Visitor& v) const { v.visitInput(ty); }
 
   // internal
   struct Token {
@@ -674,14 +683,15 @@ namespace sel {
       .top_level= false,
       .single_line= cx.single_line
     };
+    VisRepr repr(out, ccx);
 
     std::string ind;
     ind.reserve(3 * ccx.indents);
     for (unsigned k = 0; k < ccx.indents; k++)
       ind.append("   ");
 
-    out << "App {\n";
-    VisRepr(out << ind << "f= ", ccx)(*f);
+    out << "App {\n" << ind << "f= ";
+    f->accept(repr);
     out << "\n";
 
     out << ind << "user= {";
@@ -692,7 +702,7 @@ namespace sel {
         out << ind << "[" << it.first << "]=";
         if (it.second) {
           out << it.second->type() << " ";
-          repr(*it.second);
+          it.second->accept(repr);
         } else out << " -nil-";
         out << "\n" << ind;
       }
