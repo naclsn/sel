@@ -1,3 +1,4 @@
+#include "sel/builtins.hpp"
 #include "sel/utils.hpp"
 #include "sel/visitors.hpp"
 

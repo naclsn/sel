@@ -179,7 +179,7 @@ namespace sel {
       size_t before = systack.size();
 
       log << "invoke:\n" << repr(arg, false) << "\n";
-      this->operator()(arg);
+      arg.accept(*this);
 
       int change = systack.size() - before;
       if (1 != change) {
@@ -476,6 +476,7 @@ namespace sel {
 // #define bind_args(...) _bind_count(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
 
 
+  template <>
   void VisCodegen::visit(bins::abs_::Base const&) {
     place(bins::abs_::name, [this](inject_clo_type also) {
       auto const n = take();
@@ -502,9 +503,10 @@ namespace sel {
       });
     });
   }
-  void VisCodegen::visit(bins::abs_ const& node) { place("abs_n", NotHead(*this, *node.arg, *node.base)); }
+  template <> void VisCodegen::visit(bins::abs_ const& node) { place("abs_n", NotHead(*this, node.arg(), node.base())); }
 
 
+  template <>
   void VisCodegen::visit(bins::add_::Base::Base const&) {
     place("add", [this](inject_clo_type also) {
       auto const a = take();
@@ -517,10 +519,11 @@ namespace sel {
       });
     });
   }
-  void VisCodegen::visit(bins::add_::Base const& node) { place("add_a", NotHead(*this, *node.arg, *node.base)); }
-  void VisCodegen::visit(bins::add_ const& node) { place("add_a_b", NotHead(*this, *node.arg, *node.base)); }
+  template <> void VisCodegen::visit(bins::add_::Base const& node) { place("add_a", NotHead(*this, node.arg(), node.base())); }
+  template <> void VisCodegen::visit(bins::add_ const& node) { place("add_a_b", NotHead(*this, node.arg(), node.base())); }
 
 
+  template <>
   void VisCodegen::visit(bins::bytes_::Base const&) {
     place("bytes", [this](inject_clo_type also) {
       auto const s = take();
@@ -532,18 +535,20 @@ namespace sel {
       });
     });
   }
-  void VisCodegen::visit(bins::bytes_ const& node) { place("bytes_s", NotHead(*this, *node.arg, *node.base)); }
+  template <> void VisCodegen::visit(bins::bytes_ const& node) { place("bytes_s", NotHead(*this, node.arg(), node.base())); }
 
 
+  template <>
   void VisCodegen::visit(bins::const_::Base const&) {
     place("const", [this](inject_clo_type also) {
       take().make(also);
       take();
     });
   }
-  void VisCodegen::visit(bins::const_ const& node) { place("const_a", NotHead(*this, *node.arg, *node.base)); }
+  template <> void VisCodegen::visit(bins::const_ const& node) { place("const_a", NotHead(*this, node.arg(), node.base())); }
 
 
+  template <>
   void VisCodegen::visit(bins::id_ const&) {
     place("id", [this](inject_clo_type also) {
       take().make(also);
@@ -551,6 +556,7 @@ namespace sel {
   }
 
 
+  template <>
   void VisCodegen::visit(bins::map_::Base::Base const&) {
     place("map", [this](inject_clo_type also) {
       auto const f = take();
@@ -564,10 +570,11 @@ namespace sel {
       });
     });
   }
-  void VisCodegen::visit(bins::map_::Base const& node) { place("map_f", NotHead(*this, *node.arg, *node.base)); }
-  void VisCodegen::visit(bins::map_ const& node) { place("map_f_l", NotHead(*this, *node.arg, *node.base)); }
+  template <> void VisCodegen::visit(bins::map_::Base const& node) { place("map_f", NotHead(*this, node.arg(), node.base())); }
+  template <> void VisCodegen::visit(bins::map_ const& node) { place("map_f_l", NotHead(*this, node.arg(), node.base())); }
 
 
+  template <>
   void VisCodegen::visit(bins::sub_::Base::Base const&) {
     place(bins::sub_::name, [this](inject_clo_type also) {
       auto const a = take();
@@ -580,11 +587,12 @@ namespace sel {
       });
     });
   }
-  void VisCodegen::visit(bins::sub_::Base const& node) { place("sub_a", NotHead(*this, *node.arg, *node.base)); }
-  void VisCodegen::visit(bins::sub_ const& node) { place("sub_a_b", NotHead(*this, *node.arg, *node.base)); }
+  template <> void VisCodegen::visit(bins::sub_::Base const& node) { place("sub_a", NotHead(*this, node.arg(), node.base())); }
+  template <> void VisCodegen::visit(bins::sub_ const& node) { place("sub_a_b", NotHead(*this, node.arg(), node.base())); }
 
 
   // not perfect (eg '1-' is parsed as -1), but will do for now
+  template <>
   void VisCodegen::visit(bins::tonum_::Base const&) {
     place("tonum", [this](inject_clo_type also) {
       auto const s = take();
@@ -655,9 +663,10 @@ namespace sel {
       point(after);
     });
   }
-  void VisCodegen::visit(bins::tonum_ const& node) { place("tonum_s", NotHead(*this, *node.arg, *node.base)); }
+  template <> void VisCodegen::visit(bins::tonum_ const& node) { place("tonum_s", NotHead(*this, node.arg(), node.base())); }
 
 
+  template <>
   void VisCodegen::visit(bins::tostr_::Base const&) {
     place("tostr", [this](inject_clo_type also) {
       auto const n = take();
@@ -724,9 +733,10 @@ namespace sel {
       });
     });
   }
-  void VisCodegen::visit(bins::tostr_ const& node) { place("tostr_s", NotHead(*this, *node.arg, *node.base)); }
+  template <> void VisCodegen::visit(bins::tostr_ const& node) { place("tostr_s", NotHead(*this, node.arg(), node.base())); }
 
 
+  template <>
   void VisCodegen::visit(bins::unbytes_::Base const&) {
     place("unbytes", [this](inject_clo_type also) {
       auto const l = take();
@@ -737,7 +747,7 @@ namespace sel {
       });
     });
   }
-  void VisCodegen::visit(bins::unbytes_ const& node) { place("unbytes_l", NotHead(*this, *node.arg, *node.base)); }
+  template <> void VisCodegen::visit(bins::unbytes_ const& node) { place("unbytes_l", NotHead(*this, node.arg(), node.base())); }
 
 } // namespace sel
 

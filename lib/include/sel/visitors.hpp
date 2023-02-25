@@ -29,6 +29,7 @@ namespace tll { template <typename Ty> struct let; }
 #include "forward.hpp"
 #include "ll.hpp"
 #include "types.hpp"
+#include "utils.hpp"
 
 namespace sel {
 
@@ -109,7 +110,7 @@ namespace sel {
 
 
 #ifdef LLVM_CODEGEN
-  class VisCodegen : public Visitor {
+  class VisCodegen {
     llvm::LLVMContext context;
     llvm::IRBuilder<> builder;
     llvm::Module module;
@@ -176,6 +177,7 @@ namespace sel {
     //}}} symbol shenanigan
 
   public:
+    typedef void Ret;
     char const* funname;
 
     VisCodegen(char const* file_name, char const* module_name, char const* function_name, App& app);
@@ -190,35 +192,38 @@ namespace sel {
     }
     void compile(char const* outfile, bool link);
 
-    void visitNumLiteral(Type const& type, double n) override;
-    void visitStrLiteral(Type const& type, std::string const& s) override;
-    void visitLstLiteral(Type const& type, std::vector<Val*> const& v) override;
-    void visitStrChunks(Type const& type, std::vector<std::string> const& vs) override;
-    void visitFunChain(Type const& type, std::vector<Fun*> const& f) override;
-    void visitInput(Type const& type) override;
+    void visitNumLiteral(Type const& type, double n);
+    void visitStrLiteral(Type const& type, std::string const& s);
+    void visitLstLiteral(Type const& type, std::vector<Val*> const& v);
+    void visitStrChunks(Type const& type, std::vector<std::string> const& vs);
+    void visitFunChain(Type const& type, std::vector<Fun*> const& f);
+    void visitInput(Type const& type);
 
-    void visit(bins::abs_::Base const&) override;
-    void visit(bins::abs_ const&) override;
-    void visit(bins::add_::Base::Base const&) override;
-    void visit(bins::add_::Base const&) override;
-    void visit(bins::add_ const&) override;
-    void visit(bins::bytes_::Base const&) override;
-    void visit(bins::bytes_ const&) override;
-    void visit(bins::const_::Base const&) override;
-    void visit(bins::const_ const&) override;
-    void visit(bins::id_ const&) override;
-    void visit(bins::map_::Base::Base const&) override;
-    void visit(bins::map_::Base const&) override;
-    void visit(bins::map_ const&) override;
-    void visit(bins::sub_::Base::Base const&) override;
-    void visit(bins::sub_::Base const&) override;
-    void visit(bins::sub_ const&) override;
-    void visit(bins::tonum_::Base const&) override;
-    void visit(bins::tonum_ const&) override;
-    void visit(bins::tostr_::Base const&) override;
-    void visit(bins::tostr_ const&) override;
-    void visit(bins::unbytes_::Base const&) override;
-    void visit(bins::unbytes_ const&) override;
+    template <typename T>
+    void visit(T const&) { throw NIYError("VisCodegen visitor pattern"); }
+
+    // void visit(bins::abs_::Base const&);
+    // void visit(bins::abs_ const&);
+    // void visit(bins::add_::Base::Base const&);
+    // void visit(bins::add_::Base const&);
+    // void visit(bins::add_ const&);
+    // void visit(bins::bytes_::Base const&);
+    // void visit(bins::bytes_ const&);
+    // void visit(bins::const_::Base const&);
+    // void visit(bins::const_ const&);
+    // void visit(bins::id_ const&);
+    // void visit(bins::map_::Base::Base const&);
+    // void visit(bins::map_::Base const&);
+    // void visit(bins::map_ const&);
+    // void visit(bins::sub_::Base::Base const&);
+    // void visit(bins::sub_::Base const&);
+    // void visit(bins::sub_ const&);
+    // void visit(bins::tonum_::Base const&);
+    // void visit(bins::tonum_ const&);
+    // void visit(bins::tostr_::Base const&);
+    // void visit(bins::tostr_ const&);
+    // void visit(bins::unbytes_::Base const&);
+    // void visit(bins::unbytes_ const&);
   };
 #else
   // still provide a stub

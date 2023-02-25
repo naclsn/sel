@@ -4,5 +4,5 @@ option('bins_min',
 )
 option('llvm_codegen',
   type : 'boolean',
-  value : false,
+  value : true,
 )
