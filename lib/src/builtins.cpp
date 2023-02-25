@@ -927,6 +927,22 @@ namespace sel {
 
   } // namespace bins
 
+// YYY: somehow, this seems to only be needed with BINS_MIN
+#ifdef BINS_MIN
+  namespace bins {
+    constexpr char const* const add_::name;
+    constexpr char const* const codepoints_::name;
+    constexpr char const* const div_::name;
+    constexpr char const* const flip_::name;
+    constexpr char const* const graphemes_::name;
+    constexpr char const* const index_::name;
+    constexpr char const* const join_::name;
+    constexpr char const* const mul_::name;
+    constexpr char const* const sub_::name;
+    constexpr char const* const tonum_::name;
+    constexpr char const* const tostr_::name;
+  }
+#endif
 
   template <typename PackItself> struct _make_bins_list;
   template <typename ...Pack>
