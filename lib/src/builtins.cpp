@@ -2,57 +2,19 @@
 
 #define TRACE(...)
 #include "sel/builtins.hpp"
-#include "sel/visitors.hpp"
 #include "sel/parser.hpp"
+#include "sel/visitors.hpp"
 
 namespace sel {
 
   Val* StrChunks::copy() const {
-    return new StrChunks(app, chunks);
+    return new StrChunks(app, chs);
   }
-  void StrChunks::accept(Visitor& v) const {
-    v.visitStrChunks(type(), this->chunks);
-  }
-
-  // internal
-  template <typename list> struct linear_search;
-  template <typename car, typename cdr>
-  struct linear_search<bins_ll::cons<car, cdr>> {
-    static inline Val* the(App& app, std::string const& name) {
-      if (car::name == name) return new typename car::Head(app);
-      return linear_search<cdr>::the(app, name);
-    }
-  };
-  template <>
-  struct linear_search<bins_ll::nil> {
-    static inline Val* the(App& app, std::string const& _) {
-      return nullptr;
-    }
-  };
 
   Val* lookup_name(App& app, std::string const& name) {
-    return linear_search<bins_ll::bins>::the(app, name);
-  }
-
-  // internal
-  template <typename list> struct push_names_into;
-  template <typename car, typename cdr>
-  struct push_names_into<bins_ll::cons<car, cdr>> {
-    static inline void the(std::vector<std::string>& name) {
-      name.push_back(car::name);
-      push_names_into<cdr>::the(name);
-    }
-  };
-  template <>
-  struct push_names_into<bins_ll::nil> {
-    static inline void the(std::vector<std::string>& _) { }
-  };
-
-  unsigned list_names(std::vector<std::string>& names) {
-    constexpr unsigned count = ll::count<bins_ll::bins>::the;
-    names.reserve(count);
-    push_names_into<bins_ll::bins>::the(names);
-    return count;
+    auto itr = bins_list::map.find(name);
+    if (bins_list::map.end() == itr) return nullptr;
+    return (*itr).second(app);
   }
 
   namespace bins_helpers {
@@ -63,20 +25,12 @@ namespace sel {
       TRACE(copyOne, a::the::Base::Next::name);
       return new typename a::Base::Next(this->app); // copyOne
     }
-    template <typename Impl, typename one>
-    void _bin_be<Impl, ll::cons<one, ll::nil>>::the::accept(Visitor& v) const {
-      v.visit(*(Impl*)this); // visitOne
-    }
 
     template <typename Impl, typename last_arg, char b>
     Val* _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::copy() const {
       typedef _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the a;
       TRACE(copyOne2, a::the::Base::Next::name);
       return new typename a::Base::Next(this->app); // copyOne2
-    }
-    template <typename Impl, typename last_arg, char b>
-    void _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::accept(Visitor& v) const {
-      v.visit(*(Impl*)this); // visitOne2
     }
 
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
@@ -88,10 +42,6 @@ namespace sel {
         (a::Base*)_base->copy(),
         (a::Arg*)_arg->copy()
       ); // copyBody
-    }
-    template <typename NextT, typename to, typename from, typename from_again, typename from_more>
-    void _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::accept(Visitor& v) const {
-      v.visit(*this); // visitBody
     }
 
     template <typename NextT, typename last_to, typename last_from>
@@ -114,20 +64,12 @@ namespace sel {
         (typename a::Arg*)_arg->copy()
       ); // copyTail2
     }
-    template <typename NextT, typename last_to, typename last_from>
-    void _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the::accept(Visitor& v) const {
-      v.visit(*(typename Base::Next*)this); // visitTail
-    }
 
     template <typename NextT, typename last_to, typename last_from>
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::copy() const {
       typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>> a;
       TRACE(copyHead, a::the::Base::Next::name);
       return new a(this->app); // copyHead
-    }
-    template <typename NextT, typename last_to, typename last_from>
-    void _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::accept(Visitor& v) const {
-      v.visit(*this); // visitHead
     }
 
   } // namespace bins_helpers
@@ -984,5 +926,44 @@ namespace sel {
     }
 
   } // namespace bins
+
+// YYY: somehow, this seems to only be needed with BINS_MIN
+#ifdef BINS_MIN
+  namespace bins {
+    constexpr char const* const add_::name;
+    constexpr char const* const codepoints_::name;
+    constexpr char const* const div_::name;
+    constexpr char const* const flip_::name;
+    constexpr char const* const graphemes_::name;
+    constexpr char const* const index_::name;
+    constexpr char const* const join_::name;
+    constexpr char const* const mul_::name;
+    constexpr char const* const sub_::name;
+    constexpr char const* const tonum_::name;
+    constexpr char const* const tostr_::name;
+  }
+#endif
+
+  template <typename PackItself> struct _make_bins_list;
+  template <typename ...Pack>
+  struct _make_bins_list<ll::pack<Pack...>> {
+    static std::unordered_map<std::string, Val* (*)(App&)> const map;
+    static char const* const names[];
+    constexpr static size_t count = sizeof...(Pack);
+  };
+
+  template <typename ...Pack>
+  constexpr char const* const _make_bins_list<ll::pack<Pack...>>::names[] = {Pack::name...};
+
+  template <typename Va>
+  Val* _bin_new(App& app) { return new typename Va::Head(app); }
+  // XXX: static constructor
+  template <typename ...Pack>
+  std::unordered_map<std::string, Val* (*)(App&)> const _make_bins_list<ll::pack<Pack...>>::map = {{Pack::name, _bin_new<Pack>}...};
+
+  std::unordered_map<std::string, Val* (*)(App&)> const bins_list::map = _make_bins_list<bins_ll::bins>::map;
+  char const* const* const bins_list::names = _make_bins_list<bins_ll::bins>::names;
+  size_t const bins_list::count = _make_bins_list<bins_ll::bins>::count;
+
 
 } // namespace sel

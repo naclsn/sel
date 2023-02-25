@@ -7,12 +7,11 @@
  * NIYError is kept for now as a wildcard
  */
 
-#include <stdexcept>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 
 #include "types.hpp"
-#include "engine.hpp"
 
 namespace sel {
 

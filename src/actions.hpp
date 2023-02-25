@@ -2,14 +2,13 @@
 #define SELI_ACTIONS_HPP
 
 #include "buildapp.hpp"
-#include "wordwrap.hpp"
 #include "termutils.hpp"
+#include "wordwrap.hpp"
 
 void lookup(char const* const names[]) {
   if (!names || !*names) {
-    vector<string> vs;
-    list_names(vs);
-    for (auto const& it : vs) cout << it << '\n';
+    for (size_t k = 0; k < bins_list::count; k++)
+      cout << bins_list::names[k] << '\n';
     exit(EXIT_SUCCESS);
   }
 
@@ -17,7 +16,7 @@ void lookup(char const* const names[]) {
   int a = term_size(w, h);
 
   wordwrap<3> wwcout(0 == a ? w : -1, cout);
-  VisHelp help(wwcout);
+  VisHelp help;
 
   App app;
 
@@ -32,9 +31,8 @@ void lookup(char const* const names[]) {
 
     bool found = false;
 
-    vector<string> vs;
-    list_names(vs);
-    for (auto const& name : vs) {
+    for (size_t k = 0; k < bins_list::count; k++) {
+      char const* name = bins_list::names[k];
       auto* it = lookup_name(app, name);
 
       if (it->type() == ty) {
@@ -42,8 +40,7 @@ void lookup(char const* const names[]) {
         else found = true;
 
         cout << name << " :: " << it->type() << "\n";
-        help(*it);
-        wwcout << endl;
+        wwcout << it->accept(help) << endl;
       }
     }
 
@@ -60,8 +57,7 @@ void lookup(char const* const names[]) {
       auto* it = lookup_name(app, *names);
       if (it) {
         cout << *names << " :: " << it->type() << "\n";
-        help(*it);
-        wwcout << endl;
+        wwcout << it->accept(help) << endl;
       } else not_found.push_back(*names);
 
       if (*++names) cout << endl;

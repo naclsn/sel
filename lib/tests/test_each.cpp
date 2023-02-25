@@ -39,23 +39,21 @@ using ili = initializer_list<T>;
 template <typename F, typename... L> struct uncurry;
 
 template <typename F, typename H, typename... T>
-struct uncurry<F, H, T...> { static inline Val* the(H h, T... t) { return (*(Fun*)uncurry<typename F::Base, T...>::the(t...))(asval(h)); } };
+struct uncurry<F, H, T...> { static inline Val* function(H h, T... t) { return (*(Fun*)uncurry<typename F::Base, T...>::function(t...))(asval(h)); } };
 
 // eg. const_
 template <typename I, typename a, typename b, char c, typename O>
-struct uncurry<bins_helpers::_bin_be<I, ll::cons<fun<b, unk<c>>, a>>, O> { static inline Val* the(O o) { return (*(Fun*)new bins_helpers::_bin_be<I, ll::cons<fun<b, unk<c>>, a>>(app))(asval(o)); } };
+struct uncurry<bins_helpers::_bin_be<I, ll::cons<fun<b, unk<c>>, a>>, O> { static inline Val* function(O o) { return (*(Fun*)new bins_helpers::_bin_be<I, ll::cons<fun<b, unk<c>>, a>>(app))(asval(o)); } };
 
 // eg. id_
 template <typename I>
-struct uncurry<bins_helpers::_fake_bin_be<I>> { static inline Val* the() { return new I(app); } };
+struct uncurry<bins_helpers::_fake_bin_be<I>> { static inline Val* function() { return new I(app); } };
 
 template <typename F>
-struct uncurry<F> { static inline Val* the() { return new F(app); } };
+struct uncurry<F> { static inline Val* function() { return new F(app); } };
 
 
 struct test_base {
-  //App app;
-  //test_base(): app() { }
   virtual ~test_base() { }
   operator int() {
     int r = run_test();
@@ -66,26 +64,24 @@ struct test_base {
   virtual char const* get_name() = 0;
 };
 
-/** return true when failed */
-template <typename F> struct test : test_base {
+template <typename F>
+struct test : test_base {
+  /** return true when failed */
   int run_test() override { cout << "no test for '" << F::name << "'\n"; return 0; }
   char const* get_name() override { return F::name; }
 };
 
 
-template <typename list> struct call_test;
+template <typename PackItself> struct call_test;
+template <typename ...Pack>
+struct call_test<ll::pack<Pack...>> {
+  static inline int function() {
+    std::initializer_list<int> l{test<Pack>()...};
+    return std::accumulate(l.begin(), l.end(), 0);
+  }
+};
 
-template <typename car, typename cdr>
-struct call_test<bins_ll::cons<car, cdr>> { static inline int the() { return test<car>() + call_test<cdr>::the(); } };
-
-template <>
-struct call_test<bins_ll::nil> { static inline int the() { return 0; } };
-
-typedef
-  bins_ll::bins
-  //ll::cons_l<graphemes_>::the
-  tested;
-TEST(each) { return call_test<tested>::the(); }
+TEST(each) { return call_test<bins_ll::bins>::function(); }
 
 
 #define __r(__n) __r ## __n
@@ -106,7 +102,7 @@ TEST(each) { return call_test<tested>::the(); }
 #define __an(__n, ...) __a(__n)(__VA_ARGS__)
 #define TPARAM_AUTO(...) __an(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
 
-#define CALL(__f, ...) uncurry<__f##_, TPARAM_AUTO(REVERSE(__VA_ARGS__))>::the(REVERSE(__VA_ARGS__))
+#define CALL(__f, ...) uncurry<__f##_, TPARAM_AUTO(REVERSE(__VA_ARGS__))>::function(REVERSE(__VA_ARGS__))
 
 #define LU(__f) static_lookup_name(app, __f)
 
