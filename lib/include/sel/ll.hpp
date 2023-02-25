@@ -57,27 +57,56 @@ namespace sel {
      */
     template <typename ...T> struct pack;
 
-    /**
-     * makes a `ll::pack` from an `ll::cons`
-     */
-    template <typename L, typename ...Pack>
-    struct packer {
-      typedef typename packer<typename L::cdr, Pack..., typename L::car>::packed packed;
-    };
-    template <typename ...Pack>
-    struct packer<nil, Pack...> {
-      typedef pack<Pack...> packed;
-    };
+    // this to help transition from ll::cons
+    // /**
+    //  * makes a `ll::pack` from an `ll::cons`
+    //  */
+    // template <typename L, typename ...Pack>
+    // struct packer {
+    //   typedef typename packer<typename L::cdr, Pack..., typename L::car>::type type;
+    // };
+    // template <typename ...Pack>
+    // struct packer<nil, Pack...> {
+    //   typedef pack<Pack...> type;
+    // };
 
     template <typename Searched, unsigned cur, typename Head, typename ...Tail>
     struct _packed_index { static constexpr unsigned value = _packed_index<Searched, cur+1, Tail...>::value; };
     template <typename Searched, unsigned cur, typename ...Rest>
     struct _packed_index<Searched, cur, Searched, Rest...> { static constexpr unsigned value = cur; };
-
+    /**
+     * get the index of a type in the pack (it must be in, and it matches only on the first one)
+     */
     template <typename Searched, typename PackItself> struct pack_index;
     template <typename Searched, typename ...Pack>
     struct pack_index<Searched, pack<Pack...>> {
       static constexpr unsigned value = _packed_index<Searched, 0, Pack...>::value;
+    };
+
+    /**
+     * join multiple ll::pack sequentially into a single one
+     */
+    template <typename ...PacksThemselves> struct join;
+    template <>
+    struct join<> {
+      typedef pack<> type;
+    };
+    template <typename ...Pack>
+    struct join<pack<Pack...>> {
+      typedef pack<Pack...> type;
+    };
+    template <typename ...PackA, typename ...PackB, typename ...PacksThemselves>
+    struct join<pack<PackA...>, pack<PackB...>, PacksThemselves...> {
+      typedef typename join<pack<PackA..., PackB...>, PacksThemselves...>::type type;
+    };
+
+    /**
+     * flatten a pack of packs
+     */
+    template <typename PackItself> struct flatten;
+    template <typename ...Pack>
+    struct flatten<pack<Pack...>> {
+      typedef typename join<Pack...>::type type;
     };
 
   } // namespace ll

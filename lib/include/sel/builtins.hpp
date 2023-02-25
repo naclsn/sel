@@ -800,33 +800,6 @@ namespace sel {
   namespace bins_ll {
 
     using namespace ll;
-
-    /**
-     * make a list from a list, by also unpacking every `::Base`s
-     */
-    template <typename TailL>
-    struct _make_bins_all {
-      typedef cons<
-        typename TailL::car,
-        typename _make_bins_all<cons<typename TailL::car::Base, typename TailL::cdr>>::type
-      > type;
-    };
-    template <typename Next, typename last_to, typename last_from, typename TailL>
-    struct _make_bins_all<cons<bins_helpers::_bin_be<Next, cons<last_to, cons<last_from, nil>>>, TailL>> {
-      typedef cons<
-        bins_helpers::_bin_be<Next, cons<last_to, cons<last_from, nil>>>,
-        typename _make_bins_all<TailL>::type
-      > type;
-    };
-    template <>
-    struct _make_bins_all<nil> {
-      typedef nil type;
-    };
-    template <typename Impl, typename cdr>
-    struct _make_bins_all<cons<bins_helpers::_fake_bin_be<Impl>, cdr>> {
-      typedef typename _make_bins_all<cdr>::type type;
-    };
-
     using namespace bins;
 
     // YYY: (these are used in parsing - eg. coersion /
@@ -834,7 +807,7 @@ namespace sel {
     // need to merge with below while keeping sorted (not
     // strictly necessary, but convenient); although for
     // now `bins_min` is not used
-    typedef cons_l
+    typedef pack
       < add_
       , codepoints_
       , div_
@@ -846,10 +819,10 @@ namespace sel {
       , sub_
       , tonum_
       , tostr_
-      >::type bins_min;
+      > bins_min;
 
     // XXX: still would love if this list could be built automatically
-    typedef cons_l
+    typedef pack
       < abs_
       , add_
       , bin_
@@ -907,7 +880,7 @@ namespace sel {
       , unhex_
       , unoct_
       , zipwith_
-      >::type bins_max;
+      > bins_max;
 
 // TODO: this is waiting for better answers (see also
 // test_each).  Idea is: building with the whole `bins_max`
@@ -927,28 +900,48 @@ namespace sel {
         return *a < *b || (*a == *b && (*a == '\0' || is_sorted(a + 1, b + 1)));
       }
 
-      template <typename L> struct are_sorted;
+      template <typename PackItself> struct are_sorted;
 
-      template <typename H1, typename H2, typename T>
-      struct are_sorted<cons<H1, cons<H2, T>>> {
-        static constexpr bool the() {
-          return is_sorted(H1::name, H2::name) && are_sorted<cons<H2, T>>::the();
+      template <typename H1, typename H2, typename ...T>
+      struct are_sorted<pack<H1, H2, T...>> {
+        static constexpr bool function() {
+          return is_sorted(H1::name, H2::name) && are_sorted<pack<H2, T...>>::function();
         }
       };
       template <typename O>
-      struct are_sorted<cons<O, nil>> {
-        static constexpr bool the() {
+      struct are_sorted<pack<O>> {
+        static constexpr bool function() {
           return true;
         }
       };
 
-      static_assert(are_sorted<bins>::the(), "must be sorted");
+      static_assert(are_sorted<bins>::function(), "must be sorted");
     }
 
-    typedef _make_bins_all<bins>::type bins_all;
+    // make a chain from the types that makes the bin (ie Head to Tail)
+    template <typename Bin>
+    struct _make_bins_chain_pack {
+      typedef typename join<pack<Bin>, typename _make_bins_chain_pack<typename Bin::Base>::type>::type type;
+    };
+    template <typename Next, typename last_to, typename last_from>
+    struct _make_bins_chain_pack<bins_helpers::_bin_be<Next, cons<last_to, cons<last_from, nil>>>> {
+      typedef pack<bins_helpers::_bin_be<Next, cons<last_to, cons<last_from, nil>>>> type;
+    };
+    template <typename Impl>
+    struct _make_bins_chain_pack<bins_helpers::_fake_bin_be<Impl>> {
+      typedef pack<> type;
+    };
 
-    typedef packer<bins>::packed bins_packed;
-    typedef packer<bins_all>::packed bins_all_packed;
+    // make a 2-dimensional pack of pack with the parts of the bins
+    template <typename PackItself> struct _make_bins_pack_of_chains;
+    template <typename ...Bins>
+    struct _make_bins_pack_of_chains<pack<Bins...>> {
+      typedef pack<typename _make_bins_chain_pack<Bins>::type...> type;
+    };
+
+    typedef _make_bins_pack_of_chains<bins>::type bins_pack_of_chains;
+    typedef flatten<bins_pack_of_chains>::type bins_all;
+
 
   } // namespace bins_ll
 

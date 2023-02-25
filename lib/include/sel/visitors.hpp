@@ -65,7 +65,7 @@ namespace sel {
   public:
     template <typename T>
     Ret visit(T const& it) {
-      this->visitCommon((typename std::conditional<!T::args, Val, Segment>::type&)it, it.type(), T::the::Base::Next::name, T::args, T::the::args);
+      visitCommon((typename std::conditional<!T::args, Val, Segment>::type&)it, it.type(), T::the::Base::Next::name, T::args, T::the::args);
       return res;
     }
     Ret visit(NumLiteral const& it);

@@ -39,18 +39,18 @@ using ili = initializer_list<T>;
 template <typename F, typename... L> struct uncurry;
 
 template <typename F, typename H, typename... T>
-struct uncurry<F, H, T...> { static inline Val* the(H h, T... t) { return (*(Fun*)uncurry<typename F::Base, T...>::the(t...))(asval(h)); } };
+struct uncurry<F, H, T...> { static inline Val* function(H h, T... t) { return (*(Fun*)uncurry<typename F::Base, T...>::function(t...))(asval(h)); } };
 
 // eg. const_
 template <typename I, typename a, typename b, char c, typename O>
-struct uncurry<bins_helpers::_bin_be<I, ll::cons<fun<b, unk<c>>, a>>, O> { static inline Val* the(O o) { return (*(Fun*)new bins_helpers::_bin_be<I, ll::cons<fun<b, unk<c>>, a>>(app))(asval(o)); } };
+struct uncurry<bins_helpers::_bin_be<I, ll::cons<fun<b, unk<c>>, a>>, O> { static inline Val* function(O o) { return (*(Fun*)new bins_helpers::_bin_be<I, ll::cons<fun<b, unk<c>>, a>>(app))(asval(o)); } };
 
 // eg. id_
 template <typename I>
-struct uncurry<bins_helpers::_fake_bin_be<I>> { static inline Val* the() { return new I(app); } };
+struct uncurry<bins_helpers::_fake_bin_be<I>> { static inline Val* function() { return new I(app); } };
 
 template <typename F>
-struct uncurry<F> { static inline Val* the() { return new F(app); } };
+struct uncurry<F> { static inline Val* function() { return new F(app); } };
 
 
 struct test_base {
@@ -81,7 +81,7 @@ struct call_test<ll::pack<Pack...>> {
   }
 };
 
-TEST(each) { return call_test<bins_ll::bins_packed>::function(); }
+TEST(each) { return call_test<bins_ll::bins>::function(); }
 
 
 #define __r(__n) __r ## __n
@@ -102,7 +102,7 @@ TEST(each) { return call_test<bins_ll::bins_packed>::function(); }
 #define __an(__n, ...) __a(__n)(__VA_ARGS__)
 #define TPARAM_AUTO(...) __an(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
 
-#define CALL(__f, ...) uncurry<__f##_, TPARAM_AUTO(REVERSE(__VA_ARGS__))>::the(REVERSE(__VA_ARGS__))
+#define CALL(__f, ...) uncurry<__f##_, TPARAM_AUTO(REVERSE(__VA_ARGS__))>::function(REVERSE(__VA_ARGS__))
 
 #define LU(__f) static_lookup_name(app, __f)
 

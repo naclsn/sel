@@ -945,9 +945,9 @@ namespace sel {
   template <typename ...Pack>
   std::unordered_map<std::string, Val* (*)(App&)> const _make_bins_list<ll::pack<Pack...>>::map = {{Pack::name, _bin_new<Pack>}...};
 
-  std::unordered_map<std::string, Val* (*)(App&)> const bins_list::map = _make_bins_list<bins_ll::bins_packed>::map;
-  char const* const* const bins_list::names = _make_bins_list<bins_ll::bins_packed>::names;
-  size_t const bins_list::count = _make_bins_list<bins_ll::bins_packed>::count;
+  std::unordered_map<std::string, Val* (*)(App&)> const bins_list::map = _make_bins_list<bins_ll::bins>::map;
+  char const* const* const bins_list::names = _make_bins_list<bins_ll::bins>::names;
+  size_t const bins_list::count = _make_bins_list<bins_ll::bins>::count;
 
 
 } // namespace sel
