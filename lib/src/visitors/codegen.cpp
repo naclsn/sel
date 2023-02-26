@@ -228,15 +228,12 @@ namespace sel {
         std::ostringstream oss;
         throw TypeError((oss << "value of type " << ty << " is not a function", oss.str()));
       }
-      if (Ty::STR != ty.from().base || Ty::STR != ty.to().base) {
-        bool still_ok = false; // special case for eg. id_, hacked in for dev
-        if (Ty::UNK == ty.from().base && Ty::UNK == ty.to().base)
-          if (*ty.from().p.name == *ty.to().p.name)
-            still_ok = true;
-        if (!still_ok) {
-          std::ostringstream oss;
-          throw NIYError((oss << "compiling an application of type '" << ty << "', only 'Str* -> Str*' is supported", oss.str()));
-        }
+      // (with special case for eg. id_/const_, hacked in for dev)
+      bool from_ok = Ty::STR == ty.from().base || Ty::UNK == ty.from().base;
+      bool to_ok = Ty::STR != ty.to().base || Ty::UNK != ty.to().base;
+      if (!from_ok || !to_ok) {
+        std::ostringstream oss;
+        throw NIYError((oss << "compiling an application of type '" << ty << "', only 'Str* -> Str*' is supported", oss.str()));
       }
     }
 
@@ -377,7 +374,7 @@ namespace sel {
   void VisCodegen::visit(NumLiteral const& it) {
     double n = it.underlying();
     place(std::to_string(n), [n](VisCodegen&, inject_clo_type also) {
-      auto* after = block(std::to_string(n)+"_inject");
+      auto* after = block(std::to_string(n)+"_after");
       also(after, after, Generated(n));
       point(after);
     });
@@ -386,23 +383,13 @@ namespace sel {
   void VisCodegen::visit(StrLiteral const& it) {
     std::string const& s = it.underlying();
     place(s, [s](VisCodegen& cg, inject_clo_type also) {
-      auto isread = let<bool>::alloc();
-      *isread = false;
-
-      auto len = s.length();
-      char const* name = len < 16 ? s.c_str() : ""; // unnamed if too long
+      int len = s.length();
+      std::string name = len < 16 ? s : ""; // unnamed if too long
       letGlobal<char const**> buffer(name, cg.module, GlobalValue::PrivateLinkage, s, false); // don't add null
 
-      cg.makeStream(name,
-        [&isread](BasicBlock* brk, BasicBlock* cont) {
-          cond(*isread, brk, cont);
-        },
-        [&isread, &buffer, len] {
-          *isread = true;
-          return Generated(*buffer, len);
-        },
-        also
-      );
+      auto* after = block(name+"_after");
+      also(after, after, Generated(*buffer, len));
+      point(after);
     });
   }
 
@@ -658,62 +645,47 @@ namespace sel {
       n.make(cg, [&cg, &also](BasicBlock* brk, BasicBlock* cont, Generated it) {
         cg.log << "have @tostr generated\n";
 
-        auto isread = let<bool>::alloc();
-        *isread = false;
-
         auto b_1char = let<char>::alloc(2);
         auto at_2nd_char = b_1char + 1;
 
-        cg.makeStream("tostr",
-          [&isread](BasicBlock* brk, BasicBlock* cont) {
-            cond(*isread, brk, cont);
-          },
-          [&cg, &isread, &b_1char, &at_2nd_char, &it] {
-            auto num = it.num();
+        auto num = it.num();
 
-            cg.log << "call to @tostr, should only be here once\n";
-            /*b=*/
+        cg.log << "call to @tostr, should only be here once\n";
+        /*b=*/
 
-            // nominus -> minus -> common
-            //     `-----------------^
-            auto* nominus = here();
-            auto* minus = block("tostr_minus");
-            auto* common = block("tostr_common");
+        // nominus -> minus -> common
+        //     `-----------------^
+        auto* nominus = here();
+        auto* minus = block("tostr_minus");
+        auto* common = block("tostr_common");
 
-            cond(num < 0., minus, common);
+        cond(num < 0., minus, common);
 
-            point(minus);
-              auto pnum = -num;
-              *b_1char = '-';
-              br(common);
+        point(minus);
+          auto pnum = -num;
+          *b_1char = '-';
+          br(common);
 
-            point(common);
-              letPHI<double> positive({
-                {pnum, minus},
-                {num, nominus},
-              });
+        point(common);
+          letPHI<double> positive({
+            {pnum, minus},
+            {num, nominus},
+          });
 
-              letPHI<char*> store_at({
-                {at_2nd_char, minus},
-                {b_1char, nominus},
-              });
+          letPHI<char*> store_at({
+            {at_2nd_char, minus},
+            {b_1char, nominus},
+          });
 
-              letPHI<int> total_len({
-                {2, minus},
-                {1, nominus},
-              });
+          letPHI<int> total_len({
+            {2, minus},
+            {1, nominus},
+          });
 
-              // also for now 1-char buffer, we only do digits here
-              *store_at = positive.into<char>() + '0';
+          // also for now 1-char buffer, we only do digits here
+          *store_at = positive.into<char>() + '0';
 
-            // this is the only iteration, mark end
-            *isread = true;
-
-            return Generated(b_1char, total_len);
-          },
-          also
-        );
-        br(cont);
+        also(brk, cont, Generated(b_1char, total_len));
       });
     }},
 
