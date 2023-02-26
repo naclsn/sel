@@ -125,11 +125,11 @@ namespace sel {
 
     //{{{ some codegen utils
 
+    struct let_ptr_len;
     // note that the `body` function gets the bytes pointed at,
     // not the iteration variable (ie a chr, not chr* nor len)
     void makeBufferLoop(std::string const name
-      , tll::let<char const*> ptr
-      , tll::let<int> len
+      , let_ptr_len ptr_len
       , std::function<void(llvm::BasicBlock* brk, llvm::BasicBlock* cont, tll::let<char> at)> body
       );
 
@@ -165,6 +165,7 @@ namespace sel {
     };
 
     std::stack<Symbol, std::list<Symbol>> systack;
+    void place(Symbol sy);
     void place(std::string const, clo_type doobidoo);
     Symbol const take();
 

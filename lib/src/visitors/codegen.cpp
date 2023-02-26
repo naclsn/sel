@@ -20,21 +20,24 @@ using namespace tll;
 
 namespace sel {
 
+  struct VisCodegen::let_ptr_len { let<char const*> ptr; let<int> len; };
+
   struct VisCodegen::Generated {
     union {
       let<double> _num;
-      struct { let<char const*> ptr; let<int> len; } _buf;
+      let_ptr_len _buf;
     };
     enum { NUM, BUF } tag;
 
     Generated(let<double> num): _num(num), tag(NUM) { }
     Generated(let<char const*> ptr, let<int> len): _buf{ptr, len}, tag(BUF) { }
+    Generated(let_ptr_len ptr_len): _buf(ptr_len), tag(BUF) { }
 
     inline let<double> const& num() const {
       if (NUM != tag) throw CodegenError("expected symbol to generate a number");
       return _num;
     }
-    inline decltype(_buf) const& buf() const {
+    inline let_ptr_len const& buf() const {
       if (BUF != tag) throw CodegenError("expected symbol to generate a buffer");
       return _buf;
     }
@@ -64,8 +67,7 @@ namespace sel {
   };
 
   void VisCodegen::makeBufferLoop(std::string const name
-    , let<char const*> ptr
-    , let<int> len
+    , let_ptr_len ptr_len
     , std::function<void(BasicBlock* brk, BasicBlock* cont, let<char> at)> body
     )
   {
@@ -80,7 +82,7 @@ namespace sel {
 
     // before -> {body}    after
     //     `----------------^
-    cond(len > 0, body_bb, after_bb);
+    cond(ptr_len.len > 0, body_bb, after_bb);
 
     point(body_bb);
     // when first entering, init to 0
@@ -90,7 +92,7 @@ namespace sel {
     // actual loop body
     // body -> incr   after
     //  `-------------^
-    body(after_bb, incr_bb, ptr[k]);
+    body(after_bb, incr_bb, ptr_len.ptr[k]);
 
     point(incr_bb);
     // when from continue, take the ++
@@ -99,7 +101,7 @@ namespace sel {
 
     // body    incr -> {after}
     //    ^----'
-    cond(len == kpp, after_bb, body_bb);
+    cond(ptr_len.len == kpp, after_bb, body_bb);
     point(after_bb);
   }
 
@@ -143,6 +145,10 @@ namespace sel {
     point(exit);
   }
 
+  void VisCodegen::place(Symbol sy) {
+    log << "+ " << sy.name << "\n";
+    systack.push(sy);
+  }
   void VisCodegen::place(std::string const name, clo_type doobidoo) {
     log << "+ " << name << "\n";
     systack.push(Symbol(name, doobidoo));
@@ -305,7 +311,7 @@ namespace sel {
       auto l = tll::get<1>(put);
 
       let<int(int)> putchar("putchar", module, Function::ExternalLinkage);
-      makeBufferLoop("", b, l, [&putchar](BasicBlock* brk, BasicBlock* cont, let<char> at) {
+      makeBufferLoop("", {b, l}, [&putchar](BasicBlock* brk, BasicBlock* cont, let<char> at) {
         putchar(at.into<int>());
         br(cont);
       });
@@ -503,7 +509,7 @@ namespace sel {
     {"bytes", [](VisCodegen& cg, inject_clo_type also) {
       auto const s = cg.take();
       s.make(cg, [&cg, &also, &s](BasicBlock* brk, BasicBlock* cont, Generated it) {
-        cg.makeBufferLoop("bytes's " + s.name, it.buf().ptr, it.buf().len, [&also](BasicBlock* brk, BasicBlock* cont, let<char> at) {
+        cg.makeBufferLoop("bytes's " + s.name, it.buf(), [&also](BasicBlock* brk, BasicBlock* cont, let<char> at) {
           also(brk, cont, at.into<double>());
         });
         br(cont);
@@ -515,6 +521,40 @@ namespace sel {
       cg.take();
     }},
 
+    {"filter", [](VisCodegen& cg, inject_clo_type also) {
+      auto const p = cg.take();
+      auto const l = cg.take();
+      l.make(cg, [&cg, &also, &p](BasicBlock* brk, BasicBlock* cont, Generated it) {
+        cg.place("filter's it", [&brk, &cont, it](VisCodegen&, inject_clo_type also) {
+          also(brk, cont, it);
+        });
+        p.make(cg, [&also, &it](BasicBlock* brk, BasicBlock* cont, Generated pred_res) {
+          auto is = pred_res.num() != 0;
+
+          // if (is) {
+          auto* yes = block("filter_yes");
+          cond(is, yes, cont);
+
+          point(yes);
+          also(brk, cont, it);
+          // }
+
+          br(cont);
+        });
+        br(cont);
+      });
+    }},
+
+    {"flip", [](VisCodegen& cg, inject_clo_type also) {
+      auto const f = cg.take();
+      auto const b = cg.take();
+      auto const a = cg.take();
+      cg.place(b);
+      cg.place(a);
+      // f(a, b) -> c
+      f.make(cg, also);
+    }},
+
     {"id", [](VisCodegen& cg, inject_clo_type also) {
       cg.take().make(cg, also);
     }},
@@ -523,7 +563,7 @@ namespace sel {
       auto const f = cg.take();
       auto const l = cg.take();
       l.make(cg, [&cg, &also, &f](BasicBlock* brk, BasicBlock* cont, Generated it) {
-        cg.place("map's it", [=](VisCodegen&, inject_clo_type also) {
+        cg.place("map's it", [&brk, &cont, it](VisCodegen&, inject_clo_type also) {
           also(brk, cont, it);
         });
         f.make(cg, also);
@@ -547,7 +587,7 @@ namespace sel {
       auto const s = cg.take();
 
       auto acc = let<double>::alloc();
-      *acc = 0.;
+      *acc = 0;
 
       auto isminus = let<bool>::alloc();
       *isminus = false;
@@ -555,7 +595,7 @@ namespace sel {
       // *isdot = false;
 
       s.make(cg, [&cg, &acc, &isminus](BasicBlock* brk, BasicBlock* cont, Generated it) {
-        cg.makeBufferLoop("tonum", it.buf().ptr, it.buf().len, [&acc, &isminus](BasicBlock* brk, BasicBlock* cont, let<char> at) {
+        cg.makeBufferLoop("tonum", it.buf(), [&acc, &isminus](BasicBlock* brk, BasicBlock* cont, let<char> at) {
           // _ -> setnegate -> after
           // `-> accumulate ---^
           auto* setnegate = block("tonum_setnegate");
