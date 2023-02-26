@@ -495,7 +495,7 @@ namespace sel {
 
   std::unordered_map<std::string, VisCodegen::Head> VisCodegen::head_impls = {
 
-    {"abs", Head([](VisCodegen& cg, inject_clo_type also) {
+    {"abs", [](VisCodegen& cg, inject_clo_type also) {
       auto const n = cg.take();
 
       n.make(cg, [&also](BasicBlock* brk, BasicBlock* cont, Generated it) {
@@ -518,9 +518,9 @@ namespace sel {
 
         also(cont, cont, out);
       });
-    })},
+    }},
 
-    {"add", Head([](VisCodegen& cg, inject_clo_type also) {
+    {"add", [](VisCodegen& cg, inject_clo_type also) {
       auto const a = cg.take();
       auto const b = cg.take();
       a.make(cg, [&cg, &also, &b](BasicBlock *brk, BasicBlock *cont, Generated a) {
@@ -529,9 +529,9 @@ namespace sel {
         });
         br(cont);
       });
-    })},
+    }},
 
-    {"bytes", Head([](VisCodegen& cg, inject_clo_type also) {
+    {"bytes", [](VisCodegen& cg, inject_clo_type also) {
       auto const s = cg.take();
       s.make(cg, [&cg, &also, &s](BasicBlock* brk, BasicBlock* cont, Generated it) {
         cg.makeBufferLoop("bytes's " + s.name, it.buf().ptr, it.buf().len, [&also](BasicBlock* brk, BasicBlock* cont, let<char> at) {
@@ -539,18 +539,18 @@ namespace sel {
         });
         br(cont);
       });
-    })},
+    }},
 
-    {"const", Head([](VisCodegen& cg, inject_clo_type also) {
+    {"const", [](VisCodegen& cg, inject_clo_type also) {
       cg.take().make(cg, also);
       cg.take();
-    })},
+    }},
 
-    {"id", Head([](VisCodegen& cg, inject_clo_type also) {
+    {"id", [](VisCodegen& cg, inject_clo_type also) {
       cg.take().make(cg, also);
-    })},
+    }},
 
-    {"map", Head([](VisCodegen& cg, inject_clo_type also) {
+    {"map", [](VisCodegen& cg, inject_clo_type also) {
       auto const f = cg.take();
       auto const l = cg.take();
       l.make(cg, [&cg, &also, &f](BasicBlock* brk, BasicBlock* cont, Generated it) {
@@ -560,9 +560,9 @@ namespace sel {
         f.make(cg, also);
         br(cont);
       });
-    })},
+    }},
 
-    {"sub", Head([](VisCodegen& cg, inject_clo_type also) {
+    {"sub", [](VisCodegen& cg, inject_clo_type also) {
       auto const a = cg.take();
       auto const b = cg.take();
       a.make(cg, [&cg, &also, &b](BasicBlock* brk, BasicBlock* cont, Generated a) {
@@ -571,10 +571,10 @@ namespace sel {
         });
         br(cont);
       });
-    })},
+    }},
 
     // not perfect (eg '1-' is parsed as -1), but will do for now
-    {"tonum", Head([](VisCodegen& cg, inject_clo_type also) {
+    {"tonum", [](VisCodegen& cg, inject_clo_type also) {
       auto const s = cg.take();
 
       auto acc = let<double>::alloc();
@@ -641,9 +641,9 @@ namespace sel {
       auto* after = block("tonum_inject");
       also(after, after, final_res);
       point(after);
-    })},
+    }},
 
-    {"tostr", Head([](VisCodegen& cg, inject_clo_type also) {
+    {"tostr", [](VisCodegen& cg, inject_clo_type also) {
       auto const n = cg.take();
 
       n.make(cg, [&cg, &also](BasicBlock* brk, BasicBlock* cont, Generated it) {
@@ -706,16 +706,16 @@ namespace sel {
         );
         br(cont);
       });
-    })},
+    }},
 
-    {"unbytes", Head([](VisCodegen& cg, inject_clo_type also) {
+    {"unbytes", [](VisCodegen& cg, inject_clo_type also) {
       auto const l = cg.take();
       auto b = let<char>::alloc();
       l.make(cg, [&also, &b](BasicBlock* brk, BasicBlock* cont, Generated it) {
         *b = it.num().into<char>();
         also(brk, cont, Generated(b, 1));
       });
-    })},
+    }},
 
   };
 
