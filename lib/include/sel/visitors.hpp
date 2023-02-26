@@ -13,15 +13,18 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include <functional>
-#include <stack>
-#include <list>
 
 #ifdef LLVM_CODEGEN
+#include <functional>
+#include <list>
+#include <stack>
+#include <unordered_map>
+
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/raw_os_ostream.h>
+
 namespace tll { template <typename Ty> struct let; }
 #endif
 
@@ -120,13 +123,6 @@ namespace sel {
     // things that can come out of SyGen, passed to the injection `also(brk, cont, <>)`
     struct Generated;
 
-    // structure for 'segments' of a bin
-    // struct Segment; // virtual void operator(inject_clo_type also) = 0;
-    // the `visit(::Head)` will be the actual implementation
-    struct Head; // : Segment
-    // excluding the Head, each part that are `{arg, base}` closures
-    struct NotHead; // : Segment
-
     //{{{ some codegen utils
 
     // note that the `body` function gets the bytes pointed at,
@@ -153,7 +149,7 @@ namespace sel {
       < void
         (llvm::BasicBlock* brk, llvm::BasicBlock* cont, Generated it)
       > inject_clo_type;
-    typedef std::function<void(inject_clo_type)> clo_type;
+    typedef std::function<void(VisCodegen&, inject_clo_type)> clo_type;
 
     struct Symbol {
       std::string name;
@@ -165,7 +161,7 @@ namespace sel {
       { }
       virtual ~Symbol() { }
 
-      virtual void make(inject_clo_type also) const { doobidoo(also); }
+      virtual void make(VisCodegen& cg, inject_clo_type also) const { doobidoo(cg, also); }
     };
 
     std::stack<Symbol, std::list<Symbol>> systack;
@@ -176,17 +172,15 @@ namespace sel {
 
     //}}} symbol shenanigan
 
+    // excluding the Head, each part that are `{arg, base}` closures
+    struct NotHead;
+    // the `visit(::Head)` will be the actual implementation
+    typedef void (* Head)(VisCodegen&, inject_clo_type);
+
+    static std::unordered_map<std::string, Head> head_impls;
+
     void visitCommon(Segment const& it, char const* name);
-    template <typename T>
-    void visitCommon(T const& it, char const* name) {
-      // XXX: how can i fix this mess without having recursive includes?
-      // maybe by forward-declaring every builtin?
-      // -> but that would not give access to their `::Head`, which is what we need here
-      // maybe this the wrong way round and engine.hpp should not include visitor.hpp?
-      // -> yeah, i tried and could not find any way to get this to work either
-      // a last resort solution is to resolve base on `name`, but that's a bit garbage
-      throw NIYError(std::string("head of ") + name);
-    }
+    void visitCommon(Val const& it, char const* name);
 
   public:
     typedef void Ret;
@@ -204,41 +198,17 @@ namespace sel {
     }
     void compile(char const* outfile, bool link);
 
-    void visit(NumLiteral const& it);
-    void visit(StrLiteral const& it);
-    void visit(LstLiteral const& it);
-    void visit(FunChain const& it);
-    void visit(Input const& it);
-    void visit(StrChunks const& it);
-    void visit(LstMapCoerse const& it);
-
     template <typename T>
-    void visit(T const& it) {
+    Ret visit(T const& it) {
       visitCommon((typename std::conditional<!T::args, T, Segment>::type&)it, T::the::Base::Next::name);
     }
-
-    // void visit(bins::abs_::Base const&);
-    // void visit(bins::abs_ const&);
-    // void visit(bins::add_::Base::Base const&);
-    // void visit(bins::add_::Base const&);
-    // void visit(bins::add_ const&);
-    // void visit(bins::bytes_::Base const&);
-    // void visit(bins::bytes_ const&);
-    // void visit(bins::const_::Base const&);
-    // void visit(bins::const_ const&);
-    // void visit(bins::id_ const&);
-    // void visit(bins::map_::Base::Base const&);
-    // void visit(bins::map_::Base const&);
-    // void visit(bins::map_ const&);
-    // void visit(bins::sub_::Base::Base const&);
-    // void visit(bins::sub_::Base const&);
-    // void visit(bins::sub_ const&);
-    // void visit(bins::tonum_::Base const&);
-    // void visit(bins::tonum_ const&);
-    // void visit(bins::tostr_::Base const&);
-    // void visit(bins::tostr_ const&);
-    // void visit(bins::unbytes_::Base const&);
-    // void visit(bins::unbytes_ const&);
+    Ret visit(NumLiteral const& it);
+    Ret visit(StrLiteral const& it);
+    Ret visit(LstLiteral const& it);
+    Ret visit(FunChain const& it);
+    Ret visit(Input const& it);
+    Ret visit(StrChunks const& it);
+    Ret visit(LstMapCoerse const& it);
   };
 #else
   // still provide a stub

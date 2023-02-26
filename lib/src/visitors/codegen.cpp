@@ -63,26 +63,6 @@ namespace sel {
     }
   };
 
-  // structure for 'segments' of a bin
-  // that is excluding the Head, each part
-  // that are {arg, base} closures
-  struct VisCodegen::NotHead {
-    VisCodegen& cg;
-    Val const& arg;
-    Val const& base;
-    NotHead(VisCodegen& cg, Val const& arg, Val const& base)
-      : cg(cg)
-      , arg(arg)
-      , base(base)
-    { }
-    void operator()(inject_clo_type also) {
-      cg.invoke(arg);
-      cg.invoke(base);
-      cg.take().make(also);
-    }
-  };
-
-
   void VisCodegen::makeBufferLoop(std::string const name
     , let<char const*> ptr
     , let<int> len
@@ -193,8 +173,31 @@ namespace sel {
       }
   }
 
+  struct VisCodegen::NotHead {
+    Val const& arg;
+    Val const& base;
+    NotHead(Val const& arg, Val const& base)
+      : arg(arg)
+      , base(base)
+    { }
+    void operator()(VisCodegen& cg, inject_clo_type also) {
+      cg.invoke(arg);
+      cg.invoke(base);
+      cg.take().make(cg, also);
+    }
+  };
+
   void VisCodegen::visitCommon(Segment const& it, char const* name) {
-    place(name, NotHead(*this, it.arg(), it.base()));
+    place(name, NotHead(it.arg(), it.base()));
+  }
+
+  void VisCodegen::visitCommon(Val const& it, char const* name) {
+    auto iter = head_impls.find(name);
+    if (head_impls.end() == iter) {
+      std::ostringstream oss;
+      throw NIYError((oss << "codegen for " << quoted(name), oss.str()));
+    }
+    place(name, iter->second);
   }
 
   // `i1 get(i8**, i32*)` and `put(i8*, i32)`
@@ -236,7 +239,7 @@ namespace sel {
 
     // place input symbol (dont like having to construct a `Input` for this)
     std::stringstream zin;
-    visit(Input(app, zin));
+    visit(*new Input(app, zin));
 
     // build the whole stack
     // coerse<Val>(app, new Input(app, in), ty.from()); // TODO: input coersion (Str* -> a)
@@ -246,7 +249,7 @@ namespace sel {
     auto put = tll::get<1>(app_f);
 
     // start taking from the stack and generate the output
-    take().make([&put](BasicBlock* brk, BasicBlock* cont, Generated it) {
+    take().make(*this, [&put](BasicBlock* brk, BasicBlock* cont, Generated it) {
       (*put)(it.buf().ptr, it.buf().len);
       br(cont);
     });
@@ -383,7 +386,7 @@ namespace sel {
 
   void VisCodegen::visit(NumLiteral const& it) {
     double n = it.underlying();
-    place(std::to_string(n), [n](inject_clo_type also) {
+    place(std::to_string(n), [n](VisCodegen&, inject_clo_type also) {
       auto* after = block(std::to_string(n)+"_inject");
       also(after, after, Generated(n));
       point(after);
@@ -392,15 +395,15 @@ namespace sel {
 
   void VisCodegen::visit(StrLiteral const& it) {
     std::string const& s = it.underlying();
-    place(s, [this, s](inject_clo_type also) {
+    place(s, [s](VisCodegen& cg, inject_clo_type also) {
       auto isread = let<bool>::alloc();
       *isread = false;
 
       auto len = s.length();
       char const* name = len < 16 ? s.c_str() : ""; // unnamed if too long
-      letGlobal<char const**> buffer(name, module, GlobalValue::PrivateLinkage, s, false); // don't add null
+      letGlobal<char const**> buffer(name, cg.module, GlobalValue::PrivateLinkage, s, false); // don't add null
 
-      makeStream(name,
+      cg.makeStream(name,
         [&isread](BasicBlock* brk, BasicBlock* cont) {
           cond(*isread, brk, cont);
         },
@@ -420,23 +423,23 @@ namespace sel {
 
   void VisCodegen::visit(FunChain const& it) {
     std::vector<Fun*> const& f = it.underlying();
-    place("chain_of_" + std::to_string(f.size()), [this, &f](inject_clo_type also) {
+    place("chain_of_" + std::to_string(f.size()), [f](VisCodegen& cg, inject_clo_type also) {
       size_t k = 0;
       for (auto const& it : f) {
-        invoke(*it);
-        auto const curr = take();
-        place("chain_f_" + std::to_string(++k), [curr](inject_clo_type also) {
-          curr.make(also);
+        cg.invoke(*it);
+        auto const curr = cg.take();
+        cg.place("chain_f_" + std::to_string(++k), [curr](VisCodegen& cg, inject_clo_type also) {
+          curr.make(cg, also);
         });
       }
-      take().make(also);
+      cg.take().make(cg, also);
     });
   }
 
   void VisCodegen::visit(Input const& it) {
-    place("input", [this](inject_clo_type also) {
+    place("input", [](VisCodegen& cg, inject_clo_type also) {
       // TODO: would be nice (and somewhat make sense) just having this let<> as member
-      app_t app_f(funname, module);
+      app_t app_f(cg.funname, cg.module);
       auto get = tll::get<0>(app_f);
 
       auto buf = let<char const*>::alloc();
@@ -444,7 +447,7 @@ namespace sel {
       auto partial = let<bool>::alloc();
       *partial = true;
 
-      makeStream("input",
+      cg.makeStream("input",
         [&get, &buf, &len, &partial](BasicBlock* brk, BasicBlock* cont) {
           auto* read = block("read");
           // last `get` returned false (ie. not partial -> nothing more to get)
@@ -490,19 +493,18 @@ namespace sel {
 // #define _bind_one(__name, __depth) auto& __name = *node._depth(__depth); (void)__name
 // #define bind_args(...) _bind_count(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
 
+  std::unordered_map<std::string, VisCodegen::Head> VisCodegen::head_impls = {
 
-  template <>
-  void VisCodegen::visitCommon(bins::abs_::Base const&, char const*) {
-    place(bins::abs_::name, [this](inject_clo_type also) {
-      auto const n = take();
+    {"abs", Head([](VisCodegen& cg, inject_clo_type also) {
+      auto const n = cg.take();
 
-      n.make([&also](BasicBlock* brk, BasicBlock* cont, Generated it) {
+      n.make(cg, [&also](BasicBlock* brk, BasicBlock* cont, Generated it) {
         auto* before = here();
         auto* negate = block("abs_negate");
         auto* after = block("abs_after");
 
         auto in = it.num();
-        cond(in < 0., negate, after);
+        cond(in < 0, negate, after);
 
         point(negate);
           auto pos = -in;
@@ -516,92 +518,64 @@ namespace sel {
 
         also(cont, cont, out);
       });
-    });
-  }
+    })},
 
-
-  template <>
-  void VisCodegen::visitCommon(bins::add_::Base::Base const&, char const*) {
-    place("add", [this](inject_clo_type also) {
-      auto const a = take();
-      auto const b = take();
-      a.make([&also, &b](BasicBlock *brk, BasicBlock *cont, Generated a) {
-        b.make([&also, &a](BasicBlock *brk, BasicBlock *cont, Generated b) {
+    {"add", Head([](VisCodegen& cg, inject_clo_type also) {
+      auto const a = cg.take();
+      auto const b = cg.take();
+      a.make(cg, [&cg, &also, &b](BasicBlock *brk, BasicBlock *cont, Generated a) {
+        b.make(cg, [&also, &a](BasicBlock *brk, BasicBlock *cont, Generated b) {
           also(cont, cont, a.num() + b.num());
         });
         br(cont);
       });
-    });
-  }
+    })},
 
-
-  template <>
-  void VisCodegen::visitCommon(bins::bytes_::Base const&, char const*) {
-    place("bytes", [this](inject_clo_type also) {
-      auto const s = take();
-      s.make([this, &also, &s](BasicBlock* brk, BasicBlock* cont, Generated it) {
-        makeBufferLoop("bytes's " + s.name, it.buf().ptr, it.buf().len, [&also](BasicBlock* brk, BasicBlock* cont, let<char> at) {
+    {"bytes", Head([](VisCodegen& cg, inject_clo_type also) {
+      auto const s = cg.take();
+      s.make(cg, [&cg, &also, &s](BasicBlock* brk, BasicBlock* cont, Generated it) {
+        cg.makeBufferLoop("bytes's " + s.name, it.buf().ptr, it.buf().len, [&also](BasicBlock* brk, BasicBlock* cont, let<char> at) {
           also(brk, cont, at.into<double>());
         });
         br(cont);
       });
-    });
-  }
+    })},
 
+    {"const", Head([](VisCodegen& cg, inject_clo_type also) {
+      cg.take().make(cg, also);
+      cg.take();
+    })},
 
-  template <>
-  void VisCodegen::visitCommon(bins::const_::Base const&, char const*) {
-    place("const", [this](inject_clo_type also) {
-      take().make(also);
-      take();
-    });
-  }
+    {"id", Head([](VisCodegen& cg, inject_clo_type also) {
+      cg.take().make(cg, also);
+    })},
 
-
-  template <>
-  void VisCodegen::visit(bins::id_ const&) {
-    place("id", [this](inject_clo_type also) {
-      take().make(also);
-    });
-  }
-
-
-  template <>
-  void VisCodegen::visitCommon(bins::map_::Base::Base const&, char const*) {
-    place("map", [this](inject_clo_type also) {
-      auto const f = take();
-      auto const l = take();
-      l.make([this, &also, &f](BasicBlock* brk, BasicBlock* cont, Generated it) {
-        place("map's it", [=](inject_clo_type also) {
+    {"map", Head([](VisCodegen& cg, inject_clo_type also) {
+      auto const f = cg.take();
+      auto const l = cg.take();
+      l.make(cg, [&cg, &also, &f](BasicBlock* brk, BasicBlock* cont, Generated it) {
+        cg.place("map's it", [=](VisCodegen&, inject_clo_type also) {
           also(brk, cont, it);
         });
-        f.make(also);
+        f.make(cg, also);
         br(cont);
       });
-    });
-  }
+    })},
 
-
-  template <>
-  void VisCodegen::visitCommon(bins::sub_::Base::Base const&, char const*) {
-    place(bins::sub_::name, [this](inject_clo_type also) {
-      auto const a = take();
-      auto const b = take();
-      a.make([&also, &b](BasicBlock* brk, BasicBlock* cont, Generated a) {
-        b.make([&also, &a](BasicBlock* brk, BasicBlock* cont, Generated b) {
+    {"sub", Head([](VisCodegen& cg, inject_clo_type also) {
+      auto const a = cg.take();
+      auto const b = cg.take();
+      a.make(cg, [&cg, &also, &b](BasicBlock* brk, BasicBlock* cont, Generated a) {
+        b.make(cg, [&also, &a](BasicBlock* brk, BasicBlock* cont, Generated b) {
           also(cont, cont, a.num() - b.num());
         });
         br(cont);
       });
-    });
-  }
+    })},
 
-
-  // not perfect (eg '1-' is parsed as -1), but will do for now
-  template <>
-  void VisCodegen::visitCommon(bins::tonum_::Base const&, char const*) {
-    place("tonum", [this](inject_clo_type also) {
-      auto const s = take();
+    // not perfect (eg '1-' is parsed as -1), but will do for now
+    {"tonum", Head([](VisCodegen& cg, inject_clo_type also) {
+      auto const s = cg.take();
 
       auto acc = let<double>::alloc();
       *acc = 0.;
@@ -611,8 +585,8 @@ namespace sel {
       // auto isdot = let<bool>::alloc();
       // *isdot = false;
 
-      s.make([this, &acc, &isminus](BasicBlock* brk, BasicBlock* cont, Generated it) {
-        makeBufferLoop("tonum", it.buf().ptr, it.buf().len, [&acc, &isminus](BasicBlock* brk, BasicBlock* cont, let<char> at) {
+      s.make(cg, [&cg, &acc, &isminus](BasicBlock* brk, BasicBlock* cont, Generated it) {
+        cg.makeBufferLoop("tonum", it.buf().ptr, it.buf().len, [&acc, &isminus](BasicBlock* brk, BasicBlock* cont, let<char> at) {
           // _ -> setnegate -> after
           // `-> accumulate ---^
           auto* setnegate = block("tonum_setnegate");
@@ -667,17 +641,13 @@ namespace sel {
       auto* after = block("tonum_inject");
       also(after, after, final_res);
       point(after);
-    });
-  }
+    })},
 
+    {"tostr", Head([](VisCodegen& cg, inject_clo_type also) {
+      auto const n = cg.take();
 
-  template <>
-  void VisCodegen::visitCommon(bins::tostr_::Base const&, char const*) {
-    place("tostr", [this](inject_clo_type also) {
-      auto const n = take();
-
-      n.make([this, &also](BasicBlock* brk, BasicBlock* cont, Generated it) {
-        log << "have @tostr generated\n";
+      n.make(cg, [&cg, &also](BasicBlock* brk, BasicBlock* cont, Generated it) {
+        cg.log << "have @tostr generated\n";
 
         auto isread = let<bool>::alloc();
         *isread = false;
@@ -685,14 +655,14 @@ namespace sel {
         auto b_1char = let<char>::alloc(2);
         auto at_2nd_char = b_1char + 1;
 
-        makeStream("tostr",
+        cg.makeStream("tostr",
           [&isread](BasicBlock* brk, BasicBlock* cont) {
             cond(*isread, brk, cont);
           },
-          [this, &isread, &b_1char, &at_2nd_char, &it] {
+          [&cg, &isread, &b_1char, &at_2nd_char, &it] {
             auto num = it.num();
 
-            log << "call to @tostr, should only be here once\n";
+            cg.log << "call to @tostr, should only be here once\n";
             /*b=*/
 
             // nominus -> minus -> common
@@ -736,21 +706,18 @@ namespace sel {
         );
         br(cont);
       });
-    });
-  }
+    })},
 
-
-  template <>
-  void VisCodegen::visitCommon(bins::unbytes_::Base const&, char const*) {
-    place("unbytes", [this](inject_clo_type also) {
-      auto const l = take();
+    {"unbytes", Head([](VisCodegen& cg, inject_clo_type also) {
+      auto const l = cg.take();
       auto b = let<char>::alloc();
-      l.make([&also, &b](BasicBlock* brk, BasicBlock* cont, Generated it) {
+      l.make(cg, [&also, &b](BasicBlock* brk, BasicBlock* cont, Generated it) {
         *b = it.num().into<char>();
         also(brk, cont, Generated(b, 1));
       });
-    });
-  }
+    })},
+
+  };
 
 } // namespace sel
 
