@@ -314,40 +314,7 @@ namespace sel {
     }
   }
 
-
-  // temporary dothething
   void VisCodegen::compile(char const* outfile, bool link) {
-    std::string const n = outfile;
-
-    {
-      std::ofstream ll(n + ".ll");
-      if (!ll.is_open()) throw BaseError("could not open file");
-      print(ll);
-      ll.flush();
-      ll.close();
-    }
-
-    // $ llc -filetype=obj hello-world.ll -o hello-world.o
-    {
-      std::ostringstream oss;
-      int r = std::system((oss << "llc -filetype=obj " << n << ".ll -o " << n << ".o", oss.str().c_str()));
-      std::cerr << "============ " << r << "\n";
-      if (0 != r) throw BaseError("see above");
-    }
-
-    // $ clang hello-world.o -o hello-world
-    if (link) {
-      std::ostringstream oss;
-      int r = std::system((oss << "clang " << n << ".o -o " << n, oss.str().c_str()));
-      std::cerr << "============ " << r << "\n";
-      if (0 != r) throw BaseError("see above");
-    }
-  }
-
-#if 0
-  // this is hell and it does not even work (segfault at `pass->run(module)`)
-  // @see https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl08.html
-  void VisCodegen::dothething(char const* outfile) {
     auto triple = sys::getDefaultTargetTriple();
 
     InitializeAllTargetInfos();
@@ -378,10 +345,27 @@ namespace sel {
     if (machine->addPassesToEmitFile(pass, dest, nullptr, TargetMachine::CodeGenFileType::CGFT_ObjectFile))
       throw CodegenError("can't emit a file of this type");
 
+    log << "emitting object code\n";
     pass.run(module);
     dest.flush();
+
+    // XXX: how can I do that with the llvm c++ api, pwease
+    // $ clang hello-world.o -o hello-world
+    if (link && std::system(NULL)) {
+      log << "linking object with libc\n";
+
+      std::string objfile = std::string(outfile) + ".o";
+      std::rename(outfile, objfile.c_str());
+
+      std::string com = std::string("clang ") + objfile + " -o " + outfile;
+      log << "`" << com << "`\n";
+      int r = std::system(com.c_str());
+
+      std::remove(objfile.c_str());
+
+      if (0 != r) throw CodegenError("linker failed (maybe, not sure); exit status: " + std::to_string(r));
+    }
   }
-#endif
 
 
   void VisCodegen::visit(NumLiteral const& it) {
@@ -438,7 +422,7 @@ namespace sel {
 
   void VisCodegen::visit(Input const& it) {
     place("input", [](VisCodegen& cg, inject_clo_type also) {
-      // TODO: would be nice (and somewhat make sense) just having this let<> as member
+      // reclaim existing function
       app_t app_f(cg.funname, cg.module);
       auto get = tll::get<0>(app_f);
 
@@ -477,21 +461,6 @@ namespace sel {
     throw NIYError("generation of intermediary 'StrChunks'");
   }
 
-// #define _depth(__depth) _depth_ ## __depth
-// #define _depth_0 arg
-// #define _depth_1 base->_depth_0
-// #define _depth_2 base->_depth_1
-// #define _depth_3 base->_depth_2
-
-// #define _bind_some(__count) _bind_some_ ## __count
-// #define _bind_some_1(a)          _bind_one(a, 0)
-// #define _bind_some_2(a, b)       _bind_one(a, 1); _bind_some_1(b)
-// #define _bind_some_3(a, b, c)    _bind_one(a, 2); _bind_some_2(b, c)
-// #define _bind_some_4(a, b, c, d) _bind_one(a, 3); _bind_some_3(b, c, d)
-
-// #define _bind_count(__count, ...) _bind_some(__count)(__VA_ARGS__)
-// #define _bind_one(__name, __depth) auto& __name = *node._depth(__depth); (void)__name
-// #define bind_args(...) _bind_count(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
 
   std::unordered_map<std::string, VisCodegen::Head> VisCodegen::head_impls = {
 
