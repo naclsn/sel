@@ -113,6 +113,8 @@ namespace sel {
 
 
 #ifdef LLVM_CODEGEN
+  struct Codegen;
+
   class VisCodegen {
     llvm::LLVMContext context;
     llvm::IRBuilder<> builder;
@@ -120,65 +122,7 @@ namespace sel {
 
     indented& log;
 
-    // things that can come out of SyGen, passed to the injection `also(brk, cont, <>)`
-    struct Generated;
-
-    //{{{ some codegen utils
-
-    struct let_ptr_len;
-    // note that the `body` function gets the bytes pointed at,
-    // not the iteration variable (ie a chr, not chr* nor len)
-    void makeBufferLoop(std::string const name
-      , let_ptr_len ptr_len
-      , std::function<void(llvm::BasicBlock* brk, llvm::BasicBlock* cont, tll::let<char> at)> body
-      );
-
-    void makeStream(std::string const name
-      , std::function<void(llvm::BasicBlock* brk, llvm::BasicBlock* cont)> chk
-      , std::function<Generated()> itr
-      , std::function<void(llvm::BasicBlock* brk, llvm::BasicBlock* cont, Generated it)> also
-      );
-
-    //}}} some codegen utils
-
-    //{{{ symbol shenanigan
-
-    /// the injection (sometimes `also`) must branch to exit or iter
-    /// in the case of a SyNum, brk and cont are both the same
-    typedef std::function
-      < void
-        (llvm::BasicBlock* brk, llvm::BasicBlock* cont, Generated it)
-      > inject_clo_type;
-    typedef std::function<void(VisCodegen&, inject_clo_type)> clo_type;
-
-    struct Symbol {
-      std::string name;
-      clo_type doobidoo;
-
-      Symbol(std::string const name, clo_type doobidoo)
-        : name(name)
-        , doobidoo(doobidoo)
-      { }
-      virtual ~Symbol() { }
-
-      virtual void make(VisCodegen& cg, inject_clo_type also) const { doobidoo(cg, also); }
-    };
-
-    std::stack<Symbol, std::list<Symbol>> systack;
-    void place(Symbol sy);
-    void place(std::string const, clo_type doobidoo);
-    Symbol const take();
-
-    void invoke(Val const&);
-
-    //}}} symbol shenanigan
-
-    // excluding the Head, each part that are `{arg, base}` closures
-    struct NotHead;
-    // the `visit(::Head)` will be the actual implementation
-    typedef void (* Head)(VisCodegen&, inject_clo_type);
-
-    static std::unordered_map<std::string, Head> head_impls;
+    Codegen& cg;
 
     void visitCommon(Segment const& it, char const* name);
     void visitCommon(Val const& it, char const* name);
@@ -188,7 +132,7 @@ namespace sel {
     char const* funname;
 
     VisCodegen(char const* file_name, char const* module_name, char const* function_name, App& app);
-    ~VisCodegen() { delete &log; }
+    ~VisCodegen();
 
     // generate a `i32 main()` that calls the generated function
     void makeMain();

@@ -809,20 +809,16 @@ namespace sel {
     // now `bins_min` is not used
     typedef pack
       < add_
-, bytes_
       , codepoints_
       , div_
       , flip_
       , graphemes_
-, id_
       , index_
       , join_
-, map_
       , mul_
       , sub_
       , tonum_
       , tostr_
-, unbytes_
       > bins_min;
 
     // XXX: still would love if this list could be built automatically

@@ -20,9 +20,10 @@ using namespace tll;
 
 namespace sel {
 
-  struct VisCodegen::let_ptr_len { let<char const*> ptr; let<int> len; };
+  // things that can come out of SyGen, passed to the injection `also(brk, cont, <>)`
+  struct Generated {
+    struct let_ptr_len { let<char const*> ptr; let<int> len; };
 
-  struct VisCodegen::Generated {
     union {
       let<double> _num;
       let_ptr_len _buf;
@@ -66,8 +67,11 @@ namespace sel {
     }
   };
 
-  void VisCodegen::makeBufferLoop(std::string const name
-    , let_ptr_len ptr_len
+
+  // note that the `body` function gets the bytes pointed at,
+  // not the iteration variable (ie a chr, not chr* nor len)
+  void makeBufferLoop(std::string const name
+    , Generated::let_ptr_len ptr_len
     , std::function<void(BasicBlock* brk, BasicBlock* cont, let<char> at)> body
     )
   {
@@ -105,7 +109,7 @@ namespace sel {
     point(after_bb);
   }
 
-  void VisCodegen::makeStream(std::string const name
+  void makeStream(std::string const name
     , std::function<void(BasicBlock* brk, BasicBlock* cont)> chk
     , std::function<Generated()> itr
     , std::function<void(BasicBlock* brk, BasicBlock* cont, Generated it)> also
@@ -145,16 +149,66 @@ namespace sel {
     point(exit);
   }
 
-  void VisCodegen::place(Symbol sy) {
+
+  /// the injection (sometimes `also`) must branch to exit or iter
+  /// in the case of a SyNum, brk and cont are both the same
+  typedef std::function
+    < void
+      (llvm::BasicBlock* brk, llvm::BasicBlock* cont, Generated it)
+    > inject_clo_type;
+  typedef std::function<void(Codegen&, inject_clo_type)> clo_type;
+
+  struct Symbol {
+    std::string name;
+    clo_type doobidoo;
+
+    Symbol(std::string const name, clo_type doobidoo)
+      : name(name)
+      , doobidoo(doobidoo)
+    { }
+    virtual ~Symbol() { }
+
+    virtual void make(Codegen& cg, inject_clo_type also) const { doobidoo(cg, also); }
+  };
+
+  typedef void (* Head)(Codegen&, inject_clo_type);
+
+  struct Codegen {
+    VisCodegen& vis;
+    indented& log;
+    std::stack<Symbol, std::list<Symbol>> systack;
+
+    Codegen(VisCodegen& vis, indented& log): vis(vis), log(log) { }
+
+    void place(Symbol sy);
+    Symbol const take();
+
+    void invoke(Val const&);
+
+    static std::unordered_map<std::string, Head> head_impls;
+  };
+
+  // excluding the Head, each part that are `{arg, base}` closures
+  struct NotHead {
+    Val const& arg;
+    Val const& base;
+    NotHead(Val const& arg, Val const& base)
+      : arg(arg)
+      , base(base)
+    { }
+    void operator()(Codegen& cg, inject_clo_type also) {
+      cg.invoke(arg);
+      cg.invoke(base);
+      cg.take().make(cg, also);
+    }
+  };
+
+  void Codegen::place(Symbol sy) {
     log << "+ " << sy.name << "\n";
     systack.push(sy);
   }
-  void VisCodegen::place(std::string const name, clo_type doobidoo) {
-    log << "+ " << name << "\n";
-    systack.push(Symbol(name, doobidoo));
-  }
 
-  VisCodegen::Symbol const VisCodegen::take() {
+  Symbol const Codegen::take() {
     if (systack.empty()) throw CodegenError("trying to take from empty symbol stack");
     Symbol r = systack.top();
     log << "- " << r.name << "\n";
@@ -162,11 +216,11 @@ namespace sel {
     return r;
   }
 
-  void VisCodegen::invoke(Val const& arg) {
+  void Codegen::invoke(Val const& arg) {
       size_t before = systack.size();
 
       log << "invoke:\n" << repr(arg, false) << "\n";
-      arg.accept(*this);
+      arg.accept(vis);
 
       int change = systack.size() - before;
       if (1 != change) {
@@ -179,31 +233,18 @@ namespace sel {
       }
   }
 
-  struct VisCodegen::NotHead {
-    Val const& arg;
-    Val const& base;
-    NotHead(Val const& arg, Val const& base)
-      : arg(arg)
-      , base(base)
-    { }
-    void operator()(VisCodegen& cg, inject_clo_type also) {
-      cg.invoke(arg);
-      cg.invoke(base);
-      cg.take().make(cg, also);
-    }
-  };
 
   void VisCodegen::visitCommon(Segment const& it, char const* name) {
-    place(name, NotHead(it.arg(), it.base()));
+    cg.place({name, NotHead(it.arg(), it.base())});
   }
 
   void VisCodegen::visitCommon(Val const& it, char const* name) {
-    auto iter = head_impls.find(name);
-    if (head_impls.end() == iter) {
+    auto iter = cg.head_impls.find(name);
+    if (cg.head_impls.end() == iter) {
       std::ostringstream oss;
       throw NIYError((oss << "codegen for " << quoted(name), oss.str()));
     }
-    place(name, iter->second);
+    cg.place({name, iter->second});
   }
 
   // `i1 get(i8**, i32*)` and `put(i8*, i32)`
@@ -214,6 +255,7 @@ namespace sel {
     , builder(context)
     , module(module_name, context)
     , log(*new indented("   ", std::cerr))
+    , cg(*new Codegen(*this, log))
     , funname(function_name)
   {
     tll::builder(builder);
@@ -226,7 +268,7 @@ namespace sel {
       Type const& ty = f.type();
       if (Ty::FUN != ty.base) {
         std::ostringstream oss;
-        throw TypeError((oss << "value of type " << ty << " is not a function", oss.str()));
+        throw TypeError((oss << "value of type '" << ty << "' is not a function", oss.str()));
       }
       // (with special case for eg. id_/const_, hacked in for dev)
       bool from_ok = Ty::STR == ty.from().base || Ty::UNK == ty.from().base;
@@ -246,20 +288,25 @@ namespace sel {
 
     // build the whole stack
     // coerse<Val>(app, new Input(app, in), ty.from()); // TODO: input coersion (Str* -> a)
-    invoke(f);
+    cg.invoke(f);
     // coerse<Str>(app, (*(Fun*)f)(), Type(Ty::STR, {0}, TyFlag::IS_INF)); // TODO: output coersion (b -> Str*)
 
     auto put = tll::get<1>(app_f);
 
     // start taking from the stack and generate the output
-    take().make(*this, [&put](BasicBlock* brk, BasicBlock* cont, Generated it) {
+    cg.take().make(cg, [&put](BasicBlock* brk, BasicBlock* cont, Generated it) {
       (*put)(it.buf().ptr, it.buf().len);
       br(cont);
     });
 
     app_f.ret();
 
-    if (!systack.empty()) throw CodegenError("symbol stack should be empty at the end");
+    if (!cg.systack.empty()) throw CodegenError("symbol stack should be empty at the end");
+  }
+
+  VisCodegen::~VisCodegen() {
+    delete &log;
+    delete &cg;
   }
 
   void VisCodegen::makeMain() {
@@ -373,11 +420,11 @@ namespace sel {
 
   void VisCodegen::visit(NumLiteral const& it) {
     double n = it.underlying();
-    place(std::to_string(n), [n](VisCodegen&, inject_clo_type also) {
+    cg.place({std::to_string(n), [n](Codegen&, inject_clo_type also) {
       auto* after = block(std::to_string(n)+"_after");
       also(after, after, Generated(n));
       point(after);
-    });
+    }});
   }
 
   void VisCodegen::visit(StrLiteral const& it) {
@@ -388,11 +435,11 @@ namespace sel {
 
     letGlobal<char const**> buffer(name, module, GlobalValue::PrivateLinkage, s, false); // don't add null
 
-    place(s, [len, name, buffer](VisCodegen& cg, inject_clo_type also) {
+    cg.place({s, [len, name, buffer](Codegen& cg, inject_clo_type also) {
       auto* after = block(name+"_after");
       also(after, after, Generated(*buffer, len));
       point(after);
-    });
+    }});
   }
 
   void VisCodegen::visit(LstLiteral const& it) {
@@ -402,23 +449,24 @@ namespace sel {
 
   void VisCodegen::visit(FunChain const& it) {
     std::vector<Fun*> const& f = it.underlying();
-    place("chain_of_" + std::to_string(f.size()), [f](VisCodegen& cg, inject_clo_type also) {
+    cg.place({"chain_of_" + std::to_string(f.size()), [f](Codegen& cg, inject_clo_type also) {
       size_t k = 0;
       for (auto const& it : f) {
         cg.invoke(*it);
         auto const curr = cg.take();
-        cg.place("chain_f_" + std::to_string(++k), [curr](VisCodegen& cg, inject_clo_type also) {
+        cg.place({"chain_f_" + std::to_string(++k), [curr](Codegen& cg, inject_clo_type also) {
           curr.make(cg, also);
-        });
+        }});
       }
       cg.take().make(cg, also);
-    });
+    }});
   }
 
   void VisCodegen::visit(Input const& it) {
-    place("input", [](VisCodegen& cg, inject_clo_type also) {
-      // reclaim existing function
-      app_t app_f(cg.funname, cg.module);
+    // reclaim existing function
+    app_t app_f(funname, module);
+
+    cg.place({"input", [app_f](Codegen&, inject_clo_type also) {
       auto get = tll::get<0>(app_f);
 
       auto buf = let<char const*>::alloc();
@@ -426,7 +474,7 @@ namespace sel {
       auto partial = let<bool>::alloc();
       *partial = true;
 
-      cg.makeStream("input",
+      makeStream("input",
         [&get, &buf, &len, &partial](BasicBlock* brk, BasicBlock* cont) {
           auto* read = block("read");
           // last `get` returned false (ie. not partial -> nothing more to get)
@@ -443,7 +491,7 @@ namespace sel {
         },
         also
       );
-    });
+    }});
   }
 
   void VisCodegen::visit(StrChunks const& it) {
@@ -462,7 +510,7 @@ namespace sel {
     letGlobal<char const***> arr("name", module, GlobalValue::PrivateLinkage, vc);
     letGlobal<int const**> arrlens("name", module, GlobalValue::PrivateLinkage, lens);
 
-    place("chunks", [count, lens, arr, arrlens](VisCodegen& cg, inject_clo_type also) {
+    cg.place({"chunks", [count, lens, arr, arrlens](Codegen&, inject_clo_type also) {
       if (0 == count) {
         // noop
 
@@ -494,7 +542,7 @@ namespace sel {
 
         point(brk);
       }
-    });
+    }});
   }
 
   void VisCodegen::visit(LstMapCoerse const& it) {
@@ -503,9 +551,9 @@ namespace sel {
   }
 
 
-  std::unordered_map<std::string, VisCodegen::Head> VisCodegen::head_impls = {
+  std::unordered_map<std::string, Head> Codegen::head_impls = {
 
-    {"abs", [](VisCodegen& cg, inject_clo_type also) {
+    {"abs", [](Codegen& cg, inject_clo_type also) {
       auto const n = cg.take();
 
       n.make(cg, [&also](BasicBlock* brk, BasicBlock* cont, Generated it) {
@@ -530,7 +578,7 @@ namespace sel {
       });
     }},
 
-    {"add", [](VisCodegen& cg, inject_clo_type also) {
+    {"add", [](Codegen& cg, inject_clo_type also) {
       auto const a = cg.take();
       auto const b = cg.take();
       a.make(cg, [&cg, &also, &b](BasicBlock *brk, BasicBlock *cont, Generated a) {
@@ -541,28 +589,85 @@ namespace sel {
       });
     }},
 
-    {"bytes", [](VisCodegen& cg, inject_clo_type also) {
+    {"bytes", [](Codegen& cg, inject_clo_type also) {
       auto const s = cg.take();
-      s.make(cg, [&cg, &also, &s](BasicBlock* brk, BasicBlock* cont, Generated it) {
-        cg.makeBufferLoop("bytes's " + s.name, it.buf(), [&also](BasicBlock* brk, BasicBlock* cont, let<char> at) {
+      s.make(cg, [&also, &s](BasicBlock* brk, BasicBlock* cont, Generated it) {
+        makeBufferLoop("bytes's " + s.name, it.buf(), [&also](BasicBlock* brk, BasicBlock* cont, let<char> at) {
           also(brk, cont, at.into<double>());
         });
         br(cont);
       });
     }},
 
-    {"const", [](VisCodegen& cg, inject_clo_type also) {
+    {"codepoints", [](Codegen& cg, inject_clo_type also) {
+      auto const s = cg.take();
+
+      auto acc = let<int>::alloc();
+      auto state = let<int>::alloc();
+      *state = 0;
+
+      s.make(cg, [&also, &s, &acc, &state](BasicBlock* brk, BasicBlock* cont, Generated it) {
+        makeBufferLoop("codepoints's " + s.name, it.buf(), [&also, &acc, &state](BasicBlock* brk, BasicBlock* cont, let<char> at) {
+          /*/ half-pseudo-code
+          auto curr = let<int>(*state);
+          if (curr == 0) {
+            if ((at & 0b10000000) == 0) {
+              // ASCII-compatible
+              also(brk, cont, at.into<double>());
+
+            } else {
+              // auto a = at.into<int>();
+              // start state machine
+
+              if ((at & 0b00100000) == 0) {
+                // 110 -> 1 more bytes
+                *acc = (at & 0b00011111).into<int>() << 6;
+                *state = 1;
+
+              } else if ((at & 0b00010000) == 0) {
+                // 1110 -> 2 more bytes
+                *acc = (at & 0b00001111).into<int>() << 12;
+                *state = 2;
+
+              } else if ((at & 0b00001000) == 0) {
+                // 11110 -> 3 more bytes
+                *acc = (at & 0b00000111).into<int>() << 18;
+                *state = 3;
+
+              } else also(brk, cont, at.into<double>());
+            }
+
+          } else {
+            auto next = curr-1;
+            *state = next;
+
+            auto upacc = let<int>(*acc) | (at & 0b00111111).into<int>();
+
+            if (next == 0) {
+              also(brk, cont, upacc.into<double>());
+            } else {
+              auto shft = next*6;
+              *acc = upacc << shft;
+            }
+          }
+          //*/ also(brk, cont, let<double>(0.));
+        });
+        br(cont);
+      });
+    }},
+
+    {"const", [](Codegen& cg, inject_clo_type also) {
       cg.take().make(cg, also);
       cg.take();
     }},
 
-    {"filter", [](VisCodegen& cg, inject_clo_type also) {
+    {"filter", [](Codegen& cg, inject_clo_type also) {
       auto const p = cg.take();
       auto const l = cg.take();
       l.make(cg, [&cg, &also, &p](BasicBlock* brk, BasicBlock* cont, Generated it) {
-        cg.place("filter's it", [&brk, &cont, it](VisCodegen&, inject_clo_type also) {
+        cg.place({"filter's it", [&brk, &cont, it](Codegen&, inject_clo_type also) {
           also(brk, cont, it);
-        });
+        }});
         p.make(cg, [&also, &it](BasicBlock* brk, BasicBlock* cont, Generated pred_res) {
           auto is = pred_res.num() != 0;
 
@@ -580,7 +685,7 @@ namespace sel {
       });
     }},
 
-    {"flip", [](VisCodegen& cg, inject_clo_type also) {
+    {"flip", [](Codegen& cg, inject_clo_type also) {
       auto const f = cg.take();
       auto const b = cg.take();
       auto const a = cg.take();
@@ -590,23 +695,23 @@ namespace sel {
       f.make(cg, also);
     }},
 
-    {"id", [](VisCodegen& cg, inject_clo_type also) {
+    {"id", [](Codegen& cg, inject_clo_type also) {
       cg.take().make(cg, also);
     }},
 
-    {"map", [](VisCodegen& cg, inject_clo_type also) {
+    {"map", [](Codegen& cg, inject_clo_type also) {
       auto const f = cg.take();
       auto const l = cg.take();
       l.make(cg, [&cg, &also, &f](BasicBlock* brk, BasicBlock* cont, Generated it) {
-        cg.place("map's it", [&brk, &cont, it](VisCodegen&, inject_clo_type also) {
+        cg.place({"map's it", [&brk, &cont, it](Codegen&, inject_clo_type also) {
           also(brk, cont, it);
-        });
+        }});
         f.make(cg, also);
         br(cont);
       });
     }},
 
-    {"sub", [](VisCodegen& cg, inject_clo_type also) {
+    {"sub", [](Codegen& cg, inject_clo_type also) {
       auto const a = cg.take();
       auto const b = cg.take();
       a.make(cg, [&cg, &also, &b](BasicBlock* brk, BasicBlock* cont, Generated a) {
@@ -618,7 +723,7 @@ namespace sel {
     }},
 
     // not perfect (eg '1-' is parsed as -1), but will do for now
-    {"tonum", [](VisCodegen& cg, inject_clo_type also) {
+    {"tonum", [](Codegen& cg, inject_clo_type also) {
       auto const s = cg.take();
 
       auto acc = let<double>::alloc();
@@ -629,8 +734,8 @@ namespace sel {
       // auto isdot = let<bool>::alloc();
       // *isdot = false;
 
-      s.make(cg, [&cg, &acc, &isminus](BasicBlock* brk, BasicBlock* cont, Generated it) {
-        cg.makeBufferLoop("tonum", it.buf(), [&acc, &isminus](BasicBlock* brk, BasicBlock* cont, let<char> at) {
+      s.make(cg, [&acc, &isminus](BasicBlock* brk, BasicBlock* cont, Generated it) {
+        makeBufferLoop("tonum", it.buf(), [&acc, &isminus](BasicBlock* brk, BasicBlock* cont, let<char> at) {
           // _ -> setnegate -> after
           // `-> accumulate ---^
           auto* setnegate = block("tonum_setnegate");
@@ -687,7 +792,7 @@ namespace sel {
       point(after);
     }},
 
-    {"tostr", [](VisCodegen& cg, inject_clo_type also) {
+    {"tostr", [](Codegen& cg, inject_clo_type also) {
       auto const n = cg.take();
 
       n.make(cg, [&cg, &also](BasicBlock* brk, BasicBlock* cont, Generated it) {
@@ -737,7 +842,7 @@ namespace sel {
       });
     }},
 
-    {"unbytes", [](VisCodegen& cg, inject_clo_type also) {
+    {"unbytes", [](Codegen& cg, inject_clo_type also) {
       auto const l = cg.take();
       auto b = let<char>::alloc();
       l.make(cg, [&also, &b](BasicBlock* brk, BasicBlock* cont, Generated it) {
