@@ -309,7 +309,7 @@ namespace tll {
     inline letGlobal(llvm::StringRef globname, llvm::Module& module)
       : letBase(module.getNamedGlobal(globname))
     { }
-    inline letGlobal(llvm::StringRef globname, llvm::Module& module, llvm::GlobalVariable::LinkageTypes linkage, llvm::ArrayRef<Ty> v)
+    inline letGlobal(llvm::StringRef globname, llvm::Module& module, llvm::GlobalVariable::LinkageTypes linkage, llvm::ArrayRef<typename std::remove_const<Ty>::type> v)
       : letGlobal(globname, module, linkage, llvm::ConstantDataArray::get(__tll_irb->getContext(), v))
     { }
     inline letGlobal(llvm::StringRef globname, llvm::Module& module, llvm::GlobalVariable::LinkageTypes linkage, llvm::StringRef v, bool addnull=true)

@@ -382,11 +382,13 @@ namespace sel {
 
   void VisCodegen::visit(StrLiteral const& it) {
     std::string const& s = it.underlying();
-    place(s, [s](VisCodegen& cg, inject_clo_type also) {
-      int len = s.length();
-      std::string name = len < 16 ? s : ""; // unnamed if too long
-      letGlobal<char const**> buffer(name, cg.module, GlobalValue::PrivateLinkage, s, false); // don't add null
+    int len = s.length();
 
+    std::string name = len < 16 ? s : ""; // unnamed if too long
+
+    letGlobal<char const**> buffer(name, module, GlobalValue::PrivateLinkage, s, false); // don't add null
+
+    place(s, [len, name, buffer](VisCodegen& cg, inject_clo_type also) {
       auto* after = block(name+"_after");
       also(after, after, Generated(*buffer, len));
       point(after);
@@ -445,13 +447,59 @@ namespace sel {
   }
 
   void VisCodegen::visit(StrChunks const& it) {
-    // std::vector<std::string> const& vs = it.chunks();
-    throw NIYError("generation of intermediary 'StrChunks'");
+    std::vector<std::string> const& vs = it.chunks();
+    int count = vs.size();
+
+    std::vector<char const*> vc;
+    std::vector<int> lens;
+    vc.reserve(count);
+    lens.reserve(count);
+    for (auto const& it : vs) {
+      vc.push_back(it.c_str());
+      lens.push_back(it.size());
+    }
+
+    letGlobal<char const***> arr("name", module, GlobalValue::PrivateLinkage, vc);
+    letGlobal<int const**> arrlens("name", module, GlobalValue::PrivateLinkage, lens);
+
+    place("chunks", [count, lens, arr, arrlens](VisCodegen& cg, inject_clo_type also) {
+      if (0 == count) {
+        // noop
+
+      } else if (1 == count) {
+        // no need for iterating
+        auto* after = block("chunks_of_"+std::to_string(count)+"_after");
+        also(after, after, Generated(*arr[0], lens[0]));
+        point(after);
+
+      } else {
+        auto* brk = block("chunks_of_"+std::to_string(count)+"_brk");
+        auto* cont = block("chunks_of_"+std::to_string(count)+"_cont");
+
+        auto* before = here();
+        auto* entry = block("chunks_of_"+std::to_string(count)+"_after");
+        br(entry);
+
+        letPHI<int> k;
+        k.incoming(0, before);
+
+        // before -> entry -> brk
+        //              `-> cont
+        also(brk, cont, Generated(*arr[k], *arrlens[k]));
+
+        point(cont);
+          auto kpp = k+1;
+          k.incoming(kpp, cont);
+          br(entry);
+
+        point(brk);
+      }
+    });
   }
 
   void VisCodegen::visit(LstMapCoerse const& it) {
     // Lst const& l = it.source();
-    throw NIYError("generation of intermediary 'StrChunks'");
+    throw NIYError("coersion of lists");
   }
 
 
