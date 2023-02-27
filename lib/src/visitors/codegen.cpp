@@ -608,49 +608,90 @@ namespace sel {
 
       s.make(cg, [&also, &s, &acc, &state](BasicBlock* brk, BasicBlock* cont, Generated it) {
         makeBufferLoop("codepoints's " + s.name, it.buf(), [&also, &acc, &state](BasicBlock* brk, BasicBlock* cont, let<char> at) {
-          /*/ half-pseudo-code
-          auto curr = let<int>(*state);
-          if (curr == 0) {
-            if ((at & 0b10000000) == 0) {
+          auto* before = here();
+          auto* also_bb = block("codepoints_also");
+
+          point(also_bb);
+            letPHI<double> send;
+
+          point(before);
+            auto curr = let<int>(*state);
+
+            auto* curr_zero = block("codepoints_curr_zero");
+            auto* curr_nonzero = block("codepoints_curr_nonzero");
+          cond(curr == 0, curr_zero, curr_nonzero);
+
+          point(curr_zero); {
+            auto* at_ascii = block("codepoints_at_ascii");
+            auto* at_nonascii = block("codepoints_at_nonascii");
+            cond((at & 0b10000000) == 0, at_ascii, at_nonascii);
+
+            point(at_ascii); {
               // ASCII-compatible
-              also(brk, cont, at.into<double>());
+              send.incoming(at.into<double>(), at_ascii);
+              br(also_bb);
+            }
+            point(at_nonascii); {
+              // start state counting
+              auto* s1 = block("codepoints_start_1");
+              auto* nots1 = block("codepoints_not_start_1");
+              auto* s2 = block("codepoints_start_2");
+              auto* nots2 = block("codepoints_not_start_2");
+              auto* s3 = block("codepoints_start_3");
+              auto* nots3 = block("codepoints_not_start_3");
+              cond((at & 0b00100000) == 0, s1, nots1);
+              point(nots1);
+              cond((at & 0b00010000) == 0, s2, nots2);
+              point(nots2);
+              cond((at & 0b00001000) == 0, s3, nots3);
+              point(nots3); {
+                send.incoming(at.into<double>(), nots3);
+                br(also_bb);
+              }
 
-            } else {
-              // auto a = at.into<int>();
-              // start state machine
-
-              if ((at & 0b00100000) == 0) {
+              point(s1); {
                 // 110 -> 1 more bytes
                 *acc = (at & 0b00011111).into<int>() << 6;
                 *state = 1;
-
-              } else if ((at & 0b00010000) == 0) {
+                br(cont);
+              }
+              point(s2); {
                 // 1110 -> 2 more bytes
                 *acc = (at & 0b00001111).into<int>() << 12;
                 *state = 2;
-
-              } else if ((at & 0b00001000) == 0) {
+                br(cont);
+              }
+              point(s3); {
                 // 11110 -> 3 more bytes
                 *acc = (at & 0b00000111).into<int>() << 18;
                 *state = 3;
-
-              } else also(brk, cont, at.into<double>());
-            }
-
-          } else {
+                br(cont);
+              }
+            } // ascii/nonascii
+          }
+          point(curr_nonzero); {
             auto next = curr-1;
             *state = next;
 
             auto upacc = let<int>(*acc) | (at & 0b00111111).into<int>();
 
-            if (next == 0) {
-              also(brk, cont, upacc.into<double>());
-            } else {
+            auto* next_zero = block("codepoints_next_zero");
+            auto* next_nonzero = block("codepoints_next_nonzero");
+            cond(next == 0, next_zero, next_nonzero);
+
+            point(next_zero); {
+              send.incoming(upacc.into<double>(), next_zero);
+              br(also_bb);
+            }
+            point(next_nonzero); {
               auto shft = next*6;
               *acc = upacc << shft;
+              br(cont);
             }
-          }
-          //*/ also(brk, cont, let<double>(0.));
+          } // zero/nonzero
+
+          point(also_bb);
+            also(brk, cont, send);
         });
         br(cont);
       });
