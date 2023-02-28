@@ -59,62 +59,108 @@ namespace sel {
   }
 
 
-  void VisRepr::visitNumLiteral(Type const& type, double n) {
-    reprHelper(type, "NumLiteral", {
-      ReprField("n", n),
+  VisRepr::Ret VisRepr::visit(NumLiteral const& it) {
+    reprHelper(it.type(), "NumLiteral", {
+      {"n", it.underlying()},
     });
+    return res;
   }
 
-  void VisRepr::visitStrLiteral(Type const& type, std::string const& s) {
-    reprHelper(type, "StrLiteral", {
-      ReprField("s", &s),
+  VisRepr::Ret VisRepr::visit(StrLiteral const& it) {
+    reprHelper(it.type(), "StrLiteral", {
+      {"s", &it.underlying()},
     });
+    return res;
   }
 
-  void VisRepr::visitLstLiteral(Type const& type, std::vector<Val*> const& v) {
+  VisRepr::Ret VisRepr::visit(LstLiteral const& it) {
+    auto const& v = it.underlying();
     size_t c = v.size();
     std::vector<char[16]> b(c);
     std::vector<ReprField> a;
     a.reserve(c);
     for (size_t k = 0; k < c; k++) {
       std::sprintf(b[k], "v[%zu]", k);
-      a.push_back(ReprField(b[k], v[k]));
+      a.push_back({b[k], v[k]});
     }
-    reprHelper(type, "LstLiteral", a);
+    reprHelper(it.type(), "LstLiteral", a);
+    return res;
   }
 
-  void VisRepr::visitFunChain(Type const& type, std::vector<Fun*> const& f) {
+  VisRepr::Ret VisRepr::visit(FunChain const& it) {
+    auto const& f = it.underlying();
     size_t c = f.size();
     std::vector<char[16]> b(c);
     std::vector<ReprField> a;
     a.reserve(c);
     for (size_t k = 0; k < c; k++) {
       std::sprintf(b[k], "f[%zu]", k);
-      a.push_back(ReprField(b[k], (Val*)f[k]));
+      a.push_back({b[k], (Val*)f[k]});
     }
-    reprHelper(type, "FunChain", a);
+    reprHelper(it.type(), "FunChain", a);
+    return res;
   }
 
-  void VisRepr::visitInput(Type const& type) {
-    reprHelper(type, "Input", {});
+  VisRepr::Ret VisRepr::visit(NumDefine const& it) {
+    reprHelper(it.type(), "NumDefine", {
+      {"v", &it.underlying()},
+      {"name", &it.getname()},
+      {"doc", &it.getdoc()},
+    });
+    return res;
   }
 
-  void VisRepr::visitStrChunks(Type const& type, std::vector<std::string> const& vs) {
+  VisRepr::Ret VisRepr::visit(StrDefine const& it) {
+    reprHelper(it.type(), "StrDefine", {
+      {"v", &it.underlying()},
+      {"name", &it.getname()},
+      {"doc", &it.getdoc()},
+    });
+    return res;
+  }
+
+  VisRepr::Ret VisRepr::visit(LstDefine const& it) {
+    reprHelper(it.type(), "LstDefine", {
+      {"v", &it.underlying()},
+      {"name", &it.getname()},
+      {"doc", &it.getdoc()},
+    });
+    return res;
+  }
+
+  VisRepr::Ret VisRepr::visit(FunDefine const& it) {
+    reprHelper(it.type(), "FunDefine", {
+      {"v", &it.underlying()},
+      {"name", &it.getname()},
+      {"doc", &it.getdoc()},
+    });
+    return res;
+  }
+
+  VisRepr::Ret VisRepr::visit(Input const& it) {
+    reprHelper(it.type(), "Input", {});
+    return res;
+  }
+
+  VisRepr::Ret VisRepr::visit(StrChunks const& it) {
+    auto const& vs = it.chunks();
     size_t c = vs.size();
     std::vector<char[16]> b(c);
     std::vector<ReprField> a;
     a.reserve(c);
     for (size_t k = 0; k < c; k++) {
       std::sprintf(b[k], "v[%zu]", k);
-      a.push_back(ReprField(b[k], &vs[k]));
+      a.push_back({b[k], &vs[k]});
     }
-    reprHelper(type, "StrChunks", a);
+    reprHelper(it.type(), "StrChunks", a);
+    return res;
   }
 
-  void VisRepr::visitLstMapCoerse(Type const& type, Lst const& l) {
-    reprHelper(type, "LstMapCoerse", {
-      ReprField("l", &l),
+  VisRepr::Ret VisRepr::visit(LstMapCoerse const& it) {
+    reprHelper(it.type(), "LstMapCoerse", {
+      {"l", &it.source()},
     });
+    return res;
   }
 
   void VisRepr::visitCommon(Segment const& it, Type const& type, char const* name, unsigned args, unsigned max_args) {
@@ -123,8 +169,8 @@ namespace sel {
       + ((name+1)
       + std::to_string(max_args-args));
     reprHelper(type, normalized.c_str(), {
-      ReprField("base", &it.base()),
-      ReprField("arg", &it.arg()),
+      {"base", &it.base()},
+      {"arg", &it.arg()},
     });
   }
 
@@ -134,37 +180,6 @@ namespace sel {
       + ((name+1)
       + std::to_string(max_args-args));
     reprHelper(type, normalized.c_str(), {});
-  }
-
-  VisRepr::Ret VisRepr::visit(NumLiteral const& it) {
-    visitNumLiteral(it.type(), it.underlying());
-    return res;
-  }
-  VisRepr::Ret VisRepr::visit(StrLiteral const& it) {
-    visitStrLiteral(it.type(), it.underlying());
-    return res;
-  }
-  VisRepr::Ret VisRepr::visit(LstLiteral const& it) {
-    visitLstLiteral(it.type(), it.underlying());
-    return res;
-  }
-  VisRepr::Ret VisRepr::visit(FunChain const& it) {
-    visitFunChain(it.type(), it.underlying());
-    return res;
-  }
-
-  VisRepr::Ret VisRepr::visit(Input const& it) {
-    visitInput(it.type());
-    return res;
-  }
-
-  VisRepr::Ret VisRepr::visit(StrChunks const& it) {
-    visitStrChunks(it.type(), it.chunks());
-    return res;
-  }
-  VisRepr::Ret VisRepr::visit(LstMapCoerse const& it) {
-    visitLstMapCoerse(it.type(), it.source());
-    return res;
   }
 
 } // namespace sel

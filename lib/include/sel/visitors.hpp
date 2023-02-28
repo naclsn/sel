@@ -41,14 +41,6 @@ namespace sel {
     std::ostream& res;
     ReprCx cx;
 
-    void visitNumLiteral(Type const& type, double n);
-    void visitStrLiteral(Type const& type, std::string const& s);
-    void visitLstLiteral(Type const& type, std::vector<Val*> const& v);
-    void visitFunChain(Type const& type, std::vector<Fun*> const& f);
-    void visitInput(Type const& type);
-    void visitStrChunks(Type const& type, std::vector<std::string> const& vs);
-    void visitLstMapCoerse(Type const& type, Lst const& l);
-
     struct ReprField {
       char const* name;
       enum { DBL, STR, VAL } const data_ty;
@@ -72,6 +64,10 @@ namespace sel {
     Ret visit(StrLiteral const& it);
     Ret visit(LstLiteral const& it);
     Ret visit(FunChain const& it);
+    Ret visit(NumDefine const& it);
+    Ret visit(StrDefine const& it);
+    Ret visit(LstDefine const& it);
+    Ret visit(FunDefine const& it);
     Ret visit(Input const& it);
     Ret visit(StrChunks const& it);
     Ret visit(LstMapCoerse const& it);
@@ -89,15 +85,71 @@ namespace sel {
     Ret visit(NumLiteral const& it) { throw TypeError("help(NumLiteral) does not make sense"); }
     Ret visit(StrLiteral const& it) { throw TypeError("help(StrLiteral) does not make sense"); }
     Ret visit(LstLiteral const& it) { throw TypeError("help(LstLiteral) does not make sense"); }
+    Ret visit(FunChain const& it) { throw TypeError("help(FunChain) does not make sense"); }
+    Ret visit(NumDefine const& it);
+    Ret visit(StrDefine const& it);
+    Ret visit(LstDefine const& it);
+    Ret visit(FunDefine const& it);
+    Ret visit(Input const& it) { throw TypeError("help(Input) does not make sense"); }
     Ret visit(StrChunks const& it) { throw TypeError("help(StrChunks) does not make sense"); }
     Ret visit(LstMapCoerse const& it) { throw TypeError("help(LstMapCoerse) does not make sense"); }
-    Ret visit(FunChain const& it) { throw TypeError("help(FunChain) does not make sense"); }
-    Ret visit(Input const& it) { throw TypeError("help(Input) does not make sense"); }
+  };
+
+
+  class VisName {
+  public:
+    typedef char const* Ret;
+
+    template <typename T>
+    Ret visit(T const& it) {
+      return T::the::Base::Next::name;
+    }
+    Ret visit(NumLiteral const& it) { throw TypeError("name(NumLiteral) does not make sense"); }
+    Ret visit(StrLiteral const& it) { throw TypeError("name(StrLiteral) does not make sense"); }
+    Ret visit(LstLiteral const& it) { throw TypeError("name(LstLiteral) does not make sense"); }
+    Ret visit(FunChain const& it) { throw TypeError("name(FunChain) does not make sense"); }
+    Ret visit(NumDefine const& it);
+    Ret visit(StrDefine const& it);
+    Ret visit(LstDefine const& it);
+    Ret visit(FunDefine const& it);
+    Ret visit(Input const& it) { throw TypeError("name(Input) does not make sense"); }
+    Ret visit(StrChunks const& it) { throw TypeError("name(StrChunks) does not make sense"); }
+    Ret visit(LstMapCoerse const& it) { throw TypeError("name(LstMapCoerse) does not make sense"); }
+  };
+
+
+  class VisShow {
+    std::ostream& res;
+
+    void visitCommon(Segment const& it, char const* name, unsigned args, unsigned max_args);
+    void visitCommon(Val const& it, char const* name, unsigned args, unsigned max_args);
+
+  public:
+    typedef std::ostream& Ret;
+
+    VisShow(std::ostream& res): res(res) { }
+
+    template <typename T>
+    Ret visit(T const& it) {
+      visitCommon((typename std::conditional<!T::args, Val, Segment>::type&)it, T::the::Base::Next::name, T::args, T::the::args);
+      return res;
+    }
+    Ret visit(NumLiteral const& it);
+    Ret visit(StrLiteral const& it);
+    Ret visit(LstLiteral const& it);
+    Ret visit(FunChain const& it);
+    Ret visit(NumDefine const& it);
+    Ret visit(StrDefine const& it);
+    Ret visit(LstDefine const& it);
+    Ret visit(FunDefine const& it);
+    Ret visit(Input const& it);
+    Ret visit(StrChunks const& it);
+    Ret visit(LstMapCoerse const& it);
   };
 
 
   namespace visitors_ll {
-    typedef ll::pack<VisRepr, VisHelp> visitors;
+    typedef ll::pack<VisRepr, VisHelp, VisName, VisShow> visitors;
   }
 
 } // namespace sel

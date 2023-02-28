@@ -15,7 +15,7 @@ int main(int argc, char* argv[]) {
   else build(app, opts.script);
 
   if (opts.any_type) {
-    cout << app << "\n\t:: " << app.type() << endl;
+    cout << app << "\n#       :: " << app.type() << endl;
     return EXIT_SUCCESS;
   }
 

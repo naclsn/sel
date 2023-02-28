@@ -12,6 +12,8 @@ lib = library('sel',
   'src/visitors.cpp',
   'src/visitors/repr.cpp',
   'src/visitors/help.cpp',
+  'src/visitors/name.cpp',
+  'src/visitors/show.cpp',
   include_directories : [inc],
   install : true,
 )

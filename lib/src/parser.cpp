@@ -43,6 +43,22 @@ namespace sel {
     return new FunChain(app, g);
   }
 
+  double NumDefine::value() { return v->value(); }
+  Val* NumDefine::copy() const { return new NumDefine(app, name, doc, (Num*)v->copy()); }
+
+  std::ostream& StrDefine::stream(std::ostream& out) { return v->stream(out); }
+  bool StrDefine::end() { return v->end(); }
+  std::ostream& StrDefine::entire(std::ostream& out) { return v->entire(out); }
+  Val* StrDefine::copy() const { return new StrDefine(app, name, doc, (Str*)v->copy()); }
+
+  Val* LstDefine::operator*() { return v->operator*(); }
+  Lst& LstDefine::operator++() { return v->operator++(); }
+  bool LstDefine::end() { return v->end(); }
+  Val* LstDefine::copy() const { return new LstDefine(app, name, doc, (Lst*)v->copy()); }
+
+  Val* FunDefine::operator()(Val* arg) { return v->operator()(arg); }
+  Val* FunDefine::copy() const { return new FunDefine(app, name, doc, (Fun*)v->copy()); }
+
   std::ostream& Input::stream(std::ostream& out) {
     // already read up to `upto`, so take from cache starting at `nowat`
     if (nowat < buffer->upto) {
@@ -570,7 +586,17 @@ namespace sel {
         clean.shrink_to_fit();
       }
 
-      // TODO: where to put this doc now? oops..
+      switch (val->type().base) {
+        case Ty::NUM: val = new NumDefine(app, *t_name.as.name, clean, (Num*)val); break;
+        case Ty::STR: val = new StrDefine(app, *t_name.as.name, clean, (Str*)val); break;
+        case Ty::LST: val = new LstDefine(app, *t_name.as.name, clean, (Lst*)val); break;
+        case Ty::FUN: val = new FunDefine(app, *t_name.as.name, clean, (Fun*)val); break;
+        default: {
+          std::ostringstream oss;
+          throw TypeError((oss << "unexpected type in def expression: '" << val->type() << "'", oss.str()));
+        }
+      }
+
       app.define_name_user(*t_name.as.name, val);
 
     } else val = parseAtom(app, lexer);
@@ -713,8 +739,53 @@ namespace sel {
   }
 
   std::ostream& operator<<(std::ostream& out, App const& app) {
-    // TODO: todo
-    return out << "hey, am an app";
+    VisShow show(out);
+
+    // XXX: probably the map needs to be ordered because a 'def' can depend on an other
+    for (auto const& it : app.user) {
+      std::string name;
+      std::string doc;
+      Val const* u;
+
+      Val const* val = it.second;
+      switch (val->type().base) {
+        case Ty::NUM: {
+            NumDefine const& def = *(NumDefine*)val;
+            name = def.getname();
+            doc = def.getdoc();
+            u = &def.underlying();
+          } break;
+        case Ty::STR: {
+            StrDefine const& def = *(StrDefine*)val;
+            name = def.getname();
+            doc = def.getdoc();
+            u = &def.underlying();
+          } break;
+        case Ty::LST: {
+            LstDefine const& def = *(LstDefine*)val;
+            name = def.getname();
+            doc = def.getdoc();
+            u = &def.underlying();
+          } break;
+        case Ty::FUN: {
+            FunDefine const& def = *(FunDefine*)val;
+            name = def.getname();
+            doc = def.getdoc();
+            u = &def.underlying();
+          } break;
+        default: {
+          std::ostringstream oss;
+          throw TypeError((oss << "unexpected type in def expression: '" << val->type() << "'", oss.str()));
+        }
+      }
+
+      out
+        << "def " << name << ":\n  "
+        << quoted(doc, true, false) << ":\n  ["
+      ;
+      u->accept(show) << "]\n  ;\n";
+    }
+    return app.f->accept(show);
   }
 
   std::istream& operator>>(std::istream& in, App& app) {

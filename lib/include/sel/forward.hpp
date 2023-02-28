@@ -12,6 +12,11 @@ namespace sel {
   struct LstLiteral;
   struct FunChain;
 
+  struct NumDefine;
+  struct StrDefine;
+  struct LstDefine;
+  struct FunDefine;
+
   struct Input;
   class App; // USL: remove if not needed in codegen
 

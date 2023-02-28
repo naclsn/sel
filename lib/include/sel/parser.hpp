@@ -124,6 +124,87 @@ namespace sel {
     }
   };
 
+  template <typename U, typename ...Args>
+  struct Def : U {
+  protected:
+    std::string const name;
+    std::string const doc;
+    U* v;
+
+    Def(App& app, std::string const name, std::string const doc, U* v, Args... args)
+      : U(app, args...)
+      , name(name)
+      , doc(doc)
+      , v(v)
+    { }
+
+  public:
+    U const& underlying() const { return *v; }
+
+    std::string const& getname() const { return name; }
+    std::string const& getdoc() const { return doc; }
+  };
+
+  struct NumDefine : Def<Num> {
+  public:
+    NumDefine(App& app, std::string const name, std::string const doc, Num* v)
+      : Def(app, name, doc, v)
+    { }
+    double value() override;
+    Val* copy() const override;
+
+  protected:
+    VisitTable visit_table() const override {
+      return make_visit_table<decltype(this)>::function();
+    }
+  };
+
+  struct StrDefine : Def<Str, TyFlag> {
+  public:
+    StrDefine(App& app, std::string const name, std::string const doc, Str* v)
+      : Def(app, name, doc, v, (TyFlag)v->type().flags)
+    { }
+    std::ostream& stream(std::ostream& out) override;
+    bool end() override;
+    std::ostream& entire(std::ostream& out) override;
+    Val* copy() const override;
+
+  protected:
+    VisitTable visit_table() const override {
+      return make_visit_table<decltype(this)>::function();
+    }
+  };
+
+  struct LstDefine : Def<Lst, Type const&> {
+  public:
+    LstDefine(App& app, std::string const name, std::string const doc, Lst* v)
+      : Def(app, name, doc, v, v->type())
+    { }
+    Val* operator*() override;
+    Lst& operator++() override;
+    bool end() override;
+    Val* copy() const override;
+
+  protected:
+    VisitTable visit_table() const override {
+      return make_visit_table<decltype(this)>::function();
+    }
+  };
+
+  struct FunDefine : Def<Fun, Type const&> {
+  public:
+    FunDefine(App& app, std::string const name, std::string const doc, Fun* v)
+      : Def(app, name, doc, v, v->type())
+    { }
+    Val* operator()(Val* arg) override;
+    Val* copy() const override;
+
+  protected:
+    VisitTable visit_table() const override {
+      return make_visit_table<decltype(this)>::function();
+    }
+  };
+
   struct Input : Str {
   private:
     struct InputBuffer {

@@ -30,20 +30,41 @@ namespace sel {
   }
 
   std::ostream& operator<<(std::ostream& out, quoted q) {
-    out << '"';
-    std::string::size_type from = 0, to = q.str.find_first_of({'\t', '\n', '\r', '"'});
+    if (q.put_quo) out << (q.do_col ? ':' : '"');
+    std::string const search =
+      { '\a'
+      , '\b'
+      , '\t'
+      , '\n'
+      , '\v'
+      , '\f'
+      , '\r'
+      , '\e'
+      , q.do_col ? ':' : '"'
+      };
+    std::string::size_type from = 0, to = q.str.find_first_of(search);
     while (std::string::npos != to) {
-      out << q.str.substr(from, to-from) << '\\';
-      switch (q.str.at(to)) {
-        case '\t': out << 't'; break;
-        case '\n': out << 'n'; break;
-        case '\r': out << 'r'; break;
-        case '"':  out << '"'; break;
+      if (q.do_col && ':' == q.str.at(to)) {
+        out << "::";
+      } else {
+        out << q.str.substr(from, to-from) << '\\';
+        switch (q.str.at(to)) {
+          case '\a': out << 'a'; break;
+          case '\b': out << 'b'; break;
+          case '\t': out << 't'; break;
+          case '\n': out << 'n'; break;
+          case '\v': out << 'v'; break;
+          case '\f': out << 'f'; break;
+          case '\r': out << 'r'; break;
+          case '\e': out << 'e'; break;
+          case '"':  out << '"'; break;
+        }
+        from = to+1;
       }
-      from = to+1;
-      to = q.str.find_first_of({'\t', '\n', '\r', '"'}, from);
+      to = q.str.find_first_of(search, from);
     }
-    out << q.str.substr(from) << '"';
+    out << q.str.substr(from);
+    if (q.put_quo) out << (q.do_col ? ':' : '"');
     return out;
   }
 

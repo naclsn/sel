@@ -60,7 +60,10 @@ namespace sel {
    */
   struct quoted {
     std::string const& str;
-    inline quoted(std::string const& str): str(str) { }
+    bool do_col;
+    bool put_quo;
+    inline quoted(std::string const& str): str(str), do_col(false), put_quo(true) { }
+    inline quoted(std::string const& str, bool do_col, bool put_quo): str(str), do_col(do_col), put_quo(put_quo) { }
   };
   std::ostream& operator<<(std::ostream& out, quoted q);
 
