@@ -630,7 +630,9 @@ namespace sel {
 
     // early return: single value in script / sub-script
     val = parseElement(app, lexer);
-    if (eos == lexer || Token::Type::SUB_CLOSE == lexer->type)
+    if (eos == lexer
+      || Token::Type::SUB_CLOSE == lexer->type
+      || Token::Type::END == lexer->type)
       return val;
 
     // early return: syntax error, to caller to handle
