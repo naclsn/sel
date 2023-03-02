@@ -537,33 +537,45 @@ unknown_token_push1:
 
   // internal
   bool recurseEqual(known_map& map, Type const& a, Type const& b) {
-    // std::cerr << "recurseEqual(" << a << ", " << b << ")\n";
-    // for (auto const& it : map)
-    //   std::cerr << "\t[" << it.first << "]= " << it.second << "\n";
+    if (a.base != b.base) {
+      if (Ty::UNK == a.base) {
+        auto const& it = map.find(*a.p.name);
+        if (map.end() != it) return recurseEqual(map, it->second, b);
+        map.insert({*a.p.name, b});
+        return true; // this lets eg. '[a] == a' be true :-(
+      }
 
-    if (Ty::UNK == a.base) {
-      auto const& it = map.find(*a.p.name);
-      if (map.end() != it)
-        return recurseEqual(map, it->second, b);
-      map.insert({*a.p.name, b});
-      return true;
-    }
-    if (Ty::UNK == b.base) {
-      auto const& it = map.find(*b.p.name);
-      if (map.end() != it)
-        return recurseEqual(map, b, it->second);
-      map.insert({*b.p.name, a});
-      return true;
-    }
+      if (Ty::UNK == b.base) {
+        auto const& it = map.find(*b.p.name);
+        if (map.end() != it) return recurseEqual(map, a, it->second);
+        map.insert({*b.p.name, a});
+        return true; // this lets eg. '[a] == a' be true :-(
+      }
 
-    if (a.base != b.base)
+      // none is UNK; trivial not equal
       return false;
+    }
 
     // XXX: disabled for now (support too partial)
     //if ((TyFlag::IS_INF & a.flags) != (TyFlag::IS_INF & b.flags))
     //  return false;
 
     switch (a.base) {
+      case Ty::UNK:
+        if (*a.p.name == *b.p.name) return true;
+        // else, if one is already associated
+        {
+          auto const& it = map.find(*a.p.name);
+          if (map.end() != it) return recurseEqual(map, it->second, b);
+        }
+        {
+          auto const& it = map.find(*b.p.name);
+          if (map.end() != it) return recurseEqual(map, a, it->second);
+        }
+        // comparing eg. 'a' and 'b'
+        map.insert({*a.p.name, b});
+        return true;
+
       case Ty::NUM:
       case Ty::STR:
         return true;
@@ -583,10 +595,9 @@ unknown_token_push1:
       case Ty::FUN:
         return recurseEqual(map, a.from(), b.from())
             && recurseEqual(map, a.to(), b.to());
-
-      // unreachable
-      default: return false;
     }
+
+    return false;
   }
 
   bool Type::operator==(Type const& other) const {
