@@ -28,6 +28,7 @@ void lookup(char const* const names[]) {
 
     Type ty;
     ss >> ty;
+    unsigned ar = ty.arity();
 
     bool found = false;
 
@@ -35,7 +36,7 @@ void lookup(char const* const names[]) {
       char const* name = bins_list::names[k];
       auto* it = lookup_name(app, name);
 
-      if (it->type() == ty) {
+      if (it->type() == ty && it->type().arity() == ar) {
         if (found) cout << "\n";
         else found = true;
 

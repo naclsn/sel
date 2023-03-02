@@ -8,6 +8,7 @@ all = [
   'def_kw',
   'end',
   'each',
+  'Type_compare',
 ]
 
 foreach name : all

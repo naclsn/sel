@@ -52,6 +52,20 @@ using namespace sel;
   return 1;                                                   \
 } while (0)
 
+#define assert_ne(__shldnt, __have) do {                      \
+  auto _shldnt = (__shldnt);                                  \
+  auto _have = (__have);                                      \
+  if (_shldnt != _have) break;                                \
+  cerr                                                        \
+    << GREEN #__shldnt RESET "  !=  " RED #__have RESET "\n"  \
+    << "assertion failed with:\n"                             \
+    << "   values do match\n"                                 \
+    << "   unexpected: " GREEN << _shldnt << RESET "\n"       \
+    << "   but indeed: " RED   << _have   << RESET "\n"       \
+  ;                                                           \
+  return 1;                                                   \
+} while (0)
+
 #define assert_cmp(__should, __have) do {                 \
   if (_assert_cmp(#__should, #__have, __should, __have))  \
     return 1;                                             \

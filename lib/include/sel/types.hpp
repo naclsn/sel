@@ -55,6 +55,7 @@ namespace sel {
     Type const& from() const { return *p.box_pair[0]; }
     Type const& to() const { return *p.box_pair[1]; }
     Type applied(Type const& arg) const;
+    unsigned arity() const { return Ty::FUN == base ? to().arity() + 1 : 0; }
   };
 
   std::ostream& operator<<(std::ostream& out, Ty ty);

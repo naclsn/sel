@@ -535,50 +535,63 @@ unknown_token_push1:
     parseTypeImpl(first, lexer, res);
   }
 
-  /**
-   * Two types compare equal (are compatible) if any:
-   * - any UNK
-   * - both STR or both NUM
-   * - both LST and recursive on has
-   * - both FUN and recursive on from and to
-   *
-   * As such, this does not look at the flags (eg. IS_INF).
-   */
-  bool Type::operator==(Type const& other) const {
-    if (Ty::UNK == base || Ty::UNK == other.base)
-      return true;
+  // internal
+  bool recurseEqual(known_map& map, Type const& a, Type const& b) {
+    // std::cerr << "recurseEqual(" << a << ", " << b << ")\n";
+    // for (auto const& it : map)
+    //   std::cerr << "\t[" << it.first << "]= " << it.second << "\n";
 
-    if (base != other.base)
+    if (Ty::UNK == a.base) {
+      auto const& it = map.find(*a.p.name);
+      if (map.end() != it)
+        return recurseEqual(map, it->second, b);
+      map.insert({*a.p.name, b});
+      return true;
+    }
+    if (Ty::UNK == b.base) {
+      auto const& it = map.find(*b.p.name);
+      if (map.end() != it)
+        return recurseEqual(map, b, it->second);
+      map.insert({*b.p.name, a});
+      return true;
+    }
+
+    if (a.base != b.base)
       return false;
 
     // XXX: disabled for now (support too partial)
-    //if ((TyFlag::IS_INF & flags) != (TyFlag::IS_INF & other.flags))
+    //if ((TyFlag::IS_INF & a.flags) != (TyFlag::IS_INF & b.flags))
     //  return false;
 
-    switch (base) {
+    switch (a.base) {
       case Ty::NUM:
       case Ty::STR:
         return true;
 
       case Ty::LST:
         { // YYY: cant use vector<>::operator== because these are vectors of pointers
-          auto const len = p.box_has->size();
-          if (len != other.p.box_has->size()) return false;
+          auto const len = a.has().size();
+          if (len != b.has().size()) return false;
           for (size_t k = 0; k < len; k++) {
-            Type const& tya = *(*p.box_has)[k];
-            Type const& tyb = *(*other.p.box_has)[k];
-            if (tya != tyb) return false;
+            Type const& tya = *(a.has()[k]);
+            Type const& tyb = *(b.has()[k]);
+            if (!recurseEqual(map, tya, tyb)) return false;
           }
           return true;
         }
 
       case Ty::FUN:
-        return *p.box_pair[0] == *other.p.box_pair[0]
-            && *p.box_pair[1] == *other.p.box_pair[1];
+        return recurseEqual(map, a.from(), b.from())
+            && recurseEqual(map, a.to(), b.to());
 
       // unreachable
       default: return false;
     }
+  }
+
+  bool Type::operator==(Type const& other) const {
+    std::unordered_map<std::string, Type const&> map;
+    return recurseEqual(map, *this, other);
   }
   bool Type::operator!=(Type const& other) const {
     return !(*this == other);
