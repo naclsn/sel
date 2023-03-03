@@ -12,7 +12,7 @@ namespace sel {
 
   Val::Val(App& app, Type const& ty)
     : app(app)
-    , ty(Type(ty))
+    , ty(ty)
   { app.push_back(this); }
   Val::~Val() { }
 
@@ -27,9 +27,9 @@ namespace sel {
       );
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
-    if (Ty::NUM == ty.base) return (Num*)from;
+    if (Ty::NUM == ty.base()) return (Num*)from;
 
-    if (Ty::STR == ty.base)
+    if (Ty::STR == ty.base())
       return (Num*)(*static_lookup_name(app, tonum))(from);
 
     throw TypeError(ty, to);
@@ -44,11 +44,11 @@ namespace sel {
       );
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
-    if (Ty::STR == ty.base) return (Str*)from;
+    if (Ty::STR == ty.base()) return (Str*)from;
 
-    if (Ty::NUM == ty.base)
+    if (Ty::NUM == ty.base())
       return (Str*)(*static_lookup_name(app, tostr))(from);
-    if (Ty::LST == ty.base)
+    if (Ty::LST == ty.base())
       return (Str*)(*(Fun*)(*static_lookup_name(app, join))(new StrChunks(app, "")))(from);
 
     throw TypeError(ty, to);
@@ -68,10 +68,10 @@ namespace sel {
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
 
-    std::vector<Type*> const& to_has = to.has();
+    auto const& to_has = to.has();
     auto const to_size = to_has.size();
 
-    if (Ty::LST == ty.base) {
+    if (Ty::LST == ty.base()) {
       if (ty == to) return (Lst*)from;
 
       // std::vector<Type*> const& ty_has = ty.has();
@@ -91,10 +91,10 @@ namespace sel {
       return new LstMapCoerse(app, (Lst*)from, to_has);
     }
 
-    if (Ty::STR == ty.base && 1 == to_size) {
-      if (Ty::NUM == to_has[0]->base)
+    if (Ty::STR == ty.base() && 1 == to_size) {
+      if (Ty::NUM == to_has[0].base())
         return (Lst*)(*static_lookup_name(app, codepoints))(from);
-      if (Ty::STR == to_has[0]->base || Ty::UNK == to_has[0]->base)
+      if (Ty::STR == to_has[0].base() || Ty::UNK == to_has[0].base())
         return (Lst*)(*static_lookup_name(app, graphemes))(from);
     }
 
@@ -110,20 +110,8 @@ namespace sel {
       );
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
-    if (Ty::FUN == to.base) {
-
-      // performs as much as arity check (get return type
-      // until one is no longer Fun, if the other is still
-      // Fun then it does not check out)
-      // YYY: the pointer is to not invoque `operator=`
-      Type const* cy = &ty; bool still_y = false;
-      Type const* co = &to; bool still_o = false;
-      do {
-        cy = &cy->to(); still_y = Ty::FUN == cy->base;
-        co = &co->to(); still_o = Ty::FUN == co->base;
-      } while (still_y && still_o);
-
-      if (still_y || still_o) {
+    if (Ty::FUN == to.base()) {
+      if (ty.arity() != to.arity()) {
         std::ostringstream oss;
         throw TypeError((oss << "function arity of " << ty << " does not match with " << to, oss.str()));
       }
@@ -144,7 +132,7 @@ namespace sel {
       );
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
-    switch (to.base) {
+    switch (to.base()) {
       case Ty::UNK: return from;
       case Ty::NUM: return coerse<Num>(app, from, to);
       case Ty::STR: return coerse<Str>(app, from, to);

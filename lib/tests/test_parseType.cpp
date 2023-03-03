@@ -29,41 +29,31 @@ TEST(parseType) {
 
   doTestEq(
     "ty :: (a, b)",
-    Type(Ty::LST,
-      {.box_has= new vector<Type*>{
-        new Type(Ty::UNK, {.name=new std::string("a")}, 0),
-        new Type(Ty::UNK, {.name=new std::string("b")}, 0),
-      }}, TyFlag::IS_TPL
-    )
+    Type::makeLst({
+      Type::makeUnk("a"),
+      Type::makeUnk("b"),
+    }, false, true)
   )+
 
   doTestEq(
     "ty :: [a, b]*",
-    Type(Ty::LST,
-      {.box_has= new vector<Type*>{
-        new Type(Ty::UNK, {.name=new std::string("a")}, 0),
-        new Type(Ty::UNK, {.name=new std::string("b")}, 0),
-      }}, TyFlag::IS_INF
-    )
+    Type::makeLst({
+      Type::makeUnk("a"),
+      Type::makeUnk("b"),
+    }, false, false)
   )+
 
   doTestEq(
     "ty :: (Num -> Str*) -> Num -> Num",
-    Type(Ty::FUN,
-      {.box_pair={
-        new Type(Ty::FUN,
-          {.box_pair={
-            new Type(Ty::NUM, {0}, 0),
-            new Type(Ty::STR, {0}, TyFlag::IS_INF)
-          }}, 0
-        ),
-        new Type(Ty::FUN,
-          {.box_pair={
-            new Type(Ty::NUM, {0}, 0),
-            new Type(Ty::NUM, {0}, 0)
-          }}, 0
-        )
-      }}, 0
+    Type::makeFun(
+      Type::makeFun(
+        Type::makeNum(),
+        Type::makeStr(true)
+      ),
+      Type::makeFun(
+        Type::makeNum(),
+        Type::makeNum()
+      )
     )
   )+
 

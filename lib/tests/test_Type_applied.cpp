@@ -1,6 +1,6 @@
 #include "common.hpp"
 
-int pushAssert(vector<Type>& all, Type const push, string const expect) {
+int pushAssert(vector<Type>& all, Type const& push, string const expect) {
   all.push_back(push);
 
   ostringstream oss;
@@ -21,7 +21,9 @@ int doApplied(Type fun, vector<Type> args, vector<string> reprx) {
   for (size_t k = 0; k < args.size(); k++) {
     cout << all[all.size()-1].from() << "  <-  " << args[k] << '\n';
 
-    fails+= pushAssert(all, all[all.size()-1].applied(args[k]), reprx[k+1]);
+    Type ty;
+    all[all.size()-1].applied(args[k], ty);
+    fails+= pushAssert(all, ty, reprx[k+1]);
   }
 
   return fails;
@@ -30,116 +32,55 @@ int doApplied(Type fun, vector<Type> args, vector<string> reprx) {
 TEST(Type_applied) {
   int fails = 0;
 
-  Type map2_t = Type(Ty::FUN,
-    {.box_pair={
-      new Type(Ty::FUN,
-        {.box_pair={
-          new Type(Ty::UNK, {.name=new string("a_map")}, 0),
-          new Type(Ty::UNK, {.name=new string("b_map")}, 0)
-        }}, 0
-      ),
-      new Type(Ty::FUN,
-        {.box_pair={
-          new Type(Ty::LST,
-            {.box_has=new vector<Type*>({
-              new Type(Ty::UNK, {.name=new string("a_map")}, 0)
-            })}, TyFlag::IS_INF
-          ),
-          new Type(Ty::LST,
-            {.box_has=new vector<Type*>({
-              new Type(Ty::UNK, {.name=new string("b_map")}, 0)
-            })}, TyFlag::IS_INF
-          )
-        }}, 0
-      )
-    }}, 0
+  Type map2_t = Type::makeFun(
+    Type::makeFun(
+      Type::makeUnk("a_map"),
+      Type::makeUnk("b_map")
+    ),
+    Type::makeFun(
+      Type::makeLst({Type::makeUnk("a_map")}, true, false),
+      Type::makeLst({Type::makeUnk("b_map")}, true, false)
+    )
   );
 
-  Type tonum1_t = Type(Ty::FUN,
-    {.box_pair={
-      new Type(Ty::STR, {0}, TyFlag::IS_FIN),
-      new Type(Ty::NUM, {0}, 0)
-    }}, 0
-  );
+  Type tonum1_t = Type::makeFun(Type::makeStr(true), Type::makeNum());
 
-  Type text0_t = Type(Ty::LST,
-    {.box_has=new vector<Type*>({
-      new Type(Ty::STR, {0}, TyFlag::IS_FIN)
-    })}, TyFlag::IS_FIN
-  );
+  Type text0_t = Type::makeLst({Type::makeStr(false)}, false, false);
 
-  // map tonum :text:
+  // map tonum {:text:}
   fails+= doApplied(map2_t, {tonum1_t, text0_t}, {
     "(a -> b) -> [a]* -> [b]*",
-    "[Str]* -> [Num]*",
+    "[Str*]* -> [Num]*",
     "[Num]",
   });
 
-  Type zipwith3_t = Type(Ty::FUN,
-    {.box_pair={
-      new Type(Ty::FUN,
-        {.box_pair={
-          new Type(Ty::UNK, {.name=new string("a_zipwith")}, 0),
-          new Type(Ty::FUN,
-            {.box_pair={
-              new Type(Ty::UNK, {.name=new string("b_zipwith")}, 0),
-              new Type(Ty::UNK, {.name=new string("c_zipwith")}, 0)
-            }}, 0
-          )
-        }}, 0
-      ),
-      new Type(Ty::FUN,
-        {.box_pair={
-          new Type(Ty::LST,
-            {.box_has=new vector<Type*>({
-              new Type(Ty::UNK, {.name=new string("a_zipwith")}, 0)
-            })}, TyFlag::IS_INF
-          ),
-          new Type(Ty::FUN,
-            {.box_pair={
-              new Type(Ty::LST,
-                {.box_has=new vector<Type*>({
-                  new Type(Ty::UNK, {.name=new string("b_zipwith")}, 0)
-                })}, TyFlag::IS_INF
-              ),
-              new Type(Ty::LST,
-                {.box_has=new vector<Type*>({
-                  new Type(Ty::UNK, {.name=new string("c_zipwith")}, 0)
-                })}, TyFlag::IS_INF
-              )
-            }}, 0
-          )
-        }}, 0
+  Type zipwith3_t = Type::makeFun(
+    Type::makeFun(
+      Type::makeUnk("a_zipwith"),
+      Type::makeFun(
+        Type::makeUnk("b_zipwith"),
+        Type::makeUnk("c_zipwith")
       )
-    }}, 0
+    ),
+    Type::makeFun(
+      Type::makeLst({Type::makeUnk("a_zipwith")}, true, false),
+      Type::makeFun(
+        Type::makeLst({Type::makeUnk("b_zipwith")}, true, false),
+        Type::makeLst({Type::makeUnk("c_zipwith")}, true, false)
+      )
+    )
   );
 
-  Type repeat1_t = Type(Ty::FUN,
-    {.box_pair={
-      new Type(Ty::UNK, {.name=new string("a_repeat")}, 0),
-      new Type(Ty::LST,
-        {.box_has=new vector<Type*>({
-          new Type(Ty::UNK, {.name=new string("a_repeat")}, 0)
-        })}, TyFlag::IS_INF
-      )
-    }}, 0
+  Type repeat1_t = Type::makeFun(
+    Type::makeUnk("a_repeat"),
+    Type::makeLst({Type::makeUnk("a_repeat")}, true, false)
   );
 
-  Type list0_repeat1_t = Type(Ty::LST,
-    {.box_has=new vector<Type*>({
-      new Type(repeat1_t)
-    })}, TyFlag::IS_FIN
-  );
+  Type list0_repeat1_t = Type::makeLst({repeat1_t}, false, false);
 
-  Type list0_list0_num_t = Type(Ty::LST,
-    {.box_has=new vector<Type*>({
-      new Type(Ty::LST,
-        {.box_has=new vector<Type*>({
-          new Type(Ty::NUM, {0}, 0)
-        })}, TyFlag::IS_FIN
-      )
-    })}, TyFlag::IS_FIN
-  );
+  Type list0_list0_num_t = Type::makeLst({
+    Type::makeLst({Type::makeNum()}, false, false)
+  }, false, false);
 
   // zipwith map {repeat} {{1}}
   fails+= doApplied(zipwith3_t, {map2_t, list0_repeat1_t, list0_list0_num_t}, {
@@ -150,11 +91,9 @@ TEST(Type_applied) {
   });
 
   // a -> b
-  Type idk1_t = Type(Ty::FUN,
-    {.box_pair={
-      new Type(Ty::UNK, {.name=new string("a_idk")}, 0),
-      new Type(Ty::UNK, {.name=new string("b_idk")}, 0)
-    }}, 0
+  Type idk1_t = Type::makeFun(
+    Type::makeUnk("a_idk"),
+    Type::makeUnk("b_idk")
   );
   fails+= doApplied(idk1_t, {text0_t}, {"a -> b", "b"});
 

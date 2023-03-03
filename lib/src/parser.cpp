@@ -26,7 +26,7 @@ namespace sel {
     w.reserve(v.size());
     for (auto const& it : v)
       w.push_back(it->copy());
-    return new LstLiteral(app, w, new std::vector<Type*>(ty.has()));
+    return new LstLiteral(app, w, std::vector<Type>(ty.has())); // TODO: std::move?
   }
 
   Val* FunChain::operator()(Val* arg) {
@@ -586,7 +586,7 @@ namespace sel {
         clean.shrink_to_fit();
       }
 
-      switch (val->type().base) {
+      switch (val->type().base()) {
         case Ty::NUM: val = new NumDefine(app, *t_name.as.name, clean, (Num*)val); break;
         case Ty::STR: val = new StrDefine(app, *t_name.as.name, clean, (Str*)val); break;
         case Ty::LST: val = new LstDefine(app, *t_name.as.name, clean, (Lst*)val); break;
@@ -653,7 +653,7 @@ namespace sel {
     // actually be done about it _yet_, so the computation
     // is packed in a `FunChain` object (so that it is
     // itself a function)
-    bool isfun = Ty::FUN == val->type().base;
+    bool isfun = Ty::FUN == val->type().base();
 
     if (isfun) {
       // first is a function, pack all up for later
@@ -697,12 +697,16 @@ namespace sel {
   void App::run(std::istream& in, std::ostream& out) {
     Type const& ty = f->type();
 
-    if (Ty::FUN != ty.base) {
+    if (Ty::FUN != ty.base()) {
       std::ostringstream oss;
       throw TypeError((oss << "value of type " << ty << " is not a function", oss.str()));
     }
 
-    coerse<Str>(*this, (*(Fun*)f)(coerse<Val>(*this, new Input(*this, in), ty.from())), Type(Ty::STR, {0}, TyFlag::IS_INF))->entire(out);
+    Val* valin = coerse<Val>(*this, new Input(*this, in), ty.from());
+    Val* valout = (*(Fun*)f)(valin);
+
+    Str& res = *coerse<Str>(*this, valout, Type::makeStr(true));
+    res.entire(out);
   }
 
   void App::repr(std::ostream& out, VisRepr::ReprCx cx) const {
@@ -750,7 +754,7 @@ namespace sel {
       Val const* u;
 
       Val const* val = it.second;
-      switch (val->type().base) {
+      switch (val->type().base()) {
         case Ty::NUM: {
             NumDefine const& def = *(NumDefine*)val;
             name = def.getname();

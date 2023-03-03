@@ -69,20 +69,12 @@ namespace sel {
 
   public:
     LstLiteral(App& app, std::vector<Val*> v)
-      : Lst(app, Type(Ty::LST,
-          {.box_has=
-            new std::vector<Type*>() // ZZZ: right...
-          }, TyFlag::IS_FIN
-        ))
+      : Lst(app, Type::makeLst({/* ZZZ: right... */}, false, false))
       , v(v)
       , c(0)
     { }
-    LstLiteral(App& app, std::vector<Val*> v, std::vector<Type*>* has) // ZZZ
-      : Lst(app, Type(Ty::LST,
-          {.box_has=
-            has
-          }, TyFlag::IS_FIN
-        ))
+    LstLiteral(App& app, std::vector<Val*> v, std::vector<Type>&& has) // ZZZ
+      : Lst(app, Type::makeLst(std::move(has), false, false))
       , v(v)
       , c(0)
     { }
@@ -105,11 +97,9 @@ namespace sel {
 
   public:
     FunChain(App& app, std::vector<Fun*> f)
-      : Fun(app, Type(Ty::FUN,
-          {.box_pair={
-            new Type(f[0]->type().from()),
-            new Type(f[f.size() ? f.size()-1 : 0]->type().to()) // YYY: size-1
-          }}, 0
+      : Fun(app, Type::makeFun(
+          Type(f[0]->type().from()),
+          Type(f[f.size() ? f.size()-1 : 0]->type().to()) // YYY: size-1: a FunChain is never <1 from parsing
         ))
       , f(f)
     { }
@@ -159,10 +149,10 @@ namespace sel {
     }
   };
 
-  struct StrDefine : Def<Str, TyFlag> {
+  struct StrDefine : Def<Str, bool> {
   public:
     StrDefine(App& app, std::string const name, std::string const doc, Str* v)
-      : Def(app, name, doc, v, (TyFlag)v->type().flags)
+      : Def(app, name, doc, v, v->type().is_inf())
     { }
     std::ostream& stream(std::ostream& out) override;
     bool end() override;
