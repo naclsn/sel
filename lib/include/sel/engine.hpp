@@ -57,7 +57,7 @@ namespace sel {
     virtual VisitTable visit_table() const = 0;
 
   public:
-    Val(App& app, Type const& ty);
+    Val(App& app, Type&& ty);
     virtual ~Val();
 
     Type const& type() const { return ty; }
@@ -125,8 +125,8 @@ namespace sel {
    * `next` and `rewind`.)
    */
   struct Lst : Val { //, public std::iterator<std::input_iterator_tag, Val>
-    Lst(App& app, Type const& type)
-      : Val(app, type)
+    Lst(App& app, Type&& type)
+      : Val(app, std::forward<Type>(type))
     { }
     /**
      * Get (compute, etc..) the current value.
@@ -155,8 +155,8 @@ namespace sel {
    * a new value.
    */
   struct Fun : Val {
-    Fun(App& app, Type const& type)
-      : Val(app, type)
+    Fun(App& app, Type&& type)
+      : Val(app, std::forward<Type>(type))
     { }
     virtual Val* operator()(Val* arg) = 0;
   };

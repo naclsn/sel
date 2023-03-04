@@ -122,7 +122,7 @@ namespace sel {
     U* v;
 
     Def(App& app, std::string const name, std::string const doc, U* v, Args... args)
-      : U(app, args...)
+      : U(app, std::forward<Args>(args)...)
       , name(name)
       , doc(doc)
       , v(v)
@@ -165,10 +165,10 @@ namespace sel {
     }
   };
 
-  struct LstDefine : Def<Lst, Type const&> {
+  struct LstDefine : Def<Lst, Type&&> {
   public:
     LstDefine(App& app, std::string const name, std::string const doc, Lst* v)
-      : Def(app, name, doc, v, v->type())
+      : Def(app, name, doc, v, Type(v->type()))
     { }
     Val* operator*() override;
     Lst& operator++() override;
@@ -181,10 +181,10 @@ namespace sel {
     }
   };
 
-  struct FunDefine : Def<Fun, Type const&> {
+  struct FunDefine : Def<Fun, Type&&> {
   public:
     FunDefine(App& app, std::string const name, std::string const doc, Fun* v)
-      : Def(app, name, doc, v, v->type())
+      : Def(app, name, doc, v, Type(v->type()))
     { }
     Val* operator()(Val* arg) override;
     Val* copy() const override;

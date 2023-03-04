@@ -41,41 +41,49 @@ namespace sel {
     uint8_t flags = 0;
 
   public:
-    Type() { }
+    Type() { } // YYY: can private?
     Type(Type const& ty);
     Type(Type&& ty) noexcept;
     ~Type();
 
-    Type& operator=(Type const& ty);
+    Type& operator=(Type ty);
 
     void repr(std::ostream& out, unsigned indent=1) const;
 
     bool operator==(Type const& other) const;
     bool operator!=(Type const& other) const;
 
+  // getters
     Ty const& base() const { return _base; }
 
     std::string const& name() const { return *p.name; }
-    void name(std::string&& set) { p.name = new std::string(std::move(set)); }
 
     std::vector<Type> const& has() const { return *p.box_has; }
-    void has(std::vector<Type>&& set) { p.box_has = new std::vector<Type>(std::move(set)); }
+
     bool is_inf() const { return TyFlag::IS_INF & flags; }
     bool is_tpl() const { return TyFlag::IS_TPL & flags; }
 
     Type const& from() const { return *p.box_pair[0]; }
-    void from(Type&& set) { p.box_pair[0] = new Type(std::move(set)); }
     Type const& to() const { return *p.box_pair[1]; }
-    void to(Type&& set) { p.box_pair[1] = new Type(std::move(set)); }
 
     void applied(Type const& arg, Type& res) const;
     unsigned arity() const { return Ty::FUN == _base ? to().arity() + 1 : 0; }
 
-  // static:
+  // setters
+  private:
+    std::string& makeName() { return *(p.name = new std::string); }
+
+    std::vector<Type>& makeHas() { return *(p.box_has = new std::vector<Type>); }
+
+    Type& makeFrom() { return *(p.box_pair[0] = new Type); }
+    Type& makeTo() { return *(p.box_pair[1] = new Type); }
+
+  // construction
+  public:
     inline static Type makeUnk(std::string&& name) {
       Type r;
       r._base = Ty::UNK;
-      r.name(std::move(name));
+      r.makeName() = std::move(name);
       return r;
     }
     inline static Type makeNum() {
@@ -94,14 +102,14 @@ namespace sel {
       r._base = Ty::LST;
       r.flags = is_inf ? TyFlag::IS_INF : TyFlag::IS_FIN;
       if (is_tpl) r.flags|= TyFlag::IS_TPL;
-      r.has(std::move(has));
+      r.makeHas() = std::move(has);
       return r;
     }
     inline static Type makeFun(Type&& from, Type&& to) {
       Type r;
       r._base = Ty::FUN;
-      r.from(std::move(from));
-      r.to(std::move(to));
+      r.makeFrom() = std::move(from);
+      r.makeTo() = std::move(to);
       return r;
     }
 

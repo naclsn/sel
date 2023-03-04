@@ -10,9 +10,9 @@
 
 namespace sel {
 
-  Val::Val(App& app, Type const& ty)
+  Val::Val(App& app, Type&& ty)
     : app(app)
-    , ty(ty)
+    , ty(std::forward<Type>(ty))
   { app.push_back(this); }
   Val::~Val() { }
 

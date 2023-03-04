@@ -144,7 +144,7 @@ namespace sel {
           : Lst(app, make(fname))
         { }
         ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
-          : Lst(app, done_applied(base_fty, ty)) // TODO: std::move
+          : Lst(app, done_applied(base_fty, ty))
         { }
       };
     };
@@ -158,7 +158,7 @@ namespace sel {
           : Lst(app, make(fname))
         { }
         ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
-          : Lst(app, done_applied(base_fty, ty)) // TODO: std::move
+          : Lst(app, done_applied(base_fty, ty))
         { }
       };
     };
@@ -173,7 +173,7 @@ namespace sel {
           : Lst(app, make(fname))
         { }
         ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
-          : Lst(app, done_applied(base_fty, ty)) // TODO: std::move
+          : Lst(app, done_applied(base_fty, ty))
         { }
       };
     };

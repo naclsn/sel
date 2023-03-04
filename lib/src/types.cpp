@@ -92,19 +92,18 @@ namespace sel {
     }
   }
 
-  Type& Type::operator=(Type const& ty) {
+  Type& Type::operator=(Type ty) {
     switch (_base = ty.base()) {
       case Ty::UNK:
-        p.name = new std::string(ty.name());
+        std::swap(p.name, ty.p.name);
         break;
 
       case Ty::LST:
-        p.box_has = new std::vector<Type>(ty.has());
+        std::swap(p.box_has, ty.p.box_has);
         break;
 
       case Ty::FUN:
-        p.box_pair[0] = new Type(ty.from());
-        p.box_pair[1] = new Type(ty.to());
+        std::swap(p.box_pair, ty.p.box_pair);
         break;
 
       default: ;
@@ -227,7 +226,7 @@ namespace sel {
 
   /**
    * template_type
-   * deep copy of tt, filling unkowns by picking from map
+   * deep copy of tt into ty, filling unkowns by picking from map
    */
   // internal - friend
   void recurseBuildKnown(Type::known_map const& map, Type const& tt, Type& ty) {
@@ -252,7 +251,7 @@ namespace sel {
         break;
 
       case Ty::LST: {
-          std::vector<Type> w;
+          auto& w = ty.makeHas();
           w.reserve(tt.has().size());
           for (auto const& it : tt.has()) {
             w.emplace_back();
@@ -261,17 +260,13 @@ namespace sel {
 
           ty._base = Ty::LST;
           ty.flags = tt.flags & TyFlag::IS_TPL ? TyFlag::IS_TPL : map.at("_*").flags;
-          ty.has(std::move(w));
         } break;
 
       case Ty::FUN: {
           ty._base = Ty::FUN;
           ty.flags = 0;
-          Type tmp;
-          recurseBuildKnown(map, tt.from(), tmp);
-          ty.from(std::move(tmp));
-          recurseBuildKnown(map, tt.to(), tmp);
-          ty.to(std::move(tmp));
+          recurseBuildKnown(map, tt.from(), ty.makeFrom());
+          recurseBuildKnown(map, tt.to(), ty.makeTo());
         } break;
     }
   }
@@ -447,7 +442,7 @@ unknown_token_push1:
 
       case TyTokenType::NAME:
         res._base = Ty::UNK;
-        res.name(std::move(first.text));
+        res.makeName() = std::move(first.text);
         break;
 
       case TyTokenType::TY_NAME:
@@ -478,7 +473,7 @@ unknown_token_push1:
 
           res._base = Ty::LST;
           res.flags = TyFlag::IS_TPL;
-          res.has(std::move(v));
+          res.makeHas() = std::move(v);
         }
 
         if (eos == tts) expected("matching token ')'", TyToken());
@@ -490,7 +485,7 @@ unknown_token_push1:
       case TyTokenType::B_OPEN: {
         if (eos == tts) expected("type expression after '['", TyToken());
 
-        std::vector<Type> v;
+        auto& v = res.makeHas();
 
         do {
           new_first = *tts;
@@ -507,7 +502,6 @@ unknown_token_push1:
 
         res._base = Ty::LST;
         res.flags = 0;
-        res.has(std::move(v));
 
         ++tts;
         } break;
@@ -526,11 +520,11 @@ unknown_token_push1:
     if (eos == tts) return;
     //        | type -> type
     if (TyTokenType::ARROW == tts->type) {
-      res.from(std::move(res));
+      Type backup(std::move(res));
+      res.makeFrom() = std::move(backup);
+
       new_first = *++tts;
-      Type to;
-      parseTypeImpl(std::move(new_first), ++tts, to);
-      res.to(std::move(to));
+      parseTypeImpl(std::move(new_first), ++tts, res.makeTo());
 
       res._base = Ty::FUN;
       res.flags = 0;

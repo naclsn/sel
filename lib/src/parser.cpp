@@ -26,7 +26,7 @@ namespace sel {
     w.reserve(v.size());
     for (auto const& it : v)
       w.push_back(it->copy());
-    return new LstLiteral(app, w, std::vector<Type>(ty.has())); // TODO: std::move?
+    return new LstLiteral(app, w, std::vector<Type>(ty.has()));
   }
 
   Val* FunChain::operator()(Val* arg) {
