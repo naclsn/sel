@@ -26,7 +26,7 @@ namespace tll {
     inline static llvm::Value* add(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateAdd(a, b); }
     inline static llvm::Value* sub(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateSub(a, b); }
     inline static llvm::Value* mul(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateMul(a, b); }
-    // inline static llvm::Value* div(llvm::Value* a, llvm::Value* b) { throw std::runtime_error("TODO: integer division"); }
+    inline static llvm::Value* div(llvm::Value* a, llvm::Value* b) { throw __tll_irb->CreateExactSDiv(a, b); }
     inline static llvm::Value* bshl(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateShl(a, b); }
     inline static llvm::Value* bshr(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateLShr(a, b); } // XXX: can only do logical right shift
     inline static llvm::Value* bor(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateOr(a, b); }
@@ -50,7 +50,7 @@ namespace tll {
     inline static llvm::Value* add(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateFAdd(a, b); }
     inline static llvm::Value* sub(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateFSub(a, b); }
     inline static llvm::Value* mul(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateFMul(a, b); }
-    // inline static llvm::Value* div(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateFDiv(a, b); }
+    inline static llvm::Value* div(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateFDiv(a, b); }
     inline static llvm::Value* lt(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateFCmpOLT(a, b); }
     inline static llvm::Value* gt(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateFCmpOGT(a, b); }
     inline static llvm::Value* le(llvm::Value* a, llvm::Value* b) { return __tll_irb->CreateFCmpOLE(a, b); }
@@ -123,7 +123,7 @@ namespace tll {
     inline let operator+(let other) const { return let(llvm_info_for<Ty>::add((llvm::Value*)*this, (llvm::Value*)other)); }
     inline let operator-(let other) const { return let(llvm_info_for<Ty>::sub((llvm::Value*)*this, (llvm::Value*)other)); }
     inline let operator*(let other) const { return let(llvm_info_for<Ty>::mul((llvm::Value*)*this, (llvm::Value*)other)); }
-    // inline let operator/(let other) const { return let(llvm_info_for<Ty>::div((llvm::Value*)*this, (llvm::Value*)other)); }
+    inline let operator/(let other) const { return let(llvm_info_for<Ty>::div((llvm::Value*)*this, (llvm::Value*)other)); }
 
     inline let operator-() const { return let((Ty)0)-*this; }
     inline let& operator+() const { return *this; }

@@ -717,6 +717,17 @@ namespace sel {
       });
     }},
 
+    {"div", [](Codegen& cg, inject_clo_type also) {
+      auto const a = cg.take();
+      auto const b = cg.take();
+      a.make(cg, [&cg, &also, &b](BasicBlock* brk, BasicBlock* cont, Generated a) {
+        b.make(cg, [&also, &a](BasicBlock* brk, BasicBlock* cont, Generated b) {
+          also(cont, cont, a.num() / b.num());
+        });
+        br(cont);
+      });
+    }},
+
     {"const", [](Codegen& cg, inject_clo_type also) {
       cg.take().make(cg, also);
       cg.take();
@@ -756,9 +767,21 @@ namespace sel {
       f.make(cg, also);
     }},
 
+    // {"graphemes", [](Codegen& cg, inject_clo_type also) {
+    //   TODO
+    // }},
+
     {"id", [](Codegen& cg, inject_clo_type also) {
       cg.take().make(cg, also);
     }},
+
+    // {"index", [](Codegen& cg, inject_clo_type also) {
+    //   TODO
+    // }},
+
+    // {"join", [](Codegen& cg, inject_clo_type also) {
+    //   TODO
+    // }},
 
     {"map", [](Codegen& cg, inject_clo_type also) {
       auto const f = cg.take();
@@ -771,6 +794,21 @@ namespace sel {
         br(cont);
       });
     }},
+
+    {"mul", [](Codegen& cg, inject_clo_type also) {
+      auto const a = cg.take();
+      auto const b = cg.take();
+      a.make(cg, [&cg, &also, &b](BasicBlock* brk, BasicBlock* cont, Generated a) {
+        b.make(cg, [&also, &a](BasicBlock* brk, BasicBlock* cont, Generated b) {
+          also(cont, cont, a.num() * b.num());
+        });
+        br(cont);
+      });
+    }},
+
+    // {"split", [](Codegen& cg, inject_clo_type also) {
+    //   TODO
+    // }},
 
     {"sub", [](Codegen& cg, inject_clo_type also) {
       auto const a = cg.take();
