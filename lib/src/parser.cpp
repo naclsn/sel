@@ -3,7 +3,6 @@
 #include <limits>
 #include <sstream>
 
-#define TRACE(...)
 #include "sel/errors.hpp"
 #include "sel/parser.hpp"
 #include "sel/visitors.hpp"
@@ -441,7 +440,6 @@ namespace sel {
 
   // internal
   Val* parseAtom(App& app, std::istream_iterator<Token>& lexer) {
-    TRACE(parseAtom, *lexer);
     if (eos == lexer) expectedContinuation("scanning atom", *lexer);
 
     Val* val = nullptr;
@@ -550,7 +548,6 @@ namespace sel {
 
   // internal
   Val* parseElement(App& app, std::istream_iterator<Token>& lexer) {
-    TRACE(parseElement, *lexer);
     if (eos == lexer) expectedContinuation("scanning element", *lexer);
 
     Val* val;

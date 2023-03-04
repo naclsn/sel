@@ -1,4 +1,3 @@
-#define TRACE(...)
 #include "sel/errors.hpp"
 #include "sel/types.hpp"
 #include "sel/utils.hpp"
@@ -23,7 +22,6 @@ namespace sel {
   }
 
   Type::Type(Type const& ty) {
-    TRACE(Type&, raw(this)<<"; "<<ty);
     switch (_base = ty.base()) {
       case Ty::UNK:
         p.name = new std::string(ty.name());
@@ -44,7 +42,6 @@ namespace sel {
   }
 
   Type::Type(Type&& ty) noexcept {
-    TRACE(Type&&, raw(this)<<"; "<<ty);
     switch (_base = ty._base) {
       case Ty::UNK:
         p.name = ty.p.name;
@@ -69,7 +66,6 @@ namespace sel {
   }
 
   Type::~Type() {
-    TRACE(~Type, raw(this)<<"; "<<base);
     switch (_base) {
       case Ty::UNK:
         delete p.name;
@@ -163,11 +159,6 @@ namespace sel {
    */
   // internal - friend
   void recurseFindUnkowns(Type::known_map& map, Type const& nk, Type const& hu) {
-    TRACE(recurseNowKnown
-      , "nk: " << nk << ", hu: " << hu
-      , "in map: " << map.size() << " entries"
-      );
-
     switch (hu.base()) {
       case Ty::UNK:
         map.emplace(hu.name(), nk);
@@ -230,10 +221,6 @@ namespace sel {
    */
   // internal - friend
   void recurseBuildKnown(Type::known_map const& map, Type const& tt, Type& ty) {
-    TRACE(recurseBuildKnown
-      , "map: " << map.size() << " entries, tt: " << tt
-      );
-
     switch (tt.base()) {
       case Ty::UNK: {
           auto const& iter = map.find(tt.name());
@@ -287,19 +274,6 @@ namespace sel {
     }
 
     recurseFindUnkowns(map, arg, from());
-
-    TRACE(Type::applied
-      , "arg: " << arg
-      , [&map](){
-          std::cerr << "map of names:";
-          for (auto const& it : map)
-            if ("_*" != it.first)
-              std::cerr << "\n|\t   " << it.first << " <- " << it.second;
-          return "";
-        }()
-      , "_*: " << (TyFlag::IS_INF & map.at("_*").flags ? "INF" : "FIN")
-      );
-
     recurseBuildKnown(map, to(), res);
   }
 

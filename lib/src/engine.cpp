@@ -1,6 +1,5 @@
 #include <iostream>
 
-#define TRACE(...)
 #include "sel/builtins.hpp"
 #include "sel/engine.hpp"
 #include "sel/errors.hpp"
@@ -21,10 +20,6 @@ namespace sel {
 
   // Str => Num: same as `tonum`
   template <> Num* coerse<Num>(App& app, Val* from, Type const& to) {
-    TRACE(coerse<Num>
-      , "from: " << from->type()
-      , "to: " << to
-      );
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
     if (Ty::NUM == ty.base()) return (Num*)from;
@@ -38,10 +33,6 @@ namespace sel {
   // Num => Str: same as `tostr`
   // [a] => Str: same as `join::` (still not sure I like it, but it is very helpful)
   template <> Str* coerse<Str>(App& app, Val* from, Type const& to) {
-    TRACE(coerse<Str>
-      , "from: " << from->type()
-      , "to: " << to
-      );
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
     if (Ty::STR == ty.base()) return (Str*)from;
@@ -61,10 +52,6 @@ namespace sel {
   // (a..) => [b..]
   // [a..] => (b..)
   template <> Lst* coerse<Lst>(App& app, Val* from, Type const& to) {
-    TRACE(coerse<Lst>
-      , "from: " << from->type()
-      , "to: " << to
-      );
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
 
@@ -104,10 +91,6 @@ namespace sel {
   // special case for type checking, (effectively a cast)
   // where `to` should be `tyor idk
   template <> Fun* coerse<Fun>(App& app, Val* from, Type const& to) {
-    TRACE(coerse<Fun>
-      , "from: " << from->type()
-      , "to: " << to
-      );
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
     if (Ty::FUN == to.base()) {
@@ -126,10 +109,6 @@ namespace sel {
   // dispatches to the correct one dynamically
   // coersing to unk is used in builtins (eg. `const` or `id`)
   template <> Val* coerse<Val>(App& app, Val* from, Type const& to) {
-    TRACE(coerse<Val>
-      , "from: " << from->type()
-      , "to: " << to
-      );
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
     switch (to.base()) {
