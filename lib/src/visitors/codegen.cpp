@@ -266,13 +266,13 @@ namespace sel {
     // type-check (for now it only can do `Str* -> Str*`)
     {
       Type const& ty = f.type();
-      if (Ty::FUN != ty.base) {
+      if (Ty::FUN != ty.base()) {
         std::ostringstream oss;
         throw TypeError((oss << "value of type '" << ty << "' is not a function", oss.str()));
       }
       // (with special case for eg. id_/const_, hacked in for dev)
-      bool from_ok = Ty::STR == ty.from().base || Ty::UNK == ty.from().base;
-      bool to_ok = Ty::STR != ty.to().base || Ty::UNK != ty.to().base;
+      bool from_ok = Ty::STR == ty.from().base() || Ty::UNK == ty.from().base();
+      bool to_ok = Ty::STR != ty.to().base() || Ty::UNK != ty.to().base();
       if (!from_ok || !to_ok) {
         std::ostringstream oss;
         throw NIYError((oss << "compiling an application of type '" << ty << "', only 'Str* -> Str*' is supported", oss.str()));
@@ -460,6 +460,26 @@ namespace sel {
       }
       cg.take().make(cg, also);
     }});
+  }
+
+  void VisCodegen::visit(NumDefine const& it) {
+    // throw NIYError("generation off-main");
+    it.underlying().accept(*this);
+  }
+
+  void VisCodegen::visit(StrDefine const& it) {
+    // throw NIYError("generation off-main");
+    it.underlying().accept(*this);
+  }
+
+  void VisCodegen::visit(LstDefine const& it) {
+    // throw NIYError("generation off-main");
+    it.underlying().accept(*this);
+  }
+
+  void VisCodegen::visit(FunDefine const& it) {
+    // throw NIYError("generation off-main");
+    it.underlying().accept(*this);
   }
 
   void VisCodegen::visit(Input const& it) {

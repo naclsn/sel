@@ -203,6 +203,10 @@ namespace sel {
     Ret visit(StrLiteral const& it);
     Ret visit(LstLiteral const& it);
     Ret visit(FunChain const& it);
+    Ret visit(NumDefine const& it);
+    Ret visit(StrDefine const& it);
+    Ret visit(LstDefine const& it);
+    Ret visit(FunDefine const& it);
     Ret visit(Input const& it);
     Ret visit(StrChunks const& it);
     Ret visit(LstMapCoerse const& it);
