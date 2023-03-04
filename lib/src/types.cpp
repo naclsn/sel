@@ -1,6 +1,3 @@
-#include <unordered_map>
-
-#define TRACE(...)
 #include "sel/errors.hpp"
 #include "sel/types.hpp"
 #include "sel/utils.hpp"
@@ -24,29 +21,19 @@ namespace sel {
     return out;
   }
 
-  Type::Type(Ty base, Type::P p, uint8_t flags)
-    : base(base)
-    , p(p)
-    , flags(flags)
-  { TRACE(Type, raw(this)<<"; "<<base); }
-
   Type::Type(Type const& ty) {
-    TRACE(Type&, raw(this)<<"; "<<ty);
-    switch (base = ty.base) {
+    switch (_base = ty.base()) {
       case Ty::UNK:
-        p.name = new std::string(*ty.p.name);
+        p.name = new std::string(ty.name());
         break;
 
       case Ty::LST:
-        p.box_has = new std::vector<Type*>();
-        p.box_has->reserve(ty.p.box_has->size());
-        for (auto const& it : *ty.p.box_has)
-          p.box_has->push_back(new Type(*it));
+        p.box_has = new std::vector<Type>(ty.has());
         break;
 
       case Ty::FUN:
-        p.box_pair[0] = new Type(*ty.p.box_pair[0]);
-        p.box_pair[1] = new Type(*ty.p.box_pair[1]);
+        p.box_pair[0] = new Type(ty.from());
+        p.box_pair[1] = new Type(ty.to());
         break;
 
       default: ;
@@ -55,8 +42,7 @@ namespace sel {
   }
 
   Type::Type(Type&& ty) noexcept {
-    TRACE(Type&&, raw(this)<<"; "<<ty);
-    switch (base = ty.base) {
+    switch (_base = ty._base) {
       case Ty::UNK:
         p.name = ty.p.name;
         ty.p.name = nullptr;
@@ -80,17 +66,13 @@ namespace sel {
   }
 
   Type::~Type() {
-    TRACE(~Type, raw(this)<<"; "<<base);
-    switch (base) {
+    switch (_base) {
       case Ty::UNK:
         delete p.name;
         p.name = nullptr;
         break;
 
       case Ty::LST:
-        if (p.box_has)
-          for (auto const& it : *p.box_has)
-            delete it;
         delete p.box_has;
         p.box_has = nullptr;
         break;
@@ -106,7 +88,27 @@ namespace sel {
     }
   }
 
-  void Type::repr(std::ostream& out, unsigned depth) {
+  Type& Type::operator=(Type ty) {
+    switch (_base = ty.base()) {
+      case Ty::UNK:
+        std::swap(p.name, ty.p.name);
+        break;
+
+      case Ty::LST:
+        std::swap(p.box_has, ty.p.box_has);
+        break;
+
+      case Ty::FUN:
+        std::swap(p.box_pair, ty.p.box_pair);
+        break;
+
+      default: ;
+    }
+    flags = ty.flags;
+    return *this;
+  }
+
+  void Type::repr(std::ostream& out, unsigned depth) const {
     char indent[depth*3+1];
     for (size_t k = 0; k < depth*3; k++)
       indent[k] = ' ';
@@ -114,10 +116,10 @@ namespace sel {
 
     out << "Type {\n" << indent << "base= ";
 
-    switch (base) {
+    switch (_base) {
       case Ty::UNK:
         out << "UNK";
-        out << "\n" << indent << "name= " << quoted(*p.name);
+        out << "\n" << indent << "name= " << quoted(name());
         break;
 
       case Ty::NUM:
@@ -134,15 +136,15 @@ namespace sel {
         out << "\n" << indent << "is_inf= " << std::boolalpha << !!(flags & TyFlag::IS_INF);
         out << "\n" << indent << "is_tpl= " << std::boolalpha << !!(flags & TyFlag::IS_TPL);
         out << "\n" << indent << "has= {\n";
-        for (const auto& it : *p.box_has)
-          it->repr(out << indent << indent, depth+2);
+        for (const auto& it : has())
+          it.repr(out << indent << indent, depth+2);
         out << indent << "}";
         break;
 
       case Ty::FUN:
         out << "FUN";
-        p.box_pair[0]->repr(out << "\n" << indent << "from", depth+1);
-        p.box_pair[1]->repr(out << "\n" << indent << "to", depth+1);
+        from().repr(out << "\n" << indent << "from= ", depth+1);
+        to().repr(out << "\n" << indent << "to= ", depth+1);
         break;
     }
 
@@ -150,33 +152,28 @@ namespace sel {
     out << "\n" << indent << "}\n";
   }
 
-  typedef std::unordered_map<std::string, Type const&> known_map;
   /**
    * now_known, has_unknowns;
    * DSF through hu for unknowns, build mapping from names to corresponding in nk;
    * both types must have the same kind ("shape")
    */
-  // internal
-  void recurseFindUnkowns(known_map& map, Type const& nk, Type const& hu) {
-    TRACE(recurseNowKnown
-      , "nk: " << nk << ", hu: " << hu
-      , "in map: " << map.size() << " entries"
-      );
-    // assert nk.base == hu.base;
-
-    switch (hu.base) {
+  // internal - friend
+  void recurseFindUnkowns(Type::known_map& map, Type const& nk, Type const& hu) {
+    switch (hu.base()) {
       case Ty::UNK:
-        map.emplace(*hu.p.name, nk);
+        map.emplace(hu.name(), nk);
         break;
 
       case Ty::NUM:
         break;
 
       case Ty::STR:
-        // YYY: this is a (frustrating) hack, but it could be made into a real thing (named-bound'ed types)
+        // YYY: this is a (garbage) hack, but it could be made into a real thing (named-bound'ed types)
         if ((TyFlag::IS_INF & hu.flags) && (TyFlag::IS_INF & nk.flags) != (TyFlag::IS_INF & map.at("_*").flags)) {
           map.erase("_*");
-          map.emplace("_*", Type(Ty::UNK, {0}, (TyFlag::IS_INF & nk.flags)));
+          Type ty;
+          ty.flags = TyFlag::IS_INF & nk.flags;
+          map.emplace("_*", std::move(ty));
         }
         break;
 
@@ -197,12 +194,14 @@ namespace sel {
           auto const& hu_has = hu.has();
           auto const& nk_has = nk.has();
           for (size_t k = 0; k < hu_has.size(); k++)
-            recurseFindUnkowns(map, *nk_has[k], *hu_has[k]);
+            recurseFindUnkowns(map, nk_has[k], hu_has[k]);
 
-          // YYY: this is a (frustrating) hack, but it could be made into a real thing (named-bound'ed types)
+          // YYY: this is a (garbage) hack, but it could be made into a real thing (named-bound'ed types)
           if ((TyFlag::IS_INF & hu.flags) && (TyFlag::IS_INF & nk.flags) != (TyFlag::IS_INF & map.at("_*").flags)) {
             map.erase("_*");
-            map.emplace("_*", Type(Ty::UNK, {0}, (TyFlag::IS_INF & nk.flags)));
+            Type ty;
+            ty.flags = TyFlag::IS_INF & nk.flags;
+            map.emplace("_*", std::move(ty));
           }
         }
         break;
@@ -218,53 +217,48 @@ namespace sel {
 
   /**
    * template_type
-   * deep copy of tt, filling unkowns by picking from map
+   * deep copy of tt into ty, filling unkowns by picking from map
    */
-  // internal
-  Type recurseBuildKnown(known_map const& map, Type const& tt) {
-    TRACE(recurseBuildKnown
-      , "map: " << map.size() << " entries, tt: " << tt
-      );
-
-    switch (tt.base) {
-      case Ty::UNK:
-        {
-          auto const& iter = map.find(*tt.p.name);
-          return iter == map.end()
-            ? Type(tt)
-            : Type(iter->second);
-        }
+  // internal - friend
+  void recurseBuildKnown(Type::known_map const& map, Type const& tt, Type& ty) {
+    switch (tt.base()) {
+      case Ty::UNK: {
+          auto const& iter = map.find(tt.name());
+          ty = iter == map.end() ? tt : iter->second;
+        } break;
 
       case Ty::NUM:
-        return Type(Ty::NUM, {0}, 0);
+        ty._base = Ty::NUM;
+        ty.flags = 0;
+        break;
 
       case Ty::STR:
-        return Type(Ty::STR, {0}, map.at("_*").flags);
+        ty._base = Ty::STR;
+        ty.flags = map.at("_*").flags;
+        break;
 
-      case Ty::LST:
-        {
-          auto* w = new std::vector<Type*>();
-          w->reserve(tt.has().size());
-          for (auto const& it : tt.has())
-            w->push_back(new Type(recurseBuildKnown(map, *it)));
-          return Type(Ty::LST, {.box_has=w}, tt.flags & TyFlag::IS_TPL
-            ? TyFlag::IS_TPL
-            : map.at("_*").flags);
-        }
+      case Ty::LST: {
+          auto& w = ty.makeHas();
+          w.reserve(tt.has().size());
+          for (auto const& it : tt.has()) {
+            w.emplace_back();
+            recurseBuildKnown(map, it, w.back());
+          }
 
-      case Ty::FUN:
-        return Type(Ty::FUN,
-          {.box_pair={
-            new Type(recurseBuildKnown(map, tt.from())),
-            new Type(recurseBuildKnown(map, tt.to()))
-          }}, 0
-        );
+          ty._base = Ty::LST;
+          ty.flags = tt.flags & TyFlag::IS_TPL ? TyFlag::IS_TPL : map.at("_*").flags;
+        } break;
+
+      case Ty::FUN: {
+          ty._base = Ty::FUN;
+          ty.flags = 0;
+          recurseBuildKnown(map, tt.from(), ty.makeFrom());
+          recurseBuildKnown(map, tt.to(), ty.makeTo());
+        } break;
     }
-
-    return Type(); // unreachable
   }
 
-  Type Type::applied(Type const& arg) const {
+  void Type::applied(Type const& arg, Type& res) const {
     // Arg and from() have same shape.
     // In from(), there are UNK, also found in to().
     // Goal is to find the corresponding types in arg and fill that in into to().
@@ -273,23 +267,14 @@ namespace sel {
     known_map map;
 
     // YYY: hack to propagate bounded-ness
-    map.emplace("_*", Type(Ty::UNK, {0}, TyFlag::IS_INF));
+    {
+      Type ty;
+      ty.flags = TyFlag::IS_INF;
+      map.emplace("_*", ty);
+    }
 
     recurseFindUnkowns(map, arg, from());
-
-    TRACE(Type::applied
-      , "arg: " << arg
-      , [&map](){
-          std::cerr << "map of names:";
-          for (auto const& it : map)
-            if ("_*" != it.first)
-              std::cerr << "\n|\t   " << it.first << " <- " << it.second;
-          return "";
-        }()
-      , "_*: " << (TyFlag::IS_INF & map.at("_*").flags ? "INF" : "FIN")
-      );
-
-    return recurseBuildKnown(map, to());
+    recurseBuildKnown(map, to(), res);
   }
 
   // internal
@@ -413,8 +398,8 @@ unknown_token_push1:
     return in;
   }
 
-  // internal
-  void parseTypeImpl(TyToken const& first, std::istream_iterator<TyToken>& tts, Type& res) {
+  // internal - friend
+  void parseTypeImpl(TyToken&& first, std::istream_iterator<TyToken>& tts, Type& res) {
     static auto const eos = std::istream_iterator<TyToken>();
     TyToken new_first;
 
@@ -430,61 +415,70 @@ unknown_token_push1:
         expected("type expression", first);
 
       case TyTokenType::NAME:
-        res.base = Ty::UNK;
-        res.p.name = new std::string(first.text);
+        res._base = Ty::UNK;
+        res.makeName() = std::move(first.text);
         break;
 
       case TyTokenType::TY_NAME:
-        if ("Num" == first.text)
-          res.base = Ty::NUM;
-        else if ("Str" == first.text)
-          res.base = Ty::STR;
-        else
-          expected("type name", first);
+        if      ("Num" == first.text) res._base = Ty::NUM;
+        else if ("Str" == first.text) res._base = Ty::STR;
+        else expected("type name", first);
         break;
 
       case TyTokenType::P_OPEN:
         if (eos == tts) expected("type expression after '('", TyToken());
+
         new_first = *tts;
-        parseTypeImpl(new_first, ++tts, res);
+        parseTypeImpl(std::move(new_first), ++tts, res);
         if (eos == tts) expected("token ',' or matching token ')'", TyToken());
+
         //        | (type, type)
         if (TyTokenType::COMMA == tts->type) {
-          auto* v = new std::vector<Type*>();
-          v->push_back(new Type(std::move(res)));
-          res.p.box_has = v;
+          std::vector<Type> v;
+          v.push_back(std::move(res));
+
           do {
             new_first = *++tts;
             if (eos == tts) expected("type expression after ','", TyToken());
-            Type* it = new Type();
-            parseTypeImpl(new_first, ++tts, *it);
-            res.p.box_has->push_back(it);
+
+            v.emplace_back();
+            parseTypeImpl(std::move(new_first), ++tts, v.back());
           } while (TyTokenType::COMMA == tts->type);
-          res.base = Ty::LST;
+
+          res._base = Ty::LST;
           res.flags = TyFlag::IS_TPL;
+          res.makeHas() = std::move(v);
         }
+
         if (eos == tts) expected("matching token ')'", TyToken());
         if (TyTokenType::P_CLOSE != tts->type) expected("matching token ')'", *tts);
+
         ++tts;
         break;
 
-      case TyTokenType::B_OPEN:
+      case TyTokenType::B_OPEN: {
         if (eos == tts) expected("type expression after '['", TyToken());
-        res.p.box_has = new std::vector<Type*>();
+
+        auto& v = res.makeHas();
+
         do {
           new_first = *tts;
-          Type* it = new Type();
-          parseTypeImpl(new_first, ++tts, *it);
-          res.p.box_has->push_back(it);
+
+          v.emplace_back();
+          parseTypeImpl(std::move(new_first), ++tts, v.back());
+
           if (TyTokenType::COMMA != tts->type) break;
           ++tts;
         } while (eos != tts);
+
         if (eos == tts) expected("matching token ']'", TyToken());
         if (TyTokenType::B_CLOSE != tts->type) expected("matching token ']'", *tts);
-        res.base = Ty::LST;
+
+        res._base = Ty::LST;
         res.flags = 0;
+
         ++tts;
-        break;
+        } break;
 
       default:
         expected("type expression", first);
@@ -500,10 +494,13 @@ unknown_token_push1:
     if (eos == tts) return;
     //        | type -> type
     if (TyTokenType::ARROW == tts->type) {
-      res.p.box_pair[0] = new Type(std::move(res));
+      Type backup(std::move(res));
+      res.makeFrom() = std::move(backup);
+
       new_first = *++tts;
-      parseTypeImpl(new_first, ++tts, *(res.p.box_pair[1] = new Type()));
-      res.base = Ty::FUN;
+      parseTypeImpl(std::move(new_first), ++tts, res.makeTo());
+
+      res._base = Ty::FUN;
       res.flags = 0;
     }
   }
@@ -532,62 +529,86 @@ unknown_token_push1:
       ++lexer; // pop `first` (will forward to impl)
     }
 
-    parseTypeImpl(first, lexer, res);
+    parseTypeImpl(std::move(first), lexer, res);
   }
 
-  /**
-   * Two types compare equal (are compatible) if any:
-   * - any UNK
-   * - both STR or both NUM
-   * - both LST and recursive on has
-   * - both FUN and recursive on from and to
-   *
-   * As such, this does not look at the flags (eg. IS_INF).
-   */
-  bool Type::operator==(Type const& other) const {
-    if (Ty::UNK == base || Ty::UNK == other.base)
-      return true;
+  // internal
+  bool recurseEqual(Type::known_map& map, Type const& a, Type const& b) {
+    if (a.base() != b.base()) {
+      if (Ty::UNK == a.base()) {
+        auto const& it = map.find(a.name());
+        if (map.end() != it) return recurseEqual(map, it->second, b);
+        map.insert({a.name(), b});
+        return true; // this lets eg. '[a] == a' be true :-(
+      }
 
-    if (base != other.base)
+      if (Ty::UNK == b.base()) {
+        auto const& it = map.find(b.name());
+        if (map.end() != it) return recurseEqual(map, a, it->second);
+        map.insert({b.name(), a});
+        return true; // this lets eg. '[a] == a' be true :-(
+      }
+
+      // none is UNK; trivial not equal
       return false;
+    }
 
     // XXX: disabled for now (support too partial)
-    //if ((TyFlag::IS_INF & flags) != (TyFlag::IS_INF & other.flags))
+    //if ((TyFlag::IS_INF & a.flags) != (TyFlag::IS_INF & b.flags))
     //  return false;
 
-    switch (base) {
+    switch (a.base()) {
+      case Ty::UNK:
+        if (a.name() == b.name()) return true;
+        // else, if one is already associated
+        {
+          auto const& it = map.find(a.name());
+          if (map.end() != it) return recurseEqual(map, it->second, b);
+        }
+        {
+          auto const& it = map.find(b.name());
+          if (map.end() != it) return recurseEqual(map, a, it->second);
+        }
+        // comparing eg. 'a' and 'b'
+        map.insert({a.name(), b});
+        return true;
+
       case Ty::NUM:
       case Ty::STR:
         return true;
 
       case Ty::LST:
-        { // YYY: cant use vector<>::operator== because these are vectors of pointers
-          auto const len = p.box_has->size();
-          if (len != other.p.box_has->size()) return false;
+        {
+          auto const len = a.has().size();
+          if (len != b.has().size()) return false;
           for (size_t k = 0; k < len; k++) {
-            Type const& tya = *(*p.box_has)[k];
-            Type const& tyb = *(*other.p.box_has)[k];
-            if (tya != tyb) return false;
+            Type const& tya = a.has()[k];
+            Type const& tyb = b.has()[k];
+            if (!recurseEqual(map, tya, tyb)) return false;
           }
           return true;
         }
 
       case Ty::FUN:
-        return *p.box_pair[0] == *other.p.box_pair[0]
-            && *p.box_pair[1] == *other.p.box_pair[1];
-
-      // unreachable
-      default: return false;
+        return recurseEqual(map, a.from(), b.from())
+            && recurseEqual(map, a.to(), b.to());
     }
+
+    return false;
+  }
+
+  bool Type::operator==(Type const& other) const {
+    std::unordered_map<std::string, Type const&> map;
+    return recurseEqual(map, *this, other);
   }
   bool Type::operator!=(Type const& other) const {
     return !(*this == other);
   }
 
   std::ostream& operator<<(std::ostream& out, Type const& ty) {
-    switch (ty.base) {
+    switch (ty.base()) {
       case Ty::UNK:
-        out << ty.p.name->substr(0, ty.p.name->find('_'));
+        out << ty.name().substr(0, ty.name().find('_'));
         break;
 
       case Ty::NUM:
@@ -600,26 +621,26 @@ unknown_token_push1:
 
       case Ty::LST:
         // early break: list with no types
-        if (0 == ty.p.box_has->size()) {
+        if (0 == ty.has().size()) {
           out << "[_mixed]"; // ZZZ: right...
           break;
         }
         out << (TyFlag::IS_TPL & ty.flags
           ? "("
           : "[");
-        out << *(*ty.p.box_has)[0];
-        for (size_t k = 1, n = ty.p.box_has->size(); k < n; k++)
-          out << ", " << *(*ty.p.box_has)[k];
+        out << ty.has()[0];
+        for (size_t k = 1, n = ty.has().size(); k < n; k++)
+          out << ", " << ty.has()[k];
         out << (TyFlag::IS_TPL & ty.flags
           ? ")"
           : "]");
         break;
 
       case Ty::FUN:
-        if (Ty::FUN == ty.p.box_pair[0]->base)
-          out << "(" << *ty.p.box_pair[0] << ") -> " << *ty.p.box_pair[1];
+        if (Ty::FUN == ty.from().base())
+          out << "(" << ty.from() << ") -> " << ty.to();
         else
-          out << *ty.p.box_pair[0] << " -> " << *ty.p.box_pair[1];
+          out << ty.from() << " -> " << ty.to();
         break;
     }
 

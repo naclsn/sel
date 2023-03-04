@@ -69,20 +69,12 @@ namespace sel {
 
   public:
     LstLiteral(App& app, std::vector<Val*> v)
-      : Lst(app, Type(Ty::LST,
-          {.box_has=
-            new std::vector<Type*>() // ZZZ: right...
-          }, TyFlag::IS_FIN
-        ))
+      : Lst(app, Type::makeLst({/* ZZZ: right... */}, false, false))
       , v(v)
       , c(0)
     { }
-    LstLiteral(App& app, std::vector<Val*> v, std::vector<Type*>* has) // ZZZ
-      : Lst(app, Type(Ty::LST,
-          {.box_has=
-            has
-          }, TyFlag::IS_FIN
-        ))
+    LstLiteral(App& app, std::vector<Val*> v, std::vector<Type>&& has) // ZZZ
+      : Lst(app, Type::makeLst(std::move(has), false, false))
       , v(v)
       , c(0)
     { }
@@ -105,11 +97,9 @@ namespace sel {
 
   public:
     FunChain(App& app, std::vector<Fun*> f)
-      : Fun(app, Type(Ty::FUN,
-          {.box_pair={
-            new Type(f[0]->type().from()),
-            new Type(f[f.size() ? f.size()-1 : 0]->type().to()) // YYY: size-1
-          }}, 0
+      : Fun(app, Type::makeFun(
+          Type(f[0]->type().from()),
+          Type(f[f.size() ? f.size()-1 : 0]->type().to()) // YYY: size-1: a FunChain is never <1 from parsing
         ))
       , f(f)
     { }
@@ -117,6 +107,87 @@ namespace sel {
     Val* copy() const override;
 
     std::vector<Fun*> const& underlying() const { return f; }
+
+  protected:
+    VisitTable visit_table() const override {
+      return make_visit_table<decltype(this)>::function();
+    }
+  };
+
+  template <typename U, typename ...Args>
+  struct Def : U {
+  protected:
+    std::string const name;
+    std::string const doc;
+    U* v;
+
+    Def(App& app, std::string const name, std::string const doc, U* v, Args... args)
+      : U(app, std::forward<Args>(args)...)
+      , name(name)
+      , doc(doc)
+      , v(v)
+    { }
+
+  public:
+    U const& underlying() const { return *v; }
+
+    std::string const& getname() const { return name; }
+    std::string const& getdoc() const { return doc; }
+  };
+
+  struct NumDefine : Def<Num> {
+  public:
+    NumDefine(App& app, std::string const name, std::string const doc, Num* v)
+      : Def(app, name, doc, v)
+    { }
+    double value() override;
+    Val* copy() const override;
+
+  protected:
+    VisitTable visit_table() const override {
+      return make_visit_table<decltype(this)>::function();
+    }
+  };
+
+  struct StrDefine : Def<Str, bool> {
+  public:
+    StrDefine(App& app, std::string const name, std::string const doc, Str* v)
+      : Def(app, name, doc, v, v->type().is_inf())
+    { }
+    std::ostream& stream(std::ostream& out) override;
+    bool end() override;
+    std::ostream& entire(std::ostream& out) override;
+    Val* copy() const override;
+
+  protected:
+    VisitTable visit_table() const override {
+      return make_visit_table<decltype(this)>::function();
+    }
+  };
+
+  struct LstDefine : Def<Lst, Type&&> {
+  public:
+    LstDefine(App& app, std::string const name, std::string const doc, Lst* v)
+      : Def(app, name, doc, v, Type(v->type()))
+    { }
+    Val* operator*() override;
+    Lst& operator++() override;
+    bool end() override;
+    Val* copy() const override;
+
+  protected:
+    VisitTable visit_table() const override {
+      return make_visit_table<decltype(this)>::function();
+    }
+  };
+
+  struct FunDefine : Def<Fun, Type&&> {
+  public:
+    FunDefine(App& app, std::string const name, std::string const doc, Fun* v)
+      : Def(app, name, doc, v, Type(v->type()))
+    { }
+    Val* operator()(Val* arg) override;
+    Val* copy() const override;
 
   protected:
     VisitTable visit_table() const override {

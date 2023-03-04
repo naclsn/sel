@@ -3,7 +3,6 @@
 #include <limits>
 #include <sstream>
 
-#define TRACE(...)
 #include "sel/errors.hpp"
 #include "sel/parser.hpp"
 #include "sel/visitors.hpp"
@@ -26,7 +25,7 @@ namespace sel {
     w.reserve(v.size());
     for (auto const& it : v)
       w.push_back(it->copy());
-    return new LstLiteral(app, w, new std::vector<Type*>(ty.has()));
+    return new LstLiteral(app, w, std::vector<Type>(ty.has()));
   }
 
   Val* FunChain::operator()(Val* arg) {
@@ -42,6 +41,22 @@ namespace sel {
       g.push_back((Fun*)it->copy());
     return new FunChain(app, g);
   }
+
+  double NumDefine::value() { return v->value(); }
+  Val* NumDefine::copy() const { return new NumDefine(app, name, doc, (Num*)v->copy()); }
+
+  std::ostream& StrDefine::stream(std::ostream& out) { return v->stream(out); }
+  bool StrDefine::end() { return v->end(); }
+  std::ostream& StrDefine::entire(std::ostream& out) { return v->entire(out); }
+  Val* StrDefine::copy() const { return new StrDefine(app, name, doc, (Str*)v->copy()); }
+
+  Val* LstDefine::operator*() { return v->operator*(); }
+  Lst& LstDefine::operator++() { return v->operator++(); }
+  bool LstDefine::end() { return v->end(); }
+  Val* LstDefine::copy() const { return new LstDefine(app, name, doc, (Lst*)v->copy()); }
+
+  Val* FunDefine::operator()(Val* arg) { return v->operator()(arg); }
+  Val* FunDefine::copy() const { return new FunDefine(app, name, doc, (Fun*)v->copy()); }
 
   std::ostream& Input::stream(std::ostream& out) {
     // already read up to `upto`, so take from cache starting at `nowat`
@@ -425,7 +440,6 @@ namespace sel {
 
   // internal
   Val* parseAtom(App& app, std::istream_iterator<Token>& lexer) {
-    TRACE(parseAtom, *lexer);
     if (eos == lexer) expectedContinuation("scanning atom", *lexer);
 
     Val* val = nullptr;
@@ -534,7 +548,6 @@ namespace sel {
 
   // internal
   Val* parseElement(App& app, std::istream_iterator<Token>& lexer) {
-    TRACE(parseElement, *lexer);
     if (eos == lexer) expectedContinuation("scanning element", *lexer);
 
     Val* val;
@@ -570,7 +583,17 @@ namespace sel {
         clean.shrink_to_fit();
       }
 
-      // TODO: where to put this doc now? oops..
+      switch (val->type().base()) {
+        case Ty::NUM: val = new NumDefine(app, *t_name.as.name, clean, (Num*)val); break;
+        case Ty::STR: val = new StrDefine(app, *t_name.as.name, clean, (Str*)val); break;
+        case Ty::LST: val = new LstDefine(app, *t_name.as.name, clean, (Lst*)val); break;
+        case Ty::FUN: val = new FunDefine(app, *t_name.as.name, clean, (Fun*)val); break;
+        default: {
+          std::ostringstream oss;
+          throw TypeError((oss << "unexpected type in def expression: '" << val->type() << "'", oss.str()));
+        }
+      }
+
       app.define_name_user(*t_name.as.name, val);
 
     } else val = parseAtom(app, lexer);
@@ -604,7 +627,9 @@ namespace sel {
 
     // early return: single value in script / sub-script
     val = parseElement(app, lexer);
-    if (eos == lexer || Token::Type::SUB_CLOSE == lexer->type)
+    if (eos == lexer
+      || Token::Type::SUB_CLOSE == lexer->type
+      || Token::Type::END == lexer->type)
       return val;
 
     // early return: syntax error, to caller to handle
@@ -625,7 +650,7 @@ namespace sel {
     // actually be done about it _yet_, so the computation
     // is packed in a `FunChain` object (so that it is
     // itself a function)
-    bool isfun = Ty::FUN == val->type().base;
+    bool isfun = Ty::FUN == val->type().base();
 
     if (isfun) {
       // first is a function, pack all up for later
@@ -669,12 +694,16 @@ namespace sel {
   void App::run(std::istream& in, std::ostream& out) {
     Type const& ty = f->type();
 
-    if (Ty::FUN != ty.base) {
+    if (Ty::FUN != ty.base()) {
       std::ostringstream oss;
       throw TypeError((oss << "value of type " << ty << " is not a function", oss.str()));
     }
 
-    coerse<Str>(*this, (*(Fun*)f)(coerse<Val>(*this, new Input(*this, in), ty.from())), Type(Ty::STR, {0}, TyFlag::IS_INF))->entire(out);
+    Val* valin = coerse<Val>(*this, new Input(*this, in), ty.from());
+    Val* valout = (*(Fun*)f)(valin);
+
+    Str& res = *coerse<Str>(*this, valout, Type::makeStr(true));
+    res.entire(out);
   }
 
   void App::repr(std::ostream& out, VisRepr::ReprCx cx) const {
@@ -713,8 +742,53 @@ namespace sel {
   }
 
   std::ostream& operator<<(std::ostream& out, App const& app) {
-    // TODO: todo
-    return out << "hey, am an app";
+    VisShow show(out);
+
+    // XXX: probably the map needs to be ordered because a 'def' can depend on an other
+    for (auto const& it : app.user) {
+      std::string name;
+      std::string doc;
+      Val const* u;
+
+      Val const* val = it.second;
+      switch (val->type().base()) {
+        case Ty::NUM: {
+            NumDefine const& def = *(NumDefine*)val;
+            name = def.getname();
+            doc = def.getdoc();
+            u = &def.underlying();
+          } break;
+        case Ty::STR: {
+            StrDefine const& def = *(StrDefine*)val;
+            name = def.getname();
+            doc = def.getdoc();
+            u = &def.underlying();
+          } break;
+        case Ty::LST: {
+            LstDefine const& def = *(LstDefine*)val;
+            name = def.getname();
+            doc = def.getdoc();
+            u = &def.underlying();
+          } break;
+        case Ty::FUN: {
+            FunDefine const& def = *(FunDefine*)val;
+            name = def.getname();
+            doc = def.getdoc();
+            u = &def.underlying();
+          } break;
+        default: {
+          std::ostringstream oss;
+          throw TypeError((oss << "unexpected type in def expression: '" << val->type() << "'", oss.str()));
+        }
+      }
+
+      out
+        << "def " << name << ":\n  "
+        << quoted(doc, true, false) << ":\n  ["
+      ;
+      u->accept(show) << "]\n  ;\n";
+    }
+    return app.f->accept(show);
   }
 
   std::istream& operator>>(std::istream& in, App& app) {

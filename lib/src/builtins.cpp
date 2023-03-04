@@ -1,6 +1,5 @@
 #include <cmath>
 
-#define TRACE(...)
 #include "sel/builtins.hpp"
 #include "sel/parser.hpp"
 #include "sel/visitors.hpp"
@@ -22,21 +21,18 @@ namespace sel {
     template <typename Impl, typename one>
     Val* _bin_be<Impl, ll::cons<one, ll::nil>>::the::copy() const {
       typedef _bin_be<Impl, ll::cons<one, ll::nil>>::the a;
-      TRACE(copyOne, a::the::Base::Next::name);
       return new typename a::Base::Next(this->app); // copyOne
     }
 
     template <typename Impl, typename last_arg, char b>
     Val* _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::copy() const {
       typedef _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the a;
-      TRACE(copyOne2, a::the::Base::Next::name);
       return new typename a::Base::Next(this->app); // copyOne2
     }
 
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
     Val* _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::copy() const {
       typedef _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>> a;
-      TRACE(copyBody, a::the::Base::Next::name);
       return new _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>(
         this->app,
         (a::Base*)_base->copy(),
@@ -47,7 +43,6 @@ namespace sel {
     template <typename NextT, typename last_to, typename last_from>
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::_the_when_not_unk::copy() const {
       typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the a;
-      TRACE(copyTail1, a::the::Base::Next::name);
       return new typename a::Base::Next(
         this->app,
         (typename a::Base*)_base->copy(),
@@ -57,7 +52,6 @@ namespace sel {
     template <typename NextT, typename last_to, typename last_from>
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::_the_when_is_unk::copy() const {
       typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the a;
-      TRACE(copyTail2, a::the::Base::Next::name);
       return new typename a::Base::Next(
         this->app,
         (typename a::Base*)_base->copy(),
@@ -68,7 +62,6 @@ namespace sel {
     template <typename NextT, typename last_to, typename last_from>
     Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::copy() const {
       typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>> a;
-      TRACE(copyHead, a::the::Base::Next::name);
       return new a(this->app); // copyHead
     }
 

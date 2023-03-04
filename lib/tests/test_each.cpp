@@ -24,13 +24,13 @@ template <typename T> inline Val* _lst_asval(initializer_list<T> x, Type const& 
   for (auto const& it : x)
     r.push_back(asval(it));
   //return asval(r);
-  return new LstLiteral(app, r, new vector<Type*>{new Type(ty)});
+  return new LstLiteral(app, r, {Type(ty)});
 }
-template <> inline Val* asval(initializer_list<int> x) { return _lst_asval(x, Type(Ty::NUM, {0}, 0)); }
-template <> inline Val* asval(initializer_list<float> x) { return _lst_asval(x, Type(Ty::NUM, {0}, 0)); }
-template <> inline Val* asval(initializer_list<char> x) { return _lst_asval(x, Type(Ty::STR, {0}, 0)); }
-template <> inline Val* asval(initializer_list<char const*> x) { return _lst_asval(x, Type(Ty::STR, {0}, 0)); }
-template <> inline Val* asval(initializer_list<string> x) { return _lst_asval(x, Type(Ty::STR, {0}, 0)); }
+template <> inline Val* asval(initializer_list<int> x) { return _lst_asval(x, Type::makeNum()); }
+template <> inline Val* asval(initializer_list<float> x) { return _lst_asval(x, Type::makeNum()); }
+template <> inline Val* asval(initializer_list<char> x) { return _lst_asval(x, Type::makeStr(false)); }
+template <> inline Val* asval(initializer_list<char const*> x) { return _lst_asval(x, Type::makeStr(false)); }
+template <> inline Val* asval(initializer_list<string> x) { return _lst_asval(x, Type::makeStr(false)); }
 
 template <typename T>
 using ili = initializer_list<T>;
@@ -118,16 +118,16 @@ TEST(each) { return call_test<bins_ll::bins>::function(); }
 
 #define __rem_par(...) __VA_ARGS__
 
-#define assert_num(__should, __have) do {  \
-  Val* _habe = (__have);                   \
-  assert_eq(Ty::NUM, _habe->type().base);  \
-  Num& _fart = *((Num*)_habe);             \
-  assert_eq(__should, _fart.value());      \
+#define assert_num(__should, __have) do {    \
+  Val* _habe = (__have);                     \
+  assert_eq(Ty::NUM, _habe->type().base());  \
+  Num& _fart = *((Num*)_habe);               \
+  assert_eq(__should, _fart.value());        \
 } while (0)
 
 #define assert_str(__should, __have) do {                \
   Val* _habe = (__have);                                 \
-  assert_eq(Ty::STR, _habe->type().base);                \
+  assert_eq(Ty::STR, _habe->type().base());              \
   Str& _fart = *((Str*)_habe);                           \
   ostringstream oss;                                     \
   assert_cmp(__should, (_fart.entire(oss), oss.str()));  \
@@ -135,7 +135,7 @@ TEST(each) { return call_test<bins_ll::bins>::function(); }
 
 #define assert_lstnum(__should, __have) do {                                    \
   Val* _habe = (__have);                                                        \
-  assert_eq(Ty::LST, _habe->type().base);                                       \
+  assert_eq(Ty::LST, _habe->type().base());                                     \
   Lst& _fart = *((Lst*)_habe);                                                  \
   for (auto const& _it : __rem_par __should) {                                  \
     assert(!_fart.end(), #__have ":\n   should not have reached the end yet");  \
@@ -147,7 +147,7 @@ TEST(each) { return call_test<bins_ll::bins>::function(); }
 
 #define assert_lststr(__should, __have) do {                                    \
   Val* _habe = (__have);                                                        \
-  assert_eq(Ty::LST, _habe->type().base);                                       \
+  assert_eq(Ty::LST, _habe->type().base());                                     \
   Lst& _fart = *((Lst*)_habe);                                                  \
   for (auto const& _it : __rem_par __should) {                                  \
     assert(!_fart.end(), #__have ":\n   should not have reached the end yet");  \

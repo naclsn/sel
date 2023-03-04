@@ -69,10 +69,9 @@ int test_map() { // map tonum 4
     "}\n"
     );
 
-  Val* map0 = (*(Fun*)map1)(new LstLiteral(app, {new StrLiteral(app, "4")}, new vector<Type*>({new Type(Ty::STR, {0}, 0)})));
+  Val* map0 = (*(Fun*)map1)(new LstLiteral(app, {new StrLiteral(app, "4")}, {Type::makeStr(false)}));
   showv_test(map0,
-    // "<[Num]> Map0 {\n"
-    "<[Num]*> Map0 {\n"
+    "<[Num]> Map0 {\n"
     "   base=<[Str*]* -> [Num]*> Map1 {\n"
     "      base=<(a -> b) -> [a]* -> [b]*> Map2 { }\n"
     "      arg=<Str* -> Num> Tonum1 { }\n"
@@ -116,7 +115,7 @@ int test_zipwith() { // zipwith map {repeat} {{1}}
     );
 
   Val* _repeat1 = lookup_name(app, "repeat");
-  Val* zipwith1 = (*(Fun*)zipwith2)(new LstLiteral(app, {_repeat1}, new vector<Type*>({new Type(_repeat1->type())})));
+  Val* zipwith1 = (*(Fun*)zipwith2)(new LstLiteral(app, {_repeat1}, {Type(_repeat1->type())}));
   showv_test(zipwith1,
     // "<[[a]*] -> [[[a]*]*]> Zipwith1 {\n"
     "<[[a]] -> [[[a]*]]> Zipwith1 {\n"
@@ -129,8 +128,8 @@ int test_zipwith() { // zipwith map {repeat} {{1}}
     );
 
   Val* _lst_lst_num = new LstLiteral(app, {
-    new LstLiteral(app, {new NumLiteral(app, 42)}, new vector<Type*>({new Type(Ty::NUM, {0}, 0)}))
-  }, new vector<Type*>({new Type(Ty::LST, {.box_has=new vector<Type*>({new Type(Ty::NUM, {0}, 0)})}, TyFlag::IS_FIN)}));
+    new LstLiteral(app, {new NumLiteral(app, 42)}, {Type::makeNum()})
+  }, {Type::makeLst({Type::makeNum()}, false, false)});
   Val* zipwith0 = (*(Fun*)zipwith1)(_lst_lst_num);
   showv_test(zipwith0,
     // "<[[[Num]]*]> Zipwith0 {\n"

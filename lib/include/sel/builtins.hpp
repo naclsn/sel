@@ -73,20 +73,27 @@ namespace sel {
 
     using namespace ll;
 
+    // XXX: idk, just xxx (it sais 'not needed and not emitted', but it /is/ used..?)
+    inline static Type done_applied(Type const& base_fty, Type const& ty) {
+      Type res;
+      base_fty.applied(ty, res);
+      return res;
+    }
+
     template <char c> struct unk {
       typedef Val vat;
       inline static Type make(char const* fname) {
-        std::string* vname = new std::string(1, c);
-        vname->push_back('_');
-        vname->append(fname);
-        return Type(Ty::UNK, {.name=vname}, 0);
+        std::string vname(1, c);
+        vname.push_back('_');
+        vname.append(fname);
+        return Type::makeUnk(std::move(vname));
       }
     };
 
     struct num {
       typedef Num vat;
       inline static Type make(char const* fname) {
-        return Type(Ty::NUM, {0}, 0);
+        return Type::makeNum();
       }
       struct ctor : Num {
         ctor(App& app, char const* fname)
@@ -101,7 +108,7 @@ namespace sel {
     struct str {
       typedef Str vat;
       inline static Type make(char const* fname) {
-        return Type(Ty::STR, {0}, TyFlag::IS_FIN);
+        return Type::makeStr(false);
       }
       struct ctor : Str {
         ctor(App& app, char const* fname)
@@ -115,7 +122,7 @@ namespace sel {
     struct istr {
       typedef Str vat;
       inline static Type make(char const* fname) {
-        return Type(Ty::STR, {0}, TyFlag::IS_INF);
+        return Type::makeStr(true);
       }
       struct ctor : Str {
         ctor(App& app, char const* fname)
@@ -130,32 +137,28 @@ namespace sel {
     template <typename... has> struct lst {
       typedef Lst vat;
       inline static Type make(char const* fname) {
-        return Type(Ty::LST, {.box_has= new std::vector<Type*>{
-          new Type(has::make(fname))...
-        }}, TyFlag::IS_FIN);
+        return Type::makeLst({has::make(fname)...}, false, false);
       }
       struct ctor : Lst {
         ctor(App& app, char const* fname)
           : Lst(app, make(fname))
         { }
         ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
-          : Lst(app, base_fty.applied(ty))
+          : Lst(app, done_applied(base_fty, ty))
         { }
       };
     };
     template <typename... has> struct ilst {
       typedef Lst vat;
       inline static Type make(char const* fname) {
-        return Type(Ty::LST, {.box_has= new std::vector<Type*>{
-          new Type(has::make(fname))...
-        }}, TyFlag::IS_INF);
+        return Type::makeLst({has::make(fname)...}, true, false);
       }
       struct ctor : Lst {
         ctor(App& app, char const* fname)
           : Lst(app, make(fname))
         { }
         ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
-          : Lst(app, base_fty.applied(ty))
+          : Lst(app, done_applied(base_fty, ty))
         { }
       };
     };
@@ -163,16 +166,14 @@ namespace sel {
     template <typename... has> struct tpl {
       typedef Lst vat;
       inline static Type make(char const* fname) {
-        return Type(Ty::LST, {.box_has= new std::vector<Type*>{
-          new Type(has::make(fname))...
-        }}, TyFlag::IS_TPL);
+        return Type::makeLst({has::make(fname)...}, false, true);
       }
       struct ctor : Lst {
         ctor(App& app, char const* fname)
           : Lst(app, make(fname))
         { }
         ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
-          : Lst(app, base_fty.applied(ty))
+          : Lst(app, done_applied(base_fty, ty))
         { }
       };
     };
@@ -180,17 +181,14 @@ namespace sel {
     template <typename from, typename to> struct fun {
       typedef Fun vat;
       inline static Type make(char const* fname) {
-        return Type(Ty::FUN, {.box_pair= {
-          new Type(from::make(fname)),
-          new Type(to::make(fname))
-        }}, 0);
+        return Type::makeFun(std::move(from::make(fname)), std::move(to::make(fname)));
       }
       struct ctor : Fun {
         ctor(App& app, char const* fname)
           : Fun(app, make(fname))
         { }
         ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
-          : Fun(app, base_fty.applied(ty))
+          : Fun(app, done_applied(base_fty, ty))
         { }
       };
     };

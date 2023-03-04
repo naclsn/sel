@@ -57,7 +57,7 @@ namespace sel {
     virtual VisitTable visit_table() const = 0;
 
   public:
-    Val(App& app, Type const& ty);
+    Val(App& app, Type&& ty);
     virtual ~Val();
 
     Type const& type() const { return ty; }
@@ -90,7 +90,7 @@ namespace sel {
    */
   struct Num : Val {
     Num(App& app)
-      : Val(app, Type(Ty::NUM, {0}, 0))
+      : Val(app, Type::makeNum())
     { }
     virtual double value() = 0;
   };
@@ -100,8 +100,8 @@ namespace sel {
    * Strings are "rewindable streams".
    */
   struct Str : Val { //, public std::istream
-    Str(App& app, TyFlag is_inf)
-      : Val(app, Type(Ty::STR, {0}, is_inf))
+    Str(App& app, bool is_inf)
+      : Val(app, Type::makeStr(is_inf))
     { }
     friend std::ostream& operator<<(std::ostream& out, Str& val) { return val.stream(out); }
     /**
@@ -125,8 +125,8 @@ namespace sel {
    * `next` and `rewind`.)
    */
   struct Lst : Val { //, public std::iterator<std::input_iterator_tag, Val>
-    Lst(App& app, Type const& type)
-      : Val(app, type)
+    Lst(App& app, Type&& type)
+      : Val(app, std::forward<Type>(type))
     { }
     /**
      * Get (compute, etc..) the current value.
@@ -155,8 +155,8 @@ namespace sel {
    * a new value.
    */
   struct Fun : Val {
-    Fun(App& app, Type const& type)
-      : Val(app, type)
+    Fun(App& app, Type&& type)
+      : Val(app, std::forward<Type>(type))
     { }
     virtual Val* operator()(Val* arg) = 0;
   };
@@ -168,24 +168,16 @@ namespace sel {
     size_t now_has;
     size_t has_size;
 
-    static inline std::vector<Type*>* cpy_has(std::vector<Type*> const& to_has) {
-      auto* r = new std::vector<Type*>();
-      r->reserve(to_has.size());
-      for (auto const& it : to_has)
-        r->push_back(new Type(*it));
-      return r;
-    }
-
   public:
-    LstMapCoerse(App& app, Lst* v, std::vector<Type*> const& to_has)
-      : Lst(app, Type(Ty::LST, {.box_has= cpy_has(to_has)}, v->type().flags))
+    LstMapCoerse(App& app, Lst* v, std::vector<Type> const& to_has)
+      : Lst(app, Type::makeLst(std::vector<Type>(to_has), v->type().is_inf(), v->type().is_tpl()))
       , v(v)
       , now_has(0)
       , has_size(ty.has().size())
     { }
 
     Val* operator*() override {
-      return coerse<Val>(app, *(*v), *ty.has()[now_has]);
+      return coerse<Val>(app, *(*v), ty.has()[now_has]);
     }
     Lst& operator++() override {
       ++(*v);
