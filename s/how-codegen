@@ -1,0 +1,23 @@
+#!/bin/sh -e
+# @thx: https://www.ics.usi.ch/images/stories/ICS/slides/llvm-graphs.pdf
+if ! test -f "$1"
+  then
+    echo "Usage: $0 <.ll>" >&2
+    exit
+fi
+
+ll=$1
+
+opt -dot-cfg "$ll" -o /dev/null
+for f in .*.dot
+  do
+    n=${f%.dot}
+    dot -Tpng $f -o "$ll-${f#.}.png"
+    rm $f
+    echo "$ll-${f#.}.png"
+done
+
+opt -enable-new-pm=0 -dot-callgraph "$ll" -o /dev/null
+dot -Tpng "$ll.callgraph.dot" > "$ll.callgraph.png"
+rm "$ll.callgraph.dot"
+echo "$ll.callgraph.png"

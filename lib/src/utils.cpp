@@ -1,3 +1,4 @@
+#include "sel/builtins.hpp"
 #include "sel/utils.hpp"
 #include "sel/visitors.hpp"
 
@@ -24,7 +25,7 @@ namespace sel {
   }
 
   std::ostream& operator<<(std::ostream& out, repr me) {
-    VisRepr repr(out, {.single_line=true});
+    VisRepr repr(out, {.single_line=me.single_line});
     me.val.accept(repr);
     return out;
   }
@@ -66,6 +67,17 @@ namespace sel {
     out << q.str.substr(from);
     if (q.put_quo) out << (q.do_col ? ':' : '"');
     return out;
+  }
+
+  indentedbuf::int_type indentedbuf::overflow(int_type c) {
+    if (pending) {
+      for (unsigned k = 0; k < cur; k++)
+        out.write(style, count);
+      pending = false;
+    }
+    out.put(c);
+    if ('\n' == c) pending = true;
+    return c;
   }
 
 }

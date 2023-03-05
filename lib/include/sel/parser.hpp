@@ -258,6 +258,9 @@ namespace sel {
     void clear();
 
     Type const& type() const { return f->type(); }
+    // void accept(Visitor& v) const { v(*f); }
+    // ZZZ: temporary dumb accessor
+    Val& get() { return *f; }
 
     bool is_strict_type() const { return strict_type; }
 

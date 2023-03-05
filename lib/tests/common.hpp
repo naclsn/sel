@@ -15,11 +15,13 @@ using namespace sel;
 #define BLUE  "\e[34m"
 #define RESET "\e[m"
 
+#undef report
 #define report(__for, __nbf) {                                        \
   int _nbf = (__nbf);                                                 \
   cerr << __for << ": " << _nbf << " fail" << (_nbf < 2 ? "" : "s");  \
 } while (0)
 
+#undef fail
 #define fail(__msg) do {                 \
   cerr                                   \
     << "failed with:\n"                  \
@@ -28,6 +30,7 @@ using namespace sel;
   return 1;                              \
 } while (0)
 
+#undef assert
 #define assert(__expr, __msg) do {       \
   if (__expr) break;                     \
   cerr                                   \
@@ -38,6 +41,7 @@ using namespace sel;
   return 1;                              \
 } while (0)
 
+#undef assert_eq
 #define assert_eq(__should, __have) do {                      \
   auto _should = (__should);                                  \
   auto _have = (__have);                                      \
@@ -52,6 +56,7 @@ using namespace sel;
   return 1;                                                   \
 } while (0)
 
+#undef assert_ne
 #define assert_ne(__shldnt, __have) do {                      \
   auto _shldnt = (__shldnt);                                  \
   auto _have = (__have);                                      \
@@ -66,6 +71,7 @@ using namespace sel;
   return 1;                                                   \
 } while (0)
 
+#undef assert_cmp
 #define assert_cmp(__should, __have) do {                 \
   if (_assert_cmp(#__should, #__have, __should, __have))  \
     return 1;                                             \
@@ -105,6 +111,7 @@ inline bool _assert_cmp(char const* sshould, char const* shave, string should, s
   return true;
 }
 
+#undef TEST
 #define TEST(__function)           \
   int __##__function();            \
   int main() {                     \

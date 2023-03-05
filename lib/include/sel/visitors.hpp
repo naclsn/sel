@@ -10,13 +10,29 @@
 
 #include <iostream>
 #include <ostream>
+#include <sstream>
 #include <string>
 #include <vector>
+
+#ifdef LLVM_CODEGEN
+#include <functional>
+#include <list>
+#include <stack>
+#include <unordered_map>
+
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Module.h>
+#include <llvm/Support/raw_os_ostream.h>
+
+namespace tll { template <typename Ty> struct let; }
+#endif
 
 #include "errors.hpp"
 #include "forward.hpp"
 #include "ll.hpp"
 #include "types.hpp"
+#include "utils.hpp"
 
 namespace sel {
 
@@ -148,8 +164,74 @@ namespace sel {
   };
 
 
+#ifdef LLVM_CODEGEN
+  struct Codegen;
+
+  class VisCodegen {
+    llvm::LLVMContext context;
+    llvm::IRBuilder<> builder;
+    llvm::Module module;
+
+    indented& log;
+    Val& f; // ZZZ: temporary dum accessor
+    Codegen& cg;
+
+    void visitCommon(Segment const& it, char const* name);
+    void visitCommon(Val const& it, char const* name);
+    void visitInput();
+
+  public:
+    typedef void Ret;
+    char const* funname;
+
+    VisCodegen(char const* file_name, char const* module_name, char const* function_name, App& app);
+    ~VisCodegen();
+
+    // generate the module, with the app function
+    void makeModule();
+    // generate a `i32 main()` that calls the generated function
+    void makeMain();
+
+    void print(std::ostream& out) const {
+      llvm::raw_os_ostream o(out);
+      module.print(o, nullptr);
+    }
+    void compile(char const* outfile, bool link);
+
+    template <typename T>
+    Ret visit(T const& it) {
+      visitCommon((typename std::conditional<!T::args, T, Segment>::type&)it, T::the::Base::Next::name);
+    }
+    Ret visit(NumLiteral const& it);
+    Ret visit(StrLiteral const& it);
+    Ret visit(LstLiteral const& it);
+    Ret visit(FunChain const& it);
+    Ret visit(NumDefine const& it);
+    Ret visit(StrDefine const& it);
+    Ret visit(LstDefine const& it);
+    Ret visit(FunDefine const& it);
+    Ret visit(Input const& it);
+    Ret visit(StrChunks const& it);
+    Ret visit(LstMapCoerse const& it);
+  };
+#else
+  // still provide a stub
+  class VisCodegen {
+  public:
+    typedef void Ret;
+
+    VisCodegen(char const* file_name, char const* module_name, char const* function_name, App& app) { }
+    void makeMain() { }
+    void print(std::ostream& out) { }
+    void compile(char const* outfile, bool link) { }
+
+    template <typename T>
+    Ret visit(T const&) { throw NIYError("this was not compiled with the llvm_codegen option"); }
+  };
+#endif
+
   namespace visitors_ll {
-    typedef ll::pack<VisRepr, VisHelp, VisName, VisShow> visitors;
+    typedef ll::pack<VisRepr, VisHelp, VisName, VisShow, VisCodegen> visitors;
   }
 
 } // namespace sel

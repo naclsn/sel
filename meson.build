@@ -15,6 +15,12 @@ if get_option('bins_min')
     language : 'cpp',
   )
 endif
+if get_option('llvm_codegen')
+  add_project_arguments(
+    '-DLLVM_CODEGEN=1',
+    language : 'cpp',
+  )
+endif
 
 subdir('lib')
 subdir('src')

@@ -29,14 +29,8 @@ int main(int argc, char* argv[]) {
   }
 
   if (opts.compile) {
-    char** flags = opts.compile_flags;
-    char* outfile = *flags++;
-    cerr << "out: " << quoted(outfile);
-    if (*flags) {
-      cerr << ", flags:\n";
-      while (*flags) cerr << "   " << quoted(*flags++) << "\n";
-    } else cerr << ", no flags\n";
-    throw NIYError("emit binary");
+    compile(app, opts.filename, opts);
+    return EXIT_SUCCESS;
   }
 
   run(app);

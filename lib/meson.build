@@ -1,6 +1,14 @@
 inc = include_directories('include')
 install_subdir('include/sel', install_dir : 'include')
 
+# note to self: if it is not finding the correct version
+# despite having `llvm-config --version` check out, this
+# is because it is only trying `llvm-config-64`...
+llvm = dependency('llvm',
+  version : '< 9',
+  required : get_option('llvm_codegen'),
+)
+
 lib = library('sel',
   'src/utils.cpp',
   'src/errors.cpp',
@@ -14,7 +22,9 @@ lib = library('sel',
   'src/visitors/help.cpp',
   'src/visitors/name.cpp',
   'src/visitors/show.cpp',
+  'src/visitors/codegen.cpp',
   include_directories : [inc],
+  dependencies : [llvm],
   install : true,
 )
 
