@@ -24,7 +24,7 @@ trap "rm '$dir/$f.ll' '$dir/$f-p.ll' |:; rmdir '$dir' |:" EXIT
 cp $f.ll $f-p.ll "$dir" |:
 mv $f.ll $f-p.ll |:
 
-if s/el-min -f <(echo "$@") -o $f $N
+if s/el -f <(echo "$@") -o $f.ll $N -S
   then
     if `command -v colordiff || echo diff` -u $f-p.ll $f.ll
       then echo [no diff]

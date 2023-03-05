@@ -173,11 +173,12 @@ namespace sel {
     llvm::Module module;
 
     indented& log;
-
+    Val& f; // ZZZ: temporary dum accessor
     Codegen& cg;
 
     void visitCommon(Segment const& it, char const* name);
     void visitCommon(Val const& it, char const* name);
+    void visitInput();
 
   public:
     typedef void Ret;
@@ -186,6 +187,8 @@ namespace sel {
     VisCodegen(char const* file_name, char const* module_name, char const* function_name, App& app);
     ~VisCodegen();
 
+    // generate the module, with the app function
+    void makeModule();
     // generate a `i32 main()` that calls the generated function
     void makeMain();
 

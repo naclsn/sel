@@ -3,6 +3,7 @@
 #include <fstream>
 
 #include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/Verifier.h>
 #include <llvm/Support/TargetRegistry.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Target/TargetMachine.h>
@@ -72,23 +73,23 @@ namespace sel {
   // not the iteration variable (ie a chr, not chr* nor len)
   void makeBufferLoop(std::string const name
     , Generated::let_ptr_len ptr_len
-    , std::function<void(BasicBlock* brk, BasicBlock* cont, let<char> at)> body
+    , std::function<void(let<label> brk, let<label> cont, let<char> at)> body
     )
   {
     // {before} -> body -> incr -> after
     //      \       | ^----'       ^
     //       `------+-------------'
 
-    auto* before_bb = here();
-    auto* body_bb = block(name+"_loop_body");
-    auto* incr_bb = block(name+"_loop_incr");
-    auto* after_bb = block(name+"_loop_break");
+    auto before_bb = let<label>::here();
+    let<label> body_bb(name+"_loop_body");
+    let<label> incr_bb(name+"_loop_incr");
+    let<label> after_bb(name+"_loop_break");
 
     // before -> {body}    after
     //     `----------------^
     cond(ptr_len.len > 0, body_bb, after_bb);
 
-    point(body_bb);
+    body_bb.insert();
     // when first entering, init to 0
     letPHI<int> k;
     k.incoming(0, before_bb);
@@ -98,7 +99,7 @@ namespace sel {
     //  `-------------^
     body(after_bb, incr_bb, ptr_len.ptr[k]);
 
-    point(incr_bb);
+    incr_bb.insert();
     // when from continue, take the ++
     auto kpp = k + 1;
     k.incoming(kpp, incr_bb);
@@ -106,13 +107,13 @@ namespace sel {
     // body    incr -> {after}
     //    ^----'
     cond(ptr_len.len == kpp, after_bb, body_bb);
-    point(after_bb);
+    after_bb.insert();
   }
 
   void makeStream(std::string const name
-    , std::function<void(BasicBlock* brk, BasicBlock* cont)> chk
+    , std::function<void(let<label> brk, let<label> cont)> chk
     , std::function<Generated()> itr
-    , std::function<void(BasicBlock* brk, BasicBlock* cont, Generated it)> also
+    , std::function<void(let<label> brk, let<label> cont, Generated it)> also
     )
   {
     // entry -> check -> [iter -> inject] (inject must branch to exit or check)
@@ -120,25 +121,25 @@ namespace sel {
     //           `-------------> exit (insert point ends up in exit, which is empty)
 
     // entry -> {check}
-    auto* check = block(name+"_check");
+    let<label> check(name+"_check");
     br(check);
-    point(check);
+    check.insert();
 
-    auto* exit = block(name+"_exit");
-    auto* iter = block(name+"_iter");
+    let<label> exit(name+"_exit");
+    let<label> iter(name+"_iter");
     // (responsibility of chk)
     // {check}  -> [iter
     //    `--------> exit
     chk(exit, iter);
 
     // [{iter}
-    point(iter);
+    iter.insert();
     auto ptr_len = itr();
 
     // [iter -> {inject}]
-    auto* inject = block(name+"_inject");
+    let<label> inject(name+"_inject");
     br(inject);
-    point(inject);
+    inject.insert();
     // (responsibility of also)
     // check -> [iter -> inject]
     //  |  ^-------------' v
@@ -146,7 +147,7 @@ namespace sel {
     also(exit, check, ptr_len);
 
     // {exit}
-    point(exit);
+    exit.insert();
   }
 
 
@@ -154,7 +155,7 @@ namespace sel {
   /// in the case of a SyNum, brk and cont are both the same
   typedef std::function
     < void
-      (llvm::BasicBlock* brk, llvm::BasicBlock* cont, Generated it)
+      (let<label> brk, let<label> cont, Generated it)
     > inject_clo_type;
   typedef std::function<void(Codegen&, inject_clo_type)> clo_type;
 
@@ -255,14 +256,12 @@ namespace sel {
     , builder(context)
     , module(module_name, context)
     , log(*new indented("   ", std::cerr))
+    , f(app.get()) // ZZZ: temporary dum accessor
     , cg(*new Codegen(*this, log))
     , funname(function_name)
   {
-    tll::builder(builder);
-
     module.setSourceFileName(file_name);
 
-    Val& f = app.get(); // ZZZ: temporary dum accessor
     // type-check (for now it only can do `Str* -> Str*`)
     {
       Type const& ty = f.type();
@@ -278,13 +277,21 @@ namespace sel {
         throw NIYError((oss << "compiling an application of type '" << ty << "', only 'Str* -> Str*' is supported", oss.str()));
       }
     }
+  }
+
+  VisCodegen::~VisCodegen() {
+    delete &log;
+    delete &cg;
+  }
+
+  void VisCodegen::makeModule() {
+    tll::builder(builder);
 
     app_t app_f(funname, module, Function::ExternalLinkage);
-    point(app_f.entry());
+    app_f.entry().insert();
 
-    // place input symbol (dont like having to construct a `Input` for this)
-    std::stringstream zin;
-    visit(*new Input(app, zin));
+    // place input symbol
+    visitInput();
 
     // build the whole stack
     // coerse<Val>(app, new Input(app, in), ty.from()); // TODO: input coersion (Str* -> a)
@@ -294,7 +301,7 @@ namespace sel {
     auto put = tll::get<1>(app_f);
 
     // start taking from the stack and generate the output
-    cg.take().make(cg, [&put](BasicBlock* brk, BasicBlock* cont, Generated it) {
+    cg.take().make(cg, [&put](let<label> brk, let<label> cont, Generated it) {
       (*put)(it.buf().ptr, it.buf().len);
       br(cont);
     });
@@ -302,11 +309,9 @@ namespace sel {
     app_f.ret();
 
     if (!cg.systack.empty()) throw CodegenError("symbol stack should be empty at the end");
-  }
 
-  VisCodegen::~VisCodegen() {
-    delete &log;
-    delete &cg;
+    if (verifyFunction(*(Function*)app_f, &errs()))
+      throw CodegenError("broken app function");
   }
 
   void VisCodegen::makeMain() {
@@ -319,12 +324,12 @@ namespace sel {
     let<bool(char const**, int*)> get("get", module, Function::PrivateLinkage);
     let<void(char const*, int)> put("put", module, Function::PrivateLinkage);
 
-    point(main.entry()); {
+    main.entry().insert(); {
       app_f(*get, *put);
       main.ret(0);
     }
 
-    point(get.entry()); {
+    get.entry().insert(); {
       auto b = tll::get<0>(get);
       auto l = tll::get<1>(get);
 
@@ -333,29 +338,29 @@ namespace sel {
 
       let<int()> getchar("getchar", module, Function::ExternalLinkage);
       auto r = getchar();
-      auto* notend = block("notend");
-      auto* end = block("end");
+      let<label> notend("notend");
+      let<label> end("end");
       cond(r == -1, end, notend);
 
-      point(notend); {
+      notend.insert(); {
         **buf = r.into<char>();
         *b = *buf;
         *l = 1;
         get.ret(true);
       }
 
-      point(end); {
+      end.insert(); {
         *l = 0;
         get.ret(false);
       }
     }
 
-    point(put.entry()); {
+    put.entry().insert(); {
       auto b = tll::get<0>(put);
       auto l = tll::get<1>(put);
 
       let<int(int)> putchar("putchar", module, Function::ExternalLinkage);
-      makeBufferLoop("", {b, l}, [&putchar](BasicBlock* brk, BasicBlock* cont, let<char> at) {
+      makeBufferLoop("", {b, l}, [&putchar](let<label> brk, let<label> cont, let<char> at) {
         putchar(at.into<int>());
         br(cont);
       });
@@ -365,6 +370,9 @@ namespace sel {
   }
 
   void VisCodegen::compile(char const* outfile, bool link) {
+    if (verifyModule(module, &errs()))
+      throw CodegenError("broken module");
+
     auto triple = sys::getDefaultTargetTriple();
 
     InitializeAllTargetInfos();
@@ -421,9 +429,9 @@ namespace sel {
   void VisCodegen::visit(NumLiteral const& it) {
     double n = it.underlying();
     cg.place({std::to_string(n), [n](Codegen&, inject_clo_type also) {
-      auto* after = block(std::to_string(n)+"_after");
+      let<label> after(std::to_string(n)+"_after");
       also(after, after, Generated(n));
-      point(after);
+      after.insert();
     }});
   }
 
@@ -436,9 +444,9 @@ namespace sel {
     letGlobal<char const**> buffer(name, module, GlobalValue::PrivateLinkage, s, false); // don't add null
 
     cg.place({s, [len, name, buffer](Codegen& cg, inject_clo_type also) {
-      auto* after = block(name+"_after");
+      let<label> after(name+"_after");
       also(after, after, Generated(*buffer, len));
-      point(after);
+      after.insert();
     }});
   }
 
@@ -483,6 +491,10 @@ namespace sel {
   }
 
   void VisCodegen::visit(Input const& it) {
+    throw BaseError("this should not be called: VisCodegen::visit(Input const&)");
+  }
+
+  void VisCodegen::visitInput() {
     // reclaim existing function
     app_t app_f(funname, module);
 
@@ -495,12 +507,12 @@ namespace sel {
       *partial = true;
 
       makeStream("input",
-        [&get, &buf, &len, &partial](BasicBlock* brk, BasicBlock* cont) {
-          auto* read = block("read");
+        [&get, &buf, &len, &partial](let<label> brk, let<label> cont) {
+          let<label> read("read");
           // last `get` returned false (ie. not partial -> nothing more to get)
           cond(*partial, read, brk);
 
-          point(read);
+          read.insert();
           *partial = (*get)(buf, len);
 
           // YYY: the condition `0 < *len` is checked by the `makeBufferLoop`
@@ -536,16 +548,16 @@ namespace sel {
 
       } else if (1 == count) {
         // no need for iterating
-        auto* after = block("chunks_of_"+std::to_string(count)+"_after");
+        let<label> after("chunks_of_"+std::to_string(count)+"_after");
         also(after, after, Generated(*arr[0], lens[0]));
-        point(after);
+        after.insert();
 
       } else {
-        auto* brk = block("chunks_of_"+std::to_string(count)+"_brk");
-        auto* cont = block("chunks_of_"+std::to_string(count)+"_cont");
+        let<label> brk("chunks_of_"+std::to_string(count)+"_brk");
+        let<label> cont("chunks_of_"+std::to_string(count)+"_cont");
 
-        auto* before = here();
-        auto* entry = block("chunks_of_"+std::to_string(count)+"_after");
+        auto before = let<label>::here();
+        let<label> entry("chunks_of_"+std::to_string(count)+"_after");
         br(entry);
 
         letPHI<int> k;
@@ -555,12 +567,12 @@ namespace sel {
         //              `-> cont
         also(brk, cont, Generated(*arr[k], *arrlens[k]));
 
-        point(cont);
+        cont.insert(); // XXX: write on cont
           auto kpp = k+1;
           k.incoming(kpp, cont);
           br(entry);
 
-        point(brk);
+        brk.insert();
       }
     }});
   }
@@ -576,19 +588,19 @@ namespace sel {
     {"abs", [](Codegen& cg, inject_clo_type also) {
       auto const n = cg.take();
 
-      n.make(cg, [&also](BasicBlock* brk, BasicBlock* cont, Generated it) {
-        auto* before = here();
-        auto* negate = block("abs_negate");
-        auto* after = block("abs_after");
+      n.make(cg, [&also](let<label> brk, let<label> cont, Generated it) {
+        auto before = let<label>::here();
+        let<label> negate("abs_negate");
+        let<label> after("abs_after");
 
         auto in = it.num();
         cond(in < 0, negate, after);
 
-        point(negate);
+        negate.insert();
           auto pos = -in;
           br(after);
 
-        point(after);
+        after.insert();
           letPHI<double> out({
             {in, before},
             {pos, negate},
@@ -601,8 +613,8 @@ namespace sel {
     {"add", [](Codegen& cg, inject_clo_type also) {
       auto const a = cg.take();
       auto const b = cg.take();
-      a.make(cg, [&cg, &also, &b](BasicBlock *brk, BasicBlock *cont, Generated a) {
-        b.make(cg, [&also, &a](BasicBlock *brk, BasicBlock *cont, Generated b) {
+      a.make(cg, [&cg, &also, &b](let<label> brk, let<label> cont, Generated a) {
+        b.make(cg, [&also, &a](let<label> brk, let<label> cont, Generated b) {
           also(cont, cont, a.num() + b.num());
         });
         br(cont);
@@ -611,8 +623,8 @@ namespace sel {
 
     {"bytes", [](Codegen& cg, inject_clo_type also) {
       auto const s = cg.take();
-      s.make(cg, [&also, &s](BasicBlock* brk, BasicBlock* cont, Generated it) {
-        makeBufferLoop("bytes's " + s.name, it.buf(), [&also](BasicBlock* brk, BasicBlock* cont, let<char> at) {
+      s.make(cg, [&also, &s](let<label> brk, let<label> cont, Generated it) {
+        makeBufferLoop("bytes's " + s.name, it.buf(), [&also](let<label> brk, let<label> cont, let<char> at) {
           also(brk, cont, at.into<double>());
         });
         br(cont);
@@ -626,62 +638,62 @@ namespace sel {
       auto state = let<int>::alloc();
       *state = 0;
 
-      s.make(cg, [&also, &s, &acc, &state](BasicBlock* brk, BasicBlock* cont, Generated it) {
-        makeBufferLoop("codepoints's " + s.name, it.buf(), [&also, &acc, &state](BasicBlock* brk, BasicBlock* cont, let<char> at) {
-          auto* before = here();
-          auto* also_bb = block("codepoints_also");
+      s.make(cg, [&also, &s, &acc, &state](let<label> brk, let<label> cont, Generated it) {
+        makeBufferLoop("codepoints's " + s.name, it.buf(), [&also, &acc, &state](let<label> brk, let<label> cont, let<char> at) {
+          auto before = let<label>::here();
+          let<label> also_bb("codepoints_also");
 
-          point(also_bb);
+          also_bb.insert();
             letPHI<double> send;
 
-          point(before);
+          before.insert();
             auto curr = let<int>(*state);
 
-            auto* curr_zero = block("codepoints_curr_zero");
-            auto* curr_nonzero = block("codepoints_curr_nonzero");
+            let<label> curr_zero("codepoints_curr_zero");
+            let<label> curr_nonzero("codepoints_curr_nonzero");
           cond(curr == 0, curr_zero, curr_nonzero);
 
-          point(curr_zero); {
-            auto* at_ascii = block("codepoints_at_ascii");
-            auto* at_nonascii = block("codepoints_at_nonascii");
+          curr_zero.insert(); {
+            let<label> at_ascii("codepoints_at_ascii");
+            let<label> at_nonascii("codepoints_at_nonascii");
             cond((at & 0b10000000) == 0, at_ascii, at_nonascii);
 
-            point(at_ascii); {
+            at_ascii.insert(); {
               // ASCII-compatible
               send.incoming(at.into<double>(), at_ascii);
               br(also_bb);
             }
-            point(at_nonascii); {
+            at_nonascii.insert(); {
               // start state counting
-              auto* s1 = block("codepoints_start_1");
-              auto* nots1 = block("codepoints_not_start_1");
-              auto* s2 = block("codepoints_start_2");
-              auto* nots2 = block("codepoints_not_start_2");
-              auto* s3 = block("codepoints_start_3");
-              auto* nots3 = block("codepoints_not_start_3");
+              let<label> s1("codepoints_start_1");
+              let<label> nots1("codepoints_not_start_1");
+              let<label> s2("codepoints_start_2");
+              let<label> nots2("codepoints_not_start_2");
+              let<label> s3("codepoints_start_3");
+              let<label> nots3("codepoints_not_start_3");
               cond((at & 0b00100000) == 0, s1, nots1);
-              point(nots1);
+              nots1.insert();
               cond((at & 0b00010000) == 0, s2, nots2);
-              point(nots2);
+              nots2.insert();
               cond((at & 0b00001000) == 0, s3, nots3);
-              point(nots3); {
+              nots3.insert(); {
                 send.incoming(at.into<double>(), nots3);
                 br(also_bb);
               }
 
-              point(s1); {
+              s1.insert(); {
                 // 110 -> 1 more bytes
                 *acc = (at & 0b00011111).into<int>() << 6;
                 *state = 1;
                 br(cont);
               }
-              point(s2); {
+              s2.insert(); {
                 // 1110 -> 2 more bytes
                 *acc = (at & 0b00001111).into<int>() << 12;
                 *state = 2;
                 br(cont);
               }
-              point(s3); {
+              s3.insert(); {
                 // 11110 -> 3 more bytes
                 *acc = (at & 0b00000111).into<int>() << 18;
                 *state = 3;
@@ -689,28 +701,28 @@ namespace sel {
               }
             } // ascii/nonascii
           }
-          point(curr_nonzero); {
+          curr_nonzero.insert(); {
             auto next = curr-1;
             *state = next;
 
             auto upacc = let<int>(*acc) | (at & 0b00111111).into<int>();
 
-            auto* next_zero = block("codepoints_next_zero");
-            auto* next_nonzero = block("codepoints_next_nonzero");
+            let<label> next_zero("codepoints_next_zero");
+            let<label> next_nonzero("codepoints_next_nonzero");
             cond(next == 0, next_zero, next_nonzero);
 
-            point(next_zero); {
+            next_zero.insert(); {
               send.incoming(upacc.into<double>(), next_zero);
               br(also_bb);
             }
-            point(next_nonzero); {
+            next_nonzero.insert(); {
               auto shft = next*6;
               *acc = upacc << shft;
               br(cont);
             }
           } // zero/nonzero
 
-          point(also_bb);
+          also_bb.insert();
             also(brk, cont, send);
         });
         br(cont);
@@ -720,8 +732,8 @@ namespace sel {
     {"div", [](Codegen& cg, inject_clo_type also) {
       auto const a = cg.take();
       auto const b = cg.take();
-      a.make(cg, [&cg, &also, &b](BasicBlock* brk, BasicBlock* cont, Generated a) {
-        b.make(cg, [&also, &a](BasicBlock* brk, BasicBlock* cont, Generated b) {
+      a.make(cg, [&cg, &also, &b](let<label> brk, let<label> cont, Generated a) {
+        b.make(cg, [&also, &a](let<label> brk, let<label> cont, Generated b) {
           also(cont, cont, a.num() / b.num());
         });
         br(cont);
@@ -736,18 +748,18 @@ namespace sel {
     {"filter", [](Codegen& cg, inject_clo_type also) {
       auto const p = cg.take();
       auto const l = cg.take();
-      l.make(cg, [&cg, &also, &p](BasicBlock* brk, BasicBlock* cont, Generated it) {
+      l.make(cg, [&cg, &also, &p](let<label> brk, let<label> cont, Generated it) {
         cg.place({"filter's it", [&brk, &cont, it](Codegen&, inject_clo_type also) {
           also(brk, cont, it);
         }});
-        p.make(cg, [&also, &it](BasicBlock* brk, BasicBlock* cont, Generated pred_res) {
+        p.make(cg, [&also, &it](let<label> brk, let<label> cont, Generated pred_res) {
           auto is = pred_res.num() != 0;
 
           // if (is) {
-          auto* yes = block("filter_yes");
+          let<label> yes("filter_yes");
           cond(is, yes, cont);
 
-          point(yes);
+          yes.insert();
           also(brk, cont, it);
           // }
 
@@ -779,27 +791,94 @@ namespace sel {
     //   TODO
     // }},
 
-    // {"join", [](Codegen& cg, inject_clo_type also) {
-    //   TODO
-    // }},
+    {"join", [](Codegen& cg, inject_clo_type also) {
+      auto const sep = cg.take();
+      auto const lst = cg.take();
+
+      // XXX: TODO: uh, do
+      bool isLiteral = true;
+
+      // in that case it is trivially replicable
+      if (isLiteral) {
+        sep.make(cg, [&cg, &also, &lst](let<label> brk, let<label> cont, Generated it) {
+          auto sepbuf = it.buf();
+          // and in that case it is completely removed (this occures often: [Str] => Str)
+          if (0 == cast<ConstantInt>((Value*)sepbuf.len)->getValue().getSExtValue()) {
+            lst.make(cg, also);
+
+          } else {
+            auto first = let<bool>::alloc();
+            *first = true;
+
+            auto entry = let<label>::here();
+            let<label> also_bb("join_also");
+            also_bb.insert();
+              letPHI<char const*> send_ptr;
+              letPHI<int> send_len;
+              BasicBlock* lst_brk;
+              letPHI<label> lst_cont;
+            entry.insert();
+
+            lst.make(cg, [&also_bb, &send_ptr, &send_len, &lst_brk, &lst_cont, &sepbuf, &first](let<label> brk, let<label> cont, Generated it) {
+              lst_brk = (BasicBlock*)brk; // break is always break from the loop (= list)
+
+              let<label> skip_sep("join_skip_sep");
+              let<label> send_sep("join_send_sep");
+              cond(*first, skip_sep, send_sep);
+
+              send_sep.insert(); {
+                send_ptr.incoming(sepbuf.ptr, send_sep);
+                send_len.incoming(sepbuf.len, send_sep);
+                lst_cont.incoming(skip_sep, send_sep); // continue to sending 'it' (current iteration)
+                br(also_bb);
+              }
+
+              skip_sep.insert(); {
+                *first = false;
+                auto itbuf = it.buf();
+                send_ptr.incoming(itbuf.ptr, skip_sep);
+                send_len.incoming(itbuf.len, skip_sep);
+                lst_cont.incoming(cont, skip_sep); // continue to next iteration
+                br(also_bb);
+              }
+            });
+
+            // block it ends in after the `make`
+            auto exit = let<label>::here();
+            also_bb.insert();
+              also(let<label>(lst_brk), lst_cont, Generated(send_ptr, send_len));
+            exit.insert();
+          } // 0 < len
+
+          // in both cases (empty or not)
+          br(cont);
+        });
+
+      } else {
+        // TODO
+        throw NIYError("join where sep is not a literal");
+      }
+    }},
 
     {"map", [](Codegen& cg, inject_clo_type also) {
       auto const f = cg.take();
       auto const l = cg.take();
-      l.make(cg, [&cg, &also, &f](BasicBlock* brk, BasicBlock* cont, Generated it) {
+      l.make(cg, [&cg, &also, &f](let<label> brk, let<label> cont, Generated it) {
         cg.place({"map's it", [&brk, &cont, it](Codegen&, inject_clo_type also) {
           also(brk, cont, it);
         }});
         f.make(cg, also);
-        br(cont);
+        // as f is an unary, it will take the placed "map's it"
+        // which in turn carries out the branching; so its as if
+        // the make does the branching (no need to `br(cont)` here)
       });
     }},
 
     {"mul", [](Codegen& cg, inject_clo_type also) {
       auto const a = cg.take();
       auto const b = cg.take();
-      a.make(cg, [&cg, &also, &b](BasicBlock* brk, BasicBlock* cont, Generated a) {
-        b.make(cg, [&also, &a](BasicBlock* brk, BasicBlock* cont, Generated b) {
+      a.make(cg, [&cg, &also, &b](let<label> brk, let<label> cont, Generated a) {
+        b.make(cg, [&also, &a](let<label> brk, let<label> cont, Generated b) {
           also(cont, cont, a.num() * b.num());
         });
         br(cont);
@@ -813,8 +892,8 @@ namespace sel {
     {"sub", [](Codegen& cg, inject_clo_type also) {
       auto const a = cg.take();
       auto const b = cg.take();
-      a.make(cg, [&cg, &also, &b](BasicBlock* brk, BasicBlock* cont, Generated a) {
-        b.make(cg, [&also, &a](BasicBlock* brk, BasicBlock* cont, Generated b) {
+      a.make(cg, [&cg, &also, &b](let<label> brk, let<label> cont, Generated a) {
+        b.make(cg, [&also, &a](let<label> brk, let<label> cont, Generated b) {
           also(cont, cont, a.num() - b.num());
         });
         br(cont);
@@ -833,32 +912,32 @@ namespace sel {
       // auto isdot = let<bool>::alloc();
       // *isdot = false;
 
-      s.make(cg, [&acc, &isminus](BasicBlock* brk, BasicBlock* cont, Generated it) {
-        makeBufferLoop("tonum", it.buf(), [&acc, &isminus](BasicBlock* brk, BasicBlock* cont, let<char> at) {
+      s.make(cg, [&acc, &isminus](let<label> brk, let<label> cont, Generated it) {
+        makeBufferLoop("tonum", it.buf(), [&acc, &isminus](let<label> brk, let<label> cont, let<char> at) {
           // _ -> setnegate -> after
           // `-> accumulate ---^
-          auto* setnegate = block("tonum_setnegate");
-          auto* accumulate = block("tonum_accumulate");
-          auto* after = block("tonum_after");
+          let<label> setnegate("tonum_setnegate");
+          let<label> accumulate("tonum_accumulate");
+          let<label> after("tonum_after");
 
           auto isnegate = at == '-' && !*isminus;
           cond(isnegate, setnegate, accumulate);
 
-          point(setnegate);
+          setnegate.insert();
             *isminus = true;
             br(after);
 
-          point(accumulate);
-            auto* acc_if_isdigit = block("tonum_acc_if_isdigit");
+          accumulate.insert();
+            let<label> acc_if_isdigit("tonum_acc_if_isdigit");
             // break if no longer digit
             cond(at >= '0' && at <= '9', acc_if_isdigit, brk);
 
-            point(acc_if_isdigit);
+            acc_if_isdigit.insert();
               *acc = let<double>(*acc)*10 + (at-'0').into<double>();
 
             br(after);
 
-          point(after);
+          after.insert();
 
           // continue buffer loop
           br(cont);
@@ -870,31 +949,31 @@ namespace sel {
 
       auto res = let<double>(*acc);
 
-      auto* nonegate = here();
-      auto* negate = block("tonum_negate");
-      auto* retres = block("tonum_retres");
+      auto nonegate = let<label>::here();
+      let<label> negate("tonum_negate");
+      let<label> retres("tonum_retres");
 
       cond(*isminus, negate, retres);
 
-      point(negate);
+      negate.insert();
         auto nres = -res;
         br(retres);
 
-      point(retres);
+      retres.insert();
         letPHI<double> final_res({
           {nres, negate},
           {res, nonegate},
         });
 
-      auto* after = block("tonum_inject");
+      let<label> after("tonum_inject");
       also(after, after, final_res);
-      point(after);
+      after.insert();
     }},
 
     {"tostr", [](Codegen& cg, inject_clo_type also) {
       auto const n = cg.take();
 
-      n.make(cg, [&cg, &also](BasicBlock* brk, BasicBlock* cont, Generated it) {
+      n.make(cg, [&cg, &also](let<label> brk, let<label> cont, Generated it) {
         cg.log << "have @tostr generated\n";
 
         auto b_1char = let<char>::alloc(2);
@@ -907,18 +986,18 @@ namespace sel {
 
         // nominus -> minus -> common
         //     `-----------------^
-        auto* nominus = here();
-        auto* minus = block("tostr_minus");
-        auto* common = block("tostr_common");
+        auto nominus = let<label>::here();
+        let<label> minus("tostr_minus");
+        let<label> common("tostr_common");
 
-        cond(num < 0., minus, common);
+        cond(num < 0, minus, common);
 
-        point(minus);
+        minus.insert();
           auto pnum = -num;
           *b_1char = '-';
           br(common);
 
-        point(common);
+        common.insert();
           letPHI<double> positive({
             {pnum, minus},
             {num, nominus},
@@ -944,7 +1023,7 @@ namespace sel {
     {"unbytes", [](Codegen& cg, inject_clo_type also) {
       auto const l = cg.take();
       auto b = let<char>::alloc();
-      l.make(cg, [&also, &b](BasicBlock* brk, BasicBlock* cont, Generated it) {
+      l.make(cg, [&also, &b](let<label> brk, let<label> cont, Generated it) {
         *b = it.num().into<char>();
         also(brk, cont, Generated(b, 1));
       });

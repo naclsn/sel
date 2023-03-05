@@ -111,10 +111,12 @@ void compile(App& app, char const* infile, Options const& opts) {
   auto ed = tmp.rfind('.');
   std::string name = tmp.substr(st, ed-st);
 
+  // if no name provided, used the module name as function name
+  char const* used_funname = opts.funname ? opts.funname : name.c_str();
+  VisCodegen codegen(infile, name.c_str(), used_funname, app);
+
   try {
-    // if no name provided, used the module name as function name
-    char const* used_funname = opts.funname ? opts.funname : name.c_str();
-    VisCodegen codegen(infile, name.c_str(), used_funname, app);
+    codegen.makeModule();
 
     if (!opts.funname) codegen.makeMain();
 
@@ -133,6 +135,14 @@ void compile(App& app, char const* infile, Options const& opts) {
       << "Codegen error: "
       << err.what() << '\n'
     ;
+
+    // still tries to dump (if -S)
+    if (opts.no_assemble) {
+      std::ofstream ll(opts.outfile);
+      if (!ll.is_open()) throw BaseError("could not open file");
+      codegen.print(ll);
+    }
+
     exit(EXIT_FAILURE);
   }
 
