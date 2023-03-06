@@ -163,13 +163,18 @@ namespace sel {
     std::string name;
     clo_type doobidoo;
 
-    Symbol(std::string const name, clo_type doobidoo)
+    enum SyFlag {
+      IS_LITERAL,
+    };
+    std::bitset<1> flags;
+
+    Symbol(std::string const name, clo_type doobidoo, std::initializer_list<SyFlag> setflags={})
       : name(name)
       , doobidoo(doobidoo)
-    { }
-    virtual ~Symbol() { }
+      , flags(0)
+    { for (auto const& it : setflags) flags.set(it); }
 
-    virtual void make(Codegen& cg, inject_clo_type also) const { doobidoo(cg, also); }
+    void make(Codegen& cg, inject_clo_type also) const { doobidoo(cg, also); }
   };
 
   typedef void (* Head)(Codegen&, inject_clo_type);
@@ -432,7 +437,7 @@ namespace sel {
       let<label> after(std::to_string(n)+"_after");
       also(after, after, Generated(n));
       after.insert();
-    }});
+    }, {Symbol::IS_LITERAL}});
   }
 
   void VisCodegen::visit(StrLiteral const& it) {
@@ -447,7 +452,7 @@ namespace sel {
       let<label> after(name+"_after");
       also(after, after, Generated(*buffer, len));
       after.insert();
-    }});
+    }, {Symbol::IS_LITERAL}});
   }
 
   void VisCodegen::visit(LstLiteral const& it) {
@@ -795,11 +800,15 @@ namespace sel {
       auto const sep = cg.take();
       auto const lst = cg.take();
 
-      // XXX: TODO: uh, do
-      bool isLiteral = true;
+      //                                   cont_hjk -> cont
+      // (only if                           |   ^
+      // not literal)                       v   |
+      // [build_acc] -> before --(first)-> also_bb -> brk
+      //                    |               ^
+      //                    `-> send_sep --'
 
       // in that case it is trivially replicable
-      if (isLiteral) {
+      if (sep.flags[Symbol::IS_LITERAL]) {
         sep.make(cg, [&cg, &also, &lst](let<label> brk, let<label> cont, Generated it) {
           auto sepbuf = it.buf();
           // and in that case it is completely removed (this occures often: [Str] => Str)
@@ -810,44 +819,52 @@ namespace sel {
             auto first = let<bool>::alloc();
             *first = true;
 
-            auto entry = let<label>::here();
-            let<label> also_bb("join_also");
-            also_bb.insert();
-              letPHI<char const*> send_ptr;
-              letPHI<int> send_len;
-              BasicBlock* lst_brk;
-              letPHI<label> lst_cont;
-            entry.insert();
+            lst.make(cg, [&](let<label> brk, let<label> cont, Generated it) {
+              auto itbuf = it.buf();
 
-            lst.make(cg, [&also_bb, &send_ptr, &send_len, &lst_brk, &lst_cont, &sepbuf, &first](let<label> brk, let<label> cont, Generated it) {
-              lst_brk = (BasicBlock*)brk; // break is always break from the loop (= list)
-
-              let<label> skip_sep("join_skip_sep");
+              auto before = let<label>::here();
+              let<label> also_bb("join_also");
               let<label> send_sep("join_send_sep");
-              cond(*first, skip_sep, send_sep);
+              let<label> cont_hjk("join_cont_hjk");
 
-              send_sep.insert(); {
-                send_ptr.incoming(sepbuf.ptr, send_sep);
-                send_len.incoming(sepbuf.len, send_sep);
-                lst_cont.incoming(skip_sep, send_sep); // continue to sending 'it' (current iteration)
-                br(also_bb);
-              }
+              auto was_first = let<bool>(*first);
+              *first = false;
+              // skip sending sep if first iteration
+              cond(was_first, also_bb, send_sep);
 
-              skip_sep.insert(); {
-                *first = false;
-                auto itbuf = it.buf();
-                send_ptr.incoming(itbuf.ptr, skip_sep);
-                send_len.incoming(itbuf.len, skip_sep);
-                lst_cont.incoming(cont, skip_sep); // continue to next iteration
+              also_bb.insert();
+                // if comming from before: send it (when was_first)
+                // if comming from send_sep: send sep
+                // if comming from cont_hjk: send it
+                letPHI<char const*> send_ptr({
+                  {itbuf.ptr, before},
+                  {sepbuf.ptr, send_sep},
+                  {itbuf.ptr, cont_hjk},
+                });
+                letPHI<int> send_len({
+                  {itbuf.len, before},
+                  {sepbuf.len, send_sep},
+                  {itbuf.len, cont_hjk},
+                });
+                // if comming from before: only send it (when was_first)
+                // if comming from send_sep: also send sep (now is first pass around)
+                // if comming from cont_hjk: only send it (now is second pass around)
+                letPHI<bool> then_go_again({
+                  {false, before},
+                  {true, send_sep},
+                  {false, cont_hjk},
+                });
+                also(brk, cont_hjk, Generated(send_ptr, send_len));
+
+              send_sep.insert();
+                // the fact of comming from send_sep will send sep first
                 br(also_bb);
-              }
+
+              cont_hjk.insert();
+                // go again if it was the send_sep pass, otherwise true cont
+                cond(then_go_again, also_bb, cont);
             });
 
-            // block it ends in after the `make`
-            auto exit = let<label>::here();
-            also_bb.insert();
-              also(let<label>(lst_brk), lst_cont, Generated(send_ptr, send_len));
-            exit.insert();
           } // 0 < len
 
           // in both cases (empty or not)

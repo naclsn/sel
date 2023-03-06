@@ -180,6 +180,9 @@ namespace tll {
     inline static let here() { return let(__tll_irb->GetInsertBlock()); }
     inline let(llvm::Twine const& blockname): letBase<llvm::BasicBlock>(llvm::BasicBlock::Create(__tll_irb->getContext(), blockname, ((llvm::BasicBlock*)here())->getParent())) { }
 
+    // TODO: indirectbr
+    // inline let<label const*> operator*() { }
+
     inline void insert() { __tll_irb->SetInsertPoint((llvm::BasicBlock*)*this); }
   };
 
@@ -383,11 +386,12 @@ namespace tll {
     template <typename B>
     inline void incoming(let<Ty> v, B b) { ((llvm::PHINode*)*this)->addIncoming((llvm::Value*)v, (llvm::BasicBlock*)b); }
 
-    // cannot insert on letPHI<label>
+    // cannot insert on letPHI<label const*>
     void insert() = delete;
   };
 
   inline void br(let<label> to) { __tll_irb->CreateBr((llvm::BasicBlock*)to); }
+  // inline void br(letPHI<label const*> to) { indirectbr; }
   inline void cond(let<bool> ifis, let<label> iftrue, let<label> iffalse) { __tll_irb->CreateCondBr((llvm::Value*)ifis, (llvm::BasicBlock*)iftrue, (llvm::BasicBlock*)iffalse); }
 
   inline void unreachable() { __tll_irb->CreateUnreachable(); }
