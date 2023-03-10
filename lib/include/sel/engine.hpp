@@ -10,11 +10,12 @@
 #include <tuple>
 #include <vector>
 
-#include "types.hpp"
-#include "unicode.hpp"
+#include "ll.hpp"
 #include "visitors.hpp"
 
 namespace sel {
+
+  class App; //F (may change tho)
 
   template <typename Vi>
   using visit_table_entry = typename Vi::Ret(Vi&, Val const*);

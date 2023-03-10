@@ -1,5 +1,6 @@
 #include <iostream>
 
+#include "sel/application.hpp"
 #include "sel/builtins.hpp"
 #include "sel/engine.hpp"
 #include "sel/errors.hpp"

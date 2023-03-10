@@ -7,9 +7,9 @@
 #include <vector>
 
 #include "engine.hpp"
-#include "errors.hpp"
+#include "types.hpp"
 #include "ll.hpp"
-#include "utils.hpp"
+#include "unicode.hpp"
 
 namespace sel {
 

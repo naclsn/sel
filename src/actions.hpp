@@ -1,6 +1,9 @@
 #ifndef SELI_ACTIONS_HPP
 #define SELI_ACTIONS_HPP
 
+#include "sel/builtins.hpp"
+#include "sel/utils.hpp"
+
 #include "buildapp.hpp"
 #include "termutils.hpp"
 #include "wordwrap.hpp"

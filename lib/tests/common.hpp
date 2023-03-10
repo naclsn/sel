@@ -4,8 +4,11 @@
 #include <string>
 #include <vector>
 
+#include "sel/application.hpp"
+#include "sel/builtins.hpp"
 #include "sel/parser.hpp"
 #include "sel/types.hpp"
+#include "sel/utils.hpp"
 
 using namespace std;
 using namespace sel;

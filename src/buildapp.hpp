@@ -5,6 +5,7 @@
 #include <sstream>
 #include <string>
 
+#include "sel/application.hpp"
 #include "sel/errors.hpp"
 #include "sel/parser.hpp"
 

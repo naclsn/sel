@@ -2,6 +2,7 @@
 
 #include "sel/builtins.hpp"
 #include "sel/parser.hpp"
+#include "sel/utils.hpp"
 #include "sel/visitors.hpp"
 
 namespace sel {
@@ -97,8 +98,8 @@ namespace sel {
       // - or replace needs to remove both, then re-add
       // app.replace(this, new NumResult(app, a.value() + b.value()));
 
-      app.remove(this);
-      new NumResult(app, a.value() + b.value());
+      // app.remove(this);
+      // new NumResult(app, a.value() + b.value());
 
       // anyway, the actual probel with this it that
       // if i remove this, it (rightfully) deletes it

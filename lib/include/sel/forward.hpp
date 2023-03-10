@@ -1,10 +1,13 @@
 namespace sel {
 
+  struct Type;
+
   struct Val;
   struct Num;
   struct Str;
   struct Lst;
   struct Fun;
+
   struct Segment;
 
   struct NumLiteral;
@@ -18,7 +21,6 @@ namespace sel {
   struct FunDefine;
 
   struct Input;
-  class App; // USL: remove if not needed in codegen
 
   struct NumResult;
   struct StrChunks;

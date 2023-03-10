@@ -1,4 +1,6 @@
+#include "sel/builtins.hpp"
 #include "sel/parser.hpp"
+#include "sel/utils.hpp"
 #include "sel/visitors.hpp"
 
 namespace sel {
