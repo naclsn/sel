@@ -671,8 +671,20 @@ namespace sel {
     return val;
   }
 
-  void App::push_back(Val const* v) {
+  void App::push(Val const* v) {
     ptrs.push_back(v);
+  }
+  void App::remove(Val const* v) {
+    // note: i expect that most removes will be closer to
+    // the end as the app lives on, hence the search from
+    // end (although this is yet to be checked)
+    for (auto it = ptrs.crbegin(); it != ptrs.crend(); ++it)
+      if (*it == v) {
+        delete *it;
+        return;
+      }
+    std::ostringstream oss;
+    throw BaseError((oss << "tried to free an unregistered value (at 0x" << std::hex << v << ")", oss.str()));
   }
   void App::clear() {
     for (auto it = ptrs.crbegin(); it != ptrs.crend(); ++it)

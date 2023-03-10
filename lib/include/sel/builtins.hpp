@@ -13,6 +13,26 @@
 
 namespace sel {
 
+  struct NumResult : Num {
+  private:
+    double n;
+
+  public:
+    NumResult(App& app, double n)
+      : Num(app)
+      , n(n)
+    { }
+    double value() override { return n; }
+    Val* copy() const override { return new NumResult(app, n); }
+
+    double result() const { return n; }
+
+  protected:
+    VisitTable visit_table() const override {
+      return make_visit_table<decltype(this)>::function();
+    }
+  };
+
   struct StrChunks : Str {
   private:
     typedef std::vector<std::string> ch_t;
@@ -39,7 +59,7 @@ namespace sel {
         out << it;
       return out;
     }
-    Val* copy() const override;
+    Val* copy() const override { return new StrChunks(app, chs); }
 
     std::vector<std::string> const& chunks() const { return chs; }
 

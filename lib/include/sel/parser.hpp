@@ -244,7 +244,7 @@ namespace sel {
     std::vector<Val const*> ptrs;
 
     bool strict_type = false;
-    bool not_fun = false; // ie yes fun by default
+    bool not_fun = false; // ie yes fun by default // YYY: probably remove
 
   public:
     App() { }
@@ -252,9 +252,12 @@ namespace sel {
       : strict_type(strict_type)
       , not_fun(not_fun)
     { }
+    App(App const&) = delete;
+    App(App&&) = delete;
     ~App() { clear(); }
 
-    void push_back(Val const* v);
+    void push(Val const* v);
+    void remove(Val const* v);
     void clear();
 
     Type const& type() const { return f->type(); }

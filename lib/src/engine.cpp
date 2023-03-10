@@ -12,7 +12,7 @@ namespace sel {
   Val::Val(App& app, Type&& ty)
     : app(app)
     , ty(std::forward<Type>(ty))
-  { app.push_back(this); }
+  { app.push(this); }
   Val::~Val() { }
 
   template <typename To>

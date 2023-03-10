@@ -69,6 +69,7 @@ namespace sel {
     Ret visit(LstDefine const& it);
     Ret visit(FunDefine const& it);
     Ret visit(Input const& it);
+    Ret visit(NumResult const& it);
     Ret visit(StrChunks const& it);
     Ret visit(LstMapCoerse const& it);
   };
@@ -91,6 +92,7 @@ namespace sel {
     Ret visit(LstDefine const& it);
     Ret visit(FunDefine const& it);
     Ret visit(Input const& it) { throw TypeError("help(Input) does not make sense"); }
+    Ret visit(NumResult const& it) { throw TypeError("help(NumResult) does not make sense"); }
     Ret visit(StrChunks const& it) { throw TypeError("help(StrChunks) does not make sense"); }
     Ret visit(LstMapCoerse const& it) { throw TypeError("help(LstMapCoerse) does not make sense"); }
   };
@@ -113,6 +115,7 @@ namespace sel {
     Ret visit(LstDefine const& it);
     Ret visit(FunDefine const& it);
     Ret visit(Input const& it) { throw TypeError("name(Input) does not make sense"); }
+    Ret visit(NumResult const& it) { throw TypeError("name(NumResult) does not make sense"); }
     Ret visit(StrChunks const& it) { throw TypeError("name(StrChunks) does not make sense"); }
     Ret visit(LstMapCoerse const& it) { throw TypeError("name(LstMapCoerse) does not make sense"); }
   };
@@ -143,6 +146,7 @@ namespace sel {
     Ret visit(LstDefine const& it);
     Ret visit(FunDefine const& it);
     Ret visit(Input const& it);
+    Ret visit(NumResult const& it);
     Ret visit(StrChunks const& it);
     Ret visit(LstMapCoerse const& it);
   };

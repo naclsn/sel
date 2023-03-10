@@ -6,10 +6,6 @@
 
 namespace sel {
 
-  Val* StrChunks::copy() const {
-    return new StrChunks(app, chs);
-  }
-
   Val* lookup_name(App& app, std::string const& name) {
     auto itr = bins_list::map.find(name);
     if (bins_list::map.end() == itr) return nullptr;
@@ -95,6 +91,24 @@ namespace sel {
     double add_::value() {
       bind_args(a, b);
       return a.value() + b.value();
+
+      // but this would require either:
+      // - new [Val] does not register into app
+      // - or replace needs to remove both, then re-add
+      // app.replace(this, new NumResult(app, a.value() + b.value()));
+
+      app.remove(this);
+      new NumResult(app, a.value() + b.value());
+
+      // anyway, the actual probel with this it that
+      // if i remove this, it (rightfully) deletes it
+      // but now i will have a bunch of dangling pointers
+      // (eg. 'a' or 'b' of an other add_)
+      // ie. it would need the refer to captured Val*
+      // not by raw pointers, but by App::ptrs index;
+      // this would make a lot of things easier, but
+      // maybe many other not
+      // -- if the problem is just updating the macros, that's ok :^)
     }
 
     std::ostream& bin_::stream(std::ostream& out) {
@@ -153,7 +167,7 @@ namespace sel {
         buff = (oss << s, oss.str());
         off = 0;
       }
-      return new NumLiteral(app, (uint8_t)buff[off]); // XXX: dont like how it makes it appear as a literal, may have a NumComputed similar to StrChunks
+      return new NumResult(app, (uint8_t)buff[off]);
     }
     Lst& bytes_::operator++() {
       bind_args(s);
@@ -180,7 +194,7 @@ namespace sel {
         isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
         did_once = true;
       }
-      return new NumLiteral(app, isi->u); // XXX: dont like how it makes it appear as a literal, may have a NumComputed similar to StrChunks
+      return new NumResult(app, isi->u);
     }
     Lst& codepoints_::operator++() {
       bind_args(s);

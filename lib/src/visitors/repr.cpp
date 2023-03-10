@@ -142,6 +142,11 @@ namespace sel {
     return res;
   }
 
+  VisRepr::Ret VisRepr::visit(NumResult const& it) {
+    reprHelper(it.type(), "NumResult", {{"n", it.result()}});
+    return res;
+  }
+
   VisRepr::Ret VisRepr::visit(StrChunks const& it) {
     auto const& vs = it.chunks();
     size_t c = vs.size();

@@ -20,7 +20,7 @@ namespace sel {
   struct Input;
   class App; // USL: remove if not needed in codegen
 
-  //struct NumComputed
+  struct NumResult;
   struct StrChunks;
   struct LstMapCoerse;
 
