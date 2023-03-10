@@ -6,25 +6,46 @@
 
 namespace sel {
 
-  void App::push(Val const* v) {
-    ptrs.push_back(v);
-  }
-  void App::remove(Val const* v) {
-    // note: i expect that most removes will be closer to
-    // the end as the app lives on, hence the search from
-    // end (although this is yet to be checked)
-    for (auto it = ptrs.crbegin(); it != ptrs.crend(); ++it)
-      if (*it == v) {
-        delete *it;
-        return;
+  void Valloc::slot::change(Val const* niw) { delete v; v = niw; }
+  void Valloc::slot::drop() { delete v; v = nullptr; }
+
+  Valloc::handle Valloc::hold(Val const* niw) {
+    if (0 != free) {
+      size_t k = 0;
+      for (auto& it : w) {
+        if (!it) {
+          it.change(niw);
+          free--;
+          return handle(*this, k);
+        }
+        k++;
       }
-    std::ostringstream oss;
-    throw BaseError((oss << "tried to free an unregistered value (at 0x" << std::hex << v << ")", oss.str()));
+
+      // turns out it did not have room left (this should not happen)
+      free = 0;
+    }
+
+    w.emplace_back(niw);
+    return handle(*this, w.size()-1);
   }
-  void App::clear() {
-    for (auto it = ptrs.crbegin(); it != ptrs.crend(); ++it)
-      delete *it;
-    ptrs.clear();
+
+  void Valloc::change(handle at, Val const* niw) {
+    w[at].change(niw);
+  }
+
+  void Valloc::drop(handle at) {
+    w[at].drop();
+    free++;
+  }
+
+  Val const* Valloc::operator[](handle at) {
+    return (Val const*)w[at];
+  }
+
+  void Valloc::clear() {
+    for (auto it = w.rbegin(); it != w.rend(); ++it)
+      it->drop();
+    w.clear();
   }
 
   Type const& App::type() const { return f->type(); }

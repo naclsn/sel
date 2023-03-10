@@ -11,6 +11,52 @@
 namespace sel {
 
   /**
+   * Manages allocated values.
+   */
+  class Valloc {
+  private:
+    // ownership of an allocated value
+    struct slot {
+    private:
+      Val const* v = nullptr;
+
+    public:
+      slot(Val const* v): v(v) { }
+
+      void change(Val const*);
+      void drop();
+      operator bool() const { return v; }
+      explicit operator Val const*() const { return v; }
+    };
+
+    std::vector<slot> w;
+    size_t free = 0;
+
+  public:
+    Valloc() { }
+
+    // non-owning handle to a slot
+    struct handle {
+    private:
+      friend Valloc;
+      size_t i;
+      Valloc& va;
+      handle(Valloc& va, size_t i): i(i), va(va) { }
+      operator size_t() { return i; }
+
+    public:
+      Val const* operator*() { return va[*this]; }
+    };
+
+    handle hold(Val const*);
+    void change(handle, Val const*);
+    void drop(handle);
+    Val const* operator[](handle);
+
+    void clear();
+  };
+
+  /**
    * An application is constructed from parsing a user
    * script. It serializes back to an equivalent script
    * (although it may not be strictly equal).
@@ -20,7 +66,7 @@ namespace sel {
     Val* f; // note that this does not have to be `Str -> Str`
     std::unordered_map<std::string, Val*> user;
 
-    std::vector<Val const*> ptrs;
+    Valloc va;
 
     bool strict_type = false;
     bool not_fun = false; // ie yes fun by default // YYY: probably remove
@@ -35,9 +81,10 @@ namespace sel {
     App(App&&) = delete;
     ~App() { clear(); }
 
-    void push(Val const* v);
-    void remove(Val const* v);
-    void clear();
+    Valloc::handle hold(Val const* v) { return va.hold(v); }
+    void change(Valloc::handle at, Val const* v) { va.change(at, v); }
+    void drop(Valloc::handle at) { va.drop(at); }
+    void clear() { va.clear(); }
 
     Type const& type() const;
 

@@ -10,12 +10,11 @@
 #include <tuple>
 #include <vector>
 
+#include "application.hpp"
 #include "ll.hpp"
 #include "visitors.hpp"
 
 namespace sel {
-
-  class App; //F (may change tho)
 
   template <typename Vi>
   using visit_table_entry = typename Vi::Ret(Vi&, Val const*);
@@ -52,6 +51,7 @@ namespace sel {
   struct Val {
   protected:
     App& app;
+    Valloc::handle h;
     Type const ty;
 
     // used by janky visitor pattern, essentially manual v-table; use `make_visit_table`
