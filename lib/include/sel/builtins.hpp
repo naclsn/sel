@@ -18,12 +18,12 @@ namespace sel {
     double n;
 
   public:
-    NumResult(App& app, double n)
-      : Num(app)
+    NumResult(ref<Num> at, double n)
+      : Num(at)
       , n(n)
     { }
     double value() override { return n; }
-    Val* copy() const override { return new NumResult(app, n); }
+    ref<Val> copy() const override { return ref<NumResult>(h.app(), n); }
 
     double result() const { return n; }
 
@@ -40,13 +40,13 @@ namespace sel {
     ch_t::size_type at;
 
   public:
-    StrChunks(App& app, std::vector<std::string> chunks)
-      : Str(app, TyFlag::IS_FIN)
+    StrChunks(ref<Str> at, std::vector<std::string> chunks)
+      : Str(at, TyFlag::IS_FIN)
       , chs(chunks)
       , at(0)
     { }
-    StrChunks(App& app, std::string single)
-      : StrChunks(app, std::vector<std::string>({single}))
+    StrChunks(ref<Str> at, std::string single)
+      : StrChunks(at, std::vector<std::string>({single}))
     { }
     std::ostream& stream(std::ostream& out) override {
       return out << chs[at++];
@@ -59,7 +59,7 @@ namespace sel {
         out << it;
       return out;
     }
-    Val* copy() const override { return new StrChunks(app, chs); }
+    ref<Val> copy() const override { return ref<StrChunks>(h.app(), chs); }
 
     std::vector<std::string> const& chunks() const { return chs; }
 
@@ -72,13 +72,13 @@ namespace sel {
   /**
    * Seach for a value by name, return nullptr if not found.
    */
-  Val* lookup_name(App& app, std::string const& name);
+  ref<Val> lookup_name(App& app, std::string const& name);
 
   /**
    * Same as `lookup_name`, but at compile time. Argument
    * must be an identifier token.
    */
-#define static_lookup_name(__appref, __name) (new sel::bins::__name##_::Head(__appref))
+#define static_lookup_name(__appref, __name) (ref<sel::bins::__name##_::Head>(__appref))
 
   struct Segment {
     virtual Val const& base() const = 0;
@@ -116,11 +116,11 @@ namespace sel {
         return Type::makeNum();
       }
       struct ctor : Num {
-        ctor(App& app, char const* fname)
-          : Num(app)
+        ctor(ref<vat> at, char const* fname)
+          : Num(at)
         { }
-        ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
-          : Num(app)
+        ctor(ref<vat> at, char const* fname, Type const& base_fty, Type const& ty)
+          : Num(at)
         { }
       };
     };
@@ -131,11 +131,11 @@ namespace sel {
         return Type::makeStr(false);
       }
       struct ctor : Str {
-        ctor(App& app, char const* fname)
-          : Str(app, TyFlag::IS_FIN) // ZZZ: from template param
+        ctor(ref<vat> at, char const* fname)
+          : Str(at, TyFlag::IS_FIN) // ZZZ: from template param
         { }
-        ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
-          : Str(app, TyFlag::IS_FIN) // ZZZ: from base_fty.applied(ty)
+        ctor(ref<vat> at, char const* fname, Type const& base_fty, Type const& ty)
+          : Str(at, TyFlag::IS_FIN) // ZZZ: from base_fty.applied(ty)
         { }
       };
     };
@@ -145,11 +145,11 @@ namespace sel {
         return Type::makeStr(true);
       }
       struct ctor : Str {
-        ctor(App& app, char const* fname)
-          : Str(app, TyFlag::IS_INF) //(uint8_t)(make(fname).flags))
+        ctor(ref<vat> at, char const* fname)
+          : Str(at, TyFlag::IS_INF) //(uint8_t)(make(fname).flags))
         { }
-        ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
-          : Str(app, TyFlag::IS_INF) //(uint8_t)(base_fty.applied(ty).flags))
+        ctor(ref<vat> at, char const* fname, Type const& base_fty, Type const& ty)
+          : Str(at, TyFlag::IS_INF) //(uint8_t)(base_fty.applied(ty).flags))
         { }
       };
     };
@@ -160,11 +160,11 @@ namespace sel {
         return Type::makeLst({has::make(fname)...}, false, false);
       }
       struct ctor : Lst {
-        ctor(App& app, char const* fname)
-          : Lst(app, make(fname))
+        ctor(ref<vat> at, char const* fname)
+          : Lst(at, make(fname))
         { }
-        ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
-          : Lst(app, done_applied(base_fty, ty))
+        ctor(ref<vat> at, char const* fname, Type const& base_fty, Type const& ty)
+          : Lst(at, done_applied(base_fty, ty))
         { }
       };
     };
@@ -174,11 +174,11 @@ namespace sel {
         return Type::makeLst({has::make(fname)...}, true, false);
       }
       struct ctor : Lst {
-        ctor(App& app, char const* fname)
-          : Lst(app, make(fname))
+        ctor(ref<vat> at, char const* fname)
+          : Lst(at, make(fname))
         { }
-        ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
-          : Lst(app, done_applied(base_fty, ty))
+        ctor(ref<vat> at, char const* fname, Type const& base_fty, Type const& ty)
+          : Lst(at, done_applied(base_fty, ty))
         { }
       };
     };
@@ -189,11 +189,11 @@ namespace sel {
         return Type::makeLst({has::make(fname)...}, false, true);
       }
       struct ctor : Lst {
-        ctor(App& app, char const* fname)
-          : Lst(app, make(fname))
+        ctor(ref<vat> at, char const* fname)
+          : Lst(at, make(fname))
         { }
-        ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
-          : Lst(app, done_applied(base_fty, ty))
+        ctor(ref<vat> at, char const* fname, Type const& base_fty, Type const& ty)
+          : Lst(at, done_applied(base_fty, ty))
         { }
       };
     };
@@ -204,11 +204,11 @@ namespace sel {
         return Type::makeFun(std::move(from::make(fname)), std::move(to::make(fname)));
       }
       struct ctor : Fun {
-        ctor(App& app, char const* fname)
-          : Fun(app, make(fname))
+        ctor(ref<vat> at, char const* fname)
+          : Fun(at, make(fname))
         { }
-        ctor(App& app, char const* fname, Type const& base_fty, Type const& ty)
-          : Fun(app, done_applied(base_fty, ty))
+        ctor(ref<vat> at, char const* fname, Type const& base_fty, Type const& ty)
+          : Fun(at, done_applied(base_fty, ty))
         { }
       };
     };
@@ -259,11 +259,11 @@ namespace sel {
 
         constexpr static unsigned args = 0;
 
-        the(App& app)
-          : one::ctor(app, Impl::name)
+        the(ref<typename one::vat> at)
+          : one::ctor(at, Impl::name)
         { }
 
-        Val* copy() const override; // copyOne
+        ref<Val> copy() const override; // copyOne
 
       protected:
         VisitTable visit_table() const override {
@@ -282,19 +282,18 @@ namespace sel {
 
         typedef typename last_arg::vat LastArg;
 
-        the(App& app)
-          : fun<last_arg, unk<b>>::ctor(app, Impl::name)
+        the(ref<fun<last_arg, unk<b>>> at)
+          : fun<last_arg, unk<b>>::ctor(at, Impl::name)
         { }
 
         // to be overriden in `Implementation`
-        virtual Val* impl(LastArg&) = 0;
+        virtual ref<Val> impl(LastArg&) = 0;
 
-        Val* operator()(Val* arg) override {
-          //auto* last = coerse<LastArg>(this->app, arg, last_arg::make(Impl::name));
-          auto* last = coerse<LastArg>(this->app, arg, this->type().from());
+        ref<Val> operator()(ref<Val> arg) override {
+          auto last = coerse<LastArg>(this->h.app(), arg, this->type().from());
           return impl(*last);
         }
-        Val* copy() const override; // copyOne2
+        ref<Val> copy() const override; // copyOne2
 
       protected:
         VisitTable visit_table() const override {
@@ -349,6 +348,7 @@ namespace sel {
           num, // (YYY: anything that has `::ctor` with a fitting `virtual ::accept`)
           _ty_tail
       >::type::ctor, Segment {
+        typedef _ty_tail vat;
         typedef _bin_be Head; // type instanciated in looking up by name
         typedef typename _one_to_nextmost<Head>::the Base; // type which instantiates `this`
 
@@ -356,21 +356,22 @@ namespace sel {
 
         constexpr static unsigned args = Base::args + 1;
 
-        Base* _base; Val const& base() const override { return *_base; }
-        Arg* _arg;   Val const& arg() const override { return *_arg; }
+        ref<Base> _base; Val const& base() const override { return *_base; }
+        ref<Arg> _arg;   Val const& arg() const override { return *_arg; }
 
         // this is the (inherited) ctor for the tail type
-        _the_when_not_unk(App& app, Base* base, Arg* arg)
-          : _ty_tail::ctor(app, Base::Next::name, base->type(), arg->type())
+        _the_when_not_unk(ref<_ty_tail> at, ref<Base> base, ref<Arg> arg)
+          : _ty_tail::ctor(at, Base::Next::name, base->type(), arg->type())
           , _base(base)
           , _arg(arg)
         { }
 
-        Val* copy() const override; // copyTail1
+        ref<Val> copy() const override; // copyTail1
       };
 
       // is used when `_is_unk_tail` (eg. 'X(a) -> a')
       struct _the_when_is_unk : _ty_one_to_tail::ctor, Segment {
+        typedef _ty_one_to_tail vat;
         typedef _bin_be Head; // type instanciated in looking up by name
         typedef typename _one_to_nextmost<Head>::the Base; // type which instantiates `this`
 
@@ -378,26 +379,25 @@ namespace sel {
 
         constexpr static unsigned args = Base::args + 1;
 
-        Base* _base; Val const& base() const override { return *_base; }
-        Arg* _arg;   Val const& arg() const override { return *_arg; }
+        ref<Base> _base; Val const& base() const override { return *_base; }
+        ref<Arg> _arg;   Val const& arg() const override { return *_arg; }
         typedef typename _fun_first_par_type<_ty_one_to_tail>::the::vat LastArg;
 
         // this is the (inherited) ctor for the tail type when ends on unk
-        _the_when_is_unk(App& app, Base* base, Arg* arg)
-          : _ty_one_to_tail::ctor(app, Base::Next::name, base->type(), arg->type())
+        _the_when_is_unk(ref<_ty_one_to_tail> at, ref<Base> base, ref<Arg> arg)
+          : _ty_one_to_tail::ctor(at, Base::Next::name, base->type(), arg->type())
           , _base(base)
           , _arg(arg)
         { }
 
         // to be overriden in `Implementation`
-        virtual Val* impl(LastArg& last) = 0;
+        virtual ref<Val> impl(LastArg& last) = 0;
 
-        Val* operator()(Val* arg) override {
-          //auto* last = coerse<LastArg>(this->app, arg, _fun_first_par_type<_ty_one_to_tail>::the::make(Base::Next::name));
-          auto* last = coerse<LastArg>(this->app, arg, this->type().from());
+        ref<Val> operator()(ref<Val> arg) override {
+          auto last = coerse<LastArg>(this->h.app(), arg, this->type().from());
           return impl(*last);
         }
-        Val* copy() const override; // copyTail2
+        ref<Val> copy() const override; // copyTail2
       };
 
       typedef typename std::conditional<
@@ -410,8 +410,8 @@ namespace sel {
         typedef typename _the::Base Base;
         constexpr static unsigned args = _the::args;
         // using _the::_the;
-        the(App& app, typename _the::Base* base, typename _the::Arg* arg)
-          : _the(app, base, arg)
+        the(ref<typename _the::vat> at, ref<typename _the::Base> base, ref<typename _the::Arg> arg)
+          : _the(at, base, arg)
         { }
 
       protected:
@@ -423,15 +423,14 @@ namespace sel {
       constexpr static unsigned args = 0;
 
       // this is the ctor for the head type
-      _bin_be(App& app)
-        : fun<last_from, last_to>::ctor(app, the::Base::Next::name)
+      _bin_be(ref<Fun> at)
+        : fun<last_from, last_to>::ctor(at, the::Base::Next::name)
       { }
 
-      Val* operator()(Val* arg) override {
-        //return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, last_from::make(the::Base::Next::name)));
-        return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, this->type().from()));
+      ref<Val> operator()(ref<Val> arg) override {
+        return ref<Next>(this->h.app(), this->h, coerse<_next_arg_ty>(this->h.app(), arg, this->type().from()));
       }
-      Val* copy() const override; // visitHead
+      ref<Val> copy() const override; // visitHead
 
     protected:
       VisitTable visit_table() const override {
@@ -451,21 +450,20 @@ namespace sel {
 
       constexpr static unsigned args = Base::args + 1;
 
-      Base* _base; Val const& base() const override { return *_base; }
-      Arg* _arg;   Val const& arg() const override { return *_arg; }
+      ref<Base> _base; Val const& base() const override { return *_base; }
+      ref<Arg> _arg;   Val const& arg() const override { return *_arg; }
 
       // this is the ctor for body types
-      _bin_be(App& app, Base* base, Arg* arg)
-        : fun<from, to>::ctor(app, the::Base::Next::name, base->type(), arg->type())
+      _bin_be(ref<Fun> at, ref<Base> base, ref<Arg> arg)
+        : fun<from, to>::ctor(at, the::Base::Next::name, base->type(), arg->type())
         , _base(base)
         , _arg(arg)
       { }
 
-      Val* operator()(Val* arg) override {
-        //return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, from::make(the::Base::Next::name)));
-        return new Next(this->app, this, coerse<_next_arg_ty>(this->app, arg, this->type().from()));
+      ref<Val> operator()(ref<Val> arg) override {
+        return ref<Next>(this->h.app(), this->h, coerse<_next_arg_ty>(this->h.app(), arg, this->type().from()));
       }
-      Val* copy() const override; // copyBody
+      ref<Val> copy() const override; // copyBody
 
     protected:
       VisitTable visit_table() const override {
@@ -492,11 +490,11 @@ namespace sel {
       bool end() override; \
       std::ostream& entire(std::ostream& out) override;
 #define _BIN_lst \
-      Val* operator*() override; \
+      ref<Val> operator*() override; \
       Lst& operator++() override; \
       bool end() override;
 #define _BIN_unk \
-      Val* impl(LastArg&) override;
+      ref<Val> impl(LastArg&) override;
 
 // used to remove the parenthesis from `__decl` and `__body`
 #define __rem_par(...) __VA_ARGS__
@@ -611,7 +609,7 @@ namespace sel {
 
     BIN_lst(filter, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
       "return the list of elements which satisfy the predicate", (
-      Val* curr = nullptr;
+      ref<Val> curr = ref<Val>(h.app(), nullptr);
     ));
 
     BIN_lst(graphemes, (istr, ilst<str>),
@@ -639,7 +637,7 @@ namespace sel {
       bool did_once = false;
       size_t at = 0;
       size_t at_when_end = 0;
-      std::vector<Val*> circ;
+      std::vector<ref<Val>> circ;
       void once();
     ));
 
@@ -652,17 +650,17 @@ namespace sel {
     BIN_unk(index, (ilst<unk<'a'>>, num, unk<'a'>),
       "select the value at the given index in the list (despite being called index it is an offset, ie. 0-based)", (
       bool did = false;
-      Val* found = nullptr;
+      ref<Val> found = ref<Val>(h.app(), nullptr);
     ));
 
     BIN_lst(init, (lst<unk<'a'>>, lst<unk<'a'>>),
       "extract the elements before the last one of a list, which must not be empty", (
-      Val* prev = nullptr;
+      ref<Val> prev = ref<Val>(h.app(), nullptr);
     ));
 
     BIN_lst(iterate, (fun<unk<'a'>, unk<'a'>>, unk<'a'>, ilst<unk<'a'>>),
       "return an infinite list of repeated applications of the function to the input", (
-      Val* curr = nullptr;
+      ref<Val> curr = ref<Val>(h.app(), nullptr);
     ));
 
     BIN_str(join, (str, ilst<istr>, istr),
@@ -709,7 +707,7 @@ namespace sel {
 
     BIN_lst(reverse, (lst<unk<'a'>>, lst<unk<'a'>>),
       "reverse the order of the elements in the list", (
-      std::vector<Val*> cache;
+      std::vector<ref<Val>> cache;
       bool did_once = false;
       size_t curr;
       void once();
@@ -805,7 +803,7 @@ namespace sel {
 
     BIN_lst(zipwith, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, ilst<unk<'a'>>, ilst<unk<'b'>>, ilst<unk<'c'>>),
       "make a new list by applying an binary operation to each corresponding value from each lists; stops when either list ends", (
-      Val* curr = nullptr;
+      ref<Val> curr = ref<Val>(h.app(), nullptr);
     ));
 
   } // namespace bins
@@ -965,7 +963,7 @@ namespace sel {
 
 
   struct bins_list {
-    static std::unordered_map<std::string, Val* (*)(App&)> const map;
+    static std::unordered_map<std::string, ref<Val> (*)(App&)> const map;
     static char const* const* const names;
     static size_t const count;
   };

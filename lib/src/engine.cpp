@@ -10,39 +10,37 @@
 
 namespace sel {
 
-  Val::Val(App& app, Type&& ty)
-    : app(app)
-    , h(app.hold(this))
+  Val::Val(ref<Val> at, Type&& ty)
+    : h(at)
     , ty(std::forward<Type>(ty))
-  { }
-  Val::~Val() { }
+  { h.hold(this); }
 
   template <typename To>
-  To* coerse(App& app, Val* from, Type const& to);
+  ref<To> coerse(App& app, ref<Val> from, Type const& to);
 
   // Str => Num: same as `tonum`
-  template <> Num* coerse<Num>(App& app, Val* from, Type const& to) {
+  template <> ref<Num> coerse<Num>(App& app, ref<Val> from, Type const& to) {
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
-    if (Ty::NUM == ty.base()) return (Num*)from;
+    if (Ty::NUM == ty.base()) return from;
 
     if (Ty::STR == ty.base())
-      return (Num*)(*static_lookup_name(app, tonum))(from);
+      return (*static_lookup_name(app, tonum))(from);
 
     throw TypeError(ty, to);
   }
 
   // Num => Str: same as `tostr`
   // [a] => Str: same as `join::` (still not sure I like it, but it is very helpful)
-  template <> Str* coerse<Str>(App& app, Val* from, Type const& to) {
+  template <> ref<Str> coerse<Str>(App& app, ref<Val> from, Type const& to) {
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
-    if (Ty::STR == ty.base()) return (Str*)from;
+    if (Ty::STR == ty.base()) return from;
 
     if (Ty::NUM == ty.base())
-      return (Str*)(*static_lookup_name(app, tostr))(from);
+      return (*static_lookup_name(app, tostr))(from);
     if (Ty::LST == ty.base())
-      return (Str*)(*(Fun*)(*static_lookup_name(app, join))(new StrChunks(app, "")))(from);
+      return (*(ref<Fun>)(*static_lookup_name(app, join))(ref<StrChunks>(app, "")))(from);
 
     throw TypeError(ty, to);
   }
@@ -53,7 +51,7 @@ namespace sel {
   // (a..) => (b..)
   // (a..) => [b..]
   // [a..] => (b..)
-  template <> Lst* coerse<Lst>(App& app, Val* from, Type const& to) {
+  template <> ref<Lst> coerse<Lst>(App& app, ref<Val> from, Type const& to) {
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
 
@@ -61,7 +59,7 @@ namespace sel {
     auto const to_size = to_has.size();
 
     if (Ty::LST == ty.base()) {
-      if (ty == to) return (Lst*)from;
+      if (ty == to) return from;
 
       // std::vector<Type*> const& ty_has = ty.has();
       // auto const ty_size = ty_has.size();
@@ -77,14 +75,14 @@ namespace sel {
       //   throw TypeError((oss << "content arity of " << ty << " does not match with " << to, oss.str()));
       // }
 
-      return new LstMapCoerse(app, (Lst*)from, to_has);
+      return ref<LstMapCoerse>(app, from, to_has);
     }
 
     if (Ty::STR == ty.base() && 1 == to_size) {
       if (Ty::NUM == to_has[0].base())
-        return (Lst*)(*static_lookup_name(app, codepoints))(from);
+        return (*static_lookup_name(app, codepoints))(from);
       if (Ty::STR == to_has[0].base() || Ty::UNK == to_has[0].base())
-        return (Lst*)(*static_lookup_name(app, graphemes))(from);
+        return (*static_lookup_name(app, graphemes))(from);
     }
 
     throw TypeError(ty, to);
@@ -92,7 +90,7 @@ namespace sel {
 
   // special case for type checking, (effectively a cast)
   // where `to` should be `tyor idk
-  template <> Fun* coerse<Fun>(App& app, Val* from, Type const& to) {
+  template <> ref<Fun> coerse<Fun>(App& app, ref<Val> from, Type const& to) {
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
     if (Ty::FUN == to.base()) {
@@ -101,7 +99,7 @@ namespace sel {
         throw TypeError((oss << "function arity of " << ty << " does not match with " << to, oss.str()));
       }
 
-      return (Fun*)from;
+      return from;
     }
 
     std::ostringstream oss;
@@ -110,7 +108,7 @@ namespace sel {
 
   // dispatches to the correct one dynamically
   // coersing to unk is used in builtins (eg. `const` or `id`)
-  template <> Val* coerse<Val>(App& app, Val* from, Type const& to) {
+  template <> ref<Val> coerse<Val>(App& app, ref<Val> from, Type const& to) {
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
     switch (to.base()) {

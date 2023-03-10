@@ -81,7 +81,7 @@ namespace sel {
     a.reserve(c);
     for (size_t k = 0; k < c; k++) {
       std::sprintf(b[k], "v[%zu]", k);
-      a.push_back({b[k], v[k]});
+      a.push_back({b[k], &*v[k]});
     }
     reprHelper(it.type(), "LstLiteral", a);
     return res;
@@ -95,7 +95,7 @@ namespace sel {
     a.reserve(c);
     for (size_t k = 0; k < c; k++) {
       std::sprintf(b[k], "f[%zu]", k);
-      a.push_back({b[k], (Val*)f[k]});
+      a.push_back({b[k], &*f[k]});
     }
     reprHelper(it.type(), "FunChain", a);
     return res;

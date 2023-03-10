@@ -7,59 +7,60 @@
 
 namespace sel {
 
-  Val* lookup_name(App& app, std::string const& name) {
+  ref<Val> lookup_name(App& app, std::string const& name) {
     auto itr = bins_list::map.find(name);
-    if (bins_list::map.end() == itr) return nullptr;
-    return (*itr).second(app);
+    if (bins_list::map.end() == itr) return ref<Val>(app, nullptr);
+    auto f = (*itr).second;
+    return f(app);
   }
 
   namespace bins_helpers {
 
     template <typename Impl, typename one>
-    Val* _bin_be<Impl, ll::cons<one, ll::nil>>::the::copy() const {
+    ref<Val> _bin_be<Impl, ll::cons<one, ll::nil>>::the::copy() const {
       typedef _bin_be<Impl, ll::cons<one, ll::nil>>::the a;
-      return new typename a::Base::Next(this->app); // copyOne
+      return ref<typename a::Base::Next>(this->h.app()); // copyOne
     }
 
     template <typename Impl, typename last_arg, char b>
-    Val* _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::copy() const {
+    ref<Val> _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the::copy() const {
       typedef _bin_be<Impl, cons<fun<last_arg, unk<b>>, nil>>::the a;
-      return new typename a::Base::Next(this->app); // copyOne2
+      return ref<typename a::Base::Next>(this->h.app()); // copyOne2
     }
 
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
-    Val* _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::copy() const {
+    ref<Val> _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::copy() const {
       typedef _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>> a;
-      return new _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>(
-        this->app,
-        (a::Base*)_base->copy(),
-        (a::Arg*)_arg->copy()
+      return ref<_bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>>(
+        this->h.app(),
+        _base->copy(),
+        _arg->copy()
       ); // copyBody
     }
 
     template <typename NextT, typename last_to, typename last_from>
-    Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::_the_when_not_unk::copy() const {
+    ref<Val> _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::_the_when_not_unk::copy() const {
       typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the a;
-      return new typename a::Base::Next(
-        this->app,
-        (typename a::Base*)_base->copy(),
-        (typename a::Arg*)_arg->copy()
+      return ref<typename a::Base::Next>(
+        this->h.app(),
+        _base->copy(),
+        _arg->copy()
       ); // copyTail1
     }
     template <typename NextT, typename last_to, typename last_from>
-    Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::_the_when_is_unk::copy() const {
+    ref<Val> _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::_the_when_is_unk::copy() const {
       typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::the a;
-      return new typename a::Base::Next(
-        this->app,
-        (typename a::Base*)_base->copy(),
-        (typename a::Arg*)_arg->copy()
+      return ref<typename a::Base::Next>(
+        this->h.app(),
+        _base->copy(),
+        _arg->copy()
       ); // copyTail2
     }
 
     template <typename NextT, typename last_to, typename last_from>
-    Val* _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::copy() const {
+    ref<Val> _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>>::copy() const {
       typedef _bin_be<NextT, ll::cons<last_to, ll::cons<last_from, ll::nil>>> a;
-      return new a(this->app); // copyHead
+      return ref<a>(this->h.app()); // copyHead
     }
 
   } // namespace bins_helpers
@@ -93,23 +94,15 @@ namespace sel {
       bind_args(a, b);
       return a.value() + b.value();
 
-      // but this would require either:
-      // - new [Val] does not register into app
-      // - or replace needs to remove both, then re-add
-      // app.replace(this, new NumResult(app, a.value() + b.value()));
+      // YYY: that's the idea:
+      //   - remove a and b once result are known;
+      //   - replace this with the result.
 
-      // app.remove(this);
-      // new NumResult(app, a.value() + b.value());
-
-      // anyway, the actual probel with this it that
-      // if i remove this, it (rightfully) deletes it
-      // but now i will have a bunch of dangling pointers
-      // (eg. 'a' or 'b' of an other add_)
-      // ie. it would need the refer to captured Val*
-      // not by raw pointers, but by App::ptrs index;
-      // this would make a lot of things easier, but
-      // maybe many other not
-      // -- if the problem is just updating the macros, that's ok :^)
+      // double va = a.value();
+      // double vb = b.value();
+      // h.app().drop(_arg);
+      // h.app().drop(_base->_arg);
+      // new NumResult(h, va+vb);
     }
 
     std::ostream& bin_::stream(std::ostream& out) {
@@ -127,19 +120,19 @@ namespace sel {
       bind_args(l, r);
       while (!l.end()) {
         std::ostringstream oss;
-        ((Str*)*l)->entire(oss);
+        ((ref<Str>)*l)->entire(oss);
         inleft.insert(oss.str());
         ++l;
       }
       while (!r.end()) {
         std::ostringstream oss;
-        ((Str*)*r)->entire(oss);
+        ((ref<Str>)*r)->entire(oss);
         if (inleft.end() != inleft.find(oss.str())) break;
         ++r;
       }
       did_once = true;
     }
-    Val* conjunction_::operator*() {
+    ref<Val> conjunction_::operator*() {
       bind_args(l, r);
       if (!did_once) once();
       return *r;
@@ -150,7 +143,7 @@ namespace sel {
       ++r;
       while (!r.end()) {
         std::ostringstream oss;
-        ((Str*)*r)->entire(oss);
+        ((ref<Str>)*r)->entire(oss);
         if (inleft.end() != inleft.find(oss.str())) break;
         ++r;
       }
@@ -161,14 +154,14 @@ namespace sel {
       return (did_once ? inleft.empty() : l.end()) || r.end();
     }
 
-    Val* bytes_::operator*() {
+    ref<Val> bytes_::operator*() {
       bind_args(s);
       if (buff.length() <= off && !s.end()) {
         std::ostringstream oss;
         buff = (oss << s, oss.str());
         off = 0;
       }
-      return new NumResult(app, (uint8_t)buff[off]);
+      return ref<NumResult>(h.app(), (uint8_t)buff[off]);
     }
     Lst& bytes_::operator++() {
       bind_args(s);
@@ -189,13 +182,13 @@ namespace sel {
     bool chr_::end() { return read; }
     std::ostream& chr_::entire(std::ostream& out) { read = true; return out << codepoint(_arg->value()); }
 
-    Val* codepoints_::operator*() {
+    ref<Val> codepoints_::operator*() {
       bind_args(s);
       if (!did_once) {
         isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
         did_once = true;
       }
-      return new NumResult(app, isi->u);
+      return ref<NumResult>(h.app(), isi->u);
     }
     Lst& codepoints_::operator++() {
       bind_args(s);
@@ -212,7 +205,7 @@ namespace sel {
       return did_once ? eos == isi : s.end();
     }
 
-    Val* const_::impl(LastArg& ignore) {
+    ref<Val> const_::impl(LastArg& ignore) {
       bind_args(take);
       return &take;
     }
@@ -248,7 +241,7 @@ namespace sel {
         std::ostringstream search; ((Str&)it).entire(search); // XXX
         n = 0;
         for (; !l.end(); ++l) {
-          std::ostringstream item; ((Str*)*l)->entire(item); // XXX
+          std::ostringstream item; ((ref<Str>)*l)->entire(item); // XXX
           if (search.str() == item.str())
             n++;
         }
@@ -262,7 +255,7 @@ namespace sel {
       return a.value() / b.value();
     }
 
-    Val* drop_::operator*() {
+    ref<Val> drop_::operator*() {
       bind_args(n, l);
       if (!done) {
         for (size_t k = 0; k < n.value() && !l.end(); k++)
@@ -291,7 +284,7 @@ namespace sel {
       return l.end() && n.value() != k;
     }
 
-    Val* dropwhile_::operator*() {
+    ref<Val> dropwhile_::operator*() {
       bind_args(p, l);
       if (!done) {
         while (!l.end() && p(*l))
@@ -319,7 +312,7 @@ namespace sel {
       return l.end();
     }
 
-    Val* duple_::operator*() {
+    ref<Val> duple_::operator*() {
       bind_args(v);
       return v.copy();
     }
@@ -349,10 +342,10 @@ namespace sel {
       return does;
     }
 
-    Val* filter_::operator*() {
+    ref<Val> filter_::operator*() {
       bind_args(p, l);
       if (!curr) {
-        while (!l.end() && !((Num*)p(*l))->value()) ++l;
+        while (!l.end() && !((ref<Num>)p(*l))->value()) ++l;
         curr = *l;
       }
       return *l;
@@ -360,17 +353,17 @@ namespace sel {
     Lst& filter_::operator++() {
       bind_args(p, l);
       ++l;
-      while (!l.end() && !((Num*)p(*l))->value()) ++l;
+      while (!l.end() && !((ref<Num>)p(*l))->value()) ++l;
       curr = *l;
       return *this;
     }
     bool filter_::end() {
       bind_args(p, l);
-      while (!l.end() && !((Num*)p(*l))->value()) ++l;
+      while (!l.end() && !((ref<Num>)p(*l))->value()) ++l;
       return l.end();
     }
 
-    Val* graphemes_::operator*() {
+    ref<Val> graphemes_::operator*() {
       bind_args(s);
       if (!did_once) {
         isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
@@ -378,7 +371,7 @@ namespace sel {
         read_grapheme(isi, curr);
       }
       std::ostringstream oss;
-      return new StrChunks(app, (oss << curr, oss.str()));
+      return ref<StrChunks>(h.app(), (oss << curr, oss.str()));
     }
     Lst& graphemes_::operator++() {
       bind_args(s);
@@ -399,7 +392,7 @@ namespace sel {
       return did_once ? eos == isi && past_end : s.end();
     }
 
-    Val* head_::impl(LastArg& l) {
+    ref<Val> head_::impl(LastArg& l) {
       if (l.end()) throw RuntimeError("head of empty list");
       return *l;
     }
@@ -408,9 +401,9 @@ namespace sel {
     bool hex_::end() { return read; }
     std::ostream& hex_::entire(std::ostream& out) { read = true; return out << std::hex << size_t(_arg->value()); }
 
-    Val* flip_::impl(LastArg& a) {
+    ref<Val> flip_::impl(LastArg& a) {
       bind_args(fun, b);
-      return (*(Fun*)fun(&a))(&b);
+      return (*(ref<Fun>)fun(&a))(&b);
     }
 
     void give_::once() {
@@ -422,7 +415,7 @@ namespace sel {
       if (l.end()) at_when_end = at;
       did_once = true;
     }
-    Val* give_::operator*() {
+    ref<Val> give_::operator*() {
       bind_args(n, l);
       if (!did_once) once();
       return 0 != circ.size() ? circ[at] : *l;
@@ -442,18 +435,18 @@ namespace sel {
       return l.end() && at_when_end == at;
     }
 
-    Val* id_::impl(LastArg& take) {
+    ref<Val> id_::impl(LastArg& take) {
       return &take;
     }
 
-    Val* if_::impl(LastArg& argument) {
+    ref<Val> if_::impl(LastArg& argument) {
       bind_args(condition, consequence, alternative);
-      return ((Num*)condition(&argument))->value()
+      return ((ref<Num>)condition(&argument))->value()
         ? &consequence
         : &alternative;
     }
 
-    Val* index_::impl(LastArg& k) {
+    ref<Val> index_::impl(LastArg& k) {
       if (!did) {
         bind_args(l);
         const size_t idx = k.value();
@@ -470,7 +463,7 @@ namespace sel {
       return found;
     }
 
-    Val* init_::operator*() {
+    ref<Val> init_::operator*() {
       bind_args(l);
       if (!prev) {
         if (l.end()) throw RuntimeError("init of empty list");
@@ -499,7 +492,7 @@ namespace sel {
       return l.end();
     }
 
-    Val* iterate_::operator*() {
+    ref<Val> iterate_::operator*() {
       bind_args(f, o);
       return !curr ? &o : curr;
     }
@@ -518,7 +511,7 @@ namespace sel {
         ssep = oss.str();
         beginning = false;
       } else out << ssep;
-      Str* it = (Str*)*lst;
+      ref<Str> it = *lst;
       it->entire(out);
       ++lst;
       return out;
@@ -537,23 +530,23 @@ namespace sel {
         beginning = false;
       }
       // first iteration unrolled (because no separator)
-      ((Str*)*lst)->entire(out);
+      ((ref<Str>)*lst)->entire(out);
       ++lst;
       for (; !lst.end(); ++lst) {
-        ((Str*)*lst)->entire(out << ssep);
+        ((ref<Str>)*lst)->entire(out << ssep);
       }
       return out;
     }
 
-    Val* last_::impl(LastArg& l) {
+    ref<Val> last_::impl(LastArg& l) {
       if (l.end()) throw RuntimeError("last of empty list");
-      Val* r = nullptr;
+      ref<Val> r(h.app(), nullptr);
       for (; !l.end(); ++l)
         r = *l;
       return r;
     }
 
-    Val* map_::operator*() {
+    ref<Val> map_::operator*() {
       bind_args(f, l);
       return f(*l);
     }
@@ -612,11 +605,11 @@ namespace sel {
       return s.entire(px.entire(out));
     }
 
-    Val* repeat_::operator*() { return _arg->copy(); }
+    ref<Val> repeat_::operator*() { return _arg->copy(); }
     Lst& repeat_::operator++() { return *this; }
     bool repeat_::end() { return false; }
 
-    Val* replicate_::operator*() {
+    ref<Val> replicate_::operator*() {
       if (!did) did++;
       bind_args(n, o);
       return o.copy();
@@ -637,7 +630,7 @@ namespace sel {
       did_once = true;
       curr = cache.size();
     }
-    Val* reverse_::operator*() {
+    ref<Val> reverse_::operator*() {
       if (!did_once) once();
       return cache[curr-1];
     }
@@ -651,7 +644,7 @@ namespace sel {
       return l.end();
     }
 
-    Val* singleton_::operator*() { return _arg; }
+    ref<Val> singleton_::operator*() { return _arg; }
     Lst& singleton_::operator++() { done = true; return *this; }
     bool singleton_::end() { return done; }
 
@@ -686,9 +679,9 @@ namespace sel {
       acc << str;
       return next();
     }
-    Val* split_::operator*() {
+    ref<Val> split_::operator*() {
       if (!init) { next(); init = true; }
-      return new StrChunks(app, curr);
+      return ref<StrChunks>(h.app(), curr);
     }
     Lst& split_::operator++() {
       if (!init) { next(); init = true; }
@@ -751,7 +744,7 @@ namespace sel {
       return sx.entire(s.entire(px.entire(out)));
     }
 
-    Val* tail_::operator*() {
+    ref<Val> tail_::operator*() {
       bind_args(l);
       if (!done) {
         if (l.end()) throw RuntimeError("tail of empty list");
@@ -780,7 +773,7 @@ namespace sel {
       return l.end();
     }
 
-    Val* take_::operator*() {
+    ref<Val> take_::operator*() {
       if (!did) did++;
       bind_args(n, l);
       return *l;
@@ -797,7 +790,7 @@ namespace sel {
       return 0 == x || x < did || l.end();
     }
 
-    Val* takewhile_::operator*() {
+    ref<Val> takewhile_::operator*() {
       bind_args(p, l);
       return *l;
     }
@@ -808,7 +801,7 @@ namespace sel {
     }
     bool takewhile_::end() {
       bind_args(p, l);
-      return l.end() || !((Num*)p(*l))->value();
+      return l.end() || !((ref<Num>)p(*l))->value();
     }
 
     double tonum_::value() {
@@ -824,7 +817,7 @@ namespace sel {
     bool tostr_::end() { return read; }
     std::ostream& tostr_::entire(std::ostream& out) { read = true; return out << _arg->value(); }
 
-    Val* tuple_::operator*() {
+    ref<Val> tuple_::operator*() {
       bind_args(a, b);
       return 0 == did ? &a : &b;
     }
@@ -857,7 +850,7 @@ namespace sel {
 
     std::ostream& unbytes_::stream(std::ostream& out) {
       bind_args(l);
-      char b = ((Num*)*l)->value();
+      char b = ((ref<Num>)*l)->value();
       ++l;
       return out << b;
     }
@@ -868,13 +861,13 @@ namespace sel {
     std::ostream& unbytes_::entire(std::ostream& out) {
       bind_args(l);
       for (; !l.end(); ++l)
-        out << char(((Num*)*l)->value());
+        out << char(((ref<Num>)*l)->value());
       return out;
     }
 
     std::ostream& uncodepoints_::stream(std::ostream& out) {
       bind_args(l);
-      codepoint cp = ((Num*)*l)->value();
+      codepoint cp = ((ref<Num>)*l)->value();
       ++l;
       return out << cp;
     }
@@ -885,13 +878,13 @@ namespace sel {
     std::ostream& uncodepoints_::entire(std::ostream& out) {
       bind_args(l);
       for (; !l.end(); ++l)
-        out << codepoint(((Num*)*l)->value());
+        out << codepoint(((ref<Num>)*l)->value());
       return out;
     }
 
-    Val* uncurry_::impl(LastArg& pair) {
+    ref<Val> uncurry_::impl(LastArg& pair) {
       bind_args(f);
-      return (*(Fun*)f(*pair))(*++pair);
+      return (*(ref<Fun>)f(*pair))(*++pair);
     }
 
     double unhex_::value() {
@@ -916,14 +909,14 @@ namespace sel {
       return r;
     }
 
-    Val* zipwith_::operator*() {
+    ref<Val> zipwith_::operator*() {
       bind_args(f, l1, l2);
-      if (!curr) curr = (*(Fun*)f(*l1))(*l2);
+      if (!curr) curr = (*(ref<Fun>)f(*l1))(*l2);
       return curr;
     }
     Lst& zipwith_::operator++() {
       bind_args(f, l1, l2);
-      curr = nullptr;
+      curr = ref<Val>(h.app(), nullptr);
       ++l1;
       ++l2;
       return *this;
@@ -955,7 +948,7 @@ namespace sel {
   template <typename PackItself> struct _make_bins_list;
   template <typename ...Pack>
   struct _make_bins_list<ll::pack<Pack...>> {
-    static std::unordered_map<std::string, Val* (*)(App&)> const map;
+    static std::unordered_map<std::string, ref<Val> (*)(App&)> const map;
     static char const* const names[];
     constexpr static size_t count = sizeof...(Pack);
   };
@@ -964,12 +957,12 @@ namespace sel {
   constexpr char const* const _make_bins_list<ll::pack<Pack...>>::names[] = {Pack::name...};
 
   template <typename Va>
-  Val* _bin_new(App& app) { return new typename Va::Head(app); }
+  ref<Val> _bin_new(App& app) { return ref<typename Va::Head>(app); }
   // XXX: static constructor
   template <typename ...Pack>
-  std::unordered_map<std::string, Val* (*)(App&)> const _make_bins_list<ll::pack<Pack...>>::map = {{Pack::name, _bin_new<Pack>}...};
+  std::unordered_map<std::string, ref<Val> (*)(App&)> const _make_bins_list<ll::pack<Pack...>>::map = {{Pack::name, _bin_new<Pack>}...};
 
-  std::unordered_map<std::string, Val* (*)(App&)> const bins_list::map = _make_bins_list<bins_ll::bins>::map;
+  std::unordered_map<std::string, ref<Val> (*)(App&)> const bins_list::map = _make_bins_list<bins_ll::bins>::map;
   char const* const* const bins_list::names = _make_bins_list<bins_ll::bins>::names;
   size_t const bins_list::count = _make_bins_list<bins_ll::bins>::count;
 

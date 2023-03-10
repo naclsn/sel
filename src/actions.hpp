@@ -8,6 +8,8 @@
 #include "termutils.hpp"
 #include "wordwrap.hpp"
 
+// XXX/TODO: do not used exit, it will not destroy object in automatic storage
+
 void lookup(char const* const names[]) {
   if (!names || !*names) {
     for (size_t k = 0; k < bins_list::count; k++)
@@ -37,7 +39,7 @@ void lookup(char const* const names[]) {
 
     for (size_t k = 0; k < bins_list::count; k++) {
       char const* name = bins_list::names[k];
-      auto* it = lookup_name(app, name);
+      auto it = lookup_name(app, name);
 
       if (it->type() == ty && it->type().arity() == ar) {
         if (found) cout << "\n";
@@ -58,14 +60,13 @@ void lookup(char const* const names[]) {
     vector<char const*> not_found;
 
     while (*names) {
-      auto* it = lookup_name(app, *names);
+      auto it = lookup_name(app, *names);
       if (it) {
         cout << *names << " :: " << it->type() << "\n";
         wwcout << it->accept(help) << endl;
       } else not_found.push_back(*names);
 
       if (*++names) cout << endl;
-      delete it;
     }
 
     if (!not_found.empty()) {

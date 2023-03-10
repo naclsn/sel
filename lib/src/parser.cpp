@@ -13,53 +13,53 @@
 namespace sel {
 
   double NumLiteral::value() { return n; }
-  Val* NumLiteral::copy() const { return new NumLiteral(app, n); }
+  ref<Val> NumLiteral::copy() const { return ref<NumLiteral>(h.app(), n); }
 
   std::ostream& StrLiteral::stream(std::ostream& out) { read = true; return out << s; }
   bool StrLiteral::end() { return read || s.empty(); }
   std::ostream& StrLiteral::entire(std::ostream& out) { read = true; return out << s; }
-  Val* StrLiteral::copy() const { return new StrLiteral(app, s); }
+  ref<Val> StrLiteral::copy() const { return ref<StrLiteral>(h.app(), s); }
 
-  Val* LstLiteral::operator*() { return v[c]; }
+  ref<Val> LstLiteral::operator*() { return v[c]; }
   Lst& LstLiteral::operator++() { c++; return *this; }
   bool LstLiteral::end() { return v.size() <= c; }
-  Val* LstLiteral::copy() const {
-    std::vector<Val*> w;
+  ref<Val> LstLiteral::copy() const {
+    std::vector<ref<Val>> w;
     w.reserve(v.size());
     for (auto const& it : v)
       w.push_back(it->copy());
-    return new LstLiteral(app, w, std::vector<Type>(ty.has()));
+    return ref<LstLiteral>(h.app(), w, std::vector<Type>(ty.has()));
   }
 
-  Val* FunChain::operator()(Val* arg) {
-    Val* r = arg;
-    for (auto const& it : f)
+  ref<Val> FunChain::operator()(ref<Val> arg) {
+    ref<Val> r = arg;
+    for (auto& it : f)
       r = (*it)(r);
     return r;
   }
-  Val* FunChain::copy() const {
-    std::vector<Fun*> g;
+  ref<Val> FunChain::copy() const {
+    std::vector<ref<Fun>> g;
     g.reserve(f.size());
     for (auto const& it : f)
-      g.push_back((Fun*)it->copy());
-    return new FunChain(app, g);
+      g.push_back(it->copy());
+    return ref<FunChain>(h.app(), g);
   }
 
   double NumDefine::value() { return v->value(); }
-  Val* NumDefine::copy() const { return new NumDefine(app, name, doc, (Num*)v->copy()); }
+  ref<Val> NumDefine::copy() const { return ref<NumDefine>(h.app(), name, doc, v->copy()); }
 
   std::ostream& StrDefine::stream(std::ostream& out) { return v->stream(out); }
   bool StrDefine::end() { return v->end(); }
   std::ostream& StrDefine::entire(std::ostream& out) { return v->entire(out); }
-  Val* StrDefine::copy() const { return new StrDefine(app, name, doc, (Str*)v->copy()); }
+  ref<Val> StrDefine::copy() const { return ref<StrDefine>(h.app(), name, doc, v->copy()); }
 
-  Val* LstDefine::operator*() { return v->operator*(); }
+  ref<Val> LstDefine::operator*() { return v->operator*(); }
   Lst& LstDefine::operator++() { return v->operator++(); }
   bool LstDefine::end() { return v->end(); }
-  Val* LstDefine::copy() const { return new LstDefine(app, name, doc, (Lst*)v->copy()); }
+  ref<Val> LstDefine::copy() const { return ref<LstDefine>(h.app(), name, doc, v->copy()); }
 
-  Val* FunDefine::operator()(Val* arg) { return v->operator()(arg); }
-  Val* FunDefine::copy() const { return new FunDefine(app, name, doc, (Fun*)v->copy()); }
+  ref<Val> FunDefine::operator()(ref<Val> arg) { return v->operator()(arg); }
+  ref<Val> FunDefine::copy() const { return ref<FunDefine>(h.app(), name, doc, v->copy()); }
 
   std::ostream& Input::stream(std::ostream& out) {
     // already read up to `upto`, so take from cache starting at `nowat`
@@ -113,7 +113,7 @@ namespace sel {
     nowat = buffer->upto;
     return out << buffer->cache.str();
   }
-  Val* Input::copy() const { return new Input(*this); }
+  ref<Val> Input::copy() const { return ref<Input>(h.app(), *this); }
 
   // internal
   struct Token {
@@ -410,20 +410,20 @@ namespace sel {
   }
 
   // internal
-  Val* lookup(App& app, std::string const& name) {
-    Val* user = app.lookup_name_user(name);
+  ref<Val> lookup(App& app, std::string const& name) {
+    ref<Val> user = app.lookup_name_user(name);
     if (user) return user;
     return lookup_name(app, name);
   }
-  Val* lookup_unary(App& app, Token const& t) {
+  ref<Val> lookup_unary(App& app, Token const& t) {
     switch (t.as.chr) {
       // case '@': val = static_lookup_name(app, ..); break;
       case '%': return static_lookup_name(app, flip); break; // YYY: flips cancel out
     }
     // default unreachable
-    return nullptr;
+    throw TypeError(std::string("unreachable in lookup_unary for character '") + t.as.chr + '\'');
   }
-  Val* lookup_binary(App& app, Token const& t) {
+  ref<Val> lookup_binary(App& app, Token const& t) {
     switch (t.as.chr) {
       case '+': return static_lookup_name(app, add); break;
       case '-': return static_lookup_name(app, sub); break;
@@ -432,20 +432,20 @@ namespace sel {
       case '_': return static_lookup_name(app, index); break;
     }
     // default unreachable
-    return nullptr;
+    throw TypeError(std::string("unreachable in lookup_binary for character '") + t.as.chr + '\'');
   }
 
   // internal
   static std::istream_iterator<Token> eos;
-  Val* parseAtom(App& app, std::istream_iterator<Token>& lexer);
-  Val* parseElement(App& app, std::istream_iterator<Token>& lexer);
-  Val* parseScript(App& app, std::istream_iterator<Token>& lexer);
+  ref<Val> parseAtom(App& app, std::istream_iterator<Token>& lexer);
+  ref<Val> parseElement(App& app, std::istream_iterator<Token>& lexer);
+  ref<Val> parseScript(App& app, std::istream_iterator<Token>& lexer);
 
   // internal
-  Val* parseAtom(App& app, std::istream_iterator<Token>& lexer) {
+  ref<Val> parseAtom(App& app, std::istream_iterator<Token>& lexer) {
     if (eos == lexer) expectedContinuation("scanning atom", *lexer);
 
-    Val* val = nullptr;
+    ref<Val> val(app, nullptr);
     Token t = *lexer;
 
     switch (t.type) {
@@ -459,18 +459,18 @@ namespace sel {
         break;
 
       case Token::Type::LIT_NUM:
-        val = new NumLiteral(app, t.as.num);
+        val = ref<NumLiteral>(app, t.as.num);
         ++lexer;
         break;
 
       case Token::Type::LIT_STR:
-        val = new StrLiteral(app, std::string(*t.as.str));
+        val = ref<StrLiteral>(app, std::string(*t.as.str));
         ++lexer;
         break;
 
       case Token::Type::LIT_LST_OPEN:
         {
-          std::vector<Val*> elms;
+          std::vector<ref<Val>> elms;
           while (Token::Type::LIT_LST_CLOSE != (++lexer)->type) {
             elms.push_back(parseElement(app, lexer));
             if (Token::Type::LIT_LST_CLOSE == lexer->type) break;
@@ -492,7 +492,7 @@ namespace sel {
           // [Str]) / look at surrounding (this would have
           // to be done at element-s level...)
 
-          val = new LstLiteral(app, elms);
+          val = ref<LstLiteral>(app, elms);
           ++lexer;
         }
         break;
@@ -500,23 +500,24 @@ namespace sel {
       case Token::Type::UN_OP:
         val = lookup_unary(app, t);
         {
-          Val* arg = nullptr;
+          ref<Val> arg(app, nullptr);
           Token t = *++lexer;
           if (Token::Type::BIN_OP == t.type) {
             arg = (*static_lookup_name(app, flip))(lookup_binary(app, t));
             ++lexer;
           } else arg = parseAtom(app, lexer);
           if (!arg) expected("atom", *lexer);
-          val = (*(Fun*)val)(arg);
+          val = (*(ref<Fun>)val)(arg);
         }
         break;
 
       case Token::Type::BIN_OP:
         {
           // it parses the argument first, the op is on the stack for below
-          Val* arg = parseAtom(app, ++lexer);
+          ref<Val> arg = parseAtom(app, ++lexer);
           if (!arg) expected("atom", *lexer);
-          val = (*(Fun*)(*static_lookup_name(app, flip))(lookup_binary(app, t)))(arg);
+          // FIXME: this cast checked?
+          val = (*(ref<Fun>)(*static_lookup_name(app, flip))(lookup_binary(app, t)))(arg);
         }
         break;
 
@@ -550,10 +551,10 @@ namespace sel {
   } // parseAtom
 
   // internal
-  Val* parseElement(App& app, std::istream_iterator<Token>& lexer) {
+  ref<Val> parseElement(App& app, std::istream_iterator<Token>& lexer) {
     if (eos == lexer) expectedContinuation("scanning element", *lexer);
 
-    Val* val;
+    ref<Val> val(app, nullptr);
 
     if (Token::Type::DEF == lexer->type) {
       Token t_name = *++lexer;
@@ -587,10 +588,10 @@ namespace sel {
       }
 
       switch (val->type().base()) {
-        case Ty::NUM: val = new NumDefine(app, *t_name.as.name, clean, (Num*)val); break;
-        case Ty::STR: val = new StrDefine(app, *t_name.as.name, clean, (Str*)val); break;
-        case Ty::LST: val = new LstDefine(app, *t_name.as.name, clean, (Lst*)val); break;
-        case Ty::FUN: val = new FunDefine(app, *t_name.as.name, clean, (Fun*)val); break;
+        case Ty::NUM: val = ref<NumDefine>(app, *t_name.as.name, clean, val); break;
+        case Ty::STR: val = ref<StrDefine>(app, *t_name.as.name, clean, val); break;
+        case Ty::LST: val = ref<LstDefine>(app, *t_name.as.name, clean, val); break;
+        case Ty::FUN: val = ref<FunDefine>(app, *t_name.as.name, clean, val); break;
         default: {
           std::ostringstream oss;
           throw TypeError((oss << "unexpected type in def expression: '" << val->type() << "'", oss.str()));
@@ -609,8 +610,8 @@ namespace sel {
         && Token::Type::SUB_CLOSE != lexer->type
         && Token::Type::END != lexer->type
     ) {
-      Fun* base = coerse<Fun>(app, val, val->type());
-      Val* arg = parseAtom(app, lexer);
+      ref<Fun> base = coerse<Fun>(app, val, val->type());
+      ref<Val> arg = parseAtom(app, lexer);
       if (arg) val = base->operator()(arg);
     }
 
@@ -623,10 +624,10 @@ namespace sel {
   } // parseElement
 
   // internal
-  Val* parseScript(App& app, std::istream_iterator<Token>& lexer) {
+  ref<Val> parseScript(App& app, std::istream_iterator<Token>& lexer) {
     if (eos == lexer) expectedContinuation("scanning sub-script", *lexer);
 
-    Val* val;
+    ref<Val> val(app, nullptr);
 
     // early return: single value in script / sub-script
     val = parseElement(app, lexer);
@@ -637,7 +638,7 @@ namespace sel {
 
     // early return: syntax error, to caller to handle
     if (Token::Type::THEN != lexer->type)
-      return nullptr;
+      return ref<Val>(app, nullptr);
 
     // the parsed list of values was eg. "[a, b, c]";
     // this represent the composition "c . b . a" (hs
@@ -657,13 +658,13 @@ namespace sel {
 
     if (isfun) {
       // first is a function, pack all up for later
-      std::vector<Fun*> elms;
+      std::vector<ref<Fun>> elms;
       elms.push_back(coerse<Fun>(app, val, val->type()));
       do {
         auto tmp = parseElement(app, ++lexer);
         elms.push_back(coerse<Fun>(app, tmp, tmp->type()));
       } while (eos != lexer && Token::Type::THEN == lexer->type);
-      return new FunChain(app, elms);
+      return ref<FunChain>(app, elms);
     }
 
     // first is not a function, apply all right away
@@ -674,11 +675,11 @@ namespace sel {
     return val;
   } // parseScript
 
-  Val* parseApplication(App& app, std::istream& in) {
+  ref<Val> parseApplication(App& app, std::istream& in) {
     std::istream_iterator<Token> lexer(in);
     if (eos == lexer) expectedContinuation("scanning script", *lexer);
 
-    Val* tmp = parseScript(app, lexer);
+    ref<Val> tmp = parseScript(app, lexer);
     if (Token::Type::SUB_CLOSE == lexer->type)
       throw ParseError("unmatched closing ]", lexer->loc, lexer->len);
 

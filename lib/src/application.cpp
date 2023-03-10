@@ -6,43 +6,28 @@
 
 namespace sel {
 
-  void Valloc::slot::change(Val const* niw) { delete v; v = niw; }
-  void Valloc::slot::drop() { delete v; v = nullptr; }
+  Val* App::slot::peek() { return v;  }
+  void App::slot::hold(Val* niw) { delete v; v = niw; }
+  void App::slot::drop() { delete v; v = nullptr; }
 
-  Valloc::handle Valloc::hold(Val const* niw) {
+  size_t App::reserve() {
     if (0 != free) {
       size_t k = 0;
       for (auto& it : w) {
         if (!it) {
-          it.change(niw);
           free--;
-          return handle(*this, k);
+          return k;
         }
         k++;
       }
-
       // turns out it did not have room left (this should not happen)
       free = 0;
     }
-
-    w.emplace_back(niw);
-    return handle(*this, w.size()-1);
+    w.emplace_back();
+    return w.size()-1;
   }
 
-  void Valloc::change(handle at, Val const* niw) {
-    w[at].change(niw);
-  }
-
-  void Valloc::drop(handle at) {
-    w[at].drop();
-    free++;
-  }
-
-  Val const* Valloc::operator[](handle at) {
-    return (Val const*)w[at];
-  }
-
-  void Valloc::clear() {
+  void App::clear() {
     for (auto it = w.rbegin(); it != w.rend(); ++it)
       it->drop();
     w.clear();
@@ -50,15 +35,15 @@ namespace sel {
 
   Type const& App::type() const { return f->type(); }
 
-  Val* App::lookup_name_user(std::string const& name) {
+  ref<Val> App::lookup_name_user(std::string const& name) {
     try {
       return user.at(name)->copy();
     } catch (.../*std::out_of_range const&*/) {
-      return nullptr;
+      return ref<Val>(*this, nullptr);
     }
   }
-  void App::define_name_user(std::string const& name, Val* v) {
-    user[name] = v;
+  void App::define_name_user(std::string const& name, ref<Val> v) {
+    user.insert({name, v});
   }
 
   void App::run(std::istream& in, std::ostream& out) {
@@ -69,8 +54,8 @@ namespace sel {
       throw TypeError((oss << "value of type " << ty << " is not a function", oss.str()));
     }
 
-    Val* valin = coerse<Val>(*this, new Input(*this, in), ty.from());
-    Val* valout = (*(Fun*)f)(valin);
+    ref<Val> valin = coerse<Val>(*this, ref<Input>(*this, in), ty.from());
+    ref<Val> valout = (*(ref<Fun>)f)(valin);
 
     Str& res = *coerse<Str>(*this, valout, Type::makeStr(true));
     res.entire(out);
@@ -120,28 +105,28 @@ namespace sel {
       std::string doc;
       Val const* u;
 
-      Val const* val = it.second;
+      ref<Val> const val = it.second;
       switch (val->type().base()) {
         case Ty::NUM: {
-            NumDefine const& def = *(NumDefine*)val;
+            NumDefine const& def = *(ref<NumDefine>)val;
             name = def.getname();
             doc = def.getdoc();
             u = &def.underlying();
           } break;
         case Ty::STR: {
-            StrDefine const& def = *(StrDefine*)val;
+            StrDefine const& def = *(ref<StrDefine>)val;
             name = def.getname();
             doc = def.getdoc();
             u = &def.underlying();
           } break;
         case Ty::LST: {
-            LstDefine const& def = *(LstDefine*)val;
+            LstDefine const& def = *(ref<LstDefine>)val;
             name = def.getname();
             doc = def.getdoc();
             u = &def.underlying();
           } break;
         case Ty::FUN: {
-            FunDefine const& def = *(FunDefine*)val;
+            FunDefine const& def = *(ref<FunDefine>)val;
             name = def.getname();
             doc = def.getdoc();
             u = &def.underlying();
@@ -152,6 +137,7 @@ namespace sel {
         }
       }
 
+      // TODO: use word wrapping at eg. 80 char?
       out
         << "def " << name << ":\n  "
         << quoted(doc, true, false) << ":\n  ["
@@ -162,10 +148,10 @@ namespace sel {
   }
 
   std::istream& operator>>(std::istream& in, App& app) {
-    Val* tmp = parseApplication(app, in);
+    ref<Val> tmp = parseApplication(app, in);
     app.f = app.not_fun
       ? tmp
-      : coerse<Fun>(app, tmp, tmp->type());
+      : (ref<Val>)coerse<Fun>(app, tmp, tmp->type());
     return in;
   }
 

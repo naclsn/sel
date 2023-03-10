@@ -50,19 +50,19 @@ namespace sel {
    */
   struct Val {
   protected:
-    App& app;
-    Valloc::handle h;
+    ref<Val> h; // handle over itself
     Type const ty;
 
     // used by janky visitor pattern, essentially manual v-table; use `make_visit_table`
     virtual VisitTable visit_table() const = 0;
 
   public:
-    Val(App& app, Type&& ty);
-    virtual ~Val();
+    Val(ref<Val> at, Type&& ty);
+    virtual ~Val() { }
 
+    ref<Val> operator&() { return h; }
     Type const& type() const { return ty; }
-    virtual Val* copy() const = 0;
+    virtual ref<Val> copy() const = 0;
 
     template <typename Vi>
     typename Vi::Ret accept(Vi& visitor) const {
@@ -79,10 +79,10 @@ namespace sel {
    * it for `coerse(Val val, Type to)`.
    */
   template <typename To>
-  To* coerse(App& app, Val* from, Type const& to);
+  ref<To> coerse(App& app, ref<Val> from, Type const& to);
   // forward (needed in LstMapCoerse)
   template <>
-  Val* coerse<Val>(App& app, Val* from, Type const& to);
+  ref<Val> coerse<Val>(App& app, ref<Val> from, Type const& to);
 
   /**
    * Abstract class for `Num`-type compatible values.
@@ -90,8 +90,8 @@ namespace sel {
    * (double for now).
    */
   struct Num : Val {
-    Num(App& app)
-      : Val(app, Type::makeNum())
+    Num(ref<Num> at)
+      : Val(at, Type::makeNum())
     { }
     virtual double value() = 0;
   };
@@ -101,8 +101,8 @@ namespace sel {
    * Strings are "rewindable streams".
    */
   struct Str : Val { //, public std::istream
-    Str(App& app, bool is_inf)
-      : Val(app, Type::makeStr(is_inf))
+    Str(ref<Str> at, bool is_inf)
+      : Val(at, Type::makeStr(is_inf))
     { }
     friend std::ostream& operator<<(std::ostream& out, Str& val) { return val.stream(out); }
     /**
@@ -126,13 +126,13 @@ namespace sel {
    * `next` and `rewind`.)
    */
   struct Lst : Val { //, public std::iterator<std::input_iterator_tag, Val>
-    Lst(App& app, Type&& type)
-      : Val(app, std::forward<Type>(type))
+    Lst(ref<Lst> at, Type&& type)
+      : Val(at, std::forward<Type>(type))
     { }
     /**
      * Get (compute, etc..) the current value.
      */
-    virtual Val* operator*() = 0;
+    virtual ref<Val> operator*() = 0;
     /**
      * Move to (compute, etc..) the next value.
      */
@@ -156,29 +156,29 @@ namespace sel {
    * a new value.
    */
   struct Fun : Val {
-    Fun(App& app, Type&& type)
-      : Val(app, std::forward<Type>(type))
+    Fun(ref<Fun> at, Type&& type)
+      : Val(at, std::forward<Type>(type))
     { }
-    virtual Val* operator()(Val* arg) = 0;
+    virtual ref<Val> operator()(ref<Val> arg) = 0;
   };
 
 
   struct LstMapCoerse : Lst {
   private:
-    Lst* v;
+    ref<Lst> v;
     size_t now_has;
     size_t has_size;
 
   public:
-    LstMapCoerse(App& app, Lst* v, std::vector<Type> const& to_has)
-      : Lst(app, Type::makeLst(std::vector<Type>(to_has), v->type().is_inf(), v->type().is_tpl()))
+    LstMapCoerse(ref<Lst> at, ref<Lst> v, std::vector<Type> const& to_has)
+      : Lst(at, Type::makeLst(std::vector<Type>(to_has), v->type().is_inf(), v->type().is_tpl()))
       , v(v)
       , now_has(0)
       , has_size(ty.has().size())
     { }
 
-    Val* operator*() override {
-      return coerse<Val>(app, *(*v), ty.has()[now_has]);
+    ref<Val> operator*() override {
+      return coerse<Val>(h.app(), *(*v), ty.has()[now_has]);
     }
     Lst& operator++() override {
       ++(*v);
@@ -188,8 +188,8 @@ namespace sel {
     }
     bool end() override { return v->end(); }
 
-    Val* copy() const override {
-      return new LstMapCoerse(app, (Lst*)v->copy(), ty.has());
+    ref<Val> copy() const override {
+      return ref<LstMapCoerse>(h.app(), v->copy(), ty.has());
     }
 
     Lst const& source() const { return *v; }
@@ -203,12 +203,12 @@ namespace sel {
 
   // @thx: http://gabisoft.free.fr/articles/fltrsbf1.html (2 pages, this page 1)
   class Str_streambuf : public std::streambuf {
-    Str* v;
+    ref<Str> v;
     std::string buffered;
 
   public:
-    Str_streambuf() { } // whever
-    Str_streambuf(Str* v): v(v) { }
+    Str_streambuf(): v(*new App, nullptr) { } // XXX: F#*K
+    Str_streambuf(ref<Str> v): v(v) { }
 
     Str_streambuf& operator=(Str_streambuf const&) = delete;
     Str_streambuf& operator=(Str_streambuf&& sis);
@@ -223,7 +223,7 @@ namespace sel {
   public:
     Str_istream() { } // whever
     Str_istream(std::istream&) = delete;
-    Str_istream(Str* v): a(v) { init(&a); }
+    Str_istream(ref<Str> v): a(v) { init(&a); }
 
     Str_istream& operator=(Str_istream const&) = delete;
     Str_istream& operator=(Str_istream&& sis);
