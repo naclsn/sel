@@ -30,8 +30,10 @@ namespace sel {
 
     struct ReprCx {
       unsigned indents;
-      bool top_level;
-      bool single_line;
+      bool top_level; // if top-level, tabs at begining and new line at end
+      bool single_line; // result on a single line
+      bool no_recurse; // do not allow recursing into fields
+      bool only_class; // just output the class name, no recursing, no whitespaces
     };
 
     VisRepr(std::ostream& res, ReprCx cx={.top_level=true}): res(res), cx(cx) { }

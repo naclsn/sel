@@ -6,6 +6,11 @@
 namespace sel {
 
   void VisRepr::reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields) {
+    if (cx.only_class) {
+      res << name;
+      return;
+    }
+
     bool isln = 1 < fields.size() && !cx.single_line;
 
     std::string ln = " ";
@@ -41,7 +46,7 @@ namespace sel {
           break;
 
         case ReprField::VAL:
-          if (it.val) {
+          if (it.val && !cx.no_recurse) {
             bool was_top = cx.top_level;
             cx.top_level = false;
             it.val->accept(*this);

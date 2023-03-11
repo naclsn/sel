@@ -6,6 +6,7 @@
 #include <unordered_map>
 
 #include "forward.hpp"
+#include "utils.hpp" // ZZZ: TRACE
 #include "visitors.hpp"
 
 namespace sel {
@@ -53,9 +54,17 @@ namespace sel {
       // - delayed init, eg. in some bins, in parsing..
 
       // replace any previously held value with this one
-      void hold(U* v) { va.w[i].hold(v); }
+      void hold(U* v) {
+        if (nullptr == va.w[i].peek()) {
+          TRACE("| [" << i << "] (was free)");
+        } else {
+          TRACE("| [" << i << "] (was " << sel::repr(**this, true, true, true) << ")");
+        }
+        va.w[i].hold(v); }
       // drop any previously held value
-      void drop() { va.w[i].drop(); va.free++; }
+      void drop() {
+        TRACE("- [" << i << "] (was " << sel::repr(**this, true, true, true) << ")");
+        va.w[i].drop(); va.free++; }
 
       // helper to get the App back
       App& app() const { return va; }
@@ -81,10 +90,10 @@ namespace sel {
       slot(Val* v): v(v) { }
 
       Val* peek();
+      Val* peek() const;
       void hold(Val*);
       void drop();
       operator bool() const { return v; }
-      // explicit operator Val*() const { return v; }
     };
 
     std::vector<slot> w;
@@ -105,16 +114,6 @@ namespace sel {
     App(App const&) = delete;
     App(App&&) = delete;
     ~App() { clear(); }
-
-    // template <typename U>
-    // handle<U> reserve() { return handle<U>(*this, p_reserve()); }
-    // template <typename U>
-    // void change(handle<U> at, Val* niw) { p_change((size_t)at, niw); }
-    // template <typename U>
-    // void drop(handle<U> at) { p_drop((size_t)at); }
-    // template <typename U>
-    // Val* operator[](handle<U> at) { return p_at((size_t)at); }
-    // same with const..?
 
     void clear();
 

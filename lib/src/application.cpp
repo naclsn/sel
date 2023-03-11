@@ -4,9 +4,12 @@
 #include "sel/utils.hpp"
 #include "sel/visitors.hpp"
 
+#include <typeinfo>
+
 namespace sel {
 
-  Val* App::slot::peek() { return v;  }
+  Val* App::slot::peek() { return v; }
+  Val* App::slot::peek() const { return v; }
   void App::slot::hold(Val* niw) { delete v; v = niw; }
   void App::slot::drop() { delete v; v = nullptr; }
 
@@ -16,6 +19,7 @@ namespace sel {
       for (auto& it : w) {
         if (!it) {
           free--;
+          TRACE("+ [" << k << "] (from free)");
           return k;
         }
         k++;
@@ -24,12 +28,17 @@ namespace sel {
       free = 0;
     }
     w.emplace_back();
+    TRACE("+ [" << w.size()-1 << "] (append new)");
     return w.size()-1;
   }
 
   void App::clear() {
-    for (auto it = w.rbegin(); it != w.rend(); ++it)
+    // size_t k = w.size();
+    TRACE("- [..] (clearing)");
+    for (auto it = w.rbegin(); it != w.rend(); ++it) {
+      // TRACE("- [" << --k << "] (clearing)");
       it->drop();
+    }
     w.clear();
   }
 
@@ -54,10 +63,13 @@ namespace sel {
       throw TypeError((oss << "value of type " << ty << " is not a function", oss.str()));
     }
 
+    TRACE("run, before stuff");
     ref<Val> valin = coerse<Val>(*this, ref<Input>(*this, in), ty.from());
     ref<Val> valout = (*(ref<Fun>)f)(valin);
+    TRACE("run, after stuff");
 
     Str& res = *coerse<Str>(*this, valout, Type::makeStr(true));
+    TRACE("running");
     res.entire(out);
   }
 

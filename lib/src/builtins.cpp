@@ -92,13 +92,13 @@ namespace sel {
 
     double add_::value() {
       bind_args(a, b);
-      return a.value() + b.value();
+      // return a.value() + b.value();
 
-      // double r = a.value() + b.value();
+      double r = a.value() + b.value();
       // a.drop();
       // b.drop();
-      // hold<NumResult>(r);
-      // return r;
+      hold<NumResult>(r);
+      return r;
     }
 
     std::ostream& bin_::stream(std::ostream& out) {
@@ -940,6 +940,66 @@ namespace sel {
     constexpr char const* const tostr_::name;
   }
 #endif
+
+  namespace bins {
+    constexpr char const* const abs_::name;
+    constexpr char const* const add_::name;
+    constexpr char const* const bin_::name;
+    constexpr char const* const bytes_::name;
+    constexpr char const* const chr_::name;
+    constexpr char const* const codepoints_::name;
+    constexpr char const* const conjunction_::name;
+    constexpr char const* const const_::name;
+    constexpr char const* const contains_::name;
+    constexpr char const* const count_::name;
+    constexpr char const* const div_::name;
+    constexpr char const* const drop_::name;
+    constexpr char const* const dropwhile_::name;
+    constexpr char const* const duple_::name;
+    constexpr char const* const endswith_::name;
+    constexpr char const* const filter_::name;
+    constexpr char const* const flip_::name;
+    constexpr char const* const give_::name;
+    constexpr char const* const graphemes_::name;
+    constexpr char const* const head_::name;
+    constexpr char const* const hex_::name;
+    constexpr char const* const id_::name;
+    constexpr char const* const if_::name;
+    constexpr char const* const index_::name;
+    constexpr char const* const init_::name;
+    constexpr char const* const iterate_::name;
+    constexpr char const* const join_::name;
+    constexpr char const* const last_::name;
+    constexpr char const* const ln_::name;
+    constexpr char const* const map_::name;
+    constexpr char const* const mul_::name;
+    constexpr char const* const oct_::name;
+    constexpr char const* const ord_::name;
+    constexpr char const* const pi_::name;
+    constexpr char const* const prefix_::name;
+    constexpr char const* const repeat_::name;
+    constexpr char const* const replicate_::name;
+    constexpr char const* const reverse_::name;
+    constexpr char const* const singleton_::name;
+    constexpr char const* const split_::name;
+    constexpr char const* const startswith_::name;
+    constexpr char const* const sub_::name;
+    constexpr char const* const suffix_::name;
+    constexpr char const* const surround_::name;
+    constexpr char const* const tail_::name;
+    constexpr char const* const take_::name;
+    constexpr char const* const takewhile_::name;
+    constexpr char const* const tonum_::name;
+    constexpr char const* const tostr_::name;
+    constexpr char const* const tuple_::name;
+    constexpr char const* const unbin_::name;
+    constexpr char const* const unbytes_::name;
+    constexpr char const* const uncodepoints_::name;
+    constexpr char const* const uncurry_::name;
+    constexpr char const* const unhex_::name;
+    constexpr char const* const unoct_::name;
+    constexpr char const* const zipwith_::name;
+  }
 
   template <typename PackItself> struct _make_bins_list;
   template <typename ...Pack>

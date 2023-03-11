@@ -1,5 +1,5 @@
 #!/bin/sh -e
 t=build/debug
 cd "${0%/*}/.."
-test -d $t/ || meson $t/ -Ddebug=true -Doptimization=0 -Db_coverage=true -Dbins_min=true
+test -d $t/ || meson $t/ -Ddebug=true -Doptimization=0 -Db_coverage=true #-Dbins_min=true
 ninja -C $t/ >&2 && exec gdb -q --args $t/src/sel "$@"

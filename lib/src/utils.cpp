@@ -25,7 +25,11 @@ namespace sel {
   }
 
   std::ostream& operator<<(std::ostream& out, repr me) {
-    VisRepr repr(out, {.single_line=true});
+    VisRepr repr(out, {
+      .single_line= me.single_line,
+      .no_recurse= me.no_recurse,
+      .only_class= me.only_class,
+    });
     me.val.accept(repr);
     return out;
   }
