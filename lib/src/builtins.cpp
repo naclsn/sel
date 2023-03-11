@@ -31,7 +31,7 @@ namespace sel {
     template <typename NextT, typename to, typename from, typename from_again, typename from_more>
     ref<Val> _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>::copy() const {
       typedef _bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>> a;
-      return ref<_bin_be<NextT, ll::cons<to, ll::cons<from, ll::cons<from_again, from_more>>>>>(
+      return ref<a>(
         this->h.app(),
         _base->copy(),
         _arg->copy()
@@ -94,15 +94,11 @@ namespace sel {
       bind_args(a, b);
       return a.value() + b.value();
 
-      // YYY: that's the idea:
-      //   - remove a and b once result are known;
-      //   - replace this with the result.
-
-      // double va = a.value();
-      // double vb = b.value();
-      // h.app().drop(_arg);
-      // h.app().drop(_base->_arg);
-      // new NumResult(h, va+vb);
+      // double r = a.value() + b.value();
+      // a.drop();
+      // b.drop();
+      // hold<NumResult>(r);
+      // return r;
     }
 
     std::ostream& bin_::stream(std::ostream& out) {

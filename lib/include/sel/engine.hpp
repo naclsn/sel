@@ -64,6 +64,12 @@ namespace sel {
     Type const& type() const { return ty; }
     virtual ref<Val> copy() const = 0;
 
+    // delete itself, the slot will be free for any new one
+    void drop() { h.drop(); }
+    // delete itself, construct a value of type U in its slot
+    template <typename U, typename ...Args>
+    void hold(Args&&... args) { new U(h, std::forward<Args>(args)...); }
+
     template <typename Vi>
     typename Vi::Ret accept(Vi& visitor) const {
       auto visit = std::get<ll::pack_index<Vi, visitors_ll::visitors>::value>(visit_table());

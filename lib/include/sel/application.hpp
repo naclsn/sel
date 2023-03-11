@@ -25,16 +25,12 @@ namespace sel {
       size_t i;
       App& va;
       handle(App& va, size_t i): i(i), va(va) { }
-      // explicit operator size_t() { return i; }
 
     public:
       template <typename V>
       handle(handle<V> const& o): i(o.i), va(o.va) { }
 
       handle& operator=(handle const& o) { i = o.i; /*va = o.va;*/ return *this; }
-
-      template <typename V>
-      handle& operator=(handle<V> const& o) { i = o.i; /*va = o.va;*/ return *this; }
 
       template <typename ...Args>
       handle(App& app, Args&&... args)
@@ -45,11 +41,21 @@ namespace sel {
       // XXX: this might be a temporary solution
       // except if i don't search for an other one
       handle(App& app, std::nullptr_t): i(-1), va(app) { }
+      // note: a handle testing true does not mean it
+      // references a slot which contains a value, but
+      // that it does reference a slot that exists
       operator bool() const { return (size_t)-1 != i; }
       bool operator!() const { return (size_t)-1 == i; }
+      // the whole testing as bool/constructing from
+      // nullptr should be removed as soon as made
+      // possible; it is used in place where either:
+      // - option, ie. construction op may fail (parsing)
+      // - delayed init, eg. in some bins, in parsing..
 
-      // used once to fill in the allocated slot at value construction
+      // replace any previously held value with this one
       void hold(U* v) { va.w[i].hold(v); }
+      // drop any previously held value
+      void drop() { va.w[i].drop(); va.free++; }
 
       // helper to get the App back
       App& app() const { return va; }
