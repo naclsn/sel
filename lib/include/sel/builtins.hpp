@@ -658,7 +658,7 @@ namespace sel {
       "make a new list by applying an unary operation to each value from a list", ());
 
     BIN_num(mul, (num, num, num),
-      "multiply tow numbers", ());
+      "multiply two numbers", ());
 
     BIN_str(ln, (istr, istr),
       "append a new line to a string", (
