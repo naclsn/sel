@@ -92,12 +92,16 @@ namespace sel {
 
     double add_::value() {
       bind_args(a, b);
-      // return a.value() + b.value();
-
       double r = a.value() + b.value();
+
       // a.drop();
       // b.drop();
+      _base->_base->drop(); // Add2
+      _base->_arg->drop(); // 1 (= a)
+      _base->drop(); // Add1
+      _arg->drop(); // NumResult (= b) [previously Mul0]
       hold<NumResult>(r);
+
       return r;
     }
 
@@ -558,7 +562,17 @@ namespace sel {
 
     double mul_::value() {
       bind_args(a, b);
-      return a.value() * b.value();
+      double r = a.value() * b.value();
+
+      // a.drop();
+      // b.drop();
+      _base->_base->drop(); // Mul2
+      _base->_arg->drop(); // 2 (= a)
+      _base->drop(); // Mul1
+      _arg->drop(); // NumResult (= b) [previously Tonum0]
+      hold<NumResult>(r); // Mul0
+
+      return r;
     }
 
     std::ostream& ln_::stream(std::ostream& out) {
@@ -801,17 +815,39 @@ namespace sel {
     }
 
     double tonum_::value() {
-      if (!done) {
-        bind_args(s);
-        Str_istream(&s) >> r;
-        done = true;
-      }
+      bind_args(s);
+      double r;
+      Str_istream(&s) >> r;
+
+      // s.drop();
+      _base->drop(); // Tonum1
+      _arg->drop(); // Input (= s)
+      hold<NumResult>(r); // Tonum0
+
       return r;
     }
 
-    std::ostream& tostr_::stream(std::ostream& out) { read = true; return out << _arg->value(); }
+    std::ostream& tostr_::stream(std::ostream& out) {
+      read = true;
+
+      double r = _arg->value();
+      _base->drop(); // Tostr1
+      _arg->drop(); // (= n)
+      hold<StrChunks>(std::to_string(r));
+
+      return out << r;
+    }
     bool tostr_::end() { return read; }
-    std::ostream& tostr_::entire(std::ostream& out) { read = true; return out << _arg->value(); }
+    std::ostream& tostr_::entire(std::ostream& out) {
+      read = true;
+
+      double r = _arg->value();
+      _base->drop(); // Tostr1
+      _arg->drop(); // (= n)
+      hold<StrChunks>(std::to_string(r));
+
+      return out << r;
+    }
 
     ref<Val> tuple_::operator*() {
       bind_args(a, b);

@@ -759,10 +759,7 @@ namespace sel {
       "return the longest prefix of elements statisfying the predicate", ());
 
     BIN_num(tonum, (istr, num),
-      "convert a string into number", (
-      double r;
-      bool done = false;
-    ));
+      "convert a string into number", ());
 
     BIN_str(tostr, (num, str),
       "convert a number into string", (
