@@ -548,7 +548,7 @@ namespace sel {
 
     ref<Val> map_::operator*() {
       bind_args(f, l);
-      return f(*l);
+      return (*(ref<Fun>)f.copy())(*l);
     }
     Lst& map_::operator++() {
       bind_args(f, l);
