@@ -4,14 +4,17 @@
 int main() {
   App app;
 
-  sel::ref<bins::pi_::Head> pi0(app, tuple<>{});
+  sel::ref<bins::pi_::Head> pi0(app);
   auto pii = pi0->copy();
   cout << "pii :: " << pii->type() << endl;
+
+  sel::ref<bins::tonum_::Head> tonum1(app);
+  cout << "tonum1 :: " << tonum1->type() << endl;
 
   sel::ref<NumResult> zero(app, 0);
   sel::ref<NumResult> one(app, 0);
 
-  sel::ref<bins::add_::Head> add2(app, tuple<>{});
+  sel::ref<bins::add_::Head> add2(app);
   cout << "add2 :: " << add2->type() << endl;
   sel::ref<bins::add_::Head::Next> add1 = (*add2)(zero);
   cout << "add1 :: " << add1->type() << endl;
@@ -20,12 +23,12 @@ int main() {
 
   cout << "result = " << add0->value() << endl;
 
-  sel::ref<bins::id_::Head> id1(app, tuple<>{});
+  sel::ref<bins::id_::Head> id1(app);
   cout << "id1 :: " << id1->type() << endl;
   sel::ref<bins::add_::Head::Next::Next> id0 = (*id1)(add0);
   cout << "id0 :: " << id0->type() << endl;
 
-  sel::ref<bins::const_::Head> const2(app, tuple<>{});
+  sel::ref<bins::const_::Head> const2(app);
   cout << "const2 :: " << const2->type() << endl;
   sel::ref<bins::const_::Head::Next> const1 = (*const2)(id0);
   cout << "const1 :: " << const1->type() << endl;

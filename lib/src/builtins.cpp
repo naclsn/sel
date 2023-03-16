@@ -109,6 +109,8 @@ namespace sel {
 
   namespace bins {
     constexpr char const* const add_::name;
+    constexpr char const* const const_::name;
+    constexpr char const* const id_::name;
     constexpr char const* const pi_::name;
     constexpr char const* const tonum_::name;
   }

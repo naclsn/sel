@@ -9,35 +9,35 @@ namespace sel {
    */
   namespace ll {
 
-    /**
-     * empty list, see `ll::cons`
-     */
-    struct nil;
+    // /**
+    //  * empty list, see `ll::cons`
+    //  */
+    // struct nil;
 
-    /**
-     * linked lists of type (car,cdr) style, see `ll::nil`
-     */
-    template <typename A, typename D>
-    struct cons { typedef A car; typedef D cdr; };
+    // /**
+    //  * linked lists of type (car,cdr) style, see `ll::nil`
+    //  */
+    // template <typename A, typename D>
+    // struct cons { typedef A car; typedef D cdr; };
 
-    /**
-     * make a linked lists of types (car,cdr) style from pack (see `ll::cons`)
-     */
-    template <typename H, typename... T>
-    struct cons_l { typedef cons<H, typename cons_l<T...>::type> type; };
-    template <typename O>
-    struct cons_l<O> { typedef cons<O, nil> type; };
+    // /**
+    //  * make a linked lists of types (car,cdr) style from pack (see `ll::cons`)
+    //  */
+    // template <typename H, typename... T>
+    // struct cons_l { typedef cons<H, typename cons_l<T...>::type> type; };
+    // template <typename O>
+    // struct cons_l<O> { typedef cons<O, nil> type; };
 
-    template <typename from, typename into> struct _rev_impl;
-    /**
-     * reverse a list of types
-     */
-    template <typename list>
-    struct rev { typedef typename _rev_impl<list, nil>::type type; };
-    template <typename into>
-    struct _rev_impl<nil, into> { typedef into type; };
-    template <typename H, typename T, typename into>
-    struct _rev_impl<cons<H, T>, into> { typedef typename _rev_impl<T, cons<H, into>>::type type; };
+    // template <typename from, typename into> struct _rev_impl;
+    // /**
+    //  * reverse a list of types
+    //  */
+    // template <typename list>
+    // struct rev { typedef typename _rev_impl<list, nil>::type type; };
+    // template <typename into>
+    // struct _rev_impl<nil, into> { typedef into type; };
+    // template <typename H, typename T, typename into>
+    // struct _rev_impl<cons<H, T>, into> { typedef typename _rev_impl<T, cons<H, into>>::type type; };
 
     // /**
     //  * count the number of element
@@ -49,7 +49,7 @@ namespace sel {
     // struct count<cons<only, nil>> { static constexpr unsigned value = 1; };
 
     /**
-     * manipulate a cons list through a pack, eg.:
+     * manipulate a list of types through a pack, eg.:
      * ```cpp
      * template <typename PackItself> struct some;
      * template <typename ...Pack> struct some<pack<...Pack>> { }; // use Pack...
@@ -124,8 +124,7 @@ namespace sel {
     };
 
     /**
-     * extract into ::head and ::tail;
-     * note that the head of an empty pack still exists (it is 'void')
+     * extract into ::head and ::tail
      */
     template <typename PackItself> struct head_tail;
     template <typename h, typename ...t>
@@ -133,20 +132,15 @@ namespace sel {
       typedef h head;
       typedef pack<t...> tail;
     };
-    template <>
-    struct head_tail<pack<>> {
-      typedef void head;
-      typedef pack<> tail;
-    };
 
-    /**
-     * flatten a pack of packs XXX: aint that the same a join?
-     */
-    template <typename PackItself> struct flatten;
-    template <typename ...Pack>
-    struct flatten<pack<Pack...>> {
-      typedef typename join<Pack...>::type type;
-    };
+    // /**
+    //  * flatten a pack of packs XXX: aint that the same a join?
+    //  */
+    // template <typename PackItself> struct flatten;
+    // template <typename ...Pack>
+    // struct flatten<pack<Pack...>> {
+    //   typedef typename join<Pack...>::type type;
+    // };
 
   } // namespace ll
 

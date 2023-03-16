@@ -200,52 +200,35 @@ namespace sel {
     }
 
     // makes a pack 'a, b, c..' into a type 'a -> b -> c..'
-    template <typename ...Pack> struct make_fun_from_pack;
+    template <typename PackItself> struct make_fun_from_pack;
     template <typename h, typename ...t>
-    struct make_fun_from_pack<h, t...> {
-      typedef fun<h, typename make_fun_from_pack<t...>::type> type;
+    struct make_fun_from_pack<pack<h, t...>> {
+      typedef fun<h, typename make_fun_from_pack<pack<t...>>::type> type;
     };
     template <typename o>
-    struct make_fun_from_pack<o> {
+    struct make_fun_from_pack<pack<o>> {
       typedef o type;
     };
-    template <typename ...Pack> using ty_from_pack = typename make_fun_from_pack<Pack...>::type;
+    template <typename PackItself> using ty_from_pack = typename make_fun_from_pack<PackItself>::type;
 
-    // Head
-    template <typename impl_, typename param_h, typename ...params>
-    struct make_bin<impl_, pack<param_h, params...>, pack<>> : fun<param_h, ty_from_pack<params...>> {
-      typedef fun<param_h, ty_from_pack<params...>> super;
-
-      typedef pack<param_h, params...> Params;
-      typedef pack<> Args;
+    // common for make_bin
+    template <typename instanciable, typename fParams, typename rArgs>
+    struct _make_bin_common : ty_from_pack<fParams> {
+      typedef fParams Params;
+      typedef typename reverse<rArgs>::type Args;
       typedef typename join<Args, Params>::type Pack;
 
       constexpr static unsigned paramsN = count<Params>::value;
       constexpr static unsigned argsN = count<Args>::value;
 
-      typedef make_bin<impl_, pack<params...>, pack<param_h>> Next;
-      typedef void Base;
-
-      typedef typename Next::Tail Tail;
-      typedef make_bin Head;
-
-      make_bin(ref<make_bin> at, arg_tuple<Args> t)
-        : super(at, super::make(impl_::name))
+      _make_bin_common(ref<Val> at, Type&& ty, arg_tuple<Args> t)
+        : ty_from_pack<fParams>(at, std::forward<Type>(ty))
         , _args(t)
       { }
 
-      ref<Val> operator()(ref<Val> arg) override {
-        ref<param_h> ok = coerse<typename param_h::base_type>(this->h.app(), arg, this->ty.from());
-        auto copy = this->h;
-        Next::make_at(this->h, this->ty, _args, ok);
-        return copy; // this->h would be accessing into deleted object
+      ref<Val> copy() const override {
+        return ref<instanciable>(this->h.app(), Type(this->ty), copy_arg_tuple(arg_unpack<argsN>(), this->_args));
       }
-
-      make_bin(ref<make_bin> at, make_bin const& other)
-        : super(at, Type(other.ty))
-        , _args(copy_arg_tuple(arg_unpack<argsN>(), other._args))
-      { }
-      ref<Val> copy() const override { return ref<make_bin>(this->h.app(), *this); }
 
     protected:
       VisitTable visit_table() const override {
@@ -253,141 +236,93 @@ namespace sel {
       }
 
       arg_tuple<Args> _args;
+
+      // used in Head/Body
+      template <typename Next, typename param_h>
+      ref<Val> _call_operator_template(ref<Val> arg) {
+        ref<Val> ok = coerse<param_h>(this->h.app(), arg, this->ty.from());
+        auto copy = this->h;
+        Next::make_at(this->h, this->ty, this->_args, ok);
+        return copy; // this->h would be accessing into deleted object
+      }
     };
 
     // Body
-    template <typename impl_, typename param_h, typename ...params, typename arg_h, typename ...args>
-    struct make_bin<impl_, pack<param_h, params...>, pack<arg_h, args...>> : fun<param_h, ty_from_pack<params...>> {
-      typedef fun<param_h, ty_from_pack<params...>> super;
+    template <typename impl_, typename Params, typename rArgs>
+    struct make_bin : _make_bin_common<make_bin<impl_, Params, rArgs>, Params, rArgs> {
+      typedef _make_bin_common<make_bin, Params, rArgs> super;
+      using super::super;
+      typedef head_tail<Params> _pht;
+      typedef head_tail<rArgs> _aht;
 
-      typedef pack<param_h, params...> Params;
-      typedef typename reverse<pack<arg_h, args...>>::type Args;
-      typedef typename join<Args, Params>::type Pack;
-
-      constexpr static unsigned paramsN = count<Params>::value;
-      constexpr static unsigned argsN = count<Args>::value;
-
-      typedef make_bin<impl_, pack<params...>, pack<param_h, arg_h, args...>> Next;
-      typedef make_bin<impl_, pack<arg_h, param_h, params...>, pack<args...>> Base;
-
+      typedef make_bin<impl_, typename _pht::tail, typename join<pack<typename _pht::head>, rArgs>::type> Next;
+      typedef make_bin<impl_, typename join<pack<typename _aht::head>, Params>::type, typename _aht::tail> Base;
       typedef typename Next::Tail Tail;
-      typedef make_bin<impl_, Pack, pack<>> Head;
+      typedef make_bin<impl_, typename super::Pack, pack<>> Head;
 
-      // XXX: this constructor (essentially copy) needs to make the type correctly
-      //      (or itll have a buch of unk which where result in the source one)
-      make_bin(ref<make_bin> at, arg_tuple<Args> t)
-        : super(at, super::make(impl_::name))
-        , _args(t)
-      { }
-      // this could probably in some way be move into ::make_at; this comment goes with the note on the "copy" ctor
-      make_bin(ref<make_bin> at, Type const& base_type, arg_tuple<typename Base::Args> base_args, ref<arg_h> arg)
-        : super(at, done_applied(base_type, arg->type()))
-        , _args(std::tuple_cat(base_args, std::make_tuple(arg)))
-      { }
-      static inline void make_at(ref<make_bin> at, Type const& base_type, arg_tuple<typename Base::Args> base_args, ref<arg_h> arg) {
-        new make_bin(at, base_type, base_args, arg);
+      // Body/Tail offset ctor
+      static inline void make_at(ref<Val> at, Type const& base_type, arg_tuple<typename Base::Args> base_args, ref<Val> arg) {
+        new make_bin(at, done_applied(base_type, arg->type()), std::tuple_cat(base_args, std::make_tuple(arg)));
       }
 
+      // Head/Body overrides
       ref<Val> operator()(ref<Val> arg) override {
-        ref<param_h> ok = coerse<typename param_h::base_type>(this->h.app(), arg, this->ty.from());
-        auto copy = this->h;
-        Next::make_at(this->h, this->ty, _args, ok);
-        return copy; // this->h would be accessing into deleted object
+        return super::template _call_operator_template<Next, typename _pht::head::base_type>(arg);
       }
+    };
 
-      make_bin(ref<make_bin> at, make_bin const& other)
-        : super(at, Type(other.ty))
-        , _args(copy_arg_tuple(arg_unpack<argsN>(), other._args))
-      { }
-      ref<Val> copy() const override { return ref<make_bin>(this->h.app(), *this); }
+    // Head
+    template <typename impl_, typename Params>
+    struct make_bin<impl_, Params, pack<>> : _make_bin_common<make_bin<impl_, Params, pack<>>, Params, pack<>> {
+      typedef _make_bin_common<make_bin, Params, pack<>> super;
+      using super::super;
+      typedef head_tail<Params> _pht;
 
-    protected:
-      VisitTable visit_table() const override {
-        return make_visit_table<decltype(this)>::function();
+      typedef make_bin<impl_, typename _pht::tail, pack<typename _pht::head>> Next;
+      typedef void Base;
+      typedef typename Next::Tail Tail;
+      typedef make_bin Head;
+
+      // Head-only constructor
+      make_bin(ref<Val> at): super(at, super::make(impl_::name), std::tuple<>()) { }
+
+      // Head/Body overrides
+      ref<Val> operator()(ref<Val> arg) override {
+        return super::template _call_operator_template<Next, typename _pht::head::base_type>(arg);
       }
-
-      arg_tuple<Args> _args;
     };
 
     // Tail
-    template <typename impl_, typename ret, typename arg_h, typename ...args>
-    struct make_bin<impl_, pack<ret>, pack<arg_h, args...>> : ret {
-      typedef ret super;
-
-      typedef pack<ret> Params;
-      typedef typename reverse<pack<arg_h, args...>>::type Args;
-      typedef typename join<Args, Params>::type Pack;
-
-      constexpr static unsigned paramsN = count<Params>::value;
-      constexpr static unsigned argsN = count<Args>::value;
+    template <typename impl_, typename ret, typename rArgs>
+    struct make_bin<impl_, pack<ret>, rArgs> : _make_bin_common<impl_, pack<ret>, rArgs> {
+      typedef _make_bin_common<impl_, pack<ret>, rArgs> super;
+      using super::super;
+      typedef head_tail<rArgs> _aht;
 
       typedef void Next;
-      typedef make_bin<impl_, pack<arg_h, ret>, pack<args...>> Base;
-
+      typedef make_bin<impl_, pack<typename _aht::head, ret>, typename _aht::tail> Base;
       typedef make_bin Tail;
-      typedef make_bin<impl_, Pack, pack<>> Head;
+      typedef make_bin<impl_, typename super::Pack, pack<>> Head;
 
-      make_bin(ref<make_bin> at, arg_tuple<Args> t)
-        : super(at, super::make(impl_::name))
-        , _args(t)
-      { }
-      make_bin(ref<make_bin> at, Type const& base_type, arg_tuple<typename Base::Args> base_args, ref<arg_h> arg)
-        : super(at, done_applied(base_type, arg->type()))
-        , _args(std::tuple_cat(base_args, std::make_tuple(arg)))
-      { }
-      static inline void make_at(ref<make_bin> at, Type const& base_type, arg_tuple<typename Base::Args> base_args, ref<arg_h> arg) {
-        new impl_(at, base_type, base_args, arg);
+      // Body/Tail offset ctor
+      static inline void make_at(ref<Val> at, Type const& base_type, arg_tuple<typename Base::Args> base_args, ref<Val> arg) {
+        new impl_(at, done_applied(base_type, arg->type()), std::tuple_cat(base_args, std::make_tuple(arg)));
       }
-
-      make_bin(ref<make_bin> at, make_bin const& other)
-        : super(at, Type(other.ty))
-        , _args(copy_arg_tuple(arg_unpack<argsN>(), other._args))
-      { }
-      ref<Val> copy() const override { return ref<impl_>(this->h.app(), *this); }
-
-    protected:
-      VisitTable visit_table() const override {
-        return make_visit_table<decltype(this)>::function();
-      }
-
-      arg_tuple<Args> _args;
     };
 
     // Head, non-function values
     template <typename impl_, typename single>
-    struct make_bin<impl_, pack<single>, pack<>> : single {
-      typedef single super;
-
-      typedef pack<single> Params;
-      typedef pack<> Args;
-      typedef typename join<Args, Params>::type Pack;
-
-      constexpr static unsigned paramsN = count<Params>::value;
-      constexpr static unsigned argsN = count<Args>::value;
+    struct make_bin<impl_, pack<single>, pack<>> : _make_bin_common<impl_, pack<single>, pack<>> {
+      typedef _make_bin_common<impl_, pack<single>, pack<>> super;
+      using super::super;
 
       typedef void Next;
       typedef void Base;
-
       typedef make_bin Tail;
       typedef impl_ Head;
 
-      make_bin(ref<make_bin> at, arg_tuple<Args> t)
-        : super(at, super::make(impl_::name))
-        , _args(t)
-      { }
-
-      make_bin(ref<make_bin> at, make_bin const& other)
-        : super(at, Type(other.ty))
-        , _args(copy_arg_tuple(arg_unpack<argsN>(), other._args))
-      { }
-      ref<Val> copy() const override { return ref<impl_>(this->h.app(), *this); }
-
-    protected:
-      VisitTable visit_table() const override {
-        return make_visit_table<decltype(this)>::function();
-      }
-
-      arg_tuple<Args> _args;
+      // Head-only constructor
+      make_bin(ref<Val> at): super(at, super::make(impl_::name), std::tuple<>()) { }
     };
 
     template <typename impl_, typename PackItself>
