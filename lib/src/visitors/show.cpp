@@ -67,15 +67,4 @@ namespace sel {
       return it.source().accept(*this);
     }
 
-    void VisShow::visitCommon(Segment const& it, char const* name, unsigned args, unsigned max_args) {
-      // TODO: as much as that is technically correct, this also is quite stupid
-      res << "[";
-      it.base().accept(*this) << "] [";
-      it.arg().accept(*this) << "]";
-    }
-
-    void VisShow::visitCommon(Val const& it, char const* name, unsigned args, unsigned max_args) {
-      res << name;
-    }
-
 } // namespace sel

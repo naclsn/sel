@@ -5,7 +5,7 @@
 
 namespace sel {
 
-  void VisRepr::reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields) {
+  void VisRepr::reprHelper(Type const& type, char const* name, std::vector<ReprField> const& fields) {
     if (cx.only_class) {
       res << name;
       return;
@@ -171,25 +171,6 @@ namespace sel {
       {"l", &it.source()},
     });
     return res;
-  }
-
-  void VisRepr::visitCommon(Segment const& it, Type const& type, char const* name, unsigned args, unsigned max_args) {
-    std::string normalized // capitalizes first letter and append arity
-      = (char)(name[0]+('A'-'a'))
-      + ((name+1)
-      + std::to_string(max_args-args));
-    reprHelper(type, normalized.c_str(), {
-      {"base", &it.base()},
-      {"arg", &it.arg()},
-    });
-  }
-
-  void VisRepr::visitCommon(Val const& it, Type const& type, char const* name, unsigned args, unsigned max_args) {
-    std::string normalized // capitalizes first letter and append arity
-      = (char)(name[0]+('A'-'a'))
-      + ((name+1)
-      + std::to_string(max_args-args));
-    reprHelper(type, normalized.c_str(), {});
   }
 
 } // namespace sel

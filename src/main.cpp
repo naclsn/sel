@@ -14,13 +14,13 @@ int main(int argc, char* argv[]) {
   if (opts.filename) buildfile(app, opts.filename);
   else build(app, opts.script);
 
-  if (opts.any_type) {
-    cout << app << "\n#       :: " << app.type() << endl;
+  if (opts.debug) {
+    app.repr(cout);
     return EXIT_SUCCESS;
   }
 
-  if (opts.debug) {
-    app.repr(cout);
+  if (opts.any_type) {
+    cout << app << "\n#       :: " << app.type() << endl;
     return EXIT_SUCCESS;
   }
 

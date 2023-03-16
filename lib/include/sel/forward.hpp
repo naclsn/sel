@@ -8,8 +8,6 @@ namespace sel {
   struct Lst;
   struct Fun;
 
-  struct Segment;
-
   struct NumLiteral;
   struct StrLiteral;
   struct LstLiteral;

@@ -51,15 +51,24 @@ namespace sel {
       ReprField(char const* name, Val const* val): name(name), data_ty(ReprField::VAL), val(val) { }
     };
 
-    void reprHelper(Type const& type, char const* name, std::vector<ReprField> const fields);
-    void visitCommon(Segment const& it, Type const&, char const* name, unsigned args, unsigned max_args);
-    void visitCommon(Val const& it, Type const&, char const* name, unsigned args, unsigned max_args);
+    void reprHelper(Type const& type, char const* name, std::vector<ReprField> const& fields);
 
   public:
     template <typename T>
     Ret visit(T const& it) {
-      // TODO: incorrect, Segment does not exists anymore
-      visitCommon((typename std::conditional<!T::argsN, Val, Segment>::type&)it, it.type(), T::Impl::name, T::argsN, T::Tail::argsN);
+      std::string normalized // capitalizes first letter and append arity
+        = (char)(T::Impl::name[0]+('A'-'a'))
+        + ((T::Impl::name+1)
+        + std::to_string(T::Tail::argsN - T::argsN));
+      char const* n_ = "arg_.";
+      char n[T::argsN][6];
+      size_t k = 0;
+      std::vector<ReprField> fields;
+      for (auto const& it : it.args_v()) {
+        std::copy(n_, n_+6, n[k])[-2] = 'A'+k;
+        fields.emplace_back(n[k++], &*it);
+      }
+      reprHelper(it.type(), normalized.c_str(), fields);
       return res;
     }
     Ret visit(NumLiteral const& it);
@@ -126,9 +135,6 @@ namespace sel {
   class VisShow {
     std::ostream& res;
 
-    void visitCommon(Segment const& it, char const* name, unsigned args, unsigned max_args);
-    void visitCommon(Val const& it, char const* name, unsigned args, unsigned max_args);
-
   public:
     typedef std::ostream& Ret;
 
@@ -136,9 +142,11 @@ namespace sel {
 
     template <typename T>
     Ret visit(T const& it) {
-      // TODO: incorrect, Segment does not exists anymore
-      visitCommon((typename std::conditional<!T::argsN, Val, Segment>::type&)it, T::Impl::name, T::argsN, T::Tail::argsN);
-      return res;
+      res << "[" << T::Impl::name;
+      for (auto const& it : it.args_v()) {
+        res << " "; it->accept(*this);
+      }
+      return res << "]";
     }
     Ret visit(NumLiteral const& it);
     Ret visit(StrLiteral const& it);

@@ -21,10 +21,10 @@ struct Options {
   bool lookup = false; // -l
   char** lookup_names = NULL; // -l names...
 
-  bool debug = false; // -D
+  bool debug = false; // -D (implies -t)
+  bool any_type = false; // -t (allows the app to be of any type)
   bool typecheck = false; // -n
   bool strict = false; // -s
-  bool any_type = false; // -t (allows the app to be of any type)
 
   bool compile = false; // -o (niy)
   char** compile_flags = NULL; // everything after -o (niy)
@@ -58,10 +58,10 @@ struct Options {
               if (hasv) lookup_names = argv+ ++k;
               goto break_all;
 
-            case 'D': debug = true;       break;
+            case 'D': debug = true;       //break;
+            case 't': any_type = true;    break;
             case 'n': typecheck = true;   break;
             case 's': strict = true;      break;
-            case 't': any_type = true;    break;
 
             case 'o':
               compile = true;

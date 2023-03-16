@@ -81,12 +81,6 @@ namespace sel {
 // #define static_lookup_name(__appref, __name) (ref<sel::bins::__name##_::Head>(__appref))
 #define static_lookup_name(__appref, __name) ((ref<Fun>)ref<NumResult>(__appref, 0.))
 
-  struct Segment {
-    virtual Val const& base() const = 0;
-    virtual Val const& arg() const = 0;
-    virtual ~Segment() { }
-  };
-
   /**
    * namespace with types used to help constructing builtins
    */
@@ -200,6 +194,12 @@ namespace sel {
       return {std::get<S>(t)->copy()...};
     }
 
+    // make a vector off the arg tuple
+    template <unsigned ...S, typename tuple>
+    static inline std::vector<ref<Val>> args_vector(seq<S...>, tuple t) {
+      return {std::get<S>(t)...};
+    }
+
     // makes a pack 'a, b, c..' into a type 'a -> b -> c..'
     template <typename PackItself> struct make_fun_from_pack;
     template <typename h, typename ...t>
@@ -228,8 +228,11 @@ namespace sel {
       { }
 
       ref<Val> copy() const override {
-        return ref<instanciable>(this->h.app(), Type(this->ty), copy_arg_tuple(arg_unpack<argsN>(), this->_args));
+        return ref<instanciable>(this->h.app(), Type(this->ty), copy_arg_tuple(arg_unpack<argsN>(), _args));
       }
+
+      arg_tuple<Args> const& args() const { return _args; }
+      std::vector<ref<Val>> const args_v() const { return args_vector(arg_unpack<argsN>(), _args); }
 
     protected:
       VisitTable visit_table() const override {
@@ -243,7 +246,7 @@ namespace sel {
       ref<Val> _call_operator_template(ref<Val> arg) {
         ref<Val> ok = coerse<param_h>(this->h.app(), arg, this->ty.from());
         auto copy = this->h;
-        Next::make_at(this->h, this->ty, this->_args, ok);
+        Next::make_at(this->h, this->ty, _args, ok);
         return copy; // this->h would be accessing into deleted object
       }
     };
