@@ -155,7 +155,8 @@ namespace sel {
     /**
      * at any level should be available:
      * - Pack: the pack the whole chain was built from
-     * - Tail: the implementing structure
+     * - Tail: the implementing's base structure
+     * - Impl: the implementing structure
      * - Head: the constructible entry point (ie "the function itself")
      * - Next: the next in chain, which the current one instenciates
      * - Base: the previous in chain, which instanciated the current one
@@ -232,7 +233,7 @@ namespace sel {
 
     protected:
       VisitTable visit_table() const override {
-        return make_visit_table<decltype(this)>::function();
+        return make_visit_table<instanciable>::function();
       }
 
       arg_tuple<Args> _args;
@@ -255,6 +256,7 @@ namespace sel {
       typedef head_tail<Params> _pht;
       typedef head_tail<rArgs> _aht;
 
+      typedef impl_ Impl;
       typedef make_bin<impl_, typename _pht::tail, typename join<pack<typename _pht::head>, rArgs>::type> Next;
       typedef make_bin<impl_, typename join<pack<typename _aht::head>, Params>::type, typename _aht::tail> Base;
       typedef typename Next::Tail Tail;
@@ -278,6 +280,7 @@ namespace sel {
       using super::super;
       typedef head_tail<Params> _pht;
 
+      typedef impl_ Impl;
       typedef make_bin<impl_, typename _pht::tail, pack<typename _pht::head>> Next;
       typedef void Base;
       typedef typename Next::Tail Tail;
@@ -299,6 +302,7 @@ namespace sel {
       using super::super;
       typedef head_tail<rArgs> _aht;
 
+      typedef impl_ Impl;
       typedef void Next;
       typedef make_bin<impl_, pack<typename _aht::head, ret>, typename _aht::tail> Base;
       typedef make_bin Tail;
@@ -316,6 +320,7 @@ namespace sel {
       typedef _make_bin_common<impl_, pack<single>, pack<>> super;
       using super::super;
 
+      typedef impl_ Impl;
       typedef void Next;
       typedef void Base;
       typedef make_bin Tail;
@@ -361,11 +366,10 @@ namespace sel {
 // (couldn't get it with a constexpr tolower either...)
 // SEE: https://stackoverflow.com/a/4225302
 #define BIN(__ident, __decl, __docstr, __body) \
-    struct __ident##_ \
-        : bins_helpers::builtin<__ident##_, ll::cons_l<__rem_par __decl>::type>::the { \
+    struct __ident##_ : bins_helpers::make_bin_w<__ident##_, __rem_par __decl> { \
       constexpr static char const* name = #__ident; \
       constexpr static char const* doc = __docstr; \
-      using the::the; \
+      using Tail::Tail; \
       __rem_par __body \
     }
 
@@ -390,51 +394,59 @@ namespace sel {
     using bins_helpers::tpl;
     using bins_helpers::fun;
 
-    // struct crap_ : bins_helpers::make_bin_w<crap_, unk<'a'>, unk<'b'>, unk<'c'>, unk<'d'>> {
-    //   constexpr static char const* name = "crap_";
-    //   constexpr static char const* doc = "__docstr";
-    //   using Tail::Tail;
-    //   ref<Val> operator()(ref<Val> arg) override {
-    //     unk<'a'>& a = *std::get<0>(_args);
-    //     auto& b = std::get<1>(_args);
-    //     auto& c = arg;
-    //   }
-    // };
+    BIN_num(add, (num, num, num),
+      "add two numbers", ());
 
-    struct add_ : bins_helpers::make_bin_w<add_, num, num, num> {
-      constexpr static char const* name = "add_";
-      constexpr static char const* doc = "__docstr";
-      using Tail::Tail;
-      double value() override { return 0; }
-    };
+    BIN_lst(codepoints, (istr, ilst<num>),
+      "split a string of bytes into its Unicode codepoints", (
+      bool did_once = false;
+      Str_istream sis;
+      std::istream_iterator<codepoint> isi;
+    ));
 
-    struct tonum_ : bins_helpers::make_bin_w<tonum_, str, num> {
-      constexpr static char const* name = "tonum_";
-      constexpr static char const* doc = "__docstr";
-      using Tail::Tail;
-      double value() override { return 0; }
-    };
+    BIN_num(div, (num, num, num),
+      "divide the first number by the second number", ());
 
-    struct pi_ : bins_helpers::make_bin_w<pi_, num> {
-      constexpr static char const* name = "pi_";
-      constexpr static char const* doc = "__docstr";
-      using Tail::Tail;
-      double value() override { return 0; }
-    };
+    BIN_unk(flip, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>),
+      "flip the two parameters by passing the first given after the second one", ());
 
-    struct id_ : bins_helpers::make_bin_w<id_, unk<'a'>, unk<'a'>> {
-      constexpr static char const* name = "id_";
-      constexpr static char const* doc = "__docstr";
-      using Tail::Tail;
-      ref<Val> operator()(ref<Val> arg) { return arg; }
-    };
+    BIN_lst(graphemes, (istr, ilst<str>),
+      "split a stream of bytes into its Unicode graphemes", (
+      bool did_once = false;
+      Str_istream sis;
+      std::istream_iterator<codepoint> isi;
+      grapheme curr;
+      bool past_end = false;
+    ));
 
-    struct const_ : bins_helpers::make_bin_w<const_, unk<'a'>, unk<'b'>, unk<'a'>> {
-      constexpr static char const* name = "const_";
-      constexpr static char const* doc = "__docstr";
-      using Tail::Tail;
-      ref<Val> operator()(ref<Val> arg) { return std::get<0>(_args); }
-    };
+    BIN_unk(index, (ilst<unk<'a'>>, num, unk<'a'>),
+      "select the value at the given index in the list (despite being called index it is an offset, ie. 0-based)", (
+      bool did = false;
+      ref<Val> found = ref<Val>(h.app(), nullptr);
+    ));
+
+    BIN_str(join, (str, ilst<istr>, istr),
+      "join a list of string with a separator between entries", (
+      std::string ssep;
+      bool beginning = true;
+    ));
+
+    BIN_num(mul, (num, num, num),
+      "multiply two numbers", ());
+
+    BIN_num(sub, (num, num, num),
+      "substract the second number from the first", ());
+
+    BIN_num(tonum, (istr, num),
+      "convert a string into number", (
+      double r;
+      bool done = false;
+    ));
+
+    BIN_str(tostr, (num, str),
+      "convert a number into string", (
+      bool read = false;
+    ));
 
   } // namespace bins
 
@@ -454,18 +466,17 @@ namespace sel {
     // strictly necessary, but convenient); although for
     // now `bins_min` is not used
     typedef pack
-      // < add_
-      // , codepoints_
-      // , div_
-      // , flip_
-      // , graphemes_
-      // , index_
-      // , join_
-      // , mul_
-      // , sub_
-      // , tonum_
-      // , tostr_
-      <
+      < add_
+      , codepoints_
+      , div_
+      , flip_
+      , graphemes_
+      , index_
+      , join_
+      , mul_
+      , sub_
+      , tonum_
+      , tostr_
       > bins_min;
 
     // XXX: still would love if this list could be built automatically
@@ -537,7 +548,8 @@ namespace sel {
 // way to say what gets added on top of it (eg. just bytes,
 // map, ln and give).
 // I think it could be interesting to have a ll merge-sorted.
-#ifdef BINS_MIN
+// #ifdef BINS_MIN
+#if 1
     typedef bins_min bins;
 #else
     typedef bins_max bins;

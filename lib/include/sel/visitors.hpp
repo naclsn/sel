@@ -58,8 +58,8 @@ namespace sel {
   public:
     template <typename T>
     Ret visit(T const& it) {
-      // visitCommon((typename std::conditional<!T::args, Val, Segment>::type&)it, it.type(), T::the::Base::Next::name, T::args, T::the::args);
-      res << "todo";
+      // TODO: incorrect, Segment does not exists anymore
+      visitCommon((typename std::conditional<!T::argsN, Val, Segment>::type&)it, it.type(), T::Impl::name, T::argsN, T::Tail::argsN);
       return res;
     }
     Ret visit(NumLiteral const& it);
@@ -83,8 +83,7 @@ namespace sel {
 
     template <typename T>
     Ret visit(T const& it) {
-      // return T::the::Base::Next::doc;
-      return "todo";
+      return T::Impl::doc;
     }
     Ret visit(NumLiteral const& it) { throw TypeError("help(NumLiteral) does not make sense"); }
     Ret visit(StrLiteral const& it) { throw TypeError("help(StrLiteral) does not make sense"); }
@@ -107,8 +106,7 @@ namespace sel {
 
     template <typename T>
     Ret visit(T const& it) {
-      // return T::the::Base::Next::name;
-      return "todo";
+      return T::Impl::name;
     }
     Ret visit(NumLiteral const& it) { throw TypeError("name(NumLiteral) does not make sense"); }
     Ret visit(StrLiteral const& it) { throw TypeError("name(StrLiteral) does not make sense"); }
@@ -138,8 +136,8 @@ namespace sel {
 
     template <typename T>
     Ret visit(T const& it) {
-      // visitCommon((typename std::conditional<!T::args, Val, Segment>::type&)it, T::the::Base::Next::name, T::args, T::the::args);
-      res << "todo";
+      // TODO: incorrect, Segment does not exists anymore
+      visitCommon((typename std::conditional<!T::argsN, Val, Segment>::type&)it, T::Impl::name, T::argsN, T::Tail::argsN);
       return res;
     }
     Ret visit(NumLiteral const& it);
