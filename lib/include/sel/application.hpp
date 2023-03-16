@@ -23,6 +23,7 @@ namespace sel {
     struct handle {
     private:
       friend App;
+    public:
       size_t i;
       App& va;
       handle(App& va, size_t i): i(i), va(va) { }

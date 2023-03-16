@@ -39,14 +39,14 @@ namespace sel {
     template <typename H, typename T, typename into>
     struct _rev_impl<cons<H, T>, into> { typedef typename _rev_impl<T, cons<H, into>>::type type; };
 
-    /**
-     * count the number of element
-     */
-    template <typename list> struct count;
-    template <typename head, typename tail>
-    struct count<cons<head, tail>> { static constexpr unsigned value = count<tail>::value+1; };
-    template <typename only>
-    struct count<cons<only, nil>> { static constexpr unsigned value = 1; };
+    // /**
+    //  * count the number of element
+    //  */
+    // template <typename list> struct count;
+    // template <typename head, typename tail>
+    // struct count<cons<head, tail>> { static constexpr unsigned value = count<tail>::value+1; };
+    // template <typename only>
+    // struct count<cons<only, nil>> { static constexpr unsigned value = 1; };
 
     /**
      * manipulate a cons list through a pack, eg.:
@@ -70,6 +70,12 @@ namespace sel {
     //   typedef pack<Pack...> type;
     // };
 
+    template <typename PackItself> struct count;
+    template <typename ...Pack>
+    struct count<pack<Pack...>> {
+      constexpr static unsigned value = sizeof...(Pack);
+    };
+
     template <typename Searched, unsigned cur, typename Head, typename ...Tail>
     struct _packed_index { static constexpr unsigned value = _packed_index<Searched, cur+1, Tail...>::value; };
     template <typename Searched, unsigned cur, typename ...Rest>
@@ -81,6 +87,23 @@ namespace sel {
     template <typename Searched, typename ...Pack>
     struct pack_index<Searched, pack<Pack...>> {
       static constexpr unsigned value = _packed_index<Searched, 0, Pack...>::value;
+    };
+
+    template <typename PackItselfFrom, typename PackItselfInto> struct _reverse_impl;
+    /**
+     * reverse a ll::pack
+     */
+    template <typename PackItself>
+    struct reverse {
+      typedef typename _reverse_impl<PackItself, pack<>>::type type;
+    };
+    template <typename PackItselfInto>
+    struct _reverse_impl<pack<>, PackItselfInto> {
+      typedef PackItselfInto type;
+    };
+    template <typename Head, typename ...PackFrom, typename ...PackInto>
+    struct _reverse_impl<pack<Head, PackFrom...>, pack<PackInto...>> {
+      typedef typename _reverse_impl<pack<PackFrom...>, pack<Head, PackInto...>>::type type;
     };
 
     /**
@@ -101,7 +124,23 @@ namespace sel {
     };
 
     /**
-     * flatten a pack of packs
+     * extract into ::head and ::tail;
+     * note that the head of an empty pack still exists (it is 'void')
+     */
+    template <typename PackItself> struct head_tail;
+    template <typename h, typename ...t>
+    struct head_tail<pack<h, t...>> {
+      typedef h head;
+      typedef pack<t...> tail;
+    };
+    template <>
+    struct head_tail<pack<>> {
+      typedef void head;
+      typedef pack<> tail;
+    };
+
+    /**
+     * flatten a pack of packs XXX: aint that the same a join?
      */
     template <typename PackItself> struct flatten;
     template <typename ...Pack>
