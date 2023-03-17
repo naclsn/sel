@@ -18,7 +18,7 @@ string const prelude_source = /**/"";/*/ R"(
   def unlines:: [join:\n:];
 )"; //*/
 
-void build(App& app, char const* const srcs[]) {
+int build(App& app, char const* const srcs[]) {
   stringstream source;
   source << prelude_source;
   while (*srcs) source << *srcs++ << ' ';
@@ -30,7 +30,7 @@ void build(App& app, char const* const srcs[]) {
     // (this way of adding the prelude should be temporary anyway)
     if (err.start < prelude_source.length()) {
       cerr << "This is an error in the hard-coded prelude!\n";
-      exit(-1);
+      return -1;
     }
     cerr
       << "Parsing error: "
@@ -38,7 +38,7 @@ void build(App& app, char const* const srcs[]) {
       << "at: " << source.str().substr(prelude_source.length()) << '\n'
       << "    " << string(err.start-prelude_source.length(), ' ') << string(err.span, '~') << '\n'
     ;
-    exit(EXIT_FAILURE);
+    return EXIT_FAILURE;
   }
 
   catch (TypeError const& err) {
@@ -48,7 +48,7 @@ void build(App& app, char const* const srcs[]) {
       // << "at: " << source.str().substr(prelude_source.length()) << '\n'
       // << "    " << string(err.start-prelude_source.length(), ' ') << string(err.span, '~') << '\n'
     ;
-    exit(EXIT_FAILURE);
+    return EXIT_FAILURE;
   }
 
   catch (BaseError const& err) {
@@ -56,11 +56,13 @@ void build(App& app, char const* const srcs[]) {
       << "Error (while building application): "
       << err.what() << '\n'
     ;
-    exit(EXIT_FAILURE);
+    return EXIT_FAILURE;
   }
+
+  return EXIT_SUCCESS;
 }
 
-void buildfile(App& app, char const* filename) {
+int buildfile(App& app, char const* filename) {
   ifstream file(filename, ios::binary | ios::ate);
 
   if (file.is_open()) {
@@ -73,11 +75,11 @@ void buildfile(App& app, char const* filename) {
       build(app, srcs);
 
     } else {
-      cerr << "Could not read file: " << quoted(filename) << "\n";
-      exit(EXIT_FAILURE);
+      cerr << "Could not read file: " << utils::quoted(filename) << "\n";
+      return EXIT_FAILURE;
     }
 
-    return;
+    return EXIT_SUCCESS;
   }
 
   // maybe it's a pipe or such (can't open "at end") -- try again
@@ -96,9 +98,11 @@ void buildfile(App& app, char const* filename) {
     build(app, srcs);
 
   } else {
-    cerr << "Could not open file: " << quoted(filename) << "\n";
-    exit(EXIT_FAILURE);
+    cerr << "Could not open file: " << utils::quoted(filename) << "\n";
+    return EXIT_FAILURE;
   }
+
+  return EXIT_SUCCESS;
 }
 
 #endif // SELI_BUILDAPP_HPP

@@ -59,12 +59,12 @@ namespace sel {
         if (nullptr == va.w[i].peek()) {
           TRACE("| [" << i << "] (was free)");
         } else {
-          TRACE("| [" << i << "] (was " << sel::repr(**this, true, true, true) << ")");
+          TRACE("| [" << i << "] (was " << utils::repr(**this, true, true, true) << ")");
         }
         va.w[i].hold(v); }
       // drop any previously held value
       void drop() {
-        TRACE("- [" << i << "] (was " << sel::repr(**this, true, true, true) << ")");
+        TRACE("- [" << i << "] (was " << utils::repr(**this, true, true, true) << ")");
         va.w[i].drop(); va.free++; }
 
       // helper to get the App back

@@ -152,7 +152,7 @@ namespace sel {
       // TODO: use word wrapping at eg. 80 char?
       out
         << "def " << name << ":\n  "
-        << quoted(doc, true, false) << ":\n  ["
+        << utils::quoted(doc, true, false) << ":\n  ["
       ;
       u->accept(show) << "]\n  ;\n";
     }

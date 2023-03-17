@@ -218,7 +218,7 @@ namespace sel {
         break;
 
       case Token::Type::LIT_STR:
-        out << ".str="; if (t.as.str) out << quoted(*t.as.str); else out << "-nil-";
+        out << ".str="; if (t.as.str) out << utils::quoted(*t.as.str); else out << "-nil-";
         break;
 
       case Token::Type::LIT_LST_OPEN:
@@ -257,7 +257,7 @@ namespace sel {
         break;
 
       case Token::Type::LIT_STR:
-        out << "literal string " << quoted(*t.as.str);
+        out << "literal string " << utils::quoted(*t.as.str);
         break;
 
       case Token::Type::LIT_LST_OPEN:

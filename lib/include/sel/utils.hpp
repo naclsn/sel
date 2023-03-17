@@ -10,6 +10,8 @@
 #define TRACE(...) std::cerr << __VA_ARGS__ << "\n"
 
 namespace sel {
+  struct Val;
+  namespace utils {
 
   /**
    * For use in printing a pointer.
@@ -20,7 +22,6 @@ namespace sel {
   };
   std::ostream& operator<<(std::ostream& out, raw ptr);
 
-  struct Val;
   /**
    * For use in representing a value.
    */
@@ -53,6 +54,6 @@ namespace sel {
   };
   std::ostream& operator<<(std::ostream& out, quoted q);
 
-}
+} } // sel::utils
 
 #endif // SEL_UTILS_HPP
