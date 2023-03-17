@@ -13,6 +13,9 @@
 using namespace std;
 using namespace sel;
 
+typedef vector<Type> Types;
+typedef vector<sel::ref<Val>> Vals;
+
 #define RED   "\e[31m"
 #define GREEN "\e[32m"
 #define BLUE  "\e[34m"

@@ -78,8 +78,7 @@ namespace sel {
    * Same as `lookup_name`, but at compile time. Argument
    * must be an identifier token.
    */
-// #define static_lookup_name(__appref, __name) (ref<sel::bins::__name##_::Head>(__appref))
-#define static_lookup_name(__appref, __name) ((ref<Fun>)ref<NumResult>(__appref, 0.))
+#define static_lookup_name(__appref, __name) (ref<sel::bins::__name##_::Head>(__appref))
 
   /**
    * namespace with types used to help constructing builtins
@@ -397,8 +396,27 @@ namespace sel {
     using bins_helpers::tpl;
     using bins_helpers::fun;
 
+    BIN_num(abs, (num, num),
+      "return the absolute value of a number", ());
+
     BIN_num(add, (num, num, num),
       "add two numbers", ());
+
+    BIN_str(bin, (num, str),
+      "convert a number to its binary textual representation (without leading '0b')", (
+      bool read = false;
+    ));
+
+    BIN_lst(bytes, (istr, ilst<num>),
+      "split a string of bytes into its actual bytes as numbers", (
+      std::string buff;
+      std::string::size_type off = std::string::npos;
+    ));
+
+    BIN_str(chr, (num, str),
+      "make a string of a single character with the given unicode codepoint", (
+      bool read = false;
+    ));
 
     BIN_lst(codepoints, (istr, ilst<num>),
       "split a string of bytes into its Unicode codepoints", (
@@ -407,11 +425,66 @@ namespace sel {
       std::istream_iterator<codepoint> isi;
     ));
 
+    BIN_lst(conjunction, (lst<unk<'a'>>, ilst<unk<'a'>>, ilst<unk<'a'>>),
+      "logical conjunction between two lists treated as sets; it is right-lazy and the list order is taken from the right argument (for now items are expected to be strings, until arbitraty value comparison)", (
+      bool did_once = false;
+      std::unordered_set<std::string> inleft;
+      void once();
+    ));
+
+    BIN_unk(const, (unk<'a'>, unk<'b'>, unk<'a'>),
+      "always evaluate to its first argument, ignoring its second argument", ());
+
+    BIN_num(contains, (str, istr, num),
+      "true if the string contain the given substring", (
+      bool done = false, does;
+    ));
+
+    BIN_num(count, (unk<'a'>, lst<unk<'a'>>, num),
+      "count occurrences of an item in a sequence (for now items are expected to be strings, until arbitraty value comparison)", (
+      bool done = false;
+      unsigned n;
+    ));
+
     BIN_num(div, (num, num, num),
       "divide the first number by the second number", ());
 
+    BIN_lst(drop, (num, ilst<unk<'a'>>, ilst<unk<'a'>>),
+      "return the suffix past a given count, or the empty list if it is shorter", (
+      bool done = false;
+    ));
+
+    BIN_lst(dropwhile, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
+      "return the suffix remaining from the first element not verifying the predicate onward", (
+      bool done = false;
+    ));
+
+    BIN_lst(duple, (unk<'a'>, tpl<unk<'a'>, unk<'a'>>),
+      "create a pair off of a single item", (
+      int did = 0;
+    ));
+
+    BIN_num(endswith, (str, str, num),
+      "true if the string ends with the given suffix", (
+      bool done = false, does;
+    ));
+
+    BIN_lst(filter, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
+      "return the list of elements which satisfy the predicate", (
+      ref<Val> curr = ref<Val>(h.app(), nullptr);
+    ));
+
     BIN_unk(flip, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>),
       "flip the two parameters by passing the first given after the second one", ());
+
+    BIN_lst(give, (num, lst<unk<'a'>>, lst<unk<'a'>>),
+      "return the prefix prior to the given count, or the empty list if it is shorter", (
+      bool did_once = false;
+      size_t at = 0;
+      size_t at_when_end = 0;
+      std::vector<ref<Val>> circ;
+      void once();
+    ));
 
     BIN_lst(graphemes, (istr, ilst<str>),
       "split a stream of bytes into its Unicode graphemes", (
@@ -422,10 +495,34 @@ namespace sel {
       bool past_end = false;
     ));
 
+    BIN_unk(head, (ilst<unk<'a'>>, unk<'a'>),
+      "extract the first element of a list, which must not be empty", ());
+
+    BIN_str(hex, (num, str),
+      "convert a number to its hexadecimal textual representation (without leading '0x')", (
+      bool read = false;
+    ));
+
+    BIN_unk(id, (unk<'a'>, unk<'a'>),
+      "the identity function, returns its input", ());
+
+    BIN_unk(if, (fun<unk<'a'>, num>, unk<'b'>, unk<'b'>, unk<'a'>, unk<'b'>),
+      "take a condition, a consequence and an alternative; return consequence if the argument verifies the condition, alternative otherwise", ());
+
     BIN_unk(index, (ilst<unk<'a'>>, num, unk<'a'>),
       "select the value at the given index in the list (despite being called index it is an offset, ie. 0-based)", (
       bool did = false;
       ref<Val> found = ref<Val>(h.app(), nullptr);
+    ));
+
+    BIN_lst(init, (lst<unk<'a'>>, lst<unk<'a'>>),
+      "extract the elements before the last one of a list, which must not be empty", (
+      ref<Val> prev = ref<Val>(h.app(), nullptr);
+    ));
+
+    BIN_lst(iterate, (fun<unk<'a'>, unk<'a'>>, unk<'a'>, ilst<unk<'a'>>),
+      "return an infinite list of repeated applications of the function to the input", (
+      ref<Val> curr = ref<Val>(h.app(), nullptr);
     ));
 
     BIN_str(join, (str, ilst<istr>, istr),
@@ -434,11 +531,94 @@ namespace sel {
       bool beginning = true;
     ));
 
+    BIN_unk(last, (lst<unk<'a'>>, unk<'a'>),
+      "extract the last element of a list, which must not be empty", ());
+
+    BIN_str(ln, (istr, istr),
+      "append a new line to a string", (
+      bool done = false;
+    ));
+
+    BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, ilst<unk<'a'>>, ilst<unk<'b'>>),
+      "make a new list by applying an unary operation to each value from a list", ());
+
     BIN_num(mul, (num, num, num),
       "multiply two numbers", ());
 
+    BIN_str(oct, (num, str),
+      "convert a number to its octal textual representation (without leading '0o')", (
+      bool read = false;
+    ));
+
+    BIN_num(ord, (istr, num),
+      "give the codepoint of the (first) character", ());
+
+    BIN_num(pi, (num),
+      "pi, what did you expect", ());
+
+    BIN_str(prefix, (str, istr, istr),
+      "prepend a prefix to a string", ());
+
+    BIN_lst(repeat, (unk<'a'>, ilst<unk<'a'>>),
+      "repeat an infinite amount of copies of the same value", ());
+
+    BIN_lst(replicate, (num, unk<'a'>, lst<unk<'a'>>),
+      "replicate a finite amount of copies of the same value", (
+      size_t did = 0;
+    ));
+
+    BIN_lst(reverse, (lst<unk<'a'>>, lst<unk<'a'>>),
+      "reverse the order of the elements in the list", (
+      std::vector<ref<Val>> cache;
+      bool did_once = false;
+      size_t curr;
+      void once();
+    ));
+
+    BIN_lst(singleton, (unk<'a'>, lst<unk<'a'>>),
+      "make a list of a single item", (
+      bool done = false;
+    ));
+
+    BIN_lst(split, (str, istr, ilst<istr>),
+      "break a string into pieces separated by the argument, consuming the delimiter; note that an empty delimiter does not split the input on every character, but rather is equivalent to `const [repeat ::]`, for this see `graphemes`", (
+      bool did_once = false;
+      std::string ssep;
+      std::ostringstream acc = std::ostringstream(std::ios_base::ate);
+      std::string curr;
+      bool at_end = false;
+      bool at_past_end = false;
+      bool init = false;
+      void once();
+      void next();
+    ));
+
+    BIN_num(startswith, (str, istr, num),
+      "true if the string starts with the given prefix", (
+      bool done = false, does;
+    ));
+
     BIN_num(sub, (num, num, num),
       "substract the second number from the first", ());
+
+    BIN_str(suffix, (istr, str, istr),
+      "append a suffix to a string", ());
+
+    BIN_str(surround, (str, str, str, str),
+      "surround a string with a prefix and a suffix", ());
+
+    BIN_lst(tail, (ilst<unk<'a'>>, ilst<unk<'a'>>),
+      "extract the elements after the first one of a list, which must not be empty", (
+      bool done = false;
+    ));
+
+    BIN_lst(take, (num, ilst<unk<'a'>>, lst<unk<'a'>>),
+      "return the prefix of a given length, or the entire list if it is shorter", (
+      size_t did = 0;
+    ));
+
+    BIN_lst(takewhile, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
+      "return the longest prefix of elements statisfying the predicate", ());
 
     BIN_num(tonum, (istr, num),
       "convert a string into number", (
@@ -449,6 +629,43 @@ namespace sel {
     BIN_str(tostr, (num, str),
       "convert a number into string", (
       bool read = false;
+    ));
+
+    BIN_lst(tuple, (unk<'a'>, unk<'b'>, tpl<unk<'a'>, unk<'b'>>),
+      "construct a tuple", (
+      int did = 0;
+    ));
+
+    BIN_num(unbin, (istr, num),
+      "convert a number into string from its binary textual representation (without leading '0b')", (
+      double r;
+      bool done = false;
+    ));
+
+    BIN_str(unbytes, (ilst<num>, istr),
+      "construct a string from its actual bytes; this can lead to broken UTF-8 or 'degenerate cases' if not careful", ());
+
+    BIN_str(uncodepoints, (ilst<num>, istr),
+      "construct a string from its Unicode codepoints; this can lead to 'degenerate cases' if not careful", ());
+
+    BIN_unk(uncurry, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, tpl<unk<'a'>, unk<'b'>>, unk<'c'>),
+      "convert a curried function to a function on pairs", ());
+
+    BIN_num(unhex, (istr, num),
+      "convert a number into string from its hexadecimal textual representation (without leading '0x')", (
+      double r;
+      bool done = false;
+    ));
+
+    BIN_num(unoct, (istr, num),
+      "convert a number into string from its octal textual representation (without leading '0o')", (
+      double r;
+      bool done = false;
+    ));
+
+    BIN_lst(zipwith, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, ilst<unk<'a'>>, ilst<unk<'b'>>, ilst<unk<'c'>>),
+      "make a new list by applying an binary operation to each corresponding value from each lists; stops when either list ends", (
+      ref<Val> curr = ref<Val>(h.app(), nullptr);
     ));
 
   } // namespace bins
@@ -484,64 +701,63 @@ namespace sel {
 
     // XXX: still would love if this list could be built automatically
     typedef pack
-      // < abs_
-      // , add_
-      // , bin_
-      // , bytes_
-      // , chr_
-      // , codepoints_
-      // , conjunction_
-      // , const_
-      // , contains_
-      // , count_
-      // , div_
-      // , drop_
-      // , dropwhile_
-      // , duple_
-      // , endswith_
-      // , filter_
-      // , flip_
-      // , give_
-      // , graphemes_
-      // , head_
-      // , hex_
-      // , id_
-      // , if_
-      // , index_
-      // , init_
-      // , iterate_
-      // , join_
-      // , last_
-      // , ln_
-      // , map_
-      // , mul_
-      // , oct_
-      // , ord_
-      // , pi_
-      // , prefix_
-      // , repeat_
-      // , replicate_
-      // , reverse_
-      // , singleton_
-      // , split_
-      // , startswith_
-      // , sub_
-      // , suffix_
-      // , surround_
-      // , tail_
-      // , take_
-      // , takewhile_
-      // , tonum_
-      // , tostr_
-      // , tuple_
-      // , unbin_
-      // , unbytes_
-      // , uncodepoints_
-      // , uncurry_
-      // , unhex_
-      // , unoct_
-      // , zipwith_
-      <
+      < abs_
+      , add_
+      , bin_
+      , bytes_
+      , chr_
+      , codepoints_
+      , conjunction_
+      , const_
+      , contains_
+      , count_
+      , div_
+      , drop_
+      , dropwhile_
+      , duple_
+      , endswith_
+      , filter_
+      , flip_
+      , give_
+      , graphemes_
+      , head_
+      , hex_
+      , id_
+      , if_
+      , index_
+      , init_
+      , iterate_
+      , join_
+      , last_
+      , ln_
+      , map_
+      , mul_
+      , oct_
+      , ord_
+      , pi_
+      , prefix_
+      , repeat_
+      , replicate_
+      , reverse_
+      , singleton_
+      , split_
+      , startswith_
+      , sub_
+      , suffix_
+      , surround_
+      , tail_
+      , take_
+      , takewhile_
+      , tonum_
+      , tostr_
+      , tuple_
+      , unbin_
+      , unbytes_
+      , uncodepoints_
+      , uncurry_
+      , unhex_
+      , unoct_
+      , zipwith_
       > bins_max;
 
 // TODO: this is waiting for better answers (see also
@@ -551,8 +767,7 @@ namespace sel {
 // way to say what gets added on top of it (eg. just bytes,
 // map, ln and give).
 // I think it could be interesting to have a ll merge-sorted.
-// #ifdef BINS_MIN
-#if 1
+#ifdef BINS_MIN
     typedef bins_min bins;
 #else
     typedef bins_max bins;

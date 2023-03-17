@@ -8,49 +8,52 @@ TEST(each) { cout << "test disable as BIN_MIN is defined\n"; return 0; }
 
 App app;
 
-template <typename T> inline Val* asval(T x) { return x; }
+template <typename T> inline sel::ref<Val> asval(T x) { return x; }
 
-template <> inline Val* asval(int x) { return new NumLiteral(app, x); }
-template <> inline Val* asval(float x) { return new NumLiteral(app, x); }
-template <> inline Val* asval(double x) { return new NumLiteral(app, x); }
+template <> inline sel::ref<Val> asval(int x) { return sel::ref<NumLiteral>(app, x); }
+template <> inline sel::ref<Val> asval(float x) { return sel::ref<NumLiteral>(app, x); }
+template <> inline sel::ref<Val> asval(double x) { return sel::ref<NumLiteral>(app, x); }
 
-template <> inline Val* asval(char x) { return new StrLiteral(app, string(1, x)); }
-template <> inline Val* asval(char const* x) { return new StrLiteral(app, x); }
-template <> inline Val* asval(string x) { return new StrLiteral(app, x); }
+template <> inline sel::ref<Val> asval(char x) { return sel::ref<StrLiteral>(app, string(1, x)); }
+template <> inline sel::ref<Val> asval(char const* x) { return sel::ref<StrLiteral>(app, x); }
+template <> inline sel::ref<Val> asval(string x) { return sel::ref<StrLiteral>(app, x); }
 
-//template <> inline Val* asval(vector<Val*> x) { return new LstLiteral(app, x); }
-template <typename T> inline Val* _lst_asval(initializer_list<T> x, Type const& ty) {
-  vector<Val*> r;
+template <typename T> inline sel::ref<Val> _lst_asval(initializer_list<T> x, Type const& ty) {
+  Vals r;
   for (auto const& it : x)
     r.push_back(asval(it));
-  //return asval(r);
-  return new LstLiteral(app, r, {Type(ty)});
+  return sel::ref<LstLiteral>(app, r, Types{Type(ty)});
 }
-template <> inline Val* asval(initializer_list<int> x) { return _lst_asval(x, Type::makeNum()); }
-template <> inline Val* asval(initializer_list<float> x) { return _lst_asval(x, Type::makeNum()); }
-template <> inline Val* asval(initializer_list<char> x) { return _lst_asval(x, Type::makeStr(false)); }
-template <> inline Val* asval(initializer_list<char const*> x) { return _lst_asval(x, Type::makeStr(false)); }
-template <> inline Val* asval(initializer_list<string> x) { return _lst_asval(x, Type::makeStr(false)); }
+template <> inline sel::ref<Val> asval(initializer_list<int> x) { return _lst_asval(x, Type::makeNum()); }
+template <> inline sel::ref<Val> asval(initializer_list<float> x) { return _lst_asval(x, Type::makeNum()); }
+template <> inline sel::ref<Val> asval(initializer_list<char> x) { return _lst_asval(x, Type::makeStr(false)); }
+template <> inline sel::ref<Val> asval(initializer_list<char const*> x) { return _lst_asval(x, Type::makeStr(false)); }
+template <> inline sel::ref<Val> asval(initializer_list<string> x) { return _lst_asval(x, Type::makeStr(false)); }
 
 template <typename T>
 using ili = initializer_list<T>;
 
 
-template <typename F, typename... L> struct uncurry;
+template <typename ...L> struct uncurry;
 
-template <typename F, typename H, typename... T>
-struct uncurry<F, H, T...> { static inline Val* function(H h, T... t) { return (*(Fun*)uncurry<typename F::Base, T...>::function(t...))(asval(h)); } };
+template <typename H, typename ...T>
+struct uncurry<H, T...> {
+  static inline sel::ref<Val> function(sel::ref<Fun> f, H h, T... t) {
+    return uncurry<T...>::function((*f)(asval(h)), t...);
+  }
+};
 
-// eg. const_
-template <typename I, typename a, typename b, char c, typename O>
-struct uncurry<bins_helpers::_bin_be<I, ll::cons<fun<b, unk<c>>, a>>, O> { static inline Val* function(O o) { return (*(Fun*)new bins_helpers::_bin_be<I, ll::cons<fun<b, unk<c>>, a>>(app))(asval(o)); } };
+template <>
+struct uncurry<> {
+  static inline sel::ref<Val> function(sel::ref<Val> v) {
+    return v;
+  }
+};
 
-// eg. id_
-template <typename I>
-struct uncurry<bins_helpers::_fake_bin_be<I>> { static inline Val* function() { return new I(app); } };
-
-template <typename F>
-struct uncurry<F> { static inline Val* function() { return new F(app); } };
+template <typename F, typename ...Args>
+static inline sel::ref<Val> call(Args... args) {
+  return uncurry<Args...>::function(sel::ref<typename F::Head>(app), args...);
+}
 
 
 struct test_base {
@@ -84,59 +87,37 @@ struct call_test<ll::pack<Pack...>> {
 TEST(each) { return call_test<bins_ll::bins>::function(); }
 
 
-#define __r(__n) __r ## __n
-#define __r1(a)             a
-#define __r2(a, b)          b, a
-#define __r3(a, b, c)       c, b, a
-#define __r4(a, b, c, d)    d, c, b, a
-#define __r5(a, b, c, d, e) e, d, c, b, a
-#define __rn(__n, ...) __r(__n)(__VA_ARGS__)
-#define REVERSE(...) __rn(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
-
-#define __a(__n) __a ## __n
-#define __a1(a)             decltype(a)
-#define __a2(a, b)          decltype(a), __a1(b)
-#define __a3(a, b, c)       decltype(a), __a2(b, c)
-#define __a4(a, b, c, d)    decltype(a), __a3(b, c, d)
-#define __a5(a, b, c, d, e) decltype(a), __a4(b, c, d, e)
-#define __an(__n, ...) __a(__n)(__VA_ARGS__)
-#define TPARAM_AUTO(...) __an(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
-
-#define CALL(__f, ...) uncurry<__f##_, TPARAM_AUTO(REVERSE(__VA_ARGS__))>::function(REVERSE(__VA_ARGS__))
-
-#define LU(__f) static_lookup_name(app, __f)
-
 #define T(__f)                         \
   template <>                          \
-  struct test<__f##_> : test_base {    \
+  struct test<__f> : test_base {       \
     int run_test() override;           \
     char const* get_name() override {  \
-      return __f##_::name;             \
+      return __f::name;                \
     };                                 \
   };                                   \
-  int test<__f##_>::run_test()
+  int test<__f>::run_test()
 
 #define __rem_par(...) __VA_ARGS__
 
 #define assert_num(__should, __have) do {    \
-  Val* _habe = (__have);                     \
+  sel::ref<Val> _habe = (__have);            \
   assert_eq(Ty::NUM, _habe->type().base());  \
-  Num& _fart = *((Num*)_habe);               \
+  Num& _fart = *((sel::ref<Num>)_habe);      \
   assert_eq(__should, _fart.value());        \
 } while (0)
 
 #define assert_str(__should, __have) do {                \
-  Val* _habe = (__have);                                 \
+  sel::ref<Val> _habe = (__have);                        \
   assert_eq(Ty::STR, _habe->type().base());              \
-  Str& _fart = *((Str*)_habe);                           \
+  Str& _fart = *((sel::ref<Str>)_habe);                  \
   ostringstream oss;                                     \
   assert_cmp(__should, (_fart.entire(oss), oss.str()));  \
 } while (0)
 
 #define assert_lstnum(__should, __have) do {                                    \
-  Val* _habe = (__have);                                                        \
+  sel::ref<Val> _habe = (__have);                                               \
   assert_eq(Ty::LST, _habe->type().base());                                     \
-  Lst& _fart = *((Lst*)_habe);                                                  \
+  Lst& _fart = *((sel::ref<Lst>)_habe);                                         \
   for (auto const& _it : __rem_par __should) {                                  \
     assert(!_fart.end(), #__have ":\n   should not have reached the end yet");  \
     assert_num(_it, *_fart);                                                    \
@@ -146,9 +127,9 @@ TEST(each) { return call_test<bins_ll::bins>::function(); }
 } while(0)
 
 #define assert_lststr(__should, __have) do {                                    \
-  Val* _habe = (__have);                                                        \
+  sel::ref<Val> _habe = (__have);                                               \
   assert_eq(Ty::LST, _habe->type().base());                                     \
-  Lst& _fart = *((Lst*)_habe);                                                  \
+  Lst& _fart = *((sel::ref<Lst>)_habe);                                         \
   for (auto const& _it : __rem_par __should) {                                  \
     assert(!_fart.end(), #__have ":\n   should not have reached the end yet");  \
     assert_str(_it, *_fart);                                                    \
@@ -158,14 +139,14 @@ TEST(each) { return call_test<bins_ll::bins>::function(); }
 } while(0)
 
 #define assert_empty(__have) do {                             \
-  Val* _habe = (__have);                                      \
-  Lst& _fart = *((Lst*)_habe);                                \
+  sel::ref<Val> _habe = (__have);                             \
+  Lst& _fart = *((sel::ref<Lst>)_habe);                       \
   assert(_fart.end(), "should have reached the end by now");  \
 } while(0)
 
 #define assert_lsterr(__throws) do {                 \
   try {                                              \
-    ((Lst*)__throws)->end();                         \
+    ((sel::ref<Lst>)__throws)->end();                \
   } catch (RuntimeError const&) {                    \
     break;                                           \
   }                                                  \
@@ -173,256 +154,256 @@ TEST(each) { return call_test<bins_ll::bins>::function(); }
 } while(0)
 
 
-T(abs) {
-  assert_num(5, CALL(abs, -5));
-  assert_num(0, CALL(abs, 0));
-  assert_num(3, CALL(abs, +3));
+T(abs_) {
+  assert_num(5, call<abs_>(-5));
+  assert_num(0, call<abs_>(0));
+  assert_num(3, call<abs_>(+3));
   return 0;
 }
 
-T(add) {
-  assert_num(6, CALL(add, 4, 2));
+T(add_) {
+  assert_num(6, call<add_>(4, 2));
   return 0;
 }
 
-T(bin) {
-  assert_str("101010", CALL(bin, 42));
-  assert_str("0", CALL(bin, 0));
+T(bin_) {
+  assert_str("101010", call<bin_>(42));
+  assert_str("0", call<bin_>(0));
   return 0;
 }
 
-T(bytes) {
+T(bytes_) {
   assert_lstnum(
     ({ 97, 227, 129, 181, 98, 13, 10, 99, 240, 159, 143, 179, 226, 128, 141, 226, 154, 167, 100 }),
-    CALL(bytes, "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
+    call<bytes_>("\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
   );
-  assert_empty(CALL(bytes, ""));
+  assert_empty(call<bytes_>(""));
   return 0;
 }
 
-T(chr) {
-  assert_str("*", CALL(chr, 42));
+T(chr_) {
+  assert_str("*", call<chr_>(42));
   return 0;
 }
 
-T(codepoints) {
+T(codepoints_) {
   assert_lstnum(
     ({ 97, 12405, 98, 13, 10, 99, 127987, 8205, 9895, 100 }),
-    CALL(codepoints, "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
+    call<codepoints_>("\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
   );
-  assert_empty(CALL(codepoints, ""));
+  assert_empty(call<codepoints_>(""));
   return 0;
 }
 
-T(const) {
-  assert_str("coucou", CALL(const, "coucou", 1));
+T(const_) {
+  assert_str("coucou", call<const_>("coucou", 1));
   return 0;
 }
 
-T(contains) {
-  assert_num(1, CALL(contains, "abc", "abc"));
-  assert_num(1, CALL(contains, "a", "abc"));
-  assert_num(1, CALL(contains, "b", "abc"));
-  assert_num(1, CALL(contains, "c", "abc"));
-  assert_num(1, CALL(contains, "", "abc"));
-  assert_num(0, CALL(contains, "abcz", "abc"));
-  assert_num(0, CALL(contains, "zabc", "abc"));
-  assert_num(0, CALL(contains, "zabcz", "abc"));
-  assert_num(0, CALL(contains, "z", "abc"));
+T(contains_) {
+  assert_num(1, call<contains_>("abc", "abc"));
+  assert_num(1, call<contains_>("a", "abc"));
+  assert_num(1, call<contains_>("b", "abc"));
+  assert_num(1, call<contains_>("c", "abc"));
+  assert_num(1, call<contains_>("", "abc"));
+  assert_num(0, call<contains_>("abcz", "abc"));
+  assert_num(0, call<contains_>("zabc", "abc"));
+  assert_num(0, call<contains_>("zabcz", "abc"));
+  assert_num(0, call<contains_>("z", "abc"));
   return 0;
 }
 
-T(div) {
-  assert_num(2, CALL(div, 4, 2));
+T(div_) {
+  assert_num(2, call<div_>(4, 2));
   return 0;
 }
 
-T(drop) {
-  assert_lstnum(({3, 2, 1}), CALL(drop, 2, (ili<int>{5, 4, 3, 2, 1})));
-  assert_lstnum(({5, 4, 3, 2, 1}), CALL(drop, 0, (ili<int>{5, 4, 3, 2, 1})));
-  assert_lstnum((ili<int>{}), CALL(drop, 2, (ili<int>{})));
-  assert_lstnum((ili<int>{}), CALL(drop, 6, (ili<int>{5, 4, 3, 2, 1})));
+T(drop_) {
+  assert_lstnum(({3, 2, 1}), call<drop_>(2, (ili<int>{5, 4, 3, 2, 1})));
+  assert_lstnum(({5, 4, 3, 2, 1}), call<drop_>(0, (ili<int>{5, 4, 3, 2, 1})));
+  assert_lstnum((ili<int>{}), call<drop_>(2, (ili<int>{})));
+  assert_lstnum((ili<int>{}), call<drop_>(6, (ili<int>{5, 4, 3, 2, 1})));
   return 0;
 }
 
-T(endswith) {
-  assert_num(1, CALL(endswith, "abc", "abc"));
-  assert_num(0, CALL(endswith, "a", "abc"));
-  assert_num(0, CALL(endswith, "b", "abc"));
-  assert_num(1, CALL(endswith, "c", "abc"));
-  assert_num(1, CALL(endswith, "", "abc"));
-  assert_num(0, CALL(endswith, "abcz", "abc"));
-  assert_num(0, CALL(endswith, "zabc", "abc"));
-  assert_num(0, CALL(endswith, "zabcz", "abc"));
-  assert_num(0, CALL(endswith, "z", "abc"));
+T(endswith_) {
+  assert_num(1, call<endswith_>("abc", "abc"));
+  assert_num(0, call<endswith_>("a", "abc"));
+  assert_num(0, call<endswith_>("b", "abc"));
+  assert_num(1, call<endswith_>("c", "abc"));
+  assert_num(1, call<endswith_>("", "abc"));
+  assert_num(0, call<endswith_>("abcz", "abc"));
+  assert_num(0, call<endswith_>("zabc", "abc"));
+  assert_num(0, call<endswith_>("zabcz", "abc"));
+  assert_num(0, call<endswith_>("z", "abc"));
   return 0;
 }
 
-T(graphemes) {
+T(graphemes_) {
   assert_lststr(
     ({ "\x61", "\xe3\x81\xb5", "\x62", "\x0d\x0a", "\x63", "\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7", "\x64" }),
-    CALL(graphemes, "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
+    call<graphemes_>("\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
   );
-  assert_empty(CALL(graphemes, ""));
+  assert_empty(call<graphemes_>(""));
   return 0;
 }
 
-T(head) {
-  assert_num(1, CALL(head, (ili<int>{ 1, 2, 3 })));
-  assert_num(1, CALL(head, (ili<int>{ 1 })));
-  assert_lsterr(CALL(head, (ili<int>{})));
+T(head_) {
+  assert_num(1, call<head_>((ili<int>{ 1, 2, 3 })));
+  assert_num(1, call<head_>((ili<int>{ 1 })));
+  assert_lsterr(call<head_>((ili<int>{})));
   return 0;
 }
 
-T(hex) {
-  assert_str("2a", CALL(hex, 42));
-  assert_str("0", CALL(hex, 0));
+T(hex_) {
+  assert_str("2a", call<hex_>(42));
+  assert_str("0", call<hex_>(0));
   return 0;
 }
 
-T(id) {
-  assert_str("coucou", CALL(id, "coucou"));
+T(id_) {
+  assert_str("coucou", call<id_>("coucou"));
   return 0;
 }
 
-T(init) {
-  assert_lstnum(({ 1, 2 }), CALL(init, (ili<int>{ 1, 2, 3 })));
-  assert_empty(CALL(init, (ili<int>{ 1 })));
-  assert_lsterr(CALL(init, (ili<int>{})));
+T(init_) {
+  assert_lstnum(({ 1, 2 }), call<init_>((ili<int>{ 1, 2, 3 })));
+  assert_empty(call<init_>((ili<int>{ 1 })));
+  assert_lsterr(call<init_>((ili<int>{})));
   return 0;
 }
 
-T(last) {
-  assert_num(3, CALL(last, (ili<int>{ 1, 2, 3 })));
-  assert_num(1, CALL(last, (ili<int>{ 1 })));
-  assert_lsterr(CALL(last, (ili<int>{})));
+T(last_) {
+  assert_num(3, call<last_>((ili<int>{ 1, 2, 3 })));
+  assert_num(1, call<last_>((ili<int>{ 1 })));
+  assert_lsterr(call<last_>((ili<int>{})));
   return 0;
 }
 
-T(mul) {
-  assert_num(8, CALL(mul, 4, 2));
+T(mul_) {
+  assert_num(8, call<mul_>(4, 2));
   return 0;
 }
 
-T(oct) {
-  assert_str("52", CALL(oct, 42));
-  assert_str("0", CALL(oct, 0));
+T(oct_) {
+  assert_str("52", call<oct_>(42));
+  assert_str("0", call<oct_>(0));
   return 0;
 }
 
-T(ord) {
-  assert_num(42, CALL(ord, "*"));
-  assert_num(0, CALL(ord, ""));
+T(ord_) {
+  assert_num(42, call<ord_>("*"));
+  assert_num(0, call<ord_>(""));
   return 0;
 }
 
-T(prefix) {
-  assert_str("abcxyz", CALL(prefix, "abc", "xyz"));
-  assert_str("abc", CALL(prefix, "abc", ""));
-  assert_str("xyz", CALL(prefix, "", "xyz"));
+T(prefix_) {
+  assert_str("abcxyz", call<prefix_>("abc", "xyz"));
+  assert_str("abc", call<prefix_>("abc", ""));
+  assert_str("xyz", call<prefix_>("", "xyz"));
   return 0;
 }
 
-T(startswith) {
-  assert_num(1, CALL(startswith, "abc", "abc"));
-  assert_num(1, CALL(startswith, "a", "abc"));
-  assert_num(0, CALL(startswith, "b", "abc"));
-  assert_num(0, CALL(startswith, "c", "abc"));
-  assert_num(1, CALL(startswith, "", "abc"));
-  assert_num(0, CALL(startswith, "abcz", "abc"));
-  assert_num(0, CALL(startswith, "zabc", "abc"));
-  assert_num(0, CALL(startswith, "zabcz", "abc"));
-  assert_num(0, CALL(startswith, "z", "abc"));
+T(startswith_) {
+  assert_num(1, call<startswith_>("abc", "abc"));
+  assert_num(1, call<startswith_>("a", "abc"));
+  assert_num(0, call<startswith_>("b", "abc"));
+  assert_num(0, call<startswith_>("c", "abc"));
+  assert_num(1, call<startswith_>("", "abc"));
+  assert_num(0, call<startswith_>("abcz", "abc"));
+  assert_num(0, call<startswith_>("zabc", "abc"));
+  assert_num(0, call<startswith_>("zabcz", "abc"));
+  assert_num(0, call<startswith_>("z", "abc"));
   return 0;
 }
 
-T(sub) {
-  assert_num(2, CALL(sub, 4, 2));
+T(sub_) {
+  assert_num(2, call<sub_>(4, 2));
   return 0;
 }
 
-T(suffix) {
-  assert_str("xyzabc", CALL(suffix, "abc", "xyz"));
-  assert_str("abc", CALL(suffix, "abc", ""));
-  assert_str("xyz", CALL(suffix, "", "xyz"));
+T(suffix_) {
+  assert_str("xyzabc", call<suffix_>("abc", "xyz"));
+  assert_str("abc", call<suffix_>("abc", ""));
+  assert_str("xyz", call<suffix_>("", "xyz"));
   return 0;
 }
 
-T(surround) {
-  assert_str("abccoucouxyz", CALL(surround, "abc", "xyz", "coucou"));
-  assert_str("abccoucou", CALL(surround, "abc", "", "coucou"));
-  assert_str("coucouxyz", CALL(surround, "", "xyz", "coucou"));
-  assert_str("abcxyz", CALL(surround, "abc", "xyz", ""));
+T(surround_) {
+  assert_str("abccoucouxyz", call<surround_>("abc", "xyz", "coucou"));
+  assert_str("abccoucou", call<surround_>("abc", "", "coucou"));
+  assert_str("coucouxyz", call<surround_>("", "xyz", "coucou"));
+  assert_str("abcxyz", call<surround_>("abc", "xyz", ""));
   return 0;
 }
 
-T(tail) {
-  assert_lstnum(({ 2, 3 }), CALL(tail, (ili<int>{ 1, 2, 3 })));
-  assert_empty(CALL(tail, (ili<int>{ 1 })));
-  assert_lsterr(CALL(tail, (ili<int>{})));
+T(tail_) {
+  assert_lstnum(({ 2, 3 }), call<tail_>((ili<int>{ 1, 2, 3 })));
+  assert_empty(call<tail_>((ili<int>{ 1 })));
+  assert_lsterr(call<tail_>((ili<int>{})));
   return 0;
 }
 
-T(take) {
-  assert_lstnum(({5, 4}), CALL(take, 2, (ili<int>{5, 4, 3, 2, 1})));
-  assert_lstnum((ili<int>{}), CALL(take, 0, (ili<int>{5, 4, 3, 2, 1})));
-  assert_lstnum((ili<int>{}), CALL(take, 2, (ili<int>{})));
-  assert_lstnum(({5, 4, 3, 2, 1}), CALL(take, 6, (ili<int>{5, 4, 3, 2, 1})));
+T(take_) {
+  assert_lstnum(({5, 4}), call<take_>(2, (ili<int>{5, 4, 3, 2, 1})));
+  assert_lstnum((ili<int>{}), call<take_>(0, (ili<int>{5, 4, 3, 2, 1})));
+  assert_lstnum((ili<int>{}), call<take_>(2, (ili<int>{})));
+  assert_lstnum(({5, 4, 3, 2, 1}), call<take_>(6, (ili<int>{5, 4, 3, 2, 1})));
   return 0;
 }
 
-T(tonum) {
-  assert_num(42, CALL(tonum, "42"));
-  assert_num(0, CALL(tonum, "garbage"));
-  assert_num(-1, CALL(tonum, "-1"));
-  assert_num(0.3, CALL(tonum, "0.3"));
+T(tonum_) {
+  assert_num(42, call<tonum_>("42"));
+  assert_num(0, call<tonum_>("garbage"));
+  assert_num(-1, call<tonum_>("-1"));
+  assert_num(0.3, call<tonum_>("0.3"));
   // idk if that a behavior i'd wand to keep, but it's a thing for now
-  auto x = CALL(tonum, "-0");
-  assert_str("-0", CALL(tostr, x));
+  auto x = call<tonum_>("-0");
+  assert_str("-0", call<tostr_>(x));
   return 0;
 }
 
-T(tostr) {
-  assert_str("42", CALL(tostr, 42));
-  assert_str("0", CALL(tostr, 0));
-  assert_str("-1", CALL(tostr, -1));
-  assert_str("0.3", CALL(tostr, 0.3));
+T(tostr_) {
+  assert_str("42", call<tostr_>(42));
+  assert_str("0", call<tostr_>(0));
+  assert_str("-1", call<tostr_>(-1));
+  assert_str("0.3", call<tostr_>(0.3));
   return 0;
 }
 
-T(unbin) {
-  assert_num(42, CALL(unbin, "101010"));
-  assert_num(0, CALL(unbin, "garbage"));
+T(unbin_) {
+  assert_num(42, call<unbin_>("101010"));
+  assert_num(0, call<unbin_>("garbage"));
   return 0;
 }
 
-T(unbytes) {
+T(unbytes_) {
   assert_str(
     "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64",
-    CALL(unbytes, (ili<int>{ 97, 227, 129, 181, 98, 13, 10, 99, 240, 159, 143, 179, 226, 128, 141, 226, 154, 167, 100 }))
+    call<unbytes_>((ili<int>{ 97, 227, 129, 181, 98, 13, 10, 99, 240, 159, 143, 179, 226, 128, 141, 226, 154, 167, 100 }))
   );
-  assert_str("", CALL(unbytes, (ili<int>{})));
+  assert_str("", call<unbytes_>((ili<int>{})));
   return 0;
 }
 
-T(uncodepoints) {
+T(uncodepoints_) {
   assert_str(
     "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64",
-    CALL(uncodepoints, (ili<int>{ 97, 12405, 98, 13, 10, 99, 127987, 8205, 9895, 100 }))
+    call<uncodepoints_>((ili<int>{ 97, 12405, 98, 13, 10, 99, 127987, 8205, 9895, 100 }))
   );
-  assert_str("", CALL(uncodepoints, (ili<int>{})));
+  assert_str("", call<uncodepoints_>((ili<int>{})));
   return 0;
 }
 
-T(unhex) {
-  assert_num(42, CALL(unhex, "2a"));
-  assert_num(0, CALL(unhex, "garbage"));
+T(unhex_) {
+  assert_num(42, call<unhex_>("2a"));
+  assert_num(0, call<unhex_>("garbage"));
   return 0;
 }
 
-T(unoct) {
-  assert_num(42, CALL(unoct, "52"));
-  assert_num(0, CALL(unoct, "garbage"));
+T(unoct_) {
+  assert_num(42, call<unoct_>("52"));
+  assert_num(0, call<unoct_>("garbage"));
   return 0;
 }
 

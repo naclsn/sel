@@ -15,23 +15,23 @@ App app;
 TEST(VisRepr) {
   int fails = 0;
 
-  auto num = *new NumLiteral(app, 42.1);
+  auto num = sel::ref<NumLiteral>(app, 42.1);
   fails+= doTestEq(
-    num,
+    *num,
     "<Num> NumLiteral { n= 42.1 }"
   );
 
-  auto str = *new StrLiteral(app, "coucou");
+  auto str = sel::ref<StrLiteral>(app, "coucou");
   fails+= doTestEq(
-    str,
+    *str,
     "<Str> StrLiteral { s= \"coucou\" }"
   );
 
-  auto v = vector<Val*>();
-  v.push_back(&num);
-  v.push_back(&str);
+  auto v = vector<sel::ref<Val>>();
+  v.push_back(num);
+  v.push_back(str);
   fails+= doTestEq(
-    *new LstLiteral(app, v),
+    *sel::ref<LstLiteral>(app, v),
     "<[_mixed]> LstLiteral { v[0]=<Num> NumLiteral { n= 42.1 } v[1]=<Str> StrLiteral { s= \"coucou\" } }"
   );
 
