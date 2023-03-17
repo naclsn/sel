@@ -293,7 +293,7 @@ namespace sel {
 
     handle<Val> flip_::operator()(handle<Val> a) {
       bind_args(fun, b);
-      return (*(handle<Fun>)fun(a))(&b);
+      return (*(handle<Fun>)(*clone(fun))(a))(&b);
     }
 
     void give_::once() {
