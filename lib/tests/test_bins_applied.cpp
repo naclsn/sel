@@ -16,7 +16,7 @@ int test_tonum() { // tonum :3:
     "<Str* -> Num> Tonum1 { }\n"
     );
 
-  auto tonum0 = (*(sel::ref<Fun>)tonum1)(sel::ref<StrLiteral>(app, "3"));
+  auto tonum0 = (*(handle<Fun>)tonum1)(handle<StrLiteral>(app, "3"));
   showv_test(tonum0,
     "<Num> Tonum0 {\n"
     "   base=<Str* -> Num> Tonum1 { }\n"
@@ -33,7 +33,7 @@ int test_add() { // add 1 2
     "<Num -> Num -> Num> Add2 { }\n"
     );
 
-  auto add1 = (*(sel::ref<Fun>)add2)(sel::ref<NumLiteral>(app, 1));
+  auto add1 = (*(handle<Fun>)add2)(handle<NumLiteral>(app, 1));
   showv_test(add1,
     "<Num -> Num> Add1 {\n"
     "   base=<Num -> Num -> Num> Add2 { }\n"
@@ -41,7 +41,7 @@ int test_add() { // add 1 2
     "}\n"
     );
 
-  auto add0 = (*(sel::ref<Fun>)add1)(sel::ref<NumLiteral>(app, 2));
+  auto add0 = (*(handle<Fun>)add1)(handle<NumLiteral>(app, 2));
   showv_test(add0,
     "<Num> Add0 {\n"
     "   base=<Num -> Num> Add1 {\n"
@@ -61,7 +61,7 @@ int test_map() { // map tonum 4
     "<(a -> b) -> [a]* -> [b]*> Map2 { }\n"
     );
 
-  auto map1 = (*(sel::ref<Fun>)map2)(lookup_name(app, "tonum"));
+  auto map1 = (*(handle<Fun>)map2)(lookup_name(app, "tonum"));
   showv_test(map1,
     "<[Str*]* -> [Num]*> Map1 {\n"
     "   base=<(a -> b) -> [a]* -> [b]*> Map2 { }\n"
@@ -69,7 +69,7 @@ int test_map() { // map tonum 4
     "}\n"
     );
 
-  auto map0 = (*(sel::ref<Fun>)map1)(sel::ref<LstLiteral>(app, Vals{sel::ref<StrLiteral>(app, "4")}, Types{Type::makeStr(false)}));
+  auto map0 = (*(handle<Fun>)map1)(handle<LstLiteral>(app, Vals{handle<StrLiteral>(app, "4")}, Types{Type::makeStr(false)}));
   showv_test(map0,
     "<[Num]> Map0 {\n"
     "   base=<[Str*]* -> [Num]*> Map1 {\n"
@@ -89,7 +89,7 @@ int test_repeat() { // repeat 5
     "<a -> [a]*> Repeat1 { }\n"
     );
 
-  auto repeat0 = (*(sel::ref<Fun>)repeat1)(sel::ref<NumLiteral>(app, 5));
+  auto repeat0 = (*(handle<Fun>)repeat1)(handle<NumLiteral>(app, 5));
   showv_test(repeat0,
     "<[Num]*> Repeat0 {\n"
     "   base=<a -> [a]*> Repeat1 { }\n"
@@ -106,7 +106,7 @@ int test_zipwith() { // zipwith map {repeat} {{1}}
     "<(a -> b -> c) -> [a]* -> [b]* -> [c]*> Zipwith3 { }\n"
     );
 
-  auto zipwith2 = (*(sel::ref<Fun>)zipwith3)(lookup_name(app, "map"));
+  auto zipwith2 = (*(handle<Fun>)zipwith3)(lookup_name(app, "map"));
   showv_test(zipwith2,
     "<[a -> b]* -> [[a]*]* -> [[b]*]*> Zipwith2 {\n"
     "   base=<(a -> b -> c) -> [a]* -> [b]* -> [c]*> Zipwith3 { }\n"
@@ -115,7 +115,7 @@ int test_zipwith() { // zipwith map {repeat} {{1}}
     );
 
   auto _repeat1 = lookup_name(app, "repeat");
-  auto zipwith1 = (*(sel::ref<Fun>)zipwith2)(sel::ref<LstLiteral>(app, Vals{_repeat1}, Types{Type(_repeat1->type())}));
+  auto zipwith1 = (*(handle<Fun>)zipwith2)(handle<LstLiteral>(app, Vals{_repeat1}, Types{Type(_repeat1->type())}));
   showv_test(zipwith1,
     // "<[[a]*] -> [[[a]*]*]> Zipwith1 {\n"
     "<[[a]] -> [[[a]*]]> Zipwith1 {\n"
@@ -127,10 +127,10 @@ int test_zipwith() { // zipwith map {repeat} {{1}}
     "}\n"
     );
 
-  auto _lst_lst_num = sel::ref<LstLiteral>(app, Vals{
-    sel::ref<LstLiteral>(app, Vals{sel::ref<NumLiteral>(app, 42)}, Types{Type::makeNum()})
+  auto _lst_lst_num = handle<LstLiteral>(app, Vals{
+    handle<LstLiteral>(app, Vals{handle<NumLiteral>(app, 42)}, Types{Type::makeNum()})
   }, Types{Type::makeLst({Type::makeNum()}, false, false)});
-  auto zipwith0 = (*(sel::ref<Fun>)zipwith1)(_lst_lst_num);
+  auto zipwith0 = (*(handle<Fun>)zipwith1)(_lst_lst_num);
   showv_test(zipwith0,
     // "<[[[Num]]*]> Zipwith0 {\n"
     "<[[[Num]*]*]*> Zipwith0 {\n"

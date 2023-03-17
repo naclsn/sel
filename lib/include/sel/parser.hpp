@@ -21,12 +21,12 @@ namespace sel {
     double const n;
 
   public:
-    NumLiteral(ref<Num> at, double n)
+    NumLiteral(handle<Num> at, double n)
       : Num(at)
       , n(n)
     { }
     double value() override;
-    ref<Val> copy() const override;
+    handle<Val> copy() const override;
 
     double underlying() const { return n; }
 
@@ -42,7 +42,7 @@ namespace sel {
     bool read;
 
   public:
-    StrLiteral(ref<Str> at, std::string s)
+    StrLiteral(handle<Str> at, std::string s)
       : Str(at, TyFlag::IS_FIN)
       , s(s)
       , read(false)
@@ -50,7 +50,7 @@ namespace sel {
     std::ostream& stream(std::ostream& out) override;
     bool end() override;
     std::ostream& entire(std::ostream& out) override;
-    ref<Val> copy() const override;
+    handle<Val> copy() const override;
 
     std::string const& underlying() const { return s; }
 
@@ -62,26 +62,26 @@ namespace sel {
 
   struct LstLiteral : Lst {
   private:
-    std::vector<ref<Val>> const v;
+    std::vector<handle<Val>> const v;
     size_t c;
 
   public:
-    LstLiteral(ref<Lst> at, std::vector<ref<Val>> v)
+    LstLiteral(handle<Lst> at, std::vector<handle<Val>> v)
       : Lst(at, Type::makeLst({/* ZZZ: right... */}, false, false))
       , v(v)
       , c(0)
     { }
-    LstLiteral(ref<Lst> at, std::vector<ref<Val>> v, std::vector<Type>&& has) // ZZZ
+    LstLiteral(handle<Lst> at, std::vector<handle<Val>> v, std::vector<Type>&& has) // ZZZ
       : Lst(at, Type::makeLst(std::move(has), false, false))
       , v(v)
       , c(0)
     { }
-    ref<Val> operator*() override;
+    handle<Val> operator*() override;
     Lst& operator++() override;
     bool end() override;
-    ref<Val> copy() const override;
+    handle<Val> copy() const override;
 
-    std::vector<ref<Val>> const& underlying() const { return v; }
+    std::vector<handle<Val>> const& underlying() const { return v; }
 
   protected:
     VisitTable visit_table() const override {
@@ -91,20 +91,20 @@ namespace sel {
 
   struct FunChain : Fun {
   private:
-    std::vector<ref<Fun>> f;
+    std::vector<handle<Fun>> f;
 
   public:
-    FunChain(ref<Fun> at, std::vector<ref<Fun>> f)
+    FunChain(handle<Fun> at, std::vector<handle<Fun>> f)
       : Fun(at, Type::makeFun(
           Type(f[0]->type().from()),
           Type(f[f.size() ? f.size()-1 : 0]->type().to()) // YYY: size-1: a FunChain is never <1 from parsing
         ))
       , f(f)
     { }
-    ref<Val> operator()(ref<Val> arg) override;
-    ref<Val> copy() const override;
+    handle<Val> operator()(handle<Val> arg) override;
+    handle<Val> copy() const override;
 
-    std::vector<ref<Fun>> const& underlying() const { return f; }
+    std::vector<handle<Fun>> const& underlying() const { return f; }
 
   protected:
     VisitTable visit_table() const override {
@@ -117,9 +117,9 @@ namespace sel {
   protected:
     std::string const name;
     std::string const doc;
-    ref<U> v;
+    handle<U> v;
 
-    Def(ref<U> at, std::string const name, std::string const doc, ref<U> v, Args... args)
+    Def(handle<U> at, std::string const name, std::string const doc, handle<U> v, Args... args)
       : U(at, std::forward<Args>(args)...)
       , name(name)
       , doc(doc)
@@ -135,11 +135,11 @@ namespace sel {
 
   struct NumDefine : Def<Num> {
   public:
-    NumDefine(ref<Num> at, std::string const name, std::string const doc, ref<Num> v)
+    NumDefine(handle<Num> at, std::string const name, std::string const doc, handle<Num> v)
       : Def(at, name, doc, v)
     { }
     double value() override;
-    ref<Val> copy() const override;
+    handle<Val> copy() const override;
 
   protected:
     VisitTable visit_table() const override {
@@ -149,13 +149,13 @@ namespace sel {
 
   struct StrDefine : Def<Str, bool> {
   public:
-    StrDefine(ref<Str> at, std::string const name, std::string const doc, ref<Str> v)
+    StrDefine(handle<Str> at, std::string const name, std::string const doc, handle<Str> v)
       : Def(at, name, doc, v, v->type().is_inf())
     { }
     std::ostream& stream(std::ostream& out) override;
     bool end() override;
     std::ostream& entire(std::ostream& out) override;
-    ref<Val> copy() const override;
+    handle<Val> copy() const override;
 
   protected:
     VisitTable visit_table() const override {
@@ -165,13 +165,13 @@ namespace sel {
 
   struct LstDefine : Def<Lst, Type&&> {
   public:
-    LstDefine(ref<Lst> at, std::string const name, std::string const doc, ref<Lst> v)
+    LstDefine(handle<Lst> at, std::string const name, std::string const doc, handle<Lst> v)
       : Def(at, name, doc, v, Type(v->type()))
     { }
-    ref<Val> operator*() override;
+    handle<Val> operator*() override;
     Lst& operator++() override;
     bool end() override;
-    ref<Val> copy() const override;
+    handle<Val> copy() const override;
 
   protected:
     VisitTable visit_table() const override {
@@ -181,11 +181,11 @@ namespace sel {
 
   struct FunDefine : Def<Fun, Type&&> {
   public:
-    FunDefine(ref<Fun> at, std::string const name, std::string const doc, ref<Fun> v)
+    FunDefine(handle<Fun> at, std::string const name, std::string const doc, handle<Fun> v)
       : Def(at, name, doc, v, Type(v->type()))
     { }
-    ref<Val> operator()(ref<Val> arg) override;
-    ref<Val> copy() const override;
+    handle<Val> operator()(handle<Val> arg) override;
+    handle<Val> copy() const override;
 
   protected:
     VisitTable visit_table() const override {
@@ -205,14 +205,14 @@ namespace sel {
     bool first;
 
   public:
-    // only to be used in an `Input`'s clone (not private for now so i can use `ref<Input>`)
-    Input(ref<Str> at, Input const& other)
+    // only to be used in an `Input`'s clone (not private for now so i can use `handle<Input>`)
+    Input(handle<Str> at, Input const& other)
       : Str(at, TyFlag::IS_INF)
       , buffer(other.buffer)
       , first(false)
     { }
 
-    Input(ref<Str> at, std::istream& in)
+    Input(handle<Str> at, std::istream& in)
       : Str(at, TyFlag::IS_INF)
       , buffer(new InputBuffer(in))
       , first(true)
@@ -222,7 +222,7 @@ namespace sel {
     std::ostream& stream(std::ostream& out) override;
     bool end() override;
     std::ostream& entire(std::ostream& out) override;
-    ref<Val> copy() const override;
+    handle<Val> copy() const override;
 
     protected:
     VisitTable visit_table() const override {
@@ -232,7 +232,7 @@ namespace sel {
 
   /// parses `in`, using `app` as the registery for values;
   /// not meant to be used outside of the application TU
-  ref<Val> parseApplication(App& app, std::istream& in);
+  handle<Val> parseApplication(App& app, std::istream& in);
 
 } // namespace sel
 

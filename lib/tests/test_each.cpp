@@ -8,27 +8,27 @@ TEST(each) { cout << "test disable as BIN_MIN is defined\n"; return 0; }
 
 App app;
 
-template <typename T> inline sel::ref<Val> asval(T x) { return x; }
+template <typename T> inline handle<Val> asval(T x) { return x; }
 
-template <> inline sel::ref<Val> asval(int x) { return sel::ref<NumLiteral>(app, x); }
-template <> inline sel::ref<Val> asval(float x) { return sel::ref<NumLiteral>(app, x); }
-template <> inline sel::ref<Val> asval(double x) { return sel::ref<NumLiteral>(app, x); }
+template <> inline handle<Val> asval(int x) { return handle<NumLiteral>(app, x); }
+template <> inline handle<Val> asval(float x) { return handle<NumLiteral>(app, x); }
+template <> inline handle<Val> asval(double x) { return handle<NumLiteral>(app, x); }
 
-template <> inline sel::ref<Val> asval(char x) { return sel::ref<StrLiteral>(app, string(1, x)); }
-template <> inline sel::ref<Val> asval(char const* x) { return sel::ref<StrLiteral>(app, x); }
-template <> inline sel::ref<Val> asval(string x) { return sel::ref<StrLiteral>(app, x); }
+template <> inline handle<Val> asval(char x) { return handle<StrLiteral>(app, string(1, x)); }
+template <> inline handle<Val> asval(char const* x) { return handle<StrLiteral>(app, x); }
+template <> inline handle<Val> asval(string x) { return handle<StrLiteral>(app, x); }
 
-template <typename T> inline sel::ref<Val> _lst_asval(initializer_list<T> x, Type const& ty) {
+template <typename T> inline handle<Val> _lst_asval(initializer_list<T> x, Type const& ty) {
   Vals r;
   for (auto const& it : x)
     r.push_back(asval(it));
-  return sel::ref<LstLiteral>(app, r, Types{Type(ty)});
+  return handle<LstLiteral>(app, r, Types{Type(ty)});
 }
-template <> inline sel::ref<Val> asval(initializer_list<int> x) { return _lst_asval(x, Type::makeNum()); }
-template <> inline sel::ref<Val> asval(initializer_list<float> x) { return _lst_asval(x, Type::makeNum()); }
-template <> inline sel::ref<Val> asval(initializer_list<char> x) { return _lst_asval(x, Type::makeStr(false)); }
-template <> inline sel::ref<Val> asval(initializer_list<char const*> x) { return _lst_asval(x, Type::makeStr(false)); }
-template <> inline sel::ref<Val> asval(initializer_list<string> x) { return _lst_asval(x, Type::makeStr(false)); }
+template <> inline handle<Val> asval(initializer_list<int> x) { return _lst_asval(x, Type::makeNum()); }
+template <> inline handle<Val> asval(initializer_list<float> x) { return _lst_asval(x, Type::makeNum()); }
+template <> inline handle<Val> asval(initializer_list<char> x) { return _lst_asval(x, Type::makeStr(false)); }
+template <> inline handle<Val> asval(initializer_list<char const*> x) { return _lst_asval(x, Type::makeStr(false)); }
+template <> inline handle<Val> asval(initializer_list<string> x) { return _lst_asval(x, Type::makeStr(false)); }
 
 template <typename T>
 using ili = initializer_list<T>;
@@ -38,21 +38,21 @@ template <typename ...L> struct uncurry;
 
 template <typename H, typename ...T>
 struct uncurry<H, T...> {
-  static inline sel::ref<Val> function(sel::ref<Fun> f, H h, T... t) {
+  static inline handle<Val> function(handle<Fun> f, H h, T... t) {
     return uncurry<T...>::function((*f)(asval(h)), t...);
   }
 };
 
 template <>
 struct uncurry<> {
-  static inline sel::ref<Val> function(sel::ref<Val> v) {
+  static inline handle<Val> function(handle<Val> v) {
     return v;
   }
 };
 
 template <typename F, typename ...Args>
-static inline sel::ref<Val> call(Args... args) {
-  return uncurry<Args...>::function(sel::ref<typename F::Head>(app), args...);
+static inline handle<Val> call(Args... args) {
+  return uncurry<Args...>::function(handle<typename F::Head>(app), args...);
 }
 
 
@@ -100,24 +100,24 @@ TEST(each) { return call_test<bins_ll::bins>::function(); }
 #define __rem_par(...) __VA_ARGS__
 
 #define assert_num(__should, __have) do {    \
-  sel::ref<Val> _habe = (__have);            \
+  handle<Val> _habe = (__have);              \
   assert_eq(Ty::NUM, _habe->type().base());  \
-  Num& _fart = *((sel::ref<Num>)_habe);      \
+  Num& _fart = *((handle<Num>)_habe);        \
   assert_eq(__should, _fart.value());        \
 } while (0)
 
 #define assert_str(__should, __have) do {                \
-  sel::ref<Val> _habe = (__have);                        \
+  handle<Val> _habe = (__have);                          \
   assert_eq(Ty::STR, _habe->type().base());              \
-  Str& _fart = *((sel::ref<Str>)_habe);                  \
+  Str& _fart = *((handle<Str>)_habe);                    \
   ostringstream oss;                                     \
   assert_cmp(__should, (_fart.entire(oss), oss.str()));  \
 } while (0)
 
 #define assert_lstnum(__should, __have) do {                                    \
-  sel::ref<Val> _habe = (__have);                                               \
+  handle<Val> _habe = (__have);                                                 \
   assert_eq(Ty::LST, _habe->type().base());                                     \
-  Lst& _fart = *((sel::ref<Lst>)_habe);                                         \
+  Lst& _fart = *((handle<Lst>)_habe);                                           \
   for (auto const& _it : __rem_par __should) {                                  \
     assert(!_fart.end(), #__have ":\n   should not have reached the end yet");  \
     assert_num(_it, *_fart);                                                    \
@@ -127,9 +127,9 @@ TEST(each) { return call_test<bins_ll::bins>::function(); }
 } while(0)
 
 #define assert_lststr(__should, __have) do {                                    \
-  sel::ref<Val> _habe = (__have);                                               \
+  handle<Val> _habe = (__have);                                                 \
   assert_eq(Ty::LST, _habe->type().base());                                     \
-  Lst& _fart = *((sel::ref<Lst>)_habe);                                         \
+  Lst& _fart = *((handle<Lst>)_habe);                                           \
   for (auto const& _it : __rem_par __should) {                                  \
     assert(!_fart.end(), #__have ":\n   should not have reached the end yet");  \
     assert_str(_it, *_fart);                                                    \
@@ -139,14 +139,14 @@ TEST(each) { return call_test<bins_ll::bins>::function(); }
 } while(0)
 
 #define assert_empty(__have) do {                             \
-  sel::ref<Val> _habe = (__have);                             \
-  Lst& _fart = *((sel::ref<Lst>)_habe);                       \
+  handle<Val> _habe = (__have);                               \
+  Lst& _fart = *((handle<Lst>)_habe);                         \
   assert(_fart.end(), "should have reached the end by now");  \
 } while(0)
 
 #define assert_lsterr(__throws) do {                 \
   try {                                              \
-    ((sel::ref<Lst>)__throws)->end();                \
+    ((handle<Lst>)__throws)->end();                  \
   } catch (RuntimeError const&) {                    \
     break;                                           \
   }                                                  \

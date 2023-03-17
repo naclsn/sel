@@ -44,14 +44,14 @@ namespace sel {
 
   Type const& App::type() const { return f->type(); }
 
-  ref<Val> App::lookup_name_user(std::string const& name) {
+  App::handle<Val> App::lookup_name_user(std::string const& name) {
     try {
       return user.at(name)->copy();
     } catch (.../*std::out_of_range const&*/) {
-      return ref<Val>(*this, nullptr);
+      return handle<Val>(*this, nullptr);
     }
   }
-  void App::define_name_user(std::string const& name, ref<Val> v) {
+  void App::define_name_user(std::string const& name, handle<Val> v) {
     user.insert({name, v});
   }
 
@@ -64,8 +64,8 @@ namespace sel {
     }
 
     TRACE("run, before stuff");
-    ref<Val> valin = coerse<Val>(*this, ref<Input>(*this, in), ty.from());
-    ref<Val> valout = (*(ref<Fun>)f)(valin);
+    handle<Val> valin = coerse<Val>(*this, handle<Input>(*this, in), ty.from());
+    handle<Val> valout = (*(handle<Fun>)f)(valin);
     TRACE("run, after stuff");
 
     Str& res = *coerse<Str>(*this, valout, Type::makeStr(true));
@@ -117,28 +117,28 @@ namespace sel {
       std::string doc;
       Val const* u;
 
-      ref<Val> const val = it.second;
+      App::handle<Val> const val = it.second;
       switch (val->type().base()) {
         case Ty::NUM: {
-            NumDefine const& def = *(ref<NumDefine>)val;
+            NumDefine const& def = *(App::handle<NumDefine>)val;
             name = def.getname();
             doc = def.getdoc();
             u = &def.underlying();
           } break;
         case Ty::STR: {
-            StrDefine const& def = *(ref<StrDefine>)val;
+            StrDefine const& def = *(App::handle<StrDefine>)val;
             name = def.getname();
             doc = def.getdoc();
             u = &def.underlying();
           } break;
         case Ty::LST: {
-            LstDefine const& def = *(ref<LstDefine>)val;
+            LstDefine const& def = *(App::handle<LstDefine>)val;
             name = def.getname();
             doc = def.getdoc();
             u = &def.underlying();
           } break;
         case Ty::FUN: {
-            FunDefine const& def = *(ref<FunDefine>)val;
+            FunDefine const& def = *(App::handle<FunDefine>)val;
             name = def.getname();
             doc = def.getdoc();
             u = &def.underlying();
@@ -160,10 +160,10 @@ namespace sel {
   }
 
   std::istream& operator>>(std::istream& in, App& app) {
-    ref<Val> tmp = parseApplication(app, in);
+    App::handle<Val> tmp = parseApplication(app, in);
     app.f = app.not_fun
       ? tmp
-      : (ref<Val>)coerse<Fun>(app, tmp, tmp->type());
+      : (App::handle<Val>)coerse<Fun>(app, tmp, tmp->type());
     return in;
   }
 

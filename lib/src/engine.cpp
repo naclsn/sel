@@ -10,16 +10,16 @@
 
 namespace sel {
 
-  Val::Val(ref<Val> at, Type&& ty)
+  Val::Val(handle<Val> at, Type&& ty)
     : h(at)
     , ty(std::forward<Type>(ty))
   { h.hold(this); }
 
   template <typename To>
-  ref<To> coerse(App& app, ref<Val> from, Type const& to);
+  handle<To> coerse(App& app, handle<Val> from, Type const& to);
 
   // Str => Num: same as `tonum`
-  template <> ref<Num> coerse<Num>(App& app, ref<Val> from, Type const& to) {
+  template <> handle<Num> coerse<Num>(App& app, handle<Val> from, Type const& to) {
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
     if (Ty::NUM == ty.base()) return from;
@@ -32,7 +32,7 @@ namespace sel {
 
   // Num => Str: same as `tostr`
   // [a] => Str: same as `join::` (still not sure I like it, but it is very helpful)
-  template <> ref<Str> coerse<Str>(App& app, ref<Val> from, Type const& to) {
+  template <> handle<Str> coerse<Str>(App& app, handle<Val> from, Type const& to) {
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
     if (Ty::STR == ty.base()) return from;
@@ -40,7 +40,7 @@ namespace sel {
     if (Ty::NUM == ty.base())
       return (*static_lookup_name(app, tostr))(from);
     if (Ty::LST == ty.base())
-      return (*(ref<Fun>)(*static_lookup_name(app, join))(ref<StrChunks>(app, "")))(from);
+      return (*(handle<Fun>)(*static_lookup_name(app, join))(handle<StrChunks>(app, "")))(from);
 
     throw TypeError(ty, to);
   }
@@ -51,7 +51,7 @@ namespace sel {
   // (a..) => (b..)
   // (a..) => [b..]
   // [a..] => (b..)
-  template <> ref<Lst> coerse<Lst>(App& app, ref<Val> from, Type const& to) {
+  template <> handle<Lst> coerse<Lst>(App& app, handle<Val> from, Type const& to) {
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
 
@@ -75,7 +75,7 @@ namespace sel {
       //   throw TypeError((oss << "content arity of " << ty << " does not match with " << to, oss.str()));
       // }
 
-      return ref<LstMapCoerse>(app, from, to_has);
+      return handle<LstMapCoerse>(app, from, to_has);
     }
 
     if (Ty::STR == ty.base() && 1 == to_size) {
@@ -90,7 +90,7 @@ namespace sel {
 
   // special case for type checking, (effectively a cast)
   // where `to` should be `tyor idk
-  template <> ref<Fun> coerse<Fun>(App& app, ref<Val> from, Type const& to) {
+  template <> handle<Fun> coerse<Fun>(App& app, handle<Val> from, Type const& to) {
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
     if (Ty::FUN == to.base()) {
@@ -108,7 +108,7 @@ namespace sel {
 
   // dispatches to the correct one dynamically
   // coersing to unk is used in builtins (eg. `const` or `id`)
-  template <> ref<Val> coerse<Val>(App& app, ref<Val> from, Type const& to) {
+  template <> handle<Val> coerse<Val>(App& app, handle<Val> from, Type const& to) {
     Type const& ty = from->type();
     if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
     switch (to.base()) {

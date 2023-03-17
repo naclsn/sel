@@ -18,12 +18,12 @@ namespace sel {
     double n;
 
   public:
-    NumResult(ref<Num> at, double n)
+    NumResult(handle<Num> at, double n)
       : Num(at)
       , n(n)
     { }
     double value() override { return n; }
-    ref<Val> copy() const override { return ref<NumResult>(h.app(), n); }
+    handle<Val> copy() const override { return handle<NumResult>(h.app(), n); }
 
     double result() const { return n; }
 
@@ -40,12 +40,12 @@ namespace sel {
     ch_t::size_type at;
 
   public:
-    StrChunks(ref<Str> at, std::vector<std::string> chunks)
+    StrChunks(handle<Str> at, std::vector<std::string> chunks)
       : Str(at, TyFlag::IS_FIN)
       , chs(chunks)
       , at(0)
     { }
-    StrChunks(ref<Str> at, std::string single)
+    StrChunks(handle<Str> at, std::string single)
       : StrChunks(at, std::vector<std::string>({single}))
     { }
     std::ostream& stream(std::ostream& out) override {
@@ -59,7 +59,7 @@ namespace sel {
         out << it;
       return out;
     }
-    ref<Val> copy() const override { return ref<StrChunks>(h.app(), chs); }
+    handle<Val> copy() const override { return handle<StrChunks>(h.app(), chs); }
 
     std::vector<std::string> const& chunks() const { return chs; }
 
@@ -72,13 +72,13 @@ namespace sel {
   /**
    * Seach for a value by name, return nullptr if not found.
    */
-  ref<Val> lookup_name(App& app, std::string const& name);
+  handle<Val> lookup_name(App& app, std::string const& name);
 
   /**
    * Same as `lookup_name`, but at compile time. Argument
    * must be an identifier token.
    */
-#define static_lookup_name(__appref, __name) (ref<sel::bins::__name##_::Head>(__appref))
+#define static_lookup_name(__appref, __name) (sel::App::handle<sel::bins::__name##_::Head>(__appref))
 
   /**
    * namespace with types used to help constructing builtins
@@ -110,7 +110,7 @@ namespace sel {
       inline static Type make(char const* fname) {
         return Type::makeNum();
       }
-      num(ref<num> at, Type&&): Num(at) { }
+      num(handle<num> at, Type&&): Num(at) { }
     };
 
     template <bool is_inf>
@@ -119,7 +119,7 @@ namespace sel {
       inline static Type make(char const* fname) {
         return Type::makeStr(is_inf);
       }
-      _str(ref<_str> at, Type&& ty): Str(at, ty.is_inf()) { }
+      _str(handle<_str> at, Type&& ty): Str(at, ty.is_inf()) { }
     };
     typedef _str<false> str;
     typedef _str<true> istr;
@@ -130,7 +130,7 @@ namespace sel {
       inline static Type make(char const* fname) {
         return Type::makeLst({has::make(fname)...}, is_inf, is_tpl);
       }
-      _lst(ref<_lst> at, Type&& ty): Lst(at, std::forward<Type>(ty)) { }
+      _lst(handle<_lst> at, Type&& ty): Lst(at, std::forward<Type>(ty)) { }
     };
     template <typename ...has> using lst = _lst<false, false, has...>;
     template <typename ...has> using ilst = _lst<true, false, has...>;
@@ -142,7 +142,7 @@ namespace sel {
       inline static Type make(char const* fname) {
         return Type::makeFun(std::move(from::make(fname)), std::move(to::make(fname)));
       }
-      fun(ref<fun> at, Type&& ty): Fun(at, std::forward<Type>(ty)) { }
+      fun(handle<fun> at, Type&& ty): Fun(at, std::forward<Type>(ty)) { }
     };
 
     /**
@@ -174,7 +174,7 @@ namespace sel {
     template <typename PackItself> struct make_arg_tuple;
     template <typename ...Pack>
     struct make_arg_tuple<pack<Pack...>> {
-      typedef std::tuple<ref<Pack>...> type;
+      typedef std::tuple<handle<Pack>...> type;
     };
     template <typename PackItself> using arg_tuple = typename make_arg_tuple<PackItself>::type;
 
@@ -195,7 +195,7 @@ namespace sel {
 
     // make a vector off the arg tuple
     template <unsigned ...S, typename tuple>
-    static inline std::vector<ref<Val>> args_vector(seq<S...>, tuple t) {
+    static inline std::vector<handle<Val>> args_vector(seq<S...>, tuple t) {
       return {std::get<S>(t)...};
     }
 
@@ -221,17 +221,17 @@ namespace sel {
       constexpr static unsigned paramsN = count<Params>::value;
       constexpr static unsigned argsN = count<Args>::value;
 
-      _make_bin_common(ref<Val> at, Type&& ty, arg_tuple<Args> t)
+      _make_bin_common(handle<Val> at, Type&& ty, arg_tuple<Args> t)
         : ty_from_pack<fParams>(at, std::forward<Type>(ty))
         , _args(t)
       { }
 
-      ref<Val> copy() const override {
-        return ref<instanciable>(this->h.app(), Type(this->ty), copy_arg_tuple(arg_unpack<argsN>(), _args));
+      handle<Val> copy() const override {
+        return handle<instanciable>(this->h.app(), Type(this->ty), copy_arg_tuple(arg_unpack<argsN>(), _args));
       }
 
       arg_tuple<Args> const& args() const { return _args; }
-      std::vector<ref<Val>> const args_v() const { return args_vector(arg_unpack<argsN>(), _args); }
+      std::vector<handle<Val>> const args_v() const { return args_vector(arg_unpack<argsN>(), _args); }
 
     protected:
       VisitTable visit_table() const override {
@@ -242,8 +242,8 @@ namespace sel {
 
       // used in Head/Body
       template <typename Next, typename param_h>
-      ref<Val> _call_operator_template(ref<Val> arg) {
-        ref<Val> ok = coerse<param_h>(this->h.app(), arg, this->ty.from());
+      handle<Val> _call_operator_template(handle<Val> arg) {
+        handle<Val> ok = coerse<param_h>(this->h.app(), arg, this->ty.from());
         auto copy = this->h;
         Next::make_at(this->h, this->ty, _args, ok);
         return copy; // this->h would be accessing into deleted object
@@ -265,12 +265,12 @@ namespace sel {
       typedef make_bin<impl_, typename super::Pack, pack<>> Head;
 
       // Body/Tail offset ctor
-      static inline void make_at(ref<Val> at, Type const& base_type, arg_tuple<typename Base::Args> base_args, ref<Val> arg) {
+      static inline void make_at(handle<Val> at, Type const& base_type, arg_tuple<typename Base::Args> base_args, handle<Val> arg) {
         new make_bin(at, done_applied(base_type, arg->type()), std::tuple_cat(base_args, std::make_tuple(arg)));
       }
 
       // Head/Body overrides
-      ref<Val> operator()(ref<Val> arg) override {
+      handle<Val> operator()(handle<Val> arg) override {
         return super::template _call_operator_template<Next, typename _pht::head::base_type>(arg);
       }
     };
@@ -289,10 +289,10 @@ namespace sel {
       typedef make_bin Head;
 
       // Head-only constructor
-      make_bin(ref<Val> at): super(at, super::make(impl_::name), std::tuple<>()) { }
+      make_bin(handle<Val> at): super(at, super::make(impl_::name), std::tuple<>()) { }
 
       // Head/Body overrides
-      ref<Val> operator()(ref<Val> arg) override {
+      handle<Val> operator()(handle<Val> arg) override {
         return super::template _call_operator_template<Next, typename _pht::head::base_type>(arg);
       }
     };
@@ -311,7 +311,7 @@ namespace sel {
       typedef make_bin<impl_, typename super::Pack, pack<>> Head;
 
       // Body/Tail offset ctor
-      static inline void make_at(ref<Val> at, Type const& base_type, arg_tuple<typename Base::Args> base_args, ref<Val> arg) {
+      static inline void make_at(handle<Val> at, Type const& base_type, arg_tuple<typename Base::Args> base_args, handle<Val> arg) {
         new impl_(at, done_applied(base_type, arg->type()), std::tuple_cat(base_args, std::make_tuple(arg)));
       }
     };
@@ -329,7 +329,7 @@ namespace sel {
       typedef impl_ Head;
 
       // Head-only constructor
-      make_bin(ref<Val> at): super(at, super::make(impl_::name), std::tuple<>()) { }
+      make_bin(handle<Val> at): super(at, super::make(impl_::name), std::tuple<>()) { }
     };
 
     template <typename impl_, typename PackItself>
@@ -353,11 +353,11 @@ namespace sel {
       bool end() override; \
       std::ostream& entire(std::ostream& out) override;
 #define _BIN_lst \
-      ref<Val> operator*() override; \
+      handle<Val> operator*() override; \
       Lst& operator++() override; \
       bool end() override;
 #define _BIN_unk \
-      ref<Val> operator()(ref<Val>) override;
+      handle<Val> operator()(handle<Val>) override;
 
 // used to remove the parenthesis from `__decl` and `__body`
 #define __rem_par(...) __VA_ARGS__
@@ -471,7 +471,7 @@ namespace sel {
 
     BIN_lst(filter, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
       "return the list of elements which satisfy the predicate", (
-      ref<Val> curr = ref<Val>(h.app(), nullptr);
+      handle<Val> curr = handle<Val>(h.app(), nullptr);
     ));
 
     BIN_unk(flip, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>),
@@ -482,7 +482,7 @@ namespace sel {
       bool did_once = false;
       size_t at = 0;
       size_t at_when_end = 0;
-      std::vector<ref<Val>> circ;
+      std::vector<handle<Val>> circ;
       void once();
     ));
 
@@ -512,17 +512,17 @@ namespace sel {
     BIN_unk(index, (ilst<unk<'a'>>, num, unk<'a'>),
       "select the value at the given index in the list (despite being called index it is an offset, ie. 0-based)", (
       bool did = false;
-      ref<Val> found = ref<Val>(h.app(), nullptr);
+      handle<Val> found = handle<Val>(h.app(), nullptr);
     ));
 
     BIN_lst(init, (lst<unk<'a'>>, lst<unk<'a'>>),
       "extract the elements before the last one of a list, which must not be empty", (
-      ref<Val> prev = ref<Val>(h.app(), nullptr);
+      handle<Val> prev = handle<Val>(h.app(), nullptr);
     ));
 
     BIN_lst(iterate, (fun<unk<'a'>, unk<'a'>>, unk<'a'>, ilst<unk<'a'>>),
       "return an infinite list of repeated applications of the function to the input", (
-      ref<Val> curr = ref<Val>(h.app(), nullptr);
+      handle<Val> curr = handle<Val>(h.app(), nullptr);
     ));
 
     BIN_str(join, (str, ilst<istr>, istr),
@@ -569,7 +569,7 @@ namespace sel {
 
     BIN_lst(reverse, (lst<unk<'a'>>, lst<unk<'a'>>),
       "reverse the order of the elements in the list", (
-      std::vector<ref<Val>> cache;
+      std::vector<handle<Val>> cache;
       bool did_once = false;
       size_t curr;
       void once();
@@ -665,7 +665,7 @@ namespace sel {
 
     BIN_lst(zipwith, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, ilst<unk<'a'>>, ilst<unk<'b'>>, ilst<unk<'c'>>),
       "make a new list by applying an binary operation to each corresponding value from each lists; stops when either list ends", (
-      ref<Val> curr = ref<Val>(h.app(), nullptr);
+      handle<Val> curr = handle<Val>(h.app(), nullptr);
     ));
 
   } // namespace bins
@@ -830,7 +830,7 @@ namespace sel {
 
 
   struct bins_list {
-    static std::unordered_map<std::string, ref<Val> (*)(App&)> const map;
+    static std::unordered_map<std::string, handle<Val> (*)(App&)> const map;
     static char const* const* const names;
     static size_t const count;
   };

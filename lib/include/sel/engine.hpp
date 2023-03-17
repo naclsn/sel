@@ -50,19 +50,19 @@ namespace sel {
    */
   struct Val {
   protected:
-    ref<Val> h; // handle over itself
+    handle<Val> h; // handle over itself
     Type const ty;
 
     // used by janky visitor pattern, essentially manual v-table; use `make_visit_table`
     virtual VisitTable visit_table() const = 0;
 
   public:
-    Val(ref<Val> at, Type&& ty);
+    Val(handle<Val> at, Type&& ty);
     virtual ~Val() { }
 
-    ref<Val> operator&() { return h; }
+    handle<Val> operator&() { return h; }
     Type const& type() const { return ty; }
-    virtual ref<Val> copy() const = 0;
+    virtual handle<Val> copy() const = 0;
 
     // delete itself, construct a value of type U in its slot
     template <typename U, typename ...Args>
@@ -85,10 +85,10 @@ namespace sel {
    * it for `coerse(Val val, Type to)`.
    */
   template <typename To>
-  ref<To> coerse(App& app, ref<Val> from, Type const& to);
+  handle<To> coerse(App& app, handle<Val> from, Type const& to);
   // forward (needed in LstMapCoerse)
   template <>
-  ref<Val> coerse<Val>(App& app, ref<Val> from, Type const& to);
+  handle<Val> coerse<Val>(App& app, handle<Val> from, Type const& to);
 
   /**
    * Abstract class for `Num`-type compatible values.
@@ -96,7 +96,7 @@ namespace sel {
    * (double for now).
    */
   struct Num : Val {
-    Num(ref<Num> at)
+    Num(handle<Num> at)
       : Val(at, Type::makeNum())
     { }
     virtual double value() = 0;
@@ -107,7 +107,7 @@ namespace sel {
    * Strings are "rewindable streams".
    */
   struct Str : Val { //, public std::istream
-    Str(ref<Str> at, bool is_inf)
+    Str(handle<Str> at, bool is_inf)
       : Val(at, Type::makeStr(is_inf))
     { }
     friend std::ostream& operator<<(std::ostream& out, Str& val) { return val.stream(out); }
@@ -132,13 +132,13 @@ namespace sel {
    * `next` and `rewind`.)
    */
   struct Lst : Val { //, public std::iterator<std::input_iterator_tag, Val>
-    Lst(ref<Lst> at, Type&& type)
+    Lst(handle<Lst> at, Type&& type)
       : Val(at, std::forward<Type>(type))
     { }
     /**
      * Get (compute, etc..) the current value.
      */
-    virtual ref<Val> operator*() = 0;
+    virtual handle<Val> operator*() = 0;
     /**
      * Move to (compute, etc..) the next value.
      */
@@ -162,28 +162,28 @@ namespace sel {
    * a new value.
    */
   struct Fun : Val {
-    Fun(ref<Fun> at, Type&& type)
+    Fun(handle<Fun> at, Type&& type)
       : Val(at, std::forward<Type>(type))
     { }
-    virtual ref<Val> operator()(ref<Val> arg) = 0;
+    virtual handle<Val> operator()(handle<Val> arg) = 0;
   };
 
 
   struct LstMapCoerse : Lst {
   private:
-    ref<Lst> v;
+    handle<Lst> v;
     size_t now_has;
     size_t has_size;
 
   public:
-    LstMapCoerse(ref<Lst> at, ref<Lst> v, std::vector<Type> const& to_has)
+    LstMapCoerse(handle<Lst> at, handle<Lst> v, std::vector<Type> const& to_has)
       : Lst(at, Type::makeLst(std::vector<Type>(to_has), v->type().is_inf(), v->type().is_tpl()))
       , v(v)
       , now_has(0)
       , has_size(ty.has().size())
     { }
 
-    ref<Val> operator*() override {
+    handle<Val> operator*() override {
       return coerse<Val>(h.app(), *(*v), ty.has()[now_has]);
     }
     Lst& operator++() override {
@@ -194,8 +194,8 @@ namespace sel {
     }
     bool end() override { return v->end(); }
 
-    ref<Val> copy() const override {
-      return ref<LstMapCoerse>(h.app(), v->copy(), ty.has());
+    handle<Val> copy() const override {
+      return handle<LstMapCoerse>(h.app(), v->copy(), ty.has());
     }
 
     Lst const& source() const { return *v; }
@@ -209,12 +209,12 @@ namespace sel {
 
   // @thx: http://gabisoft.free.fr/articles/fltrsbf1.html (2 pages, this page 1)
   class Str_streambuf : public std::streambuf {
-    ref<Str> v;
+    handle<Str> v;
     std::string buffered;
 
   public:
     Str_streambuf(): v(*new App, nullptr) { } // XXX: F#*K
-    Str_streambuf(ref<Str> v): v(v) { }
+    Str_streambuf(handle<Str> v): v(v) { }
 
     Str_streambuf& operator=(Str_streambuf const&) = delete;
     Str_streambuf& operator=(Str_streambuf&& sis);
@@ -229,7 +229,7 @@ namespace sel {
   public:
     Str_istream() { } // whever
     Str_istream(std::istream&) = delete;
-    Str_istream(ref<Str> v): a(v) { init(&a); }
+    Str_istream(handle<Str> v): a(v) { init(&a); }
 
     Str_istream& operator=(Str_istream const&) = delete;
     Str_istream& operator=(Str_istream&& sis);

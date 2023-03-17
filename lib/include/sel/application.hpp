@@ -135,7 +135,7 @@ namespace sel {
   };
 
   template <typename U>
-  using ref = App::handle<U>;
+  using handle = App::handle<U>;
 
 } // namespace sel
 

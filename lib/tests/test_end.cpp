@@ -25,7 +25,7 @@ long unsigned count<Str>(Str& s) {
 }
 
 template <typename T>
-int dotestone(char const* txt, sel::ref<T> it, size_t n) {
+int dotestone(char const* txt, handle<T> it, size_t n) {
   cout << txt << ", size: " << n << endl;
   assert_eq(n, count(*it));
   return 0;
@@ -35,17 +35,17 @@ template <typename T> int dotest012(char const*);
 template <>
 int dotest012<LstLiteral>(char const* txt) {
   return
-  dotestone(txt, (sel::ref<Lst>)sel::ref<LstLiteral>(app, Vals{}), 0)+
-  dotestone(txt, (sel::ref<Lst>)sel::ref<LstLiteral>(app, Vals{sel::ref<NumLiteral>(app, 0)}), 1)+
-  dotestone(txt, (sel::ref<Lst>)sel::ref<LstLiteral>(app, Vals{sel::ref<NumLiteral>(app, 1), sel::ref<NumLiteral>(app, 2)}), 2)+
+  dotestone(txt, (handle<Lst>)handle<LstLiteral>(app, Vals{}), 0)+
+  dotestone(txt, (handle<Lst>)handle<LstLiteral>(app, Vals{handle<NumLiteral>(app, 0)}), 1)+
+  dotestone(txt, (handle<Lst>)handle<LstLiteral>(app, Vals{handle<NumLiteral>(app, 1), handle<NumLiteral>(app, 2)}), 2)+
   0;
 }
 template <>
 int dotest012<StrChunks>(char const* txt) {
   return
-  dotestone(txt, (sel::ref<Str>)sel::ref<StrChunks>(app, vector<string>{}), 0)+
-  dotestone(txt, (sel::ref<Str>)sel::ref<StrChunks>(app, vector<string>{"zero"}), 1)+
-  dotestone(txt, (sel::ref<Str>)sel::ref<StrChunks>(app, vector<string>{"one", "two"}), 2)+
+  dotestone(txt, (handle<Str>)handle<StrChunks>(app, vector<string>{}), 0)+
+  dotestone(txt, (handle<Str>)handle<StrChunks>(app, vector<string>{"zero"}), 1)+
+  dotestone(txt, (handle<Str>)handle<StrChunks>(app, vector<string>{"one", "two"}), 2)+
   0;
 }
 
