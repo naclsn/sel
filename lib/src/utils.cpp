@@ -1,7 +1,7 @@
 #include "sel/utils.hpp"
 #include "sel/visitors.hpp"
 
-namespace sel {
+namespace sel { namespace utils {
 
   std::ostream& operator<<(std::ostream& out, raw ptr) {
     ssize_t at = (ssize_t)ptr.ptr;
@@ -68,4 +68,4 @@ namespace sel {
     return out;
   }
 
-}
+} } // sel::utils

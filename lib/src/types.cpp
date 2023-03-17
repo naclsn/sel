@@ -119,7 +119,7 @@ namespace sel {
     switch (_base) {
       case Ty::UNK:
         out << "UNK";
-        out << "\n" << indent << "name= " << quoted(name());
+        out << "\n" << indent << "name= " << utils::quoted(name());
         break;
 
       case Ty::NUM:

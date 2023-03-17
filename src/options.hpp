@@ -103,7 +103,7 @@ struct Options {
 
         } else {
           ostringstream oss("unknown long argument: ", ios::ate);
-          oss << quoted(argpp);
+          oss << utils::quoted(argpp);
           usage(oss.str().c_str());
           return;
         } // switch argpp

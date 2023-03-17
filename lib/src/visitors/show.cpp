@@ -8,7 +8,7 @@ namespace sel {
     }
 
     VisShow::Ret VisShow::visit(StrLiteral const& it) {
-      return res << ":" << quoted(it.underlying(), true, false) << ":";
+      return res << ":" << utils::quoted(it.underlying(), true, false) << ":";
     }
 
     VisShow::Ret VisShow::visit(LstLiteral const& it) {
@@ -53,7 +53,7 @@ namespace sel {
     VisShow::Ret VisShow::visit(StrChunks const& it) {
       std::ostringstream oss;
       for (auto const& s : it.chunks())
-        oss << quoted(s, true, false);
+        oss << utils::quoted(s, true, false);
       return res << ":" << oss.str() << ":";
     }
 

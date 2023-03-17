@@ -37,7 +37,7 @@ namespace sel {
           break;
 
         case ReprField::STR:
-          res << " " << quoted(*it.str);
+          res << " " << utils::quoted(*it.str);
           break;
 
         case ReprField::VAL:

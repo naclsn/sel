@@ -68,7 +68,7 @@ int lookup(char const* const names[]) {
     if (!not_found.empty()) {
       cerr << "Unknown name" << (1 == not_found.size() ? "" : "s") << ":";
       for (auto const& it : not_found)
-        cerr << " " << quoted(it);
+        cerr << " " << utils::quoted(it);
       cerr << "\n";
       return EXIT_FAILURE;
     }

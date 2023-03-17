@@ -74,7 +74,7 @@ int buildfile(App& app, char const* filename) {
       build(app, srcs);
 
     } else {
-      cerr << "Could not read file: " << quoted(filename) << "\n";
+      cerr << "Could not read file: " << utils::quoted(filename) << "\n";
       return EXIT_FAILURE;
     }
 
@@ -97,7 +97,7 @@ int buildfile(App& app, char const* filename) {
     build(app, srcs);
 
   } else {
-    cerr << "Could not open file: " << quoted(filename) << "\n";
+    cerr << "Could not open file: " << utils::quoted(filename) << "\n";
     return EXIT_FAILURE;
   }
 
