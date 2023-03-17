@@ -5,11 +5,11 @@
 #include "termutils.hpp"
 #include "wordwrap.hpp"
 
-void lookup(char const* const names[]) {
+int lookup(char const* const names[]) {
   if (!names || !*names) {
     for (size_t k = 0; k < bins_list::count; k++)
       cout << bins_list::names[k] << '\n';
-    exit(EXIT_SUCCESS);
+    return EXIT_SUCCESS;
   }
 
   unsigned w, h;
@@ -47,7 +47,7 @@ void lookup(char const* const names[]) {
 
     if (!found) {
       cerr << "None known with type: " << ty << "\n";
-      exit(EXIT_FAILURE);
+      return EXIT_FAILURE;
     }
   } // if "::"
 
@@ -70,14 +70,14 @@ void lookup(char const* const names[]) {
       for (auto const& it : not_found)
         cerr << " " << quoted(it);
       cerr << "\n";
-      exit(EXIT_FAILURE);
+      return EXIT_FAILURE;
     }
   } // if not "::"
 
-  exit(EXIT_SUCCESS);
+  return EXIT_SUCCESS;
 }
 
-void run(App& app) {
+int run(App& app) {
   try { app.run(cin, cout); }
 
   catch (RuntimeError const& err) {
@@ -85,7 +85,7 @@ void run(App& app) {
       << "Runtime error: "
       << err.what() << '\n'
     ;
-    exit(EXIT_FAILURE);
+    return EXIT_FAILURE;
   }
 
   catch (BaseError const& err) {
@@ -93,8 +93,10 @@ void run(App& app) {
       << "Error (while running application): "
       << err.what() << '\n'
     ;
-    exit(EXIT_FAILURE);
+    return EXIT_FAILURE;
   }
+
+  return EXIT_SUCCESS;
 }
 
 #endif // SELI_ACTIONS_HPP

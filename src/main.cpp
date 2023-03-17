@@ -6,13 +6,16 @@ int main(int argc, char* argv[]) {
   //cin.tie(nullptr);
 
   Options const opts(argc, argv);
+  if (opts.exit) return opts.exit_code;
 
-  if (opts.lookup) lookup(opts.lookup_names);
+  if (opts.lookup) return lookup(opts.lookup_names);
 
   App app(opts.strict, opts.any_type);
 
-  if (opts.filename) buildfile(app, opts.filename);
-  else build(app, opts.script);
+  int code = opts.filename
+    ? buildfile(app, opts.filename)
+    : build(app, opts.script);
+  if (EXIT_SUCCESS != code) return code;
 
   if (opts.any_type) {
     cout << app << "\n#       :: " << app.type() << endl;
@@ -39,7 +42,5 @@ int main(int argc, char* argv[]) {
     throw NIYError("emit binary");
   }
 
-  run(app);
-
-  return EXIT_SUCCESS;
+  return run(app);
 }

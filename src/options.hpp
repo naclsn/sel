@@ -15,6 +15,9 @@ struct Options {
   char** argv;
   char const* prog;
 
+  bool exit = false; // true when eg. unsuccessful parse
+  int exit_code;
+
   char** script = NULL; // script...
   char const* filename = NULL; // -f filename
 
@@ -34,7 +37,7 @@ struct Options {
     , argv(argv)
     , prog(*argv++)
   {
-    if (!argc) usage(NULL);
+    if (!argc) { usage(NULL); return; }
 
     for (int k = 0; k < argc; k++) {
       char const* arg = argv[k];
@@ -51,7 +54,7 @@ struct Options {
           switch (*arg) {
             case 'h':
               usage(NULL);
-              break;
+              return;
 
             case 'l':
               lookup = true;
@@ -70,11 +73,13 @@ struct Options {
 
             case 'f':
               if (hasv) filename = argv[++k];
-              else usage("missing file name");
+              else { usage("missing file name"); return; }
               // check file readable here?
               goto break_one;
 
-            default: usage((string("unknown flag '")+*arg+'\'').c_str());
+            default:
+              usage((string("unknown flag '")+*arg+'\'').c_str());
+              return;
           } // switch *arg
         }
         break_one:;
@@ -84,12 +89,15 @@ struct Options {
 
         if ("--help" == argpp) {
           usage(NULL);
+          return;
 
         } else if ("--version" == argpp) {
 #define xtocstr(x) tocstr(x)
 #define tocstr(x) #x
           cout << xtocstr(SEL_VERSION) << endl;
-          exit(EXIT_SUCCESS);
+          exit = true;
+          exit_code = EXIT_SUCCESS;
+          return;
 #undef tocstr
 #undef xtocstr
 
@@ -97,6 +105,7 @@ struct Options {
           ostringstream oss("unknown long argument: ", ios::ate);
           oss << quoted(argpp);
           usage(oss.str().c_str());
+          return;
         } // switch argpp
 
       } // if '-' / '--'
@@ -113,7 +122,8 @@ struct Options {
       << "       " << prog << " -l [<names...>] | :: <type...>\n"
       << "       " << prog << " [-s] -f <file> [-o <bin> <flags...>]\n"
     ;
-    exit(EXIT_FAILURE);
+    exit = true;
+    exit_code = EXIT_FAILURE;
   }
 
   void verify() {
