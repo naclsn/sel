@@ -18,10 +18,7 @@ int test_tonum() { // tonum :3:
 
   auto tonum0 = (*(handle<Fun>)tonum1)(handle<StrLiteral>(app, "3"));
   showv_test(tonum0,
-    "<Num> Tonum0 {\n"
-    "   base=<Str* -> Num> Tonum1 { }\n"
-    "   arg=<Str> StrLiteral { s= \"3\" }\n"
-    "}\n"
+    "<Num> Tonum0 { arg_A=<Str> StrLiteral { s= \"3\" } }\n"
     );
 
   return 0;
@@ -35,20 +32,14 @@ int test_add() { // add 1 2
 
   auto add1 = (*(handle<Fun>)add2)(handle<NumLiteral>(app, 1));
   showv_test(add1,
-    "<Num -> Num> Add1 {\n"
-    "   base=<Num -> Num -> Num> Add2 { }\n"
-    "   arg=<Num> NumLiteral { n= 1 }\n"
-    "}\n"
+    "<Num -> Num> Add1 { arg_A=<Num> NumLiteral { n= 1 } }\n"
     );
 
   auto add0 = (*(handle<Fun>)add1)(handle<NumLiteral>(app, 2));
   showv_test(add0,
     "<Num> Add0 {\n"
-    "   base=<Num -> Num> Add1 {\n"
-    "      base=<Num -> Num -> Num> Add2 { }\n"
-    "      arg=<Num> NumLiteral { n= 1 }\n"
-    "   }\n"
-    "   arg=<Num> NumLiteral { n= 2 }\n"
+    "   arg_A=<Num> NumLiteral { n= 1 }\n"
+    "   arg_B=<Num> NumLiteral { n= 2 }\n"
     "}\n"
     );
 
@@ -63,20 +54,14 @@ int test_map() { // map tonum 4
 
   auto map1 = (*(handle<Fun>)map2)(lookup_name(app, "tonum"));
   showv_test(map1,
-    "<[Str*]* -> [Num]*> Map1 {\n"
-    "   base=<(a -> b) -> [a]* -> [b]*> Map2 { }\n"
-    "   arg=<Str* -> Num> Tonum1 { }\n"
-    "}\n"
+    "<[Str*]* -> [Num]*> Map1 { arg_A=<Str* -> Num> Tonum1 { } }\n"
     );
 
   auto map0 = (*(handle<Fun>)map1)(handle<LstLiteral>(app, Vals{handle<StrLiteral>(app, "4")}, Types{Type::makeStr(false)}));
   showv_test(map0,
     "<[Num]> Map0 {\n"
-    "   base=<[Str*]* -> [Num]*> Map1 {\n"
-    "      base=<(a -> b) -> [a]* -> [b]*> Map2 { }\n"
-    "      arg=<Str* -> Num> Tonum1 { }\n"
-    "   }\n"
-    "   arg=<[Str]> LstLiteral { v[0]=<Str> StrLiteral { s= \"4\" } }\n"
+    "   arg_A=<Str* -> Num> Tonum1 { }\n"
+    "   arg_B=<[Str]> LstLiteral { v[0]=<Str> StrLiteral { s= \"4\" } }\n"
     "}\n"
     );
 
@@ -91,10 +76,7 @@ int test_repeat() { // repeat 5
 
   auto repeat0 = (*(handle<Fun>)repeat1)(handle<NumLiteral>(app, 5));
   showv_test(repeat0,
-    "<[Num]*> Repeat0 {\n"
-    "   base=<a -> [a]*> Repeat1 { }\n"
-    "   arg=<Num> NumLiteral { n= 5 }\n"
-    "}\n"
+    "<[Num]*> Repeat0 { arg_A=<Num> NumLiteral { n= 5 } }\n"
     );
 
   return 0;
@@ -108,10 +90,7 @@ int test_zipwith() { // zipwith map {repeat} {{1}}
 
   auto zipwith2 = (*(handle<Fun>)zipwith3)(lookup_name(app, "map"));
   showv_test(zipwith2,
-    "<[a -> b]* -> [[a]*]* -> [[b]*]*> Zipwith2 {\n"
-    "   base=<(a -> b -> c) -> [a]* -> [b]* -> [c]*> Zipwith3 { }\n"
-    "   arg=<(a -> b) -> [a]* -> [b]*> Map2 { }\n"
-    "}\n"
+    "<[a -> b]* -> [[a]*]* -> [[b]*]*> Zipwith2 { arg_A=<(a -> b) -> [a]* -> [b]*> Map2 { } }\n"
     );
 
   auto _repeat1 = lookup_name(app, "repeat");
@@ -119,11 +98,8 @@ int test_zipwith() { // zipwith map {repeat} {{1}}
   showv_test(zipwith1,
     // "<[[a]*] -> [[[a]*]*]> Zipwith1 {\n"
     "<[[a]] -> [[[a]*]]> Zipwith1 {\n"
-    "   base=<[a -> b]* -> [[a]*]* -> [[b]*]*> Zipwith2 {\n"
-    "      base=<(a -> b -> c) -> [a]* -> [b]* -> [c]*> Zipwith3 { }\n"
-    "      arg=<(a -> b) -> [a]* -> [b]*> Map2 { }\n"
-    "   }\n"
-    "   arg=<[a -> [a]*]> LstLiteral { v[0]=<a -> [a]*> Repeat1 { } }\n"
+    "   arg_A=<(a -> b) -> [a]* -> [b]*> Map2 { }\n"
+    "   arg_B=<[a -> [a]*]> LstLiteral { v[0]=<a -> [a]*> Repeat1 { } }\n"
     "}\n"
     );
 
@@ -134,15 +110,9 @@ int test_zipwith() { // zipwith map {repeat} {{1}}
   showv_test(zipwith0,
     // "<[[[Num]]*]> Zipwith0 {\n"
     "<[[[Num]*]*]*> Zipwith0 {\n"
-    // "   base=<[[a]*] -> [[[a]*]*]> Zipwith1 {\n"
-    "   base=<[[a]] -> [[[a]*]]> Zipwith1 {\n"
-    "      base=<[a -> b]* -> [[a]*]* -> [[b]*]*> Zipwith2 {\n"
-    "         base=<(a -> b -> c) -> [a]* -> [b]* -> [c]*> Zipwith3 { }\n"
-    "         arg=<(a -> b) -> [a]* -> [b]*> Map2 { }\n"
-    "      }\n"
-    "      arg=<[a -> [a]*]> LstLiteral { v[0]=<a -> [a]*> Repeat1 { } }\n"
-    "   }\n"
-    "   arg=<[[Num]]> LstLiteral { v[0]=<[Num]> LstLiteral { v[0]=<Num> NumLiteral { n= 42 } } }\n"
+    "   arg_A=<(a -> b) -> [a]* -> [b]*> Map2 { }\n"
+    "   arg_B=<[a -> [a]*]> LstLiteral { v[0]=<a -> [a]*> Repeat1 { } }\n"
+    "   arg_C=<[[Num]]> LstLiteral { v[0]=<[Num]> LstLiteral { v[0]=<Num> NumLiteral { n= 42 } } }\n"
     "}\n"
     );
 

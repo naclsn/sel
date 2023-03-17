@@ -214,10 +214,6 @@ namespace sel {
 
   public:
     Str_streambuf(handle<Str> v): v(v) { }
-    Str_streambuf(Str_streambuf const& o): std::streambuf(o), v(o.v) { }
-
-    // Str_streambuf& operator=(Str_streambuf const&) = delete;
-    // Str_streambuf& operator=(Str_streambuf&& sis);
 
     int_type overflow(int_type) override;
     int_type underflow() override;

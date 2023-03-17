@@ -347,9 +347,11 @@ namespace sel {
       return *this;
     }
     bool graphemes_::end() {
+      if (was_empty) return true;
       bind_args(s);
       static std::istream_iterator<codepoint> const eos;
-      return did_once ? eos == isi && past_end : s.end();
+      // return did_once ? eos == isi && past_end : s.end();
+      return eos == isi && past_end;
     }
 
     handle<Val> head_::operator()(handle<Val> _l) {

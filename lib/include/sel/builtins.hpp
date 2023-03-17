@@ -487,9 +487,17 @@ namespace sel {
       void once();
     ));
 
+    // YYY: graphemes_ (and codepoints_) are no longer /as/
+    // lazy as they should (since: 2343028); this is because
+    // isi will eagerly try to construct its entry... this
+    // may not be too much of a problem since it only affects
+    // the Tails, but if it ever has an undesirable effect
+    // then the only idea i have (as of rn) is to allocate
+    // the whole chain sb-is-isi lazily
     BIN_lst(graphemes, (istr, ilst<str>),
       "split a stream of bytes into its Unicode graphemes", (
       bool did_once = false;
+      bool was_empty = std::get<0>(_args)->end(); // this initializes before isi reads
       Str_streambuf sb{std::get<0>(_args)};
       std::istream* is = new std::istream(&sb);
       std::istream_iterator<codepoint> isi{*is};
