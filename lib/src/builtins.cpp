@@ -120,26 +120,17 @@ namespace sel {
     std::ostream& chr_::entire(std::ostream& out) { read = true; return out << codepoint(std::get<0>(_args)->value()); }
 
     handle<Val> codepoints_::operator*() {
-      bind_args(s);
-      if (!did_once) {
-        isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
-        did_once = true;
-      }
       return handle<NumResult>(h.app(), isi->u);
     }
     Lst& codepoints_::operator++() {
-      bind_args(s);
-      if (!did_once) {
-        isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
-        did_once = true;
-      }
       isi++;
       return *this;
     }
     bool codepoints_::end() {
-      bind_args(s);
+      // bind_args(s);
       static std::istream_iterator<codepoint> eos;
-      return did_once ? eos == isi : s.end();
+      // return did_once ? eos == isi : s.end();
+      return eos == isi;
     }
 
     handle<Val> const_::operator()(handle<Val> ignore) {
@@ -337,7 +328,6 @@ namespace sel {
     handle<Val> graphemes_::operator*() {
       bind_args(s);
       if (!did_once) {
-        isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
         did_once = true;
         read_grapheme(isi, curr);
       }
@@ -347,7 +337,6 @@ namespace sel {
     Lst& graphemes_::operator++() {
       bind_args(s);
       if (!did_once) {
-        isi = std::istream_iterator<codepoint>(sis = Str_istream(&s));
         did_once = true;
         read_grapheme(isi, curr);
       }
@@ -524,9 +513,14 @@ namespace sel {
     std::ostream& oct_::entire(std::ostream& out) { read = true; return out << std::oct << size_t(std::get<0>(_args)->value()); }
 
     double ord_::value() {
-      codepoint c;
-      Str_istream(std::get<0>(_args)) >> c;
-      return c.u;
+      if (!done) {
+        codepoint c;
+        Str_streambuf sb(std::get<0>(_args));
+        std::istream(&sb) >> c;
+        r = c.u;
+        done = true;
+      }
+      return r;
     }
 
     std::ostream& prefix_::stream(std::ostream& out) {
@@ -745,8 +739,8 @@ namespace sel {
 
     double tonum_::value() {
       if (!done) {
-        bind_args(s);
-        Str_istream(&s) >> r;
+        Str_streambuf sb(std::get<0>(_args));
+        std::istream(&sb) >> r;
         done = true;
       }
       return r;
@@ -829,9 +823,9 @@ namespace sel {
 
     double unhex_::value() {
       if (!done) {
-        bind_args(s);
         size_t n = 0;
-        Str_istream(&s) >> std::hex >> n;
+        Str_streambuf sb(std::get<0>(_args));
+        std::istream(&sb) >> std::hex >> n;
         r = n;
         done = true;
       }
@@ -840,9 +834,9 @@ namespace sel {
 
     double unoct_::value() {
       if (!done) {
-        bind_args(s);
         size_t n = 0;
-        Str_istream(&s) >> std::oct >> n;
+        Str_streambuf sb(std::get<0>(_args));
+        std::istream(&sb) >> std::oct >> n;
         r = n;
         done = true;
       }

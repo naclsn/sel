@@ -420,9 +420,10 @@ namespace sel {
 
     BIN_lst(codepoints, (istr, ilst<num>),
       "split a string of bytes into its Unicode codepoints", (
-      bool did_once = false;
-      Str_istream sis;
-      std::istream_iterator<codepoint> isi;
+      Str_streambuf sb{std::get<0>(_args)};
+      std::istream* is = new std::istream(&sb);
+      std::istream_iterator<codepoint> isi{*is};
+      ~codepoints_() { delete is; }
     ));
 
     BIN_lst(conjunction, (lst<unk<'a'>>, ilst<unk<'a'>>, ilst<unk<'a'>>),
@@ -489,8 +490,10 @@ namespace sel {
     BIN_lst(graphemes, (istr, ilst<str>),
       "split a stream of bytes into its Unicode graphemes", (
       bool did_once = false;
-      Str_istream sis;
-      std::istream_iterator<codepoint> isi;
+      Str_streambuf sb{std::get<0>(_args)};
+      std::istream* is = new std::istream(&sb);
+      std::istream_iterator<codepoint> isi{*is};
+      ~graphemes_() { delete is; }
       grapheme curr;
       bool past_end = false;
     ));
@@ -551,7 +554,10 @@ namespace sel {
     ));
 
     BIN_num(ord, (istr, num),
-      "give the codepoint of the (first) character", ());
+      "give the codepoint of the (first) character", (
+      double r;
+      bool done = false;
+    ));
 
     BIN_num(pi, (num),
       "pi, what did you expect", ());

@@ -213,26 +213,14 @@ namespace sel {
     std::string buffered;
 
   public:
-    Str_streambuf(): v(*new App, nullptr) { } // XXX: F#*K
     Str_streambuf(handle<Str> v): v(v) { }
+    Str_streambuf(Str_streambuf const& o): std::streambuf(o), v(o.v) { }
 
-    Str_streambuf& operator=(Str_streambuf const&) = delete;
-    Str_streambuf& operator=(Str_streambuf&& sis);
+    // Str_streambuf& operator=(Str_streambuf const&) = delete;
+    // Str_streambuf& operator=(Str_streambuf&& sis);
 
     int_type overflow(int_type) override;
     int_type underflow() override;
-  };
-
-  class Str_istream : public std::istream {
-    Str_streambuf a;
-
-  public:
-    Str_istream() { } // whever
-    Str_istream(std::istream&) = delete;
-    Str_istream(handle<Str> v): a(v) { init(&a); }
-
-    Str_istream& operator=(Str_istream const&) = delete;
-    Str_istream& operator=(Str_istream&& sis);
   };
 
 } // namespace sel

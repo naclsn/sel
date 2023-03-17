@@ -122,13 +122,13 @@ namespace sel {
   }
 
 
-  Str_streambuf& Str_streambuf::operator=(Str_streambuf&& sis) {
-    if (this == &sis) return *this;
-    std::streambuf::operator=(std::move(sis));
-    v = sis.v;
-    buffered = std::move(sis.buffered);
-    return *this;
-  }
+  // Str_streambuf& Str_streambuf::operator=(Str_streambuf&& sis) {
+  //   if (this == &sis) return *this;
+  //   std::streambuf::operator=(std::move(sis));
+  //   v = sis.v;
+  //   buffered = std::move(sis.buffered);
+  //   return *this;
+  // }
 
   Str_streambuf::int_type Str_streambuf::overflow(int_type) {
     return traits_type::eof();
@@ -149,14 +149,6 @@ namespace sel {
     setg(cstr, cstr, cstr+buffered.length());
 
     return buffered[0];
-  }
-
-  Str_istream& Str_istream::operator=(Str_istream&& sis) {
-    if (this == &sis) return *this;
-    std::istream::operator=(std::move(sis));
-    a = std::move(sis.a);
-    rdbuf(&a);
-    return *this;
   }
 
 } // namespace sel
