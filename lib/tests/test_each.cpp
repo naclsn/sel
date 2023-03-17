@@ -84,7 +84,7 @@ struct call_test<ll::pack<Pack...>> {
   }
 };
 
-TEST(each) { return call_test<bins_ll::bins>::function(); }
+TEST(each) { return call_test<bins_list::all>::function(); }
 
 
 #define T(__f)                         \

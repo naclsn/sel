@@ -670,95 +670,87 @@ namespace sel {
 
   } // namespace bins
 
-  /**
-   * namespace with the types `bins` and `bins_all` which lists
-   *  - every builtin `Tail` types in alphabetical order
-   *  - every builtin types (inc. intermediary) (not in any order)
-   */
-  namespace bins_ll {
-
-    using namespace ll;
-    using namespace bins;
-
+  struct bins_list {
     // YYY: (these are used in parsing - eg. coersion /
     // operators) could have these only here, but would
     // need to merge with below while keeping sorted (not
     // strictly necessary, but convenient); although for
     // now `bins_min` is not used
-    typedef pack
-      < add_
-      , codepoints_
-      , div_
-      , flip_
-      , graphemes_
-      , index_
-      , join_
-      , mul_
-      , sub_
-      , tonum_
-      , tostr_
-      > bins_min;
+    typedef ll::pack
+      < bins::add_
+      , bins::codepoints_
+      , bins::div_
+      , bins::flip_
+      , bins::graphemes_
+      , bins::index_
+      , bins::join_
+      , bins::mul_
+      , bins::sub_
+      , bins::tonum_
+      , bins::tostr_
+      > min;
 
     // XXX: still would love if this list could be built automatically
-    typedef pack
-      < abs_
-      , add_
-      , bin_
-      , bytes_
-      , chr_
-      , codepoints_
-      , conjunction_
-      , const_
-      , contains_
-      , count_
-      , div_
-      , drop_
-      , dropwhile_
-      , duple_
-      , endswith_
-      , filter_
-      , flip_
-      , give_
-      , graphemes_
-      , head_
-      , hex_
-      , id_
-      , if_
-      , index_
-      , init_
-      , iterate_
-      , join_
-      , last_
-      , ln_
-      , map_
-      , mul_
-      , oct_
-      , ord_
-      , pi_
-      , prefix_
-      , repeat_
-      , replicate_
-      , reverse_
-      , singleton_
-      , split_
-      , startswith_
-      , sub_
-      , suffix_
-      , surround_
-      , tail_
-      , take_
-      , takewhile_
-      , tonum_
-      , tostr_
-      , tuple_
-      , unbin_
-      , unbytes_
-      , uncodepoints_
-      , uncurry_
-      , unhex_
-      , unoct_
-      , zipwith_
-      > bins_max;
+    // (any chances to leverage templates if `bins` is made a class..?)
+    typedef ll::pack
+      < bins::abs_
+      , bins::add_
+      , bins::bin_
+      , bins::bytes_
+      , bins::chr_
+      , bins::codepoints_
+      , bins::conjunction_
+      , bins::const_
+      , bins::contains_
+      , bins::count_
+      , bins::div_
+      , bins::drop_
+      , bins::dropwhile_
+      , bins::duple_
+      , bins::endswith_
+      , bins::filter_
+      , bins::flip_
+      , bins::give_
+      , bins::graphemes_
+      , bins::head_
+      , bins::hex_
+      , bins::id_
+      , bins::if_
+      , bins::index_
+      , bins::init_
+      , bins::iterate_
+      , bins::join_
+      , bins::last_
+      , bins::ln_
+      , bins::map_
+      , bins::mul_
+      , bins::oct_
+      , bins::ord_
+      , bins::pi_
+      , bins::prefix_
+      , bins::repeat_
+      , bins::replicate_
+      , bins::reverse_
+      , bins::singleton_
+      , bins::split_
+      , bins::startswith_
+      , bins::sub_
+      , bins::suffix_
+      , bins::surround_
+      , bins::tail_
+      , bins::take_
+      , bins::takewhile_
+      , bins::tonum_
+      , bins::tostr_
+      , bins::tuple_
+      , bins::unbin_
+      , bins::unbytes_
+      , bins::uncodepoints_
+      , bins::uncurry_
+      , bins::unhex_
+      , bins::unoct_
+      , bins::zipwith_
+      > more;
 
 // TODO: this is waiting for better answers (see also
 // test_each).  Idea is: building with the whole `bins_max`
@@ -768,72 +760,30 @@ namespace sel {
 // map, ln and give).
 // I think it could be interesting to have a ll merge-sorted.
 #ifdef BINS_MIN
-    typedef bins_min bins;
+    typedef min all;
 #else
-    typedef bins_max bins;
+    typedef more all;
 #endif
 
-    namespace {
-      constexpr bool is_sorted(char const* a, char const* b) {
-        return *a < *b || (*a == *b && (*a == '\0' || is_sorted(a + 1, b + 1)));
-      }
-
-      template <typename PackItself> struct are_sorted;
-
-      template <typename H1, typename H2, typename ...T>
-      struct are_sorted<pack<H1, H2, T...>> {
-        static constexpr bool function() {
-          return is_sorted(H1::name, H2::name) && are_sorted<pack<H2, T...>>::function();
-        }
-      };
-      template <typename O>
-      struct are_sorted<pack<O>> {
-        static constexpr bool function() {
-          return true;
-        }
-      };
-      template <>
-      struct are_sorted<pack<>> {
-        static constexpr bool function() {
-          return true;
-        }
-      };
-
-      static_assert(are_sorted<bins>::function(), "must be sorted");
+  private:
+    static inline constexpr bool is_sorted(char const* a, char const* b) {
+      return *a < *b || (*a == *b && (*a == '\0' || is_sorted(a + 1, b + 1)));
     }
 
-    // // make a chain from the types that makes the bin (ie Head to Tail)
-    // template <typename Bin>
-    // struct _make_bins_chain_pack {
-    //   typedef typename join<pack<Bin>, typename _make_bins_chain_pack<typename Bin::Base>::type>::type type;
-    // };
-    // template <typename Next, typename last_to, typename last_from>
-    // struct _make_bins_chain_pack<bins_helpers::_bin_be<Next, cons<last_to, cons<last_from, nil>>>> {
-    //   typedef pack<bins_helpers::_bin_be<Next, cons<last_to, cons<last_from, nil>>>> type;
-    // };
-    // template <typename Impl>
-    // struct _make_bins_chain_pack<bins_helpers::_fake_bin_be<Impl>> {
-    //   typedef pack<> type;
-    // };
+    template <typename PackItself>
+    struct are_sorted { };
+    template <typename H1, typename H2, typename ...T>
+    struct are_sorted<ll::pack<H1, H2, T...>> : are_sorted<ll::pack<H2, T...>> {
+      static_assert(is_sorted(H1::name, H2::name), "must be sorted");
+    };
 
-    // // make a 2-dimensional pack of pack with the parts of the bins
-    // template <typename PackItself> struct _make_bins_pack_of_chains;
-    // template <typename ...Bins>
-    // struct _make_bins_pack_of_chains<pack<Bins...>> {
-    //   typedef pack<typename _make_bins_chain_pack<Bins>::type...> type;
-    // };
+    static inline void static_assert_sorted() { are_sorted<all>{}; }
 
-    // typedef _make_bins_pack_of_chains<bins>::type bins_pack_of_chains;
-    // typedef flatten<bins_pack_of_chains>::type bins_all;
-
-  } // namespace bins_ll
-
-
-  struct bins_list {
+  public:
     static std::unordered_map<std::string, handle<Val> (*)(App&)> const map;
     static char const* const* const names;
     static size_t const count;
-  };
+  }; // bins_list
 
 } // namespace sel
 

@@ -25,7 +25,7 @@ namespace sel {
     typedef std::tuple<visit_table_entry<Pack>*...> type;
   };
 
-  typedef _VisitTable<visitors_ll::visitors>::type VisitTable;
+  typedef _VisitTable<visitors_list>::type VisitTable;
 
   template <typename Va, typename PackItself> struct _make_visit_table;
   template <typename Va, typename ...Pack>
@@ -38,7 +38,7 @@ namespace sel {
   template <typename VaP>
   struct make_visit_table {
     constexpr inline static VisitTable function() {
-      return _make_visit_table<typename std::remove_pointer<VaP>::type, visitors_ll::visitors>::function();
+      return _make_visit_table<typename std::remove_pointer<VaP>::type, visitors_list>::function();
     }
   };
 
@@ -72,7 +72,7 @@ namespace sel {
 
     template <typename Vi>
     typename Vi::Ret accept(Vi& visitor) const {
-      auto visit = std::get<ll::pack_index<Vi, visitors_ll::visitors>::value>(visit_table());
+      auto visit = std::get<ll::pack_index<Vi, visitors_list>::value>(visit_table());
       return visit(visitor, this);
     }
   };

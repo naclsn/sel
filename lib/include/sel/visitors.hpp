@@ -163,9 +163,7 @@ namespace sel {
   };
 
 
-  namespace visitors_ll {
-    typedef ll::pack<VisRepr, VisHelp, VisName, VisShow> visitors;
-  }
+  typedef ll::pack<VisRepr, VisHelp, VisName, VisShow> visitors_list;
 
 } // namespace sel
 
