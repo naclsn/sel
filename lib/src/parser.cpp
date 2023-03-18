@@ -20,9 +20,7 @@ namespace sel {
   std::ostream& StrLiteral::entire(std::ostream& out) { read = true; return out << s; }
   handle<Val> StrLiteral::copy() const { return handle<StrLiteral>(h.app(), s); }
 
-  handle<Val> LstLiteral::operator*() { return v[c]; }
-  Lst& LstLiteral::operator++() { c++; return *this; }
-  bool LstLiteral::end() { return v.size() <= c; }
+  handle<Val> LstLiteral::operator++() { return c < v.size() ? v[c++] : null_handle; }
   handle<Val> LstLiteral::copy() const {
     std::vector<handle<Val>> w;
     w.reserve(v.size());
@@ -53,12 +51,10 @@ namespace sel {
   std::ostream& StrDefine::entire(std::ostream& out) { return v->entire(out); }
   handle<Val> StrDefine::copy() const { return handle<StrDefine>(h.app(), name, doc, v->copy()); }
 
-  handle<Val> LstDefine::operator*() { return v->operator*(); }
-  Lst& LstDefine::operator++() { return v->operator++(); }
-  bool LstDefine::end() { return v->end(); }
+  handle<Val> LstDefine::operator++() { return ++(*v); }
   handle<Val> LstDefine::copy() const { return handle<LstDefine>(h.app(), name, doc, v->copy()); }
 
-  handle<Val> FunDefine::operator()(handle<Val> arg) { return v->operator()(arg); }
+  handle<Val> FunDefine::operator()(handle<Val> arg) { return (*v)(arg); }
   handle<Val> FunDefine::copy() const { return handle<FunDefine>(h.app(), name, doc, v->copy()); }
 
   std::ostream& Input::stream(std::ostream& out) {

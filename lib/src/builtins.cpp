@@ -14,9 +14,23 @@ namespace sel {
     return f(app);
   }
 
-  // ZZZ: idk
+  // helpful templates to keep C++-side typing
   template <typename U>
   static inline handle<U> clone(U& a) { return a.copy(); }
+  template <typename U>
+  static inline handle<U> clone(handle<U> a) { return a->copy(); }
+
+  // YYY: not used yet
+  template <typename P, typename R>
+  static inline handle<R> call(bins_helpers::fun<P, R>& f, handle<P> p) { return f(p); }
+  template <typename P, typename R>
+  static inline handle<R> call(handle<bins_helpers::fun<P, R>> f, handle<P> p) { return (*f)(p); }
+
+  // YYY: not used yet
+  template <bool is_inf, bool is_tpl, typename I>
+  static inline handle<I> next(bins_helpers::_lst<is_inf, is_tpl, I>& l) { return ++l; }
+  template <bool is_inf, bool is_tpl, typename I>
+  static inline handle<I> next(handle<bins_helpers::_lst<is_inf, is_tpl, I>> l) { return ++*l; }
 
 #define _bind_some(__count) _bind_some_ ## __count
 #define _bind_some_1(a)          _bind_one(a, 0)
@@ -34,12 +48,20 @@ namespace sel {
   namespace bins {
 
     double abs_::value() {
-      return std::abs(std::get<0>(_args)->value());
+      bind_args(n);
+      double r = std::abs(n.value());
+      // n.drop(); -> drop(0); // TODO: everywhere
+      hold<NumResult>(r);
+      return r;
     }
 
     double add_::value() {
       bind_args(a, b);
-      return a.value() + b.value();
+      double r = a.value() + b.value();
+      // a.drop();
+      // b.drop();
+      hold<NumResult>(r);
+      return r;
     }
 
     std::ostream& bin_::stream(std::ostream& out) {
@@ -53,84 +75,65 @@ namespace sel {
     bool bin_::end() { return read; }
     std::ostream& bin_::entire(std::ostream& out) { return out << *this; }
 
-    void conjunction_::once() {
-      bind_args(l, r);
-      while (!l.end()) {
-        std::ostringstream oss;
-        ((handle<Str>)*l)->entire(oss);
-        inleft.insert(oss.str());
-        ++l;
-      }
-      while (!r.end()) {
-        std::ostringstream oss;
-        ((handle<Str>)*r)->entire(oss);
-        if (inleft.end() != inleft.find(oss.str())) break;
-        ++r;
-      }
-      did_once = true;
-    }
-    handle<Val> conjunction_::operator*() {
-      bind_args(l, r);
-      if (!did_once) once();
-      return *r;
-    }
-    Lst& conjunction_::operator++() {
-      bind_args(l, r);
-      if (!did_once) once();
-      ++r;
-      while (!r.end()) {
-        std::ostringstream oss;
-        ((handle<Str>)*r)->entire(oss);
-        if (inleft.end() != inleft.find(oss.str())) break;
-        ++r;
-      }
-      return *this;
-    }
-    bool conjunction_::end() {
-      bind_args(l, r);
-      return (did_once ? inleft.empty() : l.end()) || r.end();
-    }
+    // void conjunction_::once() {
+    //   bind_args(l, r);
+    //   while (!l.end()) {
+    //     std::ostringstream oss;
+    //     ((handle<Str>)*l)->entire(oss);
+    //     inleft.insert(oss.str());
+    //     ++l;
+    //   }
+    //   while (!r.end()) {
+    //     std::ostringstream oss;
+    //     ((handle<Str>)*r)->entire(oss);
+    //     if (inleft.end() != inleft.find(oss.str())) break;
+    //     ++r;
+    //   }
+    //   did_once = true;
+    // }
+    // handle<Val> conjunction_::operator*() {
+    //   bind_args(l, r);
+    //   if (!did_once) once();
+    //   return *r;
+    // }
+    // Lst& conjunction_::operator++() {
+    //   bind_args(l, r);
+    //   if (!did_once) once();
+    //   ++r;
+    //   while (!r.end()) {
+    //     std::ostringstream oss;
+    //     ((handle<Str>)*r)->entire(oss);
+    //     if (inleft.end() != inleft.find(oss.str())) break;
+    //     ++r;
+    //   }
+    //   return *this;
+    // }
+    // bool conjunction_::end() {
+    //   bind_args(l, r);
+    //   return (did_once ? inleft.empty() : l.end()) || r.end();
+    // }
 
-    handle<Val> bytes_::operator*() {
+    handle<Val> bytes_::operator++() {
       bind_args(s);
-      if (buff.length() <= off && !s.end()) {
+      if (buff.length() == off) {
+        if (s.end()) return null_handle;
         std::ostringstream oss;
         buff = (oss << s, oss.str());
         off = 0;
-      }
+      } else off++;
       return handle<NumResult>(h.app(), (uint8_t)buff[off]);
-    }
-    Lst& bytes_::operator++() {
-      bind_args(s);
-      off++;
-      if (buff.length() <= off && !s.end()) {
-        std::ostringstream oss;
-        buff = (oss << s, oss.str());
-        off = 0;
-      }
-      return *this;
-    }
-    bool bytes_::end() {
-      bind_args(s);
-      return s.end() && buff.length() <= off;
     }
 
     std::ostream& chr_::stream(std::ostream& out) { read = true; return out << codepoint(std::get<0>(_args)->value()); }
     bool chr_::end() { return read; }
     std::ostream& chr_::entire(std::ostream& out) { read = true; return out << codepoint(std::get<0>(_args)->value()); }
 
-    handle<Val> codepoints_::operator*() {
-      return handle<NumResult>(h.app(), isi->u);
-    }
-    Lst& codepoints_::operator++() {
-      isi++;
-      return *this;
-    }
-    bool codepoints_::end() {
-      // bind_args(s);
+    handle<Val> codepoints_::operator++() {
       static std::istream_iterator<codepoint> eos;
-      // return did_once ? eos == isi : s.end();
-      return eos == isi;
+      if (eos == isi) return null_handle;
+      double r = isi->u;
+      ++isi;
+      return handle<NumResult>(h.app(), r);
     }
 
     handle<Val> const_::operator()(handle<Val> ignore) {
@@ -139,225 +142,175 @@ namespace sel {
     }
 
     double contains_::value() {
-      if (!done) {
-        bind_args(substr, str);
-        std::ostringstream ossss;
-        substr.entire(ossss);
-        std::string ss = ossss.str();
-        auto sslen = ss.length();
-        does = false;
-        std::ostringstream oss;
-        while (!does && !str.end()) { // YYY: same as endswith_, this could do with a `sslen`-long circular buffer
-          auto plen = oss.str().length();
-          oss << str;
-          auto len = oss.str().length();
-          if (sslen <= len) { // have enough that searching is relevant
-            std::string s = oss.str();
-            for (auto k = plen < sslen ? sslen : plen; k <= len && !does; k++) { // only test over the range that was added
-              does = 0 == s.compare(k-sslen, sslen, ss);
-            }
+      bind_args(substr, str);
+      std::ostringstream ossss;
+      substr.entire(ossss);
+      // substr.drop();
+      std::string ss = ossss.str();
+      auto sslen = ss.length();
+      bool does = false;
+      std::ostringstream oss;
+      while (!does && !str.end()) { // YYY: same as endswith_, this could do with a `sslen`-long circular buffer
+        auto plen = oss.str().length();
+        oss << str;
+        auto len = oss.str().length();
+        if (sslen <= len) { // have enough that searching is relevant
+          std::string s = oss.str();
+          for (auto k = plen < sslen ? sslen : plen; k <= len && !does; k++) { // only test over the range that was added
+            does = 0 == s.compare(k-sslen, sslen, ss);
           }
         }
-        done = true;
       }
+      // str.drop();
+      hold<NumResult>(does);
       return does;
     }
 
     double count_::value() {
-      if (!done) {
-        bind_args(it, l);
-        std::ostringstream search; ((Str&)it).entire(search); // XXX
-        n = 0;
-        for (; !l.end(); ++l) {
-          std::ostringstream item; ((handle<Str>)*l)->entire(item); // XXX
-          if (search.str() == item.str())
-            n++;
-        }
-        done = true;
+      bind_args(matchit, l);
+      std::ostringstream search; ((Str&)matchit).entire(search); // XXX
+      // matchit.drop();
+      size_t n = 0;
+      for (auto it = ++l; it; it = ++l) {
+        std::ostringstream item; ((handle<Str>)it)->entire(item); // XXX
+        it.drop();
+        if (search.str() == item.str())
+          n++;
       }
+      // l.drop();
+      hold<NumResult>(n);
       return n;
     }
 
     double div_::value() {
       bind_args(a, b);
-      return a.value() / b.value();
+      double r = a.value() / b.value();
+      // a.drop();
+      // b.drop();
+      hold<NumResult>(r);
+      return r;
     }
 
-    handle<Val> drop_::operator*() {
+    handle<Val> drop_::operator++() {
       bind_args(n, l);
       if (!done) {
-        for (size_t k = 0; k < n.value() && !l.end(); k++)
-          ++l;
         done = true;
+        size_t k = 0;
+        size_t const m = n.value();
+        // n.drop();
+        for (auto it = ++l; it; it = ++l) {
+          if (m == k++) return it;
+          it->drop();
+        }
       }
-      return *l;
-    }
-    Lst& drop_::operator++() {
-      bind_args(n, l);
-      if (!done) {
-        for (size_t k = 0; k < n.value() && !l.end(); k++)
-          ++l;
-        done = true;
-      }
-      ++l;
-      return *this;
-    }
-    bool drop_::end() {
-      bind_args(n, l);
-      if (done) return l.end();
-      size_t k;
-      for (k = 0; k < n.value() && !l.end(); k++)
-        ++l;
-      done = true;
-      return l.end() && n.value() != k;
+      return ++l;
     }
 
-    handle<Val> dropwhile_::operator*() {
+    handle<Val> dropwhile_::operator++() {
       bind_args(p, l);
       if (!done) {
-        while (!l.end() && p(*l))
-          ++l;
         done = true;
+        for (auto it = next(l); it; it = ++l) {
+          // YYY: auto n = call(clone(p), clone(it))
+          handle<Num> n = (*clone(p))(it->copy());
+          double still_dropping = 0 == n->value();
+          n->drop();
+          if (!still_dropping) {
+            // drop p
+            return it;
+          }
+        }
       }
-      return *l;
-    }
-    Lst& dropwhile_::operator++() {
-      bind_args(p, l);
-      if (!done) {
-        while (!l.end() && p(*l))
-          ++l;
-        done = true;
-      }
-      ++l;
-      return *this;
-    }
-    bool dropwhile_::end() {
-      bind_args(p, l);
-      if (done) return l.end();
-      while (!l.end() && p(*l))
-        ++l;
-      done = true;
-      return l.end();
+      return ++l;
     }
 
-    handle<Val> duple_::operator*() {
-      bind_args(v);
-      return v.copy();
-    }
-    Lst& duple_::operator++() {
-      ++did;
-      return *this;
-    }
-    bool duple_::end() {
-      return 2 == did;
+    handle<Val> duple_::operator++() {
+      if (0 == did++) return std::get<0>(_args)->copy();
+      if (1 == did) {
+        handle<Val> r = std::get<0>(_args);
+        std::get<0>(_args) = null_handle;
+        return r;
+      }
+      return null_handle;
     }
 
     double endswith_::value() {
-      if (!done) {
-        bind_args(suffix, str);
-        std::ostringstream osssx;
-        suffix.entire(osssx);
-        std::string sx = osssx.str();
-        auto sxlen = sx.length();
-        std::ostringstream oss;
-        while (!str.end()) { // YYY: that's essentially '::entire', but endswith_ could leverage a circular buffer...
-          oss << str;
-        }
-        std::string s = oss.str();
-        does = sxlen <= s.length() && 0 == s.compare(s.length()-sxlen, sxlen, sx);
-        done = true;
+      bind_args(suffix, str);
+      std::ostringstream osssx;
+      suffix.entire(osssx);
+      // drop suffix
+      std::string sx = osssx.str();
+      auto sxlen = sx.length();
+      std::ostringstream oss;
+      while (!str.end()) { // YYY: that's essentially '::entire', but endswith_ could leverage a circular buffer...
+        oss << str;
       }
+      // drop str
+      std::string s = oss.str();
+      bool does = sxlen <= s.length() && 0 == s.compare(s.length()-sxlen, sxlen, sx);
+      hold<NumResult>(does);
       return does;
     }
 
-    handle<Val> filter_::operator*() {
+    handle<Val> filter_::operator++() {
       bind_args(p, l);
-      if (!curr) {
-        while (!l.end() && !((handle<Num>)p(*l))->value()) ++l;
-        curr = *l;
+      for (auto it = ++l; it; it = ++l) {
+        handle<Num> n = (*clone(p))(it->copy());
+        bool is = 0 != n->value();
+        n->drop();
+        if (is) return it;
       }
-      return *l;
-    }
-    Lst& filter_::operator++() {
-      bind_args(p, l);
-      ++l;
-      while (!l.end() && !((handle<Num>)p(*l))->value()) ++l;
-      curr = *l;
-      return *this;
-    }
-    bool filter_::end() {
-      bind_args(p, l);
-      while (!l.end() && !((handle<Num>)p(*l))->value()) ++l;
-      return l.end();
+      // drop p and l
+      return null_handle;
     }
 
     handle<Val> flip_::operator()(handle<Val> a) {
       bind_args(fun, b);
-      return (*(handle<Fun>)(*clone(fun))(a))(&b);
+      // next consumes everything; needs to place null_handles for fun and b
+      return (*(handle<Fun>)fun(a))(&b);
     }
 
-    void give_::once() {
+    // XXX: at delete, drop rest of buffer
+    handle<Val> give_::operator++() {
       bind_args(n, l);
-      size_t count = n.value();
-      circ.reserve(count);
-      for (; !l.end() && circ.size() < count; ++l)
-        circ.push_back(*l);
-      if (l.end()) at_when_end = at;
-      did_once = true;
-    }
-    handle<Val> give_::operator*() {
-      bind_args(n, l);
-      if (!did_once) once();
-      return 0 != circ.size() ? circ[at] : *l;
-    }
-    Lst& give_::operator++() {
-      bind_args(n, l);
-      if (!did_once) once();
-      if (0 != circ.size())
-        circ[++at] = *l;
-      ++l;
-      if (l.end()) at_when_end = at;
-      return *this;
-    }
-    bool give_::end() {
-      bind_args(n, l);
-      if (!did_once) once();
-      return l.end() && at_when_end == at;
-    }
-
-    handle<Val> graphemes_::operator*() {
-      bind_args(s);
-      if (!did_once) {
-        did_once = true;
-        read_grapheme(isi, curr);
+      if (0 == circ.capacity()) {
+        size_t count = n.value();
+        // drop n
+        if (0 == count) {
+          // drop l
+          return null_handle;
+        }
+        circ.reserve(count);
+        for (auto it = ++l; it; it = ++l) {
+          circ.push_back(it);
+          // buffer filled, send the first one
+          if (circ.size() == count) return circ[at++];
+        }
+        // here if the list was smaller than the count
+        // drop l
+        return null_handle;
       }
+      if (circ.size() == at) at = 0;
+      handle<Val> r = circ[at];
+      circ[at++] = ++l;
+      return r;
+    }
+
+    handle<Val> graphemes_::operator++() {
+      static std::istream_iterator<codepoint> const eos;
+      if (eos == isi) return null_handle;
+      grapheme curr;
+      read_grapheme(isi, curr);
       std::ostringstream oss;
       return handle<StrChunks>(h.app(), (oss << curr, oss.str()));
     }
-    Lst& graphemes_::operator++() {
-      bind_args(s);
-      if (!did_once) {
-        did_once = true;
-        read_grapheme(isi, curr);
-      }
-      curr.clear();
-      static std::istream_iterator<codepoint> const eos;
-      if (eos == isi) past_end = true;
-      else read_grapheme(isi, curr);
-      return *this;
-    }
-    bool graphemes_::end() {
-      if (was_empty) return true;
-      bind_args(s);
-      static std::istream_iterator<codepoint> const eos;
-      // return did_once ? eos == isi && past_end : s.end();
-      return eos == isi && past_end;
-    }
 
-    handle<Val> head_::operator()(handle<Val> _l) {
-      auto& l = *(handle<Lst>)_l;
-      if (l.end()) throw RuntimeError("head of empty list");
-      return *l;
+    handle<Val> head_::operator()(handle<Val> l) {
+      auto it = ++*(handle<Lst>)l;
+      if (!it) throw RuntimeError("head of empty list");
+      // drop l
+      // swap with it
+      return it;
     }
 
     std::ostream& hex_::stream(std::ostream& out) { read = true; return out << std::hex << size_t(std::get<0>(_args)->value()); }
@@ -365,134 +318,122 @@ namespace sel {
     std::ostream& hex_::entire(std::ostream& out) { read = true; return out << std::hex << size_t(std::get<0>(_args)->value()); }
 
     handle<Val> id_::operator()(handle<Val> take) {
+      // swap with take
       return take;
     }
 
     handle<Val> if_::operator()(handle<Val> argument) {
       bind_args(condition, consequence, alternative);
-      return ((handle<Num>)condition(argument))->value()
-        ? &consequence
-        : &alternative;
+      handle<Num> n = condition(argument);
+      bool is = n->value();
+      n.drop();
+      // swap with one, drop the other
+      return is ? &consequence : &alternative;
     }
 
     handle<Val> index_::operator()(handle<Val> _k) {
-      if (!did) {
-        bind_args(l); auto& k = *(handle<Num>)_k;
-        const size_t idx = k.value();
-        size_t len;
-        for (len = 0; !l.end() && len < idx; ++l, len++);
-        if (idx == len) {
-          found = *l;
-        } else {
-          std::ostringstream oss;
-          throw RuntimeError((oss << "index out of range: " << idx << " but length is " << len, oss.str()));
+      bind_args(l); auto& k = *(handle<Num>)_k;
+      size_t len = 0;
+      size_t const idx = k.value();
+      k.drop();
+      for (auto it = ++l; it; it = ++l) {
+        if (idx == len++) {
+          auto r = h;
+          // l.drop(); swap(it); drop();
+          return r;
         }
-        did = true;
       }
-      return found;
+      // drop l
+      std::ostringstream oss;
+      throw RuntimeError((oss << "index out of range: " << idx << " but length is " << len, oss.str()));
     }
 
-    handle<Val> init_::operator*() {
+    // XXX
+    handle<Val> init_::operator++() {
       bind_args(l);
       if (!prev) {
-        if (l.end()) throw RuntimeError("init of empty list");
-        prev = *l;
-        ++l;
+        prev = ++l;
+        // if (!prev) throw RuntimeError("init of empty list");
       }
-      return prev;
-    }
-    Lst& init_::operator++() {
-      bind_args(l);
-      if (!prev) {
-        if (l.end()) throw RuntimeError("init of empty list");
-        ++l;
-      }
-      prev = *l;
-      ++l;
-      return *this;
-    }
-    bool init_::end() {
-      bind_args(l);
-      if (!prev) {
-        if (l.end()) throw RuntimeError("init of empty list");
-        prev = *l;
-        ++l;
-      }
-      return l.end();
+      handle<Val> r = prev;
+      prev = ++l;
+      return r;
     }
 
-    handle<Val> iterate_::operator*() {
+    handle<Val> iterate_::operator++() {
       bind_args(f, o);
-      return !curr ? &o : curr;
+      if (first) {
+        first = false;
+        return clone(o);
+      }
+      return (std::get<1>(_args) = (*clone(f))(&o))->copy();
     }
-    Lst& iterate_::operator++() {
-      bind_args(f, o);
-      curr = f(!curr ? &o : curr);
-      return *this;
-    }
-    bool iterate_::end() { return false; }
 
     std::ostream& join_::stream(std::ostream& out) {
       bind_args(sep, lst);
       if (beginning) {
         std::ostringstream oss;
         sep.entire(oss);
+        // drop sep
         ssep = oss.str();
         beginning = false;
       } else out << ssep;
-      handle<Str> it = *lst;
-      it->entire(out);
-      ++lst;
+      handle<Str> it = ++lst;
+      if (!it) {
+        finished = true;
+        // drop lst
+      } else {
+        it->entire(out);
+        it.drop();
+      }
       return out;
     }
     bool join_::end() {
-      bind_args(sep, lst);
-      return lst.end();
+      return finished;
     }
     std::ostream& join_::entire(std::ostream& out) {
       bind_args(sep, lst);
-      if (lst.end()) return out;
-      if (beginning) {
-        std::ostringstream oss;
-        sep.entire(oss);
-        ssep = oss.str();
-        beginning = false;
-      }
-      // first iteration unrolled (because no separator)
-      ((handle<Str>)*lst)->entire(out);
-      ++lst;
-      for (; !lst.end(); ++lst) {
-        ((handle<Str>)*lst)->entire(out << ssep);
+      handle<Str> it = ++lst;
+      if (!it) return out;
+      it->entire(out);
+      it.drop();
+      std::ostringstream oss;
+      sep.entire(oss);
+      // drop sep
+      ssep = oss.str();
+      while ((it = ++lst)) {
+        out << ssep;
+        it->entire(out);
+        it.drop();
       }
       return out;
     }
 
     handle<Val> last_::operator()(handle<Val> _l) {
       auto& l = *(handle<Lst>)_l;
-      if (l.end()) throw RuntimeError("last of empty list");
-      handle<Val> r(h.app(), nullptr);
-      for (; !l.end(); ++l)
-        r = *l;
-      return r;
+      auto it = ++l;
+      if (!it) throw RuntimeError("last of empty list");
+      auto prev = it;
+      while ((it = ++l)) {
+        prev.drop();
+        prev = it;
+      }
+      return prev;
     }
 
-    handle<Val> map_::operator*() {
+    handle<Val> map_::operator++() {
       bind_args(f, l);
-      return (*clone(f))(*l);
-    }
-    Lst& map_::operator++() {
-      bind_args(f, l);
-      ++l;
-      return *this;
-    }
-    bool map_::end() {
-      bind_args(f, l);
-      return l.end();
+      auto it = ++l;
+      if (!it) return it;
+      return (*clone(f))(it);
     }
 
     double mul_::value() {
       bind_args(a, b);
-      return a.value() * b.value();
+      double r = a.value() * b.value();
+      // drop a and b
+      hold<NumResult>(r);
+      return r;
     }
 
     std::ostream& ln_::stream(std::ostream& out) {
@@ -525,6 +466,7 @@ namespace sel {
       return r;
     }
 
+    // XXX: drops
     std::ostream& prefix_::stream(std::ostream& out) {
       bind_args(px, s);
       return !px.end()
@@ -540,53 +482,38 @@ namespace sel {
       return s.entire(px.entire(out));
     }
 
-    handle<Val> repeat_::operator*() { return std::get<0>(_args)->copy(); }
-    Lst& repeat_::operator++() { return *this; }
-    bool repeat_::end() { return false; }
+    handle<Val> repeat_::operator++() { return std::get<0>(_args)->copy(); }
 
-    handle<Val> replicate_::operator*() {
-      if (!did) did++;
+    handle<Val> replicate_::operator++() {
       bind_args(n, o);
-      return o.copy();
-    }
-    Lst& replicate_::operator++() {
-      did++;
-      return *this;
-    }
-    bool replicate_::end() {
-      bind_args(n, o);
-      return 0 == n.value() || n.value() < did;
+      if (n.value() == did++) return null_handle;
+      return std::get<0>(_args)->copy();
     }
 
-    void reverse_::once() {
+    // XXX: at delete, drop rest of buffer
+    handle<Val> reverse_::operator++() {
       bind_args(l);
-      for (; !l.end(); ++l)
-        cache.push_back(*l);
-      did_once = true;
-      curr = cache.size();
-    }
-    handle<Val> reverse_::operator*() {
-      if (!did_once) once();
-      return cache[curr-1];
-    }
-    Lst& reverse_::operator++() {
-      curr--;
-      return *this;
-    }
-    bool reverse_::end() {
-      if (did_once) return 0 == curr;
-      bind_args(l);
-      return l.end();
+      if (!did_once) {
+        did_once = true;
+        for (auto it = ++l; it; it = ++l)
+          cache.push_back(it);
+        curr = cache.size();
+      }
+      if (0 == curr) return null_handle;
+      return cache[--curr];
     }
 
-    handle<Val> singleton_::operator*() { return std::get<0>(_args); }
-    Lst& singleton_::operator++() { done = true; return *this; }
-    bool singleton_::end() { return done; }
+    handle<Val> singleton_::operator++() {
+        if (done) return null_handle;
+        return std::get<0>(_args);
+    }
 
+    // XXX
     void split_::once() {
       bind_args(sep, str);
       std::ostringstream oss;
       sep.entire(oss);
+      // drop sep
       ssep = oss.str();
       did_once = true;
     }
@@ -609,45 +536,43 @@ namespace sel {
         // send the rest of acc, set end
         curr = buf;
         at_end = true;
+        // drop str
         return;
       }
       acc << str;
       return next();
     }
-    handle<Val> split_::operator*() {
-      if (!init) { next(); init = true; }
-      return handle<StrChunks>(h.app(), curr);
-    }
-    Lst& split_::operator++() {
-      if (!init) { next(); init = true; }
+    handle<Val> split_::operator++() {
       next();
-      return *this;
-    }
-    bool split_::end() {
-      return at_past_end;
+      if (at_past_end) return null_handle;
+      return handle<StrChunks>(h.app(), curr);
     }
 
     double startswith_::value() {
-      if (!done) {
-        bind_args(prefix, str);
-        std::ostringstream osspx;
-        prefix.entire(osspx);
-        std::string px = osspx.str();
-        std::ostringstream oss;
-        while (oss.str().length() < px.length() && 0 == px.compare(0, oss.str().length(), oss.str()) && !str.end()) {
-          oss << str;
-        }
-        does = 0 == oss.str().compare(0, px.length(), px);
-        done = true;
+      bind_args(prefix, str);
+      std::ostringstream osspx;
+      prefix.entire(osspx);
+      // drop prefix
+      std::string px = osspx.str();
+      std::ostringstream oss;
+      while (oss.str().length() < px.length() && 0 == px.compare(0, oss.str().length(), oss.str()) && !str.end()) {
+        oss << str;
       }
+      // drop str
+      bool does = 0 == oss.str().compare(0, px.length(), px);
+      hold<NumResult>(does);
       return does;
     }
 
     double sub_::value() {
       bind_args(a, b);
-      return a.value() - b.value();
+      double r = a.value() - b.value();
+      // drop a and b
+      hold<NumResult>(r);
+      return r;
     }
 
+    // XXX: drops
     std::ostream& suffix_::stream(std::ostream& out) {
       bind_args(sx, s);
       return !s.end()
@@ -663,6 +588,7 @@ namespace sel {
       return sx.entire(s.entire(out));
     }
 
+    // XXX: drops
     std::ostream& surround_::stream(std::ostream& out) {
       bind_args(px, sx, s);
       return !px.end()
@@ -679,72 +605,48 @@ namespace sel {
       return sx.entire(s.entire(px.entire(out)));
     }
 
-    handle<Val> tail_::operator*() {
+    handle<Val> tail_::operator++() {
       bind_args(l);
       if (!done) {
-        if (l.end()) throw RuntimeError("tail of empty list");
-        ++l;
         done = true;
+        auto it = ++l;
+        if (!it) throw RuntimeError("tail of empty list");
+        it.drop();
       }
-      return *l;
-    }
-    Lst& tail_::operator++() {
-      bind_args(l);
-      if (!done) {
-        if (l.end()) throw RuntimeError("tail of empty list");
-        ++l;
-        done = true;
-      }
-      ++l;
-      return *this;
-    }
-    bool tail_::end() {
-      bind_args(l);
-      if (!done) {
-        if (l.end()) throw RuntimeError("tail of empty list");
-        ++l;
-        done = true;
-      }
-      return l.end();
+      return ++l;
     }
 
-    handle<Val> take_::operator*() {
-      if (!did) did++;
+    handle<Val> take_::operator++() {
       bind_args(n, l);
-      return *l;
-    }
-    Lst& take_::operator++() {
-      bind_args(n, l);
+      if (n.value() == did) {
+        // drop n (but in that case need to cache) and l
+        return null_handle;
+      }
       did++;
-      ++l;
-      return *this;
-    }
-    bool take_::end() {
-      bind_args(n, l);
-      auto x = n.value();
-      return 0 == x || x < did || l.end();
+      return ++l;
     }
 
-    handle<Val> takewhile_::operator*() {
+    handle<Val> takewhile_::operator++() {
+      if (finished) return null_handle;
       bind_args(p, l);
-      return *l;
-    }
-    Lst& takewhile_::operator++() {
-      bind_args(p, l);
-      ++l;
-      return *this;
-    }
-    bool takewhile_::end() {
-      bind_args(p, l);
-      return l.end() || !((handle<Num>)p(*l))->value();
+      auto it = ++l;
+      if (!it) return it; // now can drop
+      handle<Num> n = (*clone(p))(it->copy());
+      bool still_taking = n->value();
+      n.drop();
+      if (still_taking) return it;
+      it.drop();
+      finished = true;
+      // now can drop
+      return null_handle;
     }
 
     double tonum_::value() {
-      if (!done) {
-        Str_streambuf sb(std::get<0>(_args));
-        std::istream(&sb) >> r;
-        done = true;
-      }
+      Str_streambuf sb(std::get<0>(_args));
+      double r;
+      std::istream(&sb) >> r;
+      // drop arg 0
+      hold<NumResult>(r);
       return r;
     }
 
@@ -752,114 +654,99 @@ namespace sel {
     bool tostr_::end() { return read; }
     std::ostream& tostr_::entire(std::ostream& out) { read = true; return out << std::get<0>(_args)->value(); }
 
-    handle<Val> tuple_::operator*() {
+    handle<Val> tuple_::operator++() {
       bind_args(a, b);
-      return 0 == did ? &a : &b;
-    }
-    Lst& tuple_::operator++() {
-      ++did;
-      return *this;
-    }
-    bool tuple_::end() {
-      return 2 == did;
+      if (0 == did++) return &a;
+      if (1 == did++) return &b;
+      return null_handle;
     }
 
     double unbin_::value() {
-      if (!done) {
-        bind_args(s);
-        size_t n = 0;
-        while (!s.end()) {
-          std::ostringstream oss;
-          std::string buff = (oss << s, oss.str());
-          for (char const c : buff) {
-            if ('0' != c && '1' != c) goto out;
-            n = (n << 1) | (c - '0');
-          }
+      bind_args(s);
+      size_t n = 0;
+      while (!s.end()) {
+        std::ostringstream oss;
+        std::string buff = (oss << s, oss.str());
+        for (char const c : buff) {
+          if ('0' != c && '1' != c) goto out;
+          n = (n << 1) | (c - '0');
         }
-      out:
-        r = n;
-        done = true;
       }
-      return r;
+    out:
+      // s.drop();
+      hold<NumResult>(n);
+      return n;
     }
 
     std::ostream& unbytes_::stream(std::ostream& out) {
       bind_args(l);
-      char b = ((handle<Num>)*l)->value();
-      ++l;
-      return out << b;
+      if (handle<Num> it = ++l) {
+        out << (char)it->value();
+        it.drop();
+      } else finished = true;
+      return out;
     }
-    bool unbytes_::end() {
-      bind_args(l);
-      return l.end();
-    }
+    bool unbytes_::end() { return finished; }
     std::ostream& unbytes_::entire(std::ostream& out) {
       bind_args(l);
-      for (; !l.end(); ++l)
-        out << char(((handle<Num>)*l)->value());
+      for (handle<Num> it = ++l; it; it = ++l) {
+        out << (char)it->value();
+        it.drop();
+      }
       return out;
     }
 
     std::ostream& uncodepoints_::stream(std::ostream& out) {
       bind_args(l);
-      codepoint cp = ((handle<Num>)*l)->value();
-      ++l;
-      return out << cp;
+      if (handle<Num> it = ++l) {
+        out << codepoint(it->value());
+        it.drop();
+      } else finished = true;
+      return out;
     }
-    bool uncodepoints_::end() {
-      bind_args(l);
-      return l.end();
-    }
+    bool uncodepoints_::end() { return finished; }
     std::ostream& uncodepoints_::entire(std::ostream& out) {
       bind_args(l);
-      for (; !l.end(); ++l)
-        out << codepoint(((handle<Num>)*l)->value());
+      for (handle<Num> it = ++l; it; it = ++l) {
+        out << codepoint(it->value());
+        it.drop();
+      }
       return out;
     }
 
     handle<Val> uncurry_::operator()(handle<Val> _pair) {
       auto& pair = *(handle<Lst>)_pair;
       bind_args(f);
-      return (*(handle<Fun>)f(*pair))(*++pair);
+      auto a = ++pair;
+      auto b = ++pair;
+      // swap with and drop self
+      return (*(handle<Fun>)f(a))(b);
     }
 
     double unhex_::value() {
-      if (!done) {
-        size_t n = 0;
-        Str_streambuf sb(std::get<0>(_args));
-        std::istream(&sb) >> std::hex >> n;
-        r = n;
-        done = true;
-      }
-      return r;
+      size_t n = 0;
+      Str_streambuf sb(std::get<0>(_args));
+      std::istream(&sb) >> std::hex >> n;
+      // drop arg 0
+      hold<NumResult>(n);
+      return n;
     }
 
     double unoct_::value() {
-      if (!done) {
-        size_t n = 0;
-        Str_streambuf sb(std::get<0>(_args));
-        std::istream(&sb) >> std::oct >> n;
-        r = n;
-        done = true;
-      }
-      return r;
+      size_t n = 0;
+      Str_streambuf sb(std::get<0>(_args));
+      std::istream(&sb) >> std::oct >> n;
+      // drop arg 0
+      hold<NumResult>(n);
+      return n;
     }
 
-    handle<Val> zipwith_::operator*() {
+    handle<Val> zipwith_::operator++() {
       bind_args(f, l1, l2);
-      if (!curr) curr = (*(handle<Fun>)f(*l1))(*l2);
-      return curr;
-    }
-    Lst& zipwith_::operator++() {
-      bind_args(f, l1, l2);
-      curr = handle<Val>(h.app(), nullptr);
-      ++l1;
-      ++l2;
-      return *this;
-    }
-    bool zipwith_::end() {
-      bind_args(f, l1, l2);
-      return l1.end() || l2.end();
+      auto a = ++l1;
+      auto b = ++l2;
+      if (!a || !b) return a;
+      return (*(handle<Fun>)(*clone(f))(a))(b);
     }
 
   } // namespace bins

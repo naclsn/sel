@@ -112,7 +112,7 @@ namespace sel {
     { }
     friend std::ostream& operator<<(std::ostream& out, Str& val) { return val.stream(out); }
     /**
-     * Stream (compute, etc..) some bytes.
+     * Stream (compute, etc..) some bytes. [Must be non-empty]
      */
     virtual std::ostream& stream(std::ostream& out) = 0;
     /**
@@ -123,7 +123,7 @@ namespace sel {
     /**
      * Stream the whole string of bytes.
      */
-    virtual std::ostream& entire(std::ostream& out) = 0;
+    virtual std::ostream& entire(std::ostream& out) = 0; // XXX: could have a default impl (if not the only one)
   };
 
   /**
@@ -136,24 +136,9 @@ namespace sel {
       : Val(at, std::forward<Type>(type))
     { }
     /**
-     * Get (compute, etc..) the current value.
+     * Get value and move to next, or falsy handle if past-the-end.
      */
-    virtual handle<Val> operator*() = 0;
-    /**
-     * Move to (compute, etc..) the next value.
-     */
-    virtual Lst& operator++() = 0;
-    /**
-     * `true` if there is no next value to get. Calling
-     * `next` at this point is probably undefined.
-     * so a list can go 'one-past-end', that is it is ok
-     * to call ++ and * when end is false, as soon as end
-     * is true, the previous value (if any) was the last
-     * one; it is in a 'one-past-end' state (ie. likely
-     * invalid for any operation)
-     * this means an empty list will be end true right away
-     */
-    virtual bool end() = 0;
+    virtual handle<Val> operator++() = 0;
   };
 
   /**
@@ -183,16 +168,13 @@ namespace sel {
       , has_size(ty.has().size())
     { }
 
-    handle<Val> operator*() override {
-      return coerse<Val>(h.app(), *(*v), ty.has()[now_has]);
-    }
-    Lst& operator++() override {
-      ++(*v);
+    handle<Val> operator++() override {
+      auto curr = ++(*v);
+      if (!curr) return curr;
       if (has_size <= ++now_has)
         now_has = 0;
-      return *this;
+      return coerse<Val>(h.app(), curr, ty.has()[now_has]);
     }
-    bool end() override { return v->end(); }
 
     handle<Val> copy() const override {
       return handle<LstMapCoerse>(h.app(), v->copy(), ty.has());

@@ -353,9 +353,7 @@ namespace sel {
       bool end() override; \
       std::ostream& entire(std::ostream& out) override;
 #define _BIN_lst \
-      handle<Val> operator*() override; \
-      Lst& operator++() override; \
-      bool end() override;
+      handle<Val> operator++() override;
 #define _BIN_unk \
       handle<Val> operator()(handle<Val>) override;
 
@@ -409,8 +407,8 @@ namespace sel {
 
     BIN_lst(bytes, (istr, ilst<num>),
       "split a string of bytes into its actual bytes as numbers", (
-      std::string buff;
-      std::string::size_type off = std::string::npos;
+      std::string buff = "";
+      std::string::size_type off = 0;
     ));
 
     BIN_str(chr, (num, str),
@@ -426,26 +424,21 @@ namespace sel {
       ~codepoints_() { delete is; }
     ));
 
-    BIN_lst(conjunction, (lst<unk<'a'>>, ilst<unk<'a'>>, ilst<unk<'a'>>),
-      "logical conjunction between two lists treated as sets; it is right-lazy and the list order is taken from the right argument (for now items are expected to be strings, until arbitraty value comparison)", (
-      bool did_once = false;
-      std::unordered_set<std::string> inleft;
-      void once();
-    ));
+    // BIN_lst(conjunction, (lst<unk<'a'>>, ilst<unk<'a'>>, ilst<unk<'a'>>),
+    //   "logical conjunction between two lists treated as sets; it is right-lazy and the list order is taken from the right argument (for now items are expected to be strings, until arbitraty value comparison)", (
+    //   bool did_once = false;
+    //   std::unordered_set<std::string> inleft;
+    //   void once();
+    // ));
 
     BIN_unk(const, (unk<'a'>, unk<'b'>, unk<'a'>),
       "always evaluate to its first argument, ignoring its second argument", ());
 
     BIN_num(contains, (str, istr, num),
-      "true if the string contain the given substring", (
-      bool done = false, does;
-    ));
+      "true if the string contain the given substring", ());
 
     BIN_num(count, (unk<'a'>, lst<unk<'a'>>, num),
-      "count occurrences of an item in a sequence (for now items are expected to be strings, until arbitraty value comparison)", (
-      bool done = false;
-      unsigned n;
-    ));
+      "count occurrences of an item in a sequence (for now items are expected to be strings, until arbitraty value comparison)", ());
 
     BIN_num(div, (num, num, num),
       "divide the first number by the second number", ());
@@ -458,6 +451,7 @@ namespace sel {
     BIN_lst(dropwhile, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
       "return the suffix remaining from the first element not verifying the predicate onward", (
       bool done = false;
+      handle<Val> the_one = handle<Val>(h.app(), nullptr);
     ));
 
     BIN_lst(duple, (unk<'a'>, tpl<unk<'a'>, unk<'a'>>),
@@ -466,9 +460,7 @@ namespace sel {
     ));
 
     BIN_num(endswith, (str, str, num),
-      "true if the string ends with the given suffix", (
-      bool done = false, does;
-    ));
+      "true if the string ends with the given suffix", ());
 
     BIN_lst(filter, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
       "return the list of elements which satisfy the predicate", (
@@ -480,11 +472,8 @@ namespace sel {
 
     BIN_lst(give, (num, lst<unk<'a'>>, lst<unk<'a'>>),
       "return the prefix prior to the given count, or the empty list if it is shorter", (
-      bool did_once = false;
       size_t at = 0;
-      size_t at_when_end = 0;
       std::vector<handle<Val>> circ;
-      void once();
     ));
 
     // YYY: graphemes_ (and codepoints_) are no longer /as/
@@ -496,14 +485,10 @@ namespace sel {
     // the whole chain sb-is-isi lazily
     BIN_lst(graphemes, (istr, ilst<str>),
       "split a stream of bytes into its Unicode graphemes", (
-      bool did_once = false;
-      bool was_empty = std::get<0>(_args)->end(); // this initializes before isi reads
       Str_streambuf sb{std::get<0>(_args)};
       std::istream* is = new std::istream(&sb);
       std::istream_iterator<codepoint> isi{*is};
       ~graphemes_() { delete is; }
-      grapheme curr;
-      bool past_end = false;
     ));
 
     BIN_unk(head, (ilst<unk<'a'>>, unk<'a'>),
@@ -521,10 +506,7 @@ namespace sel {
       "take a condition, a consequence and an alternative; return consequence if the argument verifies the condition, alternative otherwise", ());
 
     BIN_unk(index, (ilst<unk<'a'>>, num, unk<'a'>),
-      "select the value at the given index in the list (despite being called index it is an offset, ie. 0-based)", (
-      bool did = false;
-      handle<Val> found = handle<Val>(h.app(), nullptr);
-    ));
+      "select the value at the given index in the list (despite being called index it is an offset, ie. 0-based)", ());
 
     BIN_lst(init, (lst<unk<'a'>>, lst<unk<'a'>>),
       "extract the elements before the last one of a list, which must not be empty", (
@@ -533,13 +515,14 @@ namespace sel {
 
     BIN_lst(iterate, (fun<unk<'a'>, unk<'a'>>, unk<'a'>, ilst<unk<'a'>>),
       "return an infinite list of repeated applications of the function to the input", (
-      handle<Val> curr = handle<Val>(h.app(), nullptr);
+      bool first = true;
     ));
 
     BIN_str(join, (str, ilst<istr>, istr),
       "join a list of string with a separator between entries", (
       std::string ssep;
       bool beginning = true;
+      bool finished = false;
     ));
 
     BIN_unk(last, (lst<unk<'a'>>, unk<'a'>),
@@ -586,7 +569,6 @@ namespace sel {
       std::vector<handle<Val>> cache;
       bool did_once = false;
       size_t curr;
-      void once();
     ));
 
     BIN_lst(singleton, (unk<'a'>, lst<unk<'a'>>),
@@ -602,15 +584,12 @@ namespace sel {
       std::string curr;
       bool at_end = false;
       bool at_past_end = false;
-      bool init = false;
       void once();
       void next();
     ));
 
     BIN_num(startswith, (str, istr, num),
-      "true if the string starts with the given prefix", (
-      bool done = false, does;
-    ));
+      "true if the string starts with the given prefix", ());
 
     BIN_num(sub, (num, num, num),
       "substract the second number from the first", ());
@@ -632,13 +611,12 @@ namespace sel {
     ));
 
     BIN_lst(takewhile, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
-      "return the longest prefix of elements statisfying the predicate", ());
+      "return the longest prefix of elements statisfying the predicate", (
+      bool finished = false;
+    ));
 
     BIN_num(tonum, (istr, num),
-      "convert a string into number", (
-      double r;
-      bool done = false;
-    ));
+      "convert a string into number", ());
 
     BIN_str(tostr, (num, str),
       "convert a number into string", (
@@ -651,31 +629,26 @@ namespace sel {
     ));
 
     BIN_num(unbin, (istr, num),
-      "convert a number into string from its binary textual representation (without leading '0b')", (
-      double r;
-      bool done = false;
-    ));
+      "convert a number into string from its binary textual representation (without leading '0b')", ());
 
     BIN_str(unbytes, (ilst<num>, istr),
-      "construct a string from its actual bytes; this can lead to broken UTF-8 or 'degenerate cases' if not careful", ());
+      "construct a string from its actual bytes; this can lead to broken UTF-8 or 'degenerate cases' if not careful", (
+      bool finished;
+    ));
 
     BIN_str(uncodepoints, (ilst<num>, istr),
-      "construct a string from its Unicode codepoints; this can lead to 'degenerate cases' if not careful", ());
+      "construct a string from its Unicode codepoints; this can lead to 'degenerate cases' if not careful", (
+      bool finished;
+    ));
 
     BIN_unk(uncurry, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, tpl<unk<'a'>, unk<'b'>>, unk<'c'>),
       "convert a curried function to a function on pairs", ());
 
     BIN_num(unhex, (istr, num),
-      "convert a number into string from its hexadecimal textual representation (without leading '0x')", (
-      double r;
-      bool done = false;
-    ));
+      "convert a number into string from its hexadecimal textual representation (without leading '0x')", ());
 
     BIN_num(unoct, (istr, num),
-      "convert a number into string from its octal textual representation (without leading '0o')", (
-      double r;
-      bool done = false;
-    ));
+      "convert a number into string from its octal textual representation (without leading '0o')", ());
 
     BIN_lst(zipwith, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, ilst<unk<'a'>>, ilst<unk<'b'>>, ilst<unk<'c'>>),
       "make a new list by applying an binary operation to each corresponding value from each lists; stops when either list ends", (
@@ -713,7 +686,7 @@ namespace sel {
       , bins::bytes_
       , bins::chr_
       , bins::codepoints_
-      , bins::conjunction_
+      // , bins::conjunction_
       , bins::const_
       , bins::contains_
       , bins::count_

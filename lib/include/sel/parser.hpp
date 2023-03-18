@@ -76,9 +76,7 @@ namespace sel {
       , v(v)
       , c(0)
     { }
-    handle<Val> operator*() override;
-    Lst& operator++() override;
-    bool end() override;
+    handle<Val> operator++() override;
     handle<Val> copy() const override;
 
     std::vector<handle<Val>> const& underlying() const { return v; }
@@ -168,9 +166,7 @@ namespace sel {
     LstDefine(handle<Lst> at, std::string const name, std::string const doc, handle<Lst> v)
       : Def(at, name, doc, v, Type(v->type()))
     { }
-    handle<Val> operator*() override;
-    Lst& operator++() override;
-    bool end() override;
+    handle<Val> operator++() override;
     handle<Val> copy() const override;
 
   protected:
