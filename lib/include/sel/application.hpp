@@ -136,8 +136,10 @@ namespace sel {
 
   template <typename U>
   using handle = App::handle<U>;
+
+  static App _;
   // TODO: make it a real thing (eg. copy-able?, drop-able?)
-  static handle<Val> null_handle((App&)(*(void*)0), nullptr);
+  static handle<Val> null_handle(_, nullptr);
 
 } // namespace sel
 

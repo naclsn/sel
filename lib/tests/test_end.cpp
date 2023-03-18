@@ -7,10 +7,9 @@ template <>
 long unsigned count<Lst>(Lst& l) {
   VisRepr repr(cout);
   size_t r = 0;
-  while (!l.end()) {
+  for (auto it = ++l; it; it.drop(), it = ++l) {
     r++;
-    (*l)->accept(repr);
-    ++l;
+    it->accept(repr);
   }
   return r;
 }

@@ -119,11 +119,12 @@ TEST(each) { return call_test<bins_list::all>::function(); }
   assert_eq(Ty::LST, _habe->type().base());                                     \
   Lst& _fart = *((handle<Lst>)_habe);                                           \
   for (auto const& _it : __rem_par __should) {                                  \
-    assert(!_fart.end(), #__have ":\n   should not have reached the end yet");  \
-    assert_num(_it, *_fart);                                                    \
-    ++_fart;                                                                    \
+    auto _cur = ++_fart;                                                        \
+    assert(_cur, #__have ":\n   should not have reached the end yet");          \
+    assert_num(_it, _cur);                                                      \
+    _cur.drop();                                                                \
   }                                                                             \
-  assert(_fart.end(), #__have ":\n   should have reached the end by now");      \
+  assert(!++_fart, #__have ":\n   should have reached the end by now");         \
 } while(0)
 
 #define assert_lststr(__should, __have) do {                                    \
@@ -131,22 +132,23 @@ TEST(each) { return call_test<bins_list::all>::function(); }
   assert_eq(Ty::LST, _habe->type().base());                                     \
   Lst& _fart = *((handle<Lst>)_habe);                                           \
   for (auto const& _it : __rem_par __should) {                                  \
-    assert(!_fart.end(), #__have ":\n   should not have reached the end yet");  \
-    assert_str(_it, *_fart);                                                    \
-    ++_fart;                                                                    \
+    auto _cur = ++_fart;                                                        \
+    assert(_cur, #__have ":\n   should not have reached the end yet");          \
+    assert_str(_it, _cur);                                                      \
+    _cur.drop();                                                                \
   }                                                                             \
-  assert(_fart.end(), #__have ":\n   should have reached the end by now");      \
+  assert(!++_fart, #__have ":\n   should have reached the end by now");         \
 } while(0)
 
 #define assert_empty(__have) do {                             \
   handle<Val> _habe = (__have);                               \
   Lst& _fart = *((handle<Lst>)_habe);                         \
-  assert(_fart.end(), "should have reached the end by now");  \
+  assert(!++_fart, "should have reached the end by now");     \
 } while(0)
 
 #define assert_lsterr(__throws) do {                 \
   try {                                              \
-    ((handle<Lst>)__throws)->end();                  \
+    ++(*(handle<Lst>)__throws);                      \
   } catch (RuntimeError const&) {                    \
     break;                                           \
   }                                                  \

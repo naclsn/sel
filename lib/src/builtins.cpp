@@ -120,8 +120,8 @@ namespace sel {
         std::ostringstream oss;
         buff = (oss << s, oss.str());
         off = 0;
-      } else off++;
-      return handle<NumResult>(h.app(), (uint8_t)buff[off]);
+      }
+      return handle<NumResult>(h.app(), (uint8_t)buff[off++]);
     }
 
     std::ostream& chr_::stream(std::ostream& out) { read = true; return out << codepoint(std::get<0>(_args)->value()); }
@@ -351,12 +351,14 @@ namespace sel {
     // XXX
     handle<Val> init_::operator++() {
       bind_args(l);
-      if (!prev) {
-        prev = ++l;
-        // if (!prev) throw RuntimeError("init of empty list");
-      }
       handle<Val> r = prev;
       prev = ++l;
+      if (!r) {
+        if (!prev) throw RuntimeError("init of empty list");
+        r = prev;
+        prev = ++l;
+      }
+      if (!prev) return null_handle;
       return r;
     }
 
