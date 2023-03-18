@@ -451,7 +451,6 @@ namespace sel {
     BIN_lst(dropwhile, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
       "return the suffix remaining from the first element not verifying the predicate onward", (
       bool done = false;
-      handle<Val> the_one = handle<Val>(h.app(), nullptr);
     ));
 
     BIN_lst(duple, (unk<'a'>, tpl<unk<'a'>, unk<'a'>>),
@@ -463,9 +462,7 @@ namespace sel {
       "true if the string ends with the given suffix", ());
 
     BIN_lst(filter, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
-      "return the list of elements which satisfy the predicate", (
-      handle<Val> curr = handle<Val>(h.app(), nullptr);
-    ));
+      "return the list of elements which satisfy the predicate", ());
 
     BIN_unk(flip, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, unk<'b'>, unk<'a'>, unk<'c'>),
       "flip the two parameters by passing the first given after the second one", ());
@@ -510,7 +507,9 @@ namespace sel {
 
     BIN_lst(init, (lst<unk<'a'>>, lst<unk<'a'>>),
       "extract the elements before the last one of a list, which must not be empty", (
-      handle<Val> prev = handle<Val>(h.app(), nullptr);
+      // handle<Val> prev = ++std::get<0>(_args);
+      handle<Val> prev = handle<Val>(h.app(), nullptr); // YYY: null_handle (or see above)
+      bool finished = false;
     ));
 
     BIN_lst(iterate, (fun<unk<'a'>, unk<'a'>>, unk<'a'>, ilst<unk<'a'>>),
@@ -651,9 +650,7 @@ namespace sel {
       "convert a number into string from its octal textual representation (without leading '0o')", ());
 
     BIN_lst(zipwith, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, ilst<unk<'a'>>, ilst<unk<'b'>>, ilst<unk<'c'>>),
-      "make a new list by applying an binary operation to each corresponding value from each lists; stops when either list ends", (
-      handle<Val> curr = handle<Val>(h.app(), nullptr);
-    ));
+      "make a new list by applying an binary operation to each corresponding value from each lists; stops when either list ends", ());
 
   } // namespace bins
 

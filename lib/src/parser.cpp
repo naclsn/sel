@@ -441,31 +441,31 @@ namespace sel {
   handle<Val> parseAtom(App& app, std::istream_iterator<Token>& lexer) {
     if (eos == lexer) expectedContinuation("scanning atom", *lexer);
 
-    handle<Val> val(app, nullptr);
     Token t = *lexer;
-
     switch (t.type) {
       case Token::Type::END:
         break;
 
-      case Token::Type::NAME:
-        val = lookup(app, *t.as.name);
-        if (!val) throw ParseError("unknown name '" + *t.as.name + "'", t.loc, t.len);
-        ++lexer;
-        break;
+      case Token::Type::NAME: {
+          auto val = lookup(app, *t.as.name);
+          if (!val) throw ParseError("unknown name '" + *t.as.name + "'", t.loc, t.len);
+          ++lexer;
+          return val;
+        }
 
-      case Token::Type::LIT_NUM:
-        val = handle<NumLiteral>(app, t.as.num);
-        ++lexer;
-        break;
+      case Token::Type::LIT_NUM: {
+          auto val = handle<NumLiteral>(app, t.as.num);
+          ++lexer;
+          return val;
+        }
 
-      case Token::Type::LIT_STR:
-        val = handle<StrLiteral>(app, std::string(*t.as.str));
-        ++lexer;
-        break;
+      case Token::Type::LIT_STR: {
+          auto val = handle<StrLiteral>(app, std::string(*t.as.str));
+          ++lexer;
+          return val;
+        }
 
-      case Token::Type::LIT_LST_OPEN:
-        {
+      case Token::Type::LIT_LST_OPEN: {
           std::vector<handle<Val>> elms;
           while (Token::Type::LIT_LST_CLOSE != (++lexer)->type) {
             elms.push_back(parseElement(app, lexer));
@@ -488,41 +488,35 @@ namespace sel {
           // [Str]) / look at surrounding (this would have
           // to be done at element-s level...)
 
-          val = handle<LstLiteral>(app, elms);
+          auto val = handle<LstLiteral>(app, elms);
           ++lexer;
+          return val;
         }
-        break;
 
-      case Token::Type::UN_OP:
-        val = lookup_unary(app, t);
-        {
-          handle<Val> arg(app, nullptr);
+      case Token::Type::UN_OP: {
+          auto val = lookup_unary(app, t);
           Token t = *++lexer;
-          if (Token::Type::BIN_OP == t.type) {
-            arg = (*static_lookup_name(app, flip))(lookup_binary(app, t));
-            ++lexer;
-          } else arg = parseAtom(app, lexer);
+          auto arg = Token::Type::BIN_OP == t.type
+            ? (++lexer, (*static_lookup_name(app, flip))(lookup_binary(app, t)))
+            : parseAtom(app, lexer);
           if (!arg) expected("atom", *lexer);
           val = (*(handle<Fun>)val)(arg);
+          return val;
         }
-        break;
 
-      case Token::Type::BIN_OP:
-        {
+      case Token::Type::BIN_OP: {
           // it parses the argument first, the op is on the stack for below
           handle<Val> arg = parseAtom(app, ++lexer);
           if (!arg) expected("atom", *lexer);
           // FIXME: this cast checked?
-          val = (*(handle<Fun>)(*static_lookup_name(app, flip))(lookup_binary(app, t)))(arg);
+          return (*(handle<Fun>)(*static_lookup_name(app, flip))(lookup_binary(app, t)))(arg);
         }
-        break;
 
-      case Token::Type::SUB_OPEN:
-        {
+      case Token::Type::SUB_OPEN: {
           if (Token::Type::SUB_CLOSE == (++lexer)->type)
             throw ParseError("expected element, got empty sub-expression", t.loc, lexer->loc-t.loc);
 
-          val = parseScript(app, lexer);
+          auto val = parseScript(app, lexer);
           if (!val) expectedMatching(t, *lexer);
 
           if (Token::Type::SUB_CLOSE != lexer->type) {
@@ -530,8 +524,8 @@ namespace sel {
             expectedMatching(t, *lexer);
           }
           ++lexer;
+          return val;
         }
-        break;
 
       // YYY: (probly) unreachables
       case Token::Type::DEF:
@@ -542,61 +536,63 @@ namespace sel {
         break;
     }
 
-    // if (!val) expected("atom", t);
-    return val;
+    return null_handle;
   } // parseAtom
+
+  // internal
+  handle<Val> specialFunctionDef(App& app, std::istream_iterator<Token>& lexer) {
+    Token t_name = *++lexer;
+    if (Token::Type::NAME != t_name.type) expected("name", t_name);
+
+    Token t_help = *++lexer;
+    if (Token::Type::LIT_STR != t_help.type) expected(("docstring for '" + *t_name.as.name + "'").c_str(), t_help);
+
+    if (lookup(app, *t_name.as.name)) {
+      //throw TypeError
+      throw ParseError("cannot redefine already known name '" + *t_name.as.name + "'", t_name.loc, t_name.len);
+    }
+
+    ++lexer;
+    auto val = parseAtom(app, lexer);
+    if (!val) expected("atom", *lexer);
+
+    // trim, join, squeeze..
+    std::string::size_type head = t_help.as.str->find_first_not_of("\t\n\r "), tail;
+    bool blank = std::string::npos == head;
+    std::string clean;
+    if (!blank) {
+      clean.reserve(t_help.as.str->length());
+      while (std::string::npos != head) {
+        tail = t_help.as.str->find_first_of("\t\n\r ", head);
+        clean.append(*t_help.as.str, head, std::string::npos == tail ? tail : tail-head).push_back(' ');
+        head = t_help.as.str->find_first_not_of("\t\n\r ", tail);
+      }
+      clean.pop_back();
+      clean.shrink_to_fit();
+    }
+
+    switch (val->type().base()) {
+      case Ty::NUM: val = handle<NumDefine>(app, *t_name.as.name, clean, val); break;
+      case Ty::STR: val = handle<StrDefine>(app, *t_name.as.name, clean, val); break;
+      case Ty::LST: val = handle<LstDefine>(app, *t_name.as.name, clean, val); break;
+      case Ty::FUN: val = handle<FunDefine>(app, *t_name.as.name, clean, val); break;
+      default: {
+        std::ostringstream oss;
+        throw TypeError((oss << "unexpected type in def expression: '" << val->type() << "'", oss.str()));
+      }
+    }
+
+    app.define_name_user(*t_name.as.name, val);
+    return val;
+  }
 
   // internal
   handle<Val> parseElement(App& app, std::istream_iterator<Token>& lexer) {
     if (eos == lexer) expectedContinuation("scanning element", *lexer);
 
-    handle<Val> val(app, nullptr);
-
-    if (Token::Type::DEF == lexer->type) {
-      Token t_name = *++lexer;
-      if (Token::Type::NAME != t_name.type) expected("name", t_name);
-
-      Token t_help = *++lexer;
-      if (Token::Type::LIT_STR != t_help.type) expected(("docstring for '" + *t_name.as.name + "'").c_str(), t_help);
-
-      if (lookup(app, *t_name.as.name)) {
-        //throw TypeError
-        throw ParseError("cannot redefine already known name '" + *t_name.as.name + "'", t_name.loc, t_name.len);
-      }
-
-      ++lexer;
-      val = parseAtom(app, lexer);
-      if (!val) expected("atom", *lexer);
-
-      // trim, join, squeeze..
-      std::string::size_type head = t_help.as.str->find_first_not_of("\t\n\r "), tail;
-      bool blank = std::string::npos == head;
-      std::string clean;
-      if (!blank) {
-        clean.reserve(t_help.as.str->length());
-        while (std::string::npos != head) {
-          tail = t_help.as.str->find_first_of("\t\n\r ", head);
-          clean.append(*t_help.as.str, head, std::string::npos == tail ? tail : tail-head).push_back(' ');
-          head = t_help.as.str->find_first_not_of("\t\n\r ", tail);
-        }
-        clean.pop_back();
-        clean.shrink_to_fit();
-      }
-
-      switch (val->type().base()) {
-        case Ty::NUM: val = handle<NumDefine>(app, *t_name.as.name, clean, val); break;
-        case Ty::STR: val = handle<StrDefine>(app, *t_name.as.name, clean, val); break;
-        case Ty::LST: val = handle<LstDefine>(app, *t_name.as.name, clean, val); break;
-        case Ty::FUN: val = handle<FunDefine>(app, *t_name.as.name, clean, val); break;
-        default: {
-          std::ostringstream oss;
-          throw TypeError((oss << "unexpected type in def expression: '" << val->type() << "'", oss.str()));
-        }
-      }
-
-      app.define_name_user(*t_name.as.name, val);
-
-    } else val = parseAtom(app, lexer);
+    auto val = Token::Type::DEF == lexer->type
+      ? specialFunctionDef(app, lexer)
+      : parseAtom(app, lexer);
     if (!val) expected("atom", *lexer);
 
     while (eos != lexer
@@ -623,10 +619,8 @@ namespace sel {
   handle<Val> parseScript(App& app, std::istream_iterator<Token>& lexer) {
     if (eos == lexer) expectedContinuation("scanning sub-script", *lexer);
 
-    handle<Val> val(app, nullptr);
-
     // early return: single value in script / sub-script
-    val = parseElement(app, lexer);
+    auto val = parseElement(app, lexer);
     if (eos == lexer
       || Token::Type::SUB_CLOSE == lexer->type
       || Token::Type::END == lexer->type)
@@ -634,7 +628,7 @@ namespace sel {
 
     // early return: syntax error, to caller to handle
     if (Token::Type::THEN != lexer->type)
-      return handle<Val>(app, nullptr);
+      return null_handle;
 
     // the parsed list of values was eg. "[a, b, c]";
     // this represent the composition "c . b . a" (hs

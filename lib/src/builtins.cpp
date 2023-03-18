@@ -9,7 +9,7 @@ namespace sel {
 
   handle<Val> lookup_name(App& app, std::string const& name) {
     auto itr = bins_list::map.find(name);
-    if (bins_list::map.end() == itr) return handle<Val>(app, nullptr);
+    if (bins_list::map.end() == itr) return null_handle;
     auto f = (*itr).second;
     return f(app);
   }
@@ -350,6 +350,7 @@ namespace sel {
 
     // XXX
     handle<Val> init_::operator++() {
+      if (finished) return null_handle;
       bind_args(l);
       handle<Val> r = prev;
       prev = ++l;
@@ -358,7 +359,11 @@ namespace sel {
         r = prev;
         prev = ++l;
       }
-      if (!prev) return null_handle;
+      if (!prev) {
+        r.drop();
+        finished = true;
+        return null_handle;
+      }
       return r;
     }
 

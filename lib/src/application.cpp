@@ -48,7 +48,7 @@ namespace sel {
     try {
       return user.at(name)->copy();
     } catch (.../*std::out_of_range const&*/) {
-      return handle<Val>(*this, nullptr);
+      return null_handle;
     }
   }
   void App::define_name_user(std::string const& name, handle<Val> v) {
