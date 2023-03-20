@@ -10,8 +10,8 @@
 #include <tuple>
 #include <vector>
 
-#include "application.hpp"
-#include "ll.hpp"
+#include "ll.hpp" // TODO
+#include "utils.hpp"
 #include "visitors.hpp"
 
 namespace sel {
@@ -50,25 +50,17 @@ namespace sel {
    */
   struct Val {
   protected:
-    handle<Val> h; // handle over itself
     Type const ty;
 
     // used by janky visitor pattern, essentially manual v-table; use `make_visit_table`
     virtual VisitTable visit_table() const = 0;
 
   public:
-    Val(handle<Val> at, Type&& ty);
+    Val(Type&& ty): ty(std::forward<Type>(ty)) { }
     virtual ~Val() { }
 
-    handle<Val> operator&() { return h; }
     Type const& type() const { return ty; }
-    virtual handle<Val> copy() const = 0;
-
-    // delete itself, construct a value of type U in its slot
-    template <typename U, typename ...Args>
-    void hold(Args&&... args) { new U(h, std::forward<Args>(args)...); }
-    // delete itself, the slot will be free for any new one
-    void drop() { h.drop(); }
+    virtual std::unique_ptr<Val> copy() const = 0;
 
     template <typename Vi>
     typename Vi::Ret accept(Vi& visitor) const {
@@ -85,10 +77,10 @@ namespace sel {
    * it for `coerse(Val val, Type to)`.
    */
   template <typename To>
-  handle<To> coerse(App& app, handle<Val> from, Type const& to);
+  std::unique_ptr<To> coerse(std::unique_ptr<Val> from, Type const& to);
   // forward (needed in LstMapCoerse)
   template <>
-  handle<Val> coerse<Val>(App& app, handle<Val> from, Type const& to);
+  std::unique_ptr<Val> coerse<Val>(std::unique_ptr<Val> from, Type const& to);
 
   /**
    * Abstract class for `Num`-type compatible values.
@@ -96,8 +88,8 @@ namespace sel {
    * (double for now).
    */
   struct Num : Val {
-    Num(handle<Num> at)
-      : Val(at, Type::makeNum())
+    Num()
+      : Val(Type::makeNum())
     { }
     virtual double value() = 0;
   };
@@ -107,8 +99,8 @@ namespace sel {
    * Strings are "rewindable streams".
    */
   struct Str : Val { //, public std::istream
-    Str(handle<Str> at, bool is_inf)
-      : Val(at, Type::makeStr(is_inf))
+    Str(bool is_inf)
+      : Val(Type::makeStr(is_inf))
     { }
     friend std::ostream& operator<<(std::ostream& out, Str& val) { return val.stream(out); }
     /**
@@ -132,13 +124,13 @@ namespace sel {
    * `next` and `rewind`.)
    */
   struct Lst : Val { //, public std::iterator<std::input_iterator_tag, Val>
-    Lst(handle<Lst> at, Type&& type)
-      : Val(at, std::forward<Type>(type))
+    Lst(Type&& type)
+      : Val(std::forward<Type>(type))
     { }
     /**
      * Get value and move to next, or falsy handle if past-the-end.
      */
-    virtual handle<Val> operator++() = 0;
+    virtual std::unique_ptr<Val> operator++() = 0;
   };
 
   /**
@@ -147,37 +139,37 @@ namespace sel {
    * a new value.
    */
   struct Fun : Val {
-    Fun(handle<Fun> at, Type&& type)
-      : Val(at, std::forward<Type>(type))
+    Fun(Type&& type)
+      : Val(std::forward<Type>(type))
     { }
-    virtual handle<Val> operator()(handle<Val> arg) = 0;
+    virtual std::unique_ptr<Val> operator()(std::unique_ptr<Val> arg) = 0;
   };
 
 
   struct LstMapCoerse : Lst {
   private:
-    handle<Lst> v;
+    std::unique_ptr<Lst> v;
     size_t now_has;
     size_t has_size;
 
   public:
-    LstMapCoerse(handle<Lst> at, handle<Lst> v, std::vector<Type> const& to_has)
-      : Lst(at, Type::makeLst(std::vector<Type>(to_has), v->type().is_inf(), v->type().is_tpl()))
-      , v(v)
+    LstMapCoerse(std::unique_ptr<Lst> v, std::vector<Type> const& to_has)
+      : Lst(Type::makeLst(std::vector<Type>(to_has), v->type().is_inf(), v->type().is_tpl()))
+      , v(move(v))
       , now_has(0)
       , has_size(ty.has().size())
     { }
 
-    handle<Val> operator++() override {
+    std::unique_ptr<Val> operator++() override {
       auto curr = ++(*v);
       if (!curr) return curr;
       if (has_size <= ++now_has)
         now_has = 0;
-      return coerse<Val>(h.app(), curr, ty.has()[now_has]);
+      return coerse<Val>(move(curr), ty.has()[now_has]);
     }
 
-    handle<Val> copy() const override {
-      return handle<LstMapCoerse>(h.app(), v->copy(), ty.has());
+    std::unique_ptr<Val> copy() const override {
+      return std::make_unique<LstMapCoerse>(val_cast<Lst>(v->copy()), ty.has());
     }
 
     Lst const& source() const { return *v; }
@@ -191,11 +183,11 @@ namespace sel {
 
   // @thx: http://gabisoft.free.fr/articles/fltrsbf1.html (2 pages, this page 1)
   class Str_streambuf : public std::streambuf {
-    handle<Str> v;
+    std::unique_ptr<Str> v;
     std::string buffered;
 
   public:
-    Str_streambuf(handle<Str> v): v(v) { }
+    Str_streambuf(std::unique_ptr<Str> v): v(move(v)) { }
 
     int_type overflow(int_type) override;
     int_type underflow() override;

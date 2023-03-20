@@ -2,6 +2,7 @@
 #define SEL_UTILS_HPP
 
 #include <iostream>
+#include <memory>
 
 // @thx: https://renenyffenegger.ch/notes/development/languages/C-C-plus-plus/preprocessor/macros/__VA_ARGS__/count-arguments
 #define __A11(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, ...) a11
@@ -9,7 +10,20 @@
 
 #define TRACE(...) // std::cerr << __VA_ARGS__ << "\n"
 
+// YYY: because this exists in C++14 onward
+namespace std {
+  template <typename T, typename ...Args>
+  unique_ptr<T> make_unique(Args&&... args) {
+    return unique_ptr<T>(new T(std::forward<Args>(args)...));
+  }
+}
+
 namespace sel {
+  template <typename To, typename From>
+  inline std::unique_ptr<To> val_cast(std::unique_ptr<From> from) {
+    return std::unique_ptr<To>((To*)from.release());
+  }
+
   struct Val;
   namespace utils {
 

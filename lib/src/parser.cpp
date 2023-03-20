@@ -10,54 +10,56 @@
 #include "sel/utils.hpp"
 #include "sel/visitors.hpp"
 
+using namespace std;
+
 namespace sel {
 
   double NumLiteral::value() { return n; }
-  handle<Val> NumLiteral::copy() const { return handle<NumLiteral>(h.app(), n); }
+  unique_ptr<Val> NumLiteral::copy() const { return make_unique<NumLiteral>(n); }
 
-  std::ostream& StrLiteral::stream(std::ostream& out) { read = true; return out << s; }
+  ostream& StrLiteral::stream(ostream& out) { read = true; return out << s; }
   bool StrLiteral::end() { return read || s.empty(); }
-  std::ostream& StrLiteral::entire(std::ostream& out) { read = true; return out << s; }
-  handle<Val> StrLiteral::copy() const { return handle<StrLiteral>(h.app(), s); }
+  ostream& StrLiteral::entire(ostream& out) { read = true; return out << s; }
+  unique_ptr<Val> StrLiteral::copy() const { return make_unique<StrLiteral>(string(s)); }
 
-  handle<Val> LstLiteral::operator++() { return c < v.size() ? v[c++] : null_handle; }
-  handle<Val> LstLiteral::copy() const {
-    std::vector<handle<Val>> w;
+  unique_ptr<Val> LstLiteral::operator++() { return c < v.size() ? move(v[c++]) : nullptr; }
+  unique_ptr<Val> LstLiteral::copy() const {
+    vector<unique_ptr<Val>> w;
     w.reserve(v.size());
     for (auto const& it : v)
       w.push_back(it->copy());
-    return handle<LstLiteral>(h.app(), w, std::vector<Type>(ty.has()));
+    return val_cast<Val>(make_unique<LstLiteral>(move(w), vector<Type>(ty.has())));
   }
 
-  handle<Val> FunChain::operator()(handle<Val> arg) {
-    handle<Val> r = arg;
+  unique_ptr<Val> FunChain::operator()(unique_ptr<Val> arg) {
+    unique_ptr<Val> r = move(arg);
     for (auto& it : f)
-      r = (*it)(r);
+      r = (*it)(move(r));
     return r;
   }
-  handle<Val> FunChain::copy() const {
-    std::vector<handle<Fun>> g;
+  unique_ptr<Val> FunChain::copy() const {
+    vector<unique_ptr<Fun>> g;
     g.reserve(f.size());
     for (auto const& it : f)
-      g.push_back(it->copy());
-    return handle<FunChain>(h.app(), g);
+      g.push_back(val_cast<Fun>(it->copy()));
+    return val_cast<Val>(make_unique<FunChain>(move(g)));
   }
 
   double NumDefine::value() { return v->value(); }
-  handle<Val> NumDefine::copy() const { return handle<NumDefine>(h.app(), name, doc, v->copy()); }
+  unique_ptr<Val> NumDefine::copy() const { return val_cast<Val>(make_unique<NumDefine>(name, doc, val_cast<Num>(v->copy()))); }
 
-  std::ostream& StrDefine::stream(std::ostream& out) { return v->stream(out); }
+  ostream& StrDefine::stream(ostream& out) { return v->stream(out); }
   bool StrDefine::end() { return v->end(); }
-  std::ostream& StrDefine::entire(std::ostream& out) { return v->entire(out); }
-  handle<Val> StrDefine::copy() const { return handle<StrDefine>(h.app(), name, doc, v->copy()); }
+  ostream& StrDefine::entire(ostream& out) { return v->entire(out); }
+  unique_ptr<Val> StrDefine::copy() const { return val_cast<Val>(make_unique<StrDefine>(name, doc, val_cast<Str>(v->copy()))); }
 
-  handle<Val> LstDefine::operator++() { return ++(*v); }
-  handle<Val> LstDefine::copy() const { return handle<LstDefine>(h.app(), name, doc, v->copy()); }
+  unique_ptr<Val> LstDefine::operator++() { return ++(*v); }
+  unique_ptr<Val> LstDefine::copy() const { return val_cast<Val>(make_unique<LstDefine>(name, doc, val_cast<Lst>(v->copy()))); }
 
-  handle<Val> FunDefine::operator()(handle<Val> arg) { return (*v)(arg); }
-  handle<Val> FunDefine::copy() const { return handle<FunDefine>(h.app(), name, doc, v->copy()); }
+  unique_ptr<Val> FunDefine::operator()(unique_ptr<Val> arg) { return (*v)(move(arg)); }
+  unique_ptr<Val> FunDefine::copy() const { return val_cast<Val>(make_unique<FunDefine>(name, doc, val_cast<Fun>(v->copy()))); }
 
-  std::ostream& Input::stream(std::ostream& out) {
+  ostream& Input::stream(ostream& out) {
     // already read up to `upto`, so take from cache starting at `nowat`
     if (nowat < buffer->upto) {
       out << buffer->cache.str().substr(nowat, buffer->upto-nowat);
@@ -77,19 +79,19 @@ namespace sel {
     } else {
       // can only get the next one; forward if not eof
       char c = buffer->in.get();
-      if (std::char_traits<char>::eof() != c) {
+      if (char_traits<char>::eof() != c) {
         nowat++;
         buffer->upto++;
         out.put(c);
         buffer->cache.put(c);
       }
-    } // 0 < avail
+    } // if (0 < avail)
     return out;
   }
   bool Input::end() {
-    return nowat == buffer->upto && (buffer->in.eof() || std::istream::traits_type::eof() == buffer->in.peek());
+    return nowat == buffer->upto && (buffer->in.eof() || istream::traits_type::eof() == buffer->in.peek());
   }
-  std::ostream& Input::entire(std::ostream& out) {
+  ostream& Input::entire(ostream& out) {
     // not at the end, get the rest
     if (!buffer->in.eof()) {
       char tmp[4096];
@@ -109,7 +111,7 @@ namespace sel {
     nowat = buffer->upto;
     return out << buffer->cache.str();
   }
-  handle<Val> Input::copy() const { return handle<Input>(h.app(), *this); }
+  unique_ptr<Val> Input::copy() const { return unique_ptr<Val>(new Input(*this)); }
 
   // internal
   struct Token {
@@ -131,16 +133,16 @@ namespace sel {
       DEF,
     } type;
     union {
-      std::string* name;
+      string* name;
       double num;
-      std::string* str;
+      string* str;
       char chr;
     } as = {0};
     Token() {}
     Token(Token const& t) {
       switch (type = t.type) {
-        case Token::Type::NAME: as.name = new std::string(*t.as.name); break;
-        case Token::Type::LIT_STR: as.str = new std::string(*t.as.str); break;
+        case Token::Type::NAME: as.name = new string(*t.as.name); break;
+        case Token::Type::LIT_STR: as.str = new string(*t.as.str); break;
         case Token::Type::LIT_NUM: as.num = t.as.num;
         default: as.chr = t.as.chr;
       }
@@ -157,7 +159,7 @@ namespace sel {
   };
 
   // internal
-  double parseNumber(std::istream& in, size_t* len) {
+  double parseNumber(istream& in, size_t* len) {
     unsigned base = 10;
     char c;
     double r = 0;
@@ -183,7 +185,7 @@ namespace sel {
   }
 
   // internal
-  std::ostream& reprToken(std::ostream& out, Token const& t) {
+  ostream& reprToken(ostream& out, Token const& t) {
     out << "Token { .type=";
     switch (t.type) {
       case Token::Type::END:           out << "END";           break;
@@ -235,7 +237,7 @@ namespace sel {
   }
 
   // internal
-  std::ostream& operator<<(std::ostream& out, Token const& t) {
+  ostream& operator<<(ostream& out, Token const& t) {
     switch (t.type) {
       case Token::Type::END:
         out << "end of script";
@@ -276,35 +278,35 @@ namespace sel {
 
   // internal
   void expected(char const* should, Token const& got) {
-    std::ostringstream oss;
+    ostringstream oss;
     oss << "expected " << should << " but got " << got << " instead";
     throw ParseError(oss.str(), got.loc, got.len);
   }
   void expectedMatching(Token const& open, Token const& got) {
-    std::ostringstream oss;
+    ostringstream oss;
     oss << "expected closing match for " << open << " but got " << got << " instead";
     throw ParseError(oss.str(), open.loc, got.loc-open.loc);
   }
   void expectedContinuation(char const* whiledotdotdot, Token const& somelasttoken) {
-    std::ostringstream oss;
+    ostringstream oss;
     oss << "reached end of script while " << whiledotdotdot;
     throw ParseError(oss.str(), somelasttoken.loc, somelasttoken.len);
   }
   void _fakeThrowErr(Token const& hl) {
-    std::ostringstream oss;
+    ostringstream oss;
     oss << "this is a fake error for testing purpose, token: " << hl;
     throw ParseError(oss.str(), hl.loc, hl.len);
   }
 
   // internal
-  std::istream& operator>>(std::istream& in, Token& t) {
+  istream& operator>>(istream& in, Token& t) {
     char c = in.peek();
     if (in.eof()) {
       t.type = Token::Type::END;
       return in;
     }
     if ('#' == c) {
-      in.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+      in.ignore(numeric_limits<streamsize>::max(), '\n');
       return in >> t;
     }
     if ('\t' == c || '\n' == c || '\r' == c || ' ' == c) { // YYY: what is considered 'whitespace' by C++?
@@ -347,7 +349,7 @@ namespace sel {
 
       case ':':
         t.type = Token::Type::LIT_STR;
-        t.as.str = new std::string();
+        t.as.str = new string();
         in.ignore(1);
         t.len++;
         do {
@@ -382,7 +384,7 @@ namespace sel {
 
         if ('a' <= c && c <= 'z') {
           t.type = Token::Type::NAME;
-          t.as.name = new std::string();
+          t.as.name = new string();
           do {
             t.as.name->push_back(in.get());
             t.len++;
@@ -398,7 +400,7 @@ namespace sel {
           break;
         }
 
-        throw ParseError(std::string("unexpected character '") + c + "' (" + std::to_string((int)c) + ")", t.loc, 1);
+        throw ParseError(string("unexpected character '") + c + "' (" + to_string((int)c) + ")", t.loc, 1);
     } // switch c
 
     while (!in.eof() && isspace(in.peek())) in.get();
@@ -406,39 +408,39 @@ namespace sel {
   }
 
   // internal
-  handle<Val> lookup(App& app, std::string const& name) {
-    handle<Val> user = app.lookup_name_user(name);
+  unique_ptr<Val> lookup(App& app, string const& name) {
+    unique_ptr<Val> user = app.lookup_name_user(name);
     if (user) return user;
-    return lookup_name(app, name);
+    return lookup_name(name);
   }
-  handle<Val> lookup_unary(App& app, Token const& t) {
+  unique_ptr<Val> lookup_unary(App& app, Token const& t) {
     switch (t.as.chr) {
-      // case '@': val = static_lookup_name(app, ..); break;
-      case '%': return static_lookup_name(app, flip); break; // YYY: flips cancel out
+      // case '@': val = static_lookup_name(..); break;
+      case '%': return static_lookup_name(flip); break; // YYY: flips cancel out
     }
     // default unreachable
-    throw TypeError(std::string("unreachable in lookup_unary for character '") + t.as.chr + '\'');
+    throw TypeError(string("unreachable in lookup_unary for character '") + t.as.chr + '\'');
   }
-  handle<Val> lookup_binary(App& app, Token const& t) {
+  unique_ptr<Val> lookup_binary(App& app, Token const& t) {
     switch (t.as.chr) {
-      case '+': return static_lookup_name(app, add); break;
-      case '-': return static_lookup_name(app, sub); break;
-      case '.': return static_lookup_name(app, mul); break;
-      case '/': return static_lookup_name(app, div); break;
-      case '_': return static_lookup_name(app, index); break;
+      case '+': return static_lookup_name(add); break;
+      case '-': return static_lookup_name(sub); break;
+      case '.': return static_lookup_name(mul); break;
+      case '/': return static_lookup_name(div); break;
+      case '_': return static_lookup_name(index); break;
     }
     // default unreachable
-    throw TypeError(std::string("unreachable in lookup_binary for character '") + t.as.chr + '\'');
+    throw TypeError(string("unreachable in lookup_binary for character '") + t.as.chr + '\'');
   }
 
   // internal
-  static std::istream_iterator<Token> eos;
-  handle<Val> parseAtom(App& app, std::istream_iterator<Token>& lexer);
-  handle<Val> parseElement(App& app, std::istream_iterator<Token>& lexer);
-  handle<Val> parseScript(App& app, std::istream_iterator<Token>& lexer);
+  static istream_iterator<Token> eos;
+  unique_ptr<Val> parseAtom(App& app, istream_iterator<Token>& lexer);
+  unique_ptr<Val> parseElement(App& app, istream_iterator<Token>& lexer);
+  unique_ptr<Val> parseScript(App& app, istream_iterator<Token>& lexer);
 
   // internal
-  handle<Val> parseAtom(App& app, std::istream_iterator<Token>& lexer) {
+  unique_ptr<Val> parseAtom(App& app, istream_iterator<Token>& lexer) {
     if (eos == lexer) expectedContinuation("scanning atom", *lexer);
 
     Token t = *lexer;
@@ -454,19 +456,19 @@ namespace sel {
         }
 
       case Token::Type::LIT_NUM: {
-          auto val = handle<NumLiteral>(app, t.as.num);
+          auto val = make_unique<NumLiteral>(t.as.num);
           ++lexer;
           return val;
         }
 
       case Token::Type::LIT_STR: {
-          auto val = handle<StrLiteral>(app, std::string(*t.as.str));
+          auto val = make_unique<StrLiteral>(move(*t.as.str));
           ++lexer;
           return val;
         }
 
       case Token::Type::LIT_LST_OPEN: {
-          std::vector<handle<Val>> elms;
+          vector<unique_ptr<Val>> elms;
           while (Token::Type::LIT_LST_CLOSE != (++lexer)->type) {
             elms.push_back(parseElement(app, lexer));
             if (Token::Type::LIT_LST_CLOSE == lexer->type) break;
@@ -488,7 +490,7 @@ namespace sel {
           // [Str]) / look at surrounding (this would have
           // to be done at element-s level...)
 
-          auto val = handle<LstLiteral>(app, elms);
+          auto val = val_cast<Val>(make_unique<LstLiteral>(move(elms)));
           ++lexer;
           return val;
         }
@@ -497,19 +499,18 @@ namespace sel {
           auto val = lookup_unary(app, t);
           Token t = *++lexer;
           auto arg = Token::Type::BIN_OP == t.type
-            ? (++lexer, (*static_lookup_name(app, flip))(lookup_binary(app, t)))
+            ? (++lexer, (*static_lookup_name(flip))(lookup_binary(app, t)))
             : parseAtom(app, lexer);
           if (!arg) expected("atom", *lexer);
-          val = (*(handle<Fun>)val)(arg);
+          val = (*(Fun*)val.get())(move(arg));
           return val;
         }
 
       case Token::Type::BIN_OP: {
           // it parses the argument first, the op is on the stack for below
-          handle<Val> arg = parseAtom(app, ++lexer);
+          unique_ptr<Val> arg = parseAtom(app, ++lexer);
           if (!arg) expected("atom", *lexer);
-          // FIXME: this cast checked?
-          return (*(handle<Fun>)(*static_lookup_name(app, flip))(lookup_binary(app, t)))(arg);
+          return (*(Fun*)(*static_lookup_name(flip))(lookup_binary(app, t)).get())(move(arg));
         }
 
       case Token::Type::SUB_OPEN: {
@@ -536,11 +537,11 @@ namespace sel {
         break;
     }
 
-    return null_handle;
+    return nullptr;
   } // parseAtom
 
   // internal
-  handle<Val> specialFunctionDef(App& app, std::istream_iterator<Token>& lexer) {
+  unique_ptr<Val> specialFunctionDef(App& app, istream_iterator<Token>& lexer) {
     Token t_name = *++lexer;
     if (Token::Type::NAME != t_name.type) expected("name", t_name);
 
@@ -557,14 +558,14 @@ namespace sel {
     if (!val) expected("atom", *lexer);
 
     // trim, join, squeeze..
-    std::string::size_type head = t_help.as.str->find_first_not_of("\t\n\r "), tail;
-    bool blank = std::string::npos == head;
-    std::string clean;
+    string::size_type head = t_help.as.str->find_first_not_of("\t\n\r "), tail;
+    bool blank = string::npos == head;
+    string clean;
     if (!blank) {
       clean.reserve(t_help.as.str->length());
-      while (std::string::npos != head) {
+      while (string::npos != head) {
         tail = t_help.as.str->find_first_of("\t\n\r ", head);
-        clean.append(*t_help.as.str, head, std::string::npos == tail ? tail : tail-head).push_back(' ');
+        clean.append(*t_help.as.str, head, string::npos == tail ? tail : tail-head).push_back(' ');
         head = t_help.as.str->find_first_not_of("\t\n\r ", tail);
       }
       clean.pop_back();
@@ -572,22 +573,22 @@ namespace sel {
     }
 
     switch (val->type().base()) {
-      case Ty::NUM: val = handle<NumDefine>(app, *t_name.as.name, clean, val); break;
-      case Ty::STR: val = handle<StrDefine>(app, *t_name.as.name, clean, val); break;
-      case Ty::LST: val = handle<LstDefine>(app, *t_name.as.name, clean, val); break;
-      case Ty::FUN: val = handle<FunDefine>(app, *t_name.as.name, clean, val); break;
+      case Ty::NUM: val = val_cast<Val>(make_unique<NumDefine>(*t_name.as.name, clean, val_cast<Num>(move(val)))); break;
+      case Ty::STR: val = val_cast<Val>(make_unique<StrDefine>(*t_name.as.name, clean, val_cast<Str>(move(val)))); break;
+      case Ty::LST: val = val_cast<Val>(make_unique<LstDefine>(*t_name.as.name, clean, val_cast<Lst>(move(val)))); break;
+      case Ty::FUN: val = val_cast<Val>(make_unique<FunDefine>(*t_name.as.name, clean, val_cast<Fun>(move(val)))); break;
       default: {
-        std::ostringstream oss;
+        ostringstream oss;
         throw TypeError((oss << "unexpected type in def expression: '" << val->type() << "'", oss.str()));
       }
     }
 
-    app.define_name_user(*t_name.as.name, val);
+    app.define_name_user(*t_name.as.name, val->copy());
     return val;
   }
 
   // internal
-  handle<Val> parseElement(App& app, std::istream_iterator<Token>& lexer) {
+  unique_ptr<Val> parseElement(App& app, istream_iterator<Token>& lexer) {
     if (eos == lexer) expectedContinuation("scanning element", *lexer);
 
     auto val = Token::Type::DEF == lexer->type
@@ -602,9 +603,9 @@ namespace sel {
         && Token::Type::SUB_CLOSE != lexer->type
         && Token::Type::END != lexer->type
     ) {
-      handle<Fun> base = coerse<Fun>(app, val, val->type());
-      handle<Val> arg = parseAtom(app, lexer);
-      if (arg) val = base->operator()(arg);
+      unique_ptr<Fun> base = coerse<Fun>(move(val), val->type());
+      unique_ptr<Val> arg = parseAtom(app, lexer);
+      if (arg) val = (*base)(move(arg));
     }
 
     if (Token::Type::PASS == lexer->type) {
@@ -616,7 +617,7 @@ namespace sel {
   } // parseElement
 
   // internal
-  handle<Val> parseScript(App& app, std::istream_iterator<Token>& lexer) {
+  unique_ptr<Val> parseScript(App& app, istream_iterator<Token>& lexer) {
     if (eos == lexer) expectedContinuation("scanning sub-script", *lexer);
 
     // early return: single value in script / sub-script
@@ -628,7 +629,7 @@ namespace sel {
 
     // early return: syntax error, to caller to handle
     if (Token::Type::THEN != lexer->type)
-      return null_handle;
+      return nullptr;
 
     // the parsed list of values was eg. "[a, b, c]";
     // this represent the composition "c . b . a" (hs
@@ -648,28 +649,28 @@ namespace sel {
 
     if (isfun) {
       // first is a function, pack all up for later
-      std::vector<handle<Fun>> elms;
-      elms.push_back(coerse<Fun>(app, val, val->type()));
+      vector<unique_ptr<Fun>> elms;
+      elms.push_back(coerse<Fun>(move(val), val->type()));
       do {
         auto tmp = parseElement(app, ++lexer);
-        elms.push_back(coerse<Fun>(app, tmp, tmp->type()));
+        elms.push_back(coerse<Fun>(move(tmp), tmp->type()));
       } while (eos != lexer && Token::Type::THEN == lexer->type);
-      return handle<FunChain>(app, elms);
+      return make_unique<FunChain>(move(elms));
     }
 
     // first is not a function, apply all right away
     do {
       auto tmp = parseElement(app, ++lexer);
-      val = (*coerse<Fun>(app, tmp, tmp->type()))(val);
+      val = (*coerse<Fun>(move(tmp), tmp->type()))(move(val));
     } while (eos != lexer && Token::Type::THEN == lexer->type);
     return val;
   } // parseScript
 
-  handle<Val> parseApplication(App& app, std::istream& in) {
-    std::istream_iterator<Token> lexer(in);
+  unique_ptr<Val> parseApplication(App& app, istream& in) {
+    istream_iterator<Token> lexer(in);
     if (eos == lexer) expectedContinuation("scanning script", *lexer);
 
-    handle<Val> tmp = parseScript(app, lexer);
+    unique_ptr<Val> tmp = parseScript(app, lexer);
     if (Token::Type::SUB_CLOSE == lexer->type)
       throw ParseError("unmatched closing ]", lexer->loc, lexer->len);
 

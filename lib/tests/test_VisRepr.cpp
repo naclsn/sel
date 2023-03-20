@@ -15,23 +15,23 @@ App app;
 TEST(VisRepr) {
   int fails = 0;
 
-  auto num = handle<NumLiteral>(app, 42.1);
+  auto num = make_unique<NumLiteral>(42.1);
   fails+= doTestEq(
     *num,
     "<Num> NumLiteral { n= 42.1 }"
   );
 
-  auto str = handle<StrLiteral>(app, "coucou");
+  auto str = make_unique<StrLiteral>("coucou");
   fails+= doTestEq(
     *str,
     "<Str> StrLiteral { s= \"coucou\" }"
   );
 
-  auto v = vector<handle<Val>>();
-  v.push_back(num);
-  v.push_back(str);
+  Vals v;
+  v.push_back(move(num));
+  v.push_back(move(str));
   fails+= doTestEq(
-    *handle<LstLiteral>(app, v),
+    *make_unique<LstLiteral>(move(v)),
     "<[_mixed]> LstLiteral { v[0]=<Num> NumLiteral { n= 42.1 } v[1]=<Str> StrLiteral { s= \"coucou\" } }"
   );
 

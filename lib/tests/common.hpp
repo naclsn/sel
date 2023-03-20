@@ -14,7 +14,7 @@ using namespace std;
 using namespace sel;
 
 typedef vector<Type> Types;
-typedef vector<handle<Val>> Vals;
+typedef vector<unique_ptr<Val>> Vals;
 
 #define RED   "\e[31m"
 #define GREEN "\e[32m"

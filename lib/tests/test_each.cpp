@@ -6,29 +6,27 @@ using namespace bins;
 TEST(each) { cout << "test disable as BIN_MIN is defined\n"; return 0; }
 #else
 
-App app;
+template <typename T> inline unique_ptr<Val> asval(T x) { return x; }
 
-template <typename T> inline handle<Val> asval(T x) { return x; }
+template <> inline unique_ptr<Val> asval(int x) { return make_unique<NumLiteral>(x); }
+template <> inline unique_ptr<Val> asval(float x) { return make_unique<NumLiteral>(x); }
+template <> inline unique_ptr<Val> asval(double x) { return make_unique<NumLiteral>(x); }
 
-template <> inline handle<Val> asval(int x) { return handle<NumLiteral>(app, x); }
-template <> inline handle<Val> asval(float x) { return handle<NumLiteral>(app, x); }
-template <> inline handle<Val> asval(double x) { return handle<NumLiteral>(app, x); }
+template <> inline unique_ptr<Val> asval(char x) { return make_unique<StrLiteral>(string(1, x)); }
+template <> inline unique_ptr<Val> asval(char const* x) { return make_unique<StrLiteral>(x); }
+template <> inline unique_ptr<Val> asval(string x) { return make_unique<StrLiteral>(move(x)); }
 
-template <> inline handle<Val> asval(char x) { return handle<StrLiteral>(app, string(1, x)); }
-template <> inline handle<Val> asval(char const* x) { return handle<StrLiteral>(app, x); }
-template <> inline handle<Val> asval(string x) { return handle<StrLiteral>(app, x); }
-
-template <typename T> inline handle<Val> _lst_asval(initializer_list<T> x, Type const& ty) {
+template <typename T> inline unique_ptr<Val> _lst_asval(initializer_list<T> x, Type const& ty) {
   Vals r;
   for (auto const& it : x)
     r.push_back(asval(it));
-  return handle<LstLiteral>(app, r, Types{Type(ty)});
+  return make_unique<LstLiteral>(move(r), Types{Type(ty)});
 }
-template <> inline handle<Val> asval(initializer_list<int> x) { return _lst_asval(x, Type::makeNum()); }
-template <> inline handle<Val> asval(initializer_list<float> x) { return _lst_asval(x, Type::makeNum()); }
-template <> inline handle<Val> asval(initializer_list<char> x) { return _lst_asval(x, Type::makeStr(false)); }
-template <> inline handle<Val> asval(initializer_list<char const*> x) { return _lst_asval(x, Type::makeStr(false)); }
-template <> inline handle<Val> asval(initializer_list<string> x) { return _lst_asval(x, Type::makeStr(false)); }
+template <> inline unique_ptr<Val> asval(initializer_list<int> x) { return _lst_asval(x, Type::makeNum()); }
+template <> inline unique_ptr<Val> asval(initializer_list<float> x) { return _lst_asval(x, Type::makeNum()); }
+template <> inline unique_ptr<Val> asval(initializer_list<char> x) { return _lst_asval(x, Type::makeStr(false)); }
+template <> inline unique_ptr<Val> asval(initializer_list<char const*> x) { return _lst_asval(x, Type::makeStr(false)); }
+template <> inline unique_ptr<Val> asval(initializer_list<string> x) { return _lst_asval(x, Type::makeStr(false)); }
 
 template <typename T>
 using ili = initializer_list<T>;
@@ -38,21 +36,21 @@ template <typename ...L> struct uncurry;
 
 template <typename H, typename ...T>
 struct uncurry<H, T...> {
-  static inline handle<Val> function(handle<Fun> f, H h, T... t) {
-    return uncurry<T...>::function((*f)(asval(h)), t...);
+  static inline unique_ptr<Val> function(unique_ptr<Val> f, H h, T... t) {
+    return uncurry<T...>::function((*val_cast<Fun>(move(f)))(asval(forward<H>(h))), t...);
   }
 };
 
 template <>
 struct uncurry<> {
-  static inline handle<Val> function(handle<Val> v) {
+  static inline unique_ptr<Val> function(unique_ptr<Val> v) {
     return v;
   }
 };
 
 template <typename F, typename ...Args>
-static inline handle<Val> call(Args... args) {
-  return uncurry<Args...>::function(handle<typename F::Head>(app), args...);
+static inline unique_ptr<Val> call(Args... args) {
+  return uncurry<Args...>::function(unique_ptr<typename F::Head>(), forward<Args>(args)...);
 }
 
 
@@ -99,56 +97,49 @@ TEST(each) { return call_test<bins_list::all>::function(); }
 
 #define __rem_par(...) __VA_ARGS__
 
-#define assert_num(__should, __have) do {    \
-  handle<Val> _habe = (__have);              \
-  assert_eq(Ty::NUM, _habe->type().base());  \
-  Num& _fart = *((handle<Num>)_habe);        \
-  assert_eq(__should, _fart.value());        \
+#define assert_num(__should, __have) do {   \
+  auto _num = val_cast<Num>(__have);        \
+  assert_eq(Ty::NUM, _num->type().base());  \
+  assert_eq(__should, _num->value());      \
 } while (0)
 
 #define assert_str(__should, __have) do {                \
-  handle<Val> _habe = (__have);                          \
-  assert_eq(Ty::STR, _habe->type().base());              \
-  Str& _fart = *((handle<Str>)_habe);                    \
+  auto _str = val_cast<Str>(__have);                     \
+  assert_eq(Ty::STR, _str->type().base());               \
   ostringstream oss;                                     \
-  assert_cmp(__should, (_fart.entire(oss), oss.str()));  \
+  assert_cmp(__should, (_str->entire(oss), oss.str()));  \
 } while (0)
 
-#define assert_lstnum(__should, __have) do {                                    \
-  handle<Val> _habe = (__have);                                                 \
-  assert_eq(Ty::LST, _habe->type().base());                                     \
-  Lst& _fart = *((handle<Lst>)_habe);                                           \
-  for (auto const& _it : __rem_par __should) {                                  \
-    auto _cur = ++_fart;                                                        \
-    assert(_cur, #__have ":\n   should not have reached the end yet");          \
-    assert_num(_it, _cur);                                                      \
-    _cur.drop();                                                                \
-  }                                                                             \
-  assert(!++_fart, #__have ":\n   should have reached the end by now");         \
+#define assert_lstnum(__should, __have) do {                             \
+  auto _lst = val_cast<Lst>(__have);                                     \
+  assert_eq(Ty::LST, _lst->type().base());                               \
+  for (auto const& _it : __rem_par __should) {                           \
+    auto _cur = ++*_lst;                                                 \
+    assert(_cur, #__have ":\n   should not have reached the end yet");   \
+    assert_num(_it, move(_cur));                                         \
+  }                                                                      \
+  assert(!++*_lst, #__have ":\n   should have reached the end by now");  \
 } while(0)
 
-#define assert_lststr(__should, __have) do {                                    \
-  handle<Val> _habe = (__have);                                                 \
-  assert_eq(Ty::LST, _habe->type().base());                                     \
-  Lst& _fart = *((handle<Lst>)_habe);                                           \
-  for (auto const& _it : __rem_par __should) {                                  \
-    auto _cur = ++_fart;                                                        \
-    assert(_cur, #__have ":\n   should not have reached the end yet");          \
-    assert_str(_it, _cur);                                                      \
-    _cur.drop();                                                                \
-  }                                                                             \
-  assert(!++_fart, #__have ":\n   should have reached the end by now");         \
+#define assert_lststr(__should, __have) do {                             \
+  auto _lst = val_cast<Lst>(__have);                                     \
+  assert_eq(Ty::LST, _lst->type().base());                               \
+  for (auto const& _it : __rem_par __should) {                           \
+    auto _cur = ++*_lst;                                                 \
+    assert(_cur, #__have ":\n   should not have reached the end yet");   \
+    assert_str(_it, move(_cur));                                         \
+  }                                                                      \
+  assert(!++*_lst, #__have ":\n   should have reached the end by now");  \
 } while(0)
 
-#define assert_empty(__have) do {                             \
-  handle<Val> _habe = (__have);                               \
-  Lst& _fart = *((handle<Lst>)_habe);                         \
-  assert(!++_fart, "should have reached the end by now");     \
+#define assert_empty(__have) do {                          \
+  auto _lst = val_cast<Lst>(__have);                       \
+  assert(!++*_lst, "should have reached the end by now");  \
 } while(0)
 
 #define assert_lsterr(__throws) do {                 \
   try {                                              \
-    ++(*(handle<Lst>)__throws);                      \
+    ++*val_cast<Lst>(__throws);                      \
   } catch (RuntimeError const&) {                    \
     break;                                           \
   }                                                  \
@@ -179,6 +170,10 @@ T(bytes_) {
     ({ 97, 227, 129, 181, 98, 13, 10, 99, 240, 159, 143, 179, 226, 128, 141, 226, 154, 167, 100 }),
     call<bytes_>("\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
   );
+  // assert_lstnum(
+  //   ({ 97, 227, 129, 181, 98, 13, 10, 99, 240, 159, 143, 179, 226, 128, 141, 226, 154, 167, 100 }),
+  //   call<bytes_>("\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
+  // );
   assert_empty(call<bytes_>(""));
   return 0;
 }
@@ -360,8 +355,7 @@ T(tonum_) {
   assert_num(-1, call<tonum_>("-1"));
   assert_num(0.3, call<tonum_>("0.3"));
   // idk if that a behavior i'd wand to keep, but it's a thing for now
-  auto x = call<tonum_>("-0");
-  assert_str("-0", call<tostr_>(x));
+  assert_str("-0", call<tostr_>(call<tonum_>("-0")));
   return 0;
 }
 

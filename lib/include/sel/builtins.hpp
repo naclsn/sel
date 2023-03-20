@@ -8,7 +8,8 @@
 
 #include "engine.hpp"
 #include "types.hpp"
-#include "ll.hpp"
+#include "ll.hpp" // XXX
+#include "utils.hpp"
 #include "unicode.hpp"
 
 namespace sel {
@@ -18,12 +19,12 @@ namespace sel {
     double n;
 
   public:
-    NumResult(handle<Num> at, double n)
-      : Num(at)
+    NumResult(double n)
+      : Num()
       , n(n)
     { }
     double value() override { return n; }
-    handle<Val> copy() const override { return handle<NumResult>(h.app(), n); }
+    std::unique_ptr<Val> copy() const override { return std::make_unique<NumResult>(n); }
 
     double result() const { return n; }
 
@@ -40,13 +41,13 @@ namespace sel {
     ch_t::size_type at;
 
   public:
-    StrChunks(handle<Str> at, std::vector<std::string> chunks)
-      : Str(at, TyFlag::IS_FIN)
+    StrChunks(std::vector<std::string> chunks)
+      : Str(TyFlag::IS_FIN)
       , chs(chunks)
       , at(0)
     { }
-    StrChunks(handle<Str> at, std::string single)
-      : StrChunks(at, std::vector<std::string>({single}))
+    StrChunks(std::string single)
+      : StrChunks(std::vector<std::string>({single}))
     { }
     std::ostream& stream(std::ostream& out) override {
       return out << chs[at++];
@@ -59,7 +60,7 @@ namespace sel {
         out << it;
       return out;
     }
-    handle<Val> copy() const override { return handle<StrChunks>(h.app(), chs); }
+    std::unique_ptr<Val> copy() const override { return std::make_unique<StrChunks>(chs); }
 
     std::vector<std::string> const& chunks() const { return chs; }
 
@@ -72,13 +73,13 @@ namespace sel {
   /**
    * Seach for a value by name, return nullptr if not found.
    */
-  handle<Val> lookup_name(App& app, std::string const& name);
+  std::unique_ptr<Val> lookup_name(std::string const& name);
 
   /**
    * Same as `lookup_name`, but at compile time. Argument
    * must be an identifier token.
    */
-#define static_lookup_name(__appref, __name) (sel::App::handle<sel::bins::__name##_::Head>(__appref))
+#define static_lookup_name(__name) (std::make_unique<sel::bins::__name##_::Head>())
 
   /**
    * namespace with types used to help constructing builtins
@@ -110,7 +111,7 @@ namespace sel {
       inline static Type make(char const* fname) {
         return Type::makeNum();
       }
-      num(handle<num> at, Type&&): Num(at) { }
+      num(Type&&): Num() { }
     };
 
     template <bool is_inf>
@@ -119,7 +120,7 @@ namespace sel {
       inline static Type make(char const* fname) {
         return Type::makeStr(is_inf);
       }
-      _str(handle<_str> at, Type&& ty): Str(at, ty.is_inf()) { }
+      _str(Type&& ty): Str(ty.is_inf()) { }
     };
     typedef _str<false> str;
     typedef _str<true> istr;
@@ -130,7 +131,7 @@ namespace sel {
       inline static Type make(char const* fname) {
         return Type::makeLst({has::make(fname)...}, is_inf, is_tpl);
       }
-      _lst(handle<_lst> at, Type&& ty): Lst(at, std::forward<Type>(ty)) { }
+      _lst(Type&& ty): Lst(std::forward<Type>(ty)) { }
     };
     template <typename ...has> using lst = _lst<false, false, has...>;
     template <typename ...has> using ilst = _lst<true, false, has...>;
@@ -142,7 +143,7 @@ namespace sel {
       inline static Type make(char const* fname) {
         return Type::makeFun(std::move(from::make(fname)), std::move(to::make(fname)));
       }
-      fun(handle<fun> at, Type&& ty): Fun(at, std::forward<Type>(ty)) { }
+      fun(Type&& ty): Fun(std::forward<Type>(ty)) { }
     };
 
     /**
@@ -174,7 +175,7 @@ namespace sel {
     template <typename PackItself> struct make_arg_tuple;
     template <typename ...Pack>
     struct make_arg_tuple<pack<Pack...>> {
-      typedef std::tuple<handle<Pack>...> type;
+      typedef std::tuple<std::unique_ptr<Pack>...> type;
     };
     template <typename PackItself> using arg_tuple = typename make_arg_tuple<PackItself>::type;
 
@@ -195,7 +196,7 @@ namespace sel {
 
     // make a vector off the arg tuple
     template <unsigned ...S, typename tuple>
-    static inline std::vector<handle<Val>> args_vector(seq<S...>, tuple t) {
+    static inline std::vector<std::unique_ptr<Val>> args_vector(seq<S...>, tuple t) {
       return {std::get<S>(t)...};
     }
 
@@ -221,17 +222,17 @@ namespace sel {
       constexpr static unsigned paramsN = count<Params>::value;
       constexpr static unsigned argsN = count<Args>::value;
 
-      _make_bin_common(handle<Val> at, Type&& ty, arg_tuple<Args> t)
-        : ty_from_pack<fParams>(at, std::forward<Type>(ty))
+      _make_bin_common(Type&& ty, arg_tuple<Args> t)
+        : ty_from_pack<fParams>(std::forward<Type>(ty))
         , _args(t)
       { }
 
-      handle<Val> copy() const override {
-        return handle<instanciable>(this->h.app(), Type(this->ty), copy_arg_tuple(arg_unpack<argsN>(), _args));
+      std::unique_ptr<Val> copy() const override {
+        return std::make_unique<instanciable>(Type(this->ty), copy_arg_tuple(arg_unpack<argsN>(), _args));
       }
 
       arg_tuple<Args> const& args() const { return _args; }
-      std::vector<handle<Val>> const args_v() const { return args_vector(arg_unpack<argsN>(), _args); }
+      std::vector<std::unique_ptr<Val>> const args_v() const { return args_vector(arg_unpack<argsN>(), _args); }
 
     protected:
       VisitTable visit_table() const override {
@@ -242,11 +243,9 @@ namespace sel {
 
       // used in Head/Body
       template <typename Next, typename param_h>
-      handle<Val> _call_operator_template(handle<Val> arg) {
-        handle<Val> ok = coerse<param_h>(this->h.app(), arg, this->ty.from());
-        auto copy = this->h;
-        Next::make_at(this->h, this->ty, _args, ok);
-        return copy; // this->h would be accessing into deleted object
+      std::unique_ptr<Val> _call_operator_template(std::unique_ptr<Val> arg) {
+        std::unique_ptr<Val> ok = coerse<param_h>(arg, this->ty.from());
+        return Next::make_at(this->h, this->ty, _args, ok);
       }
     };
 
@@ -265,12 +264,12 @@ namespace sel {
       typedef make_bin<impl_, typename super::Pack, pack<>> Head;
 
       // Body/Tail offset ctor
-      static inline void make_at(handle<Val> at, Type const& base_type, arg_tuple<typename Base::Args> base_args, handle<Val> arg) {
-        new make_bin(at, done_applied(base_type, arg->type()), std::tuple_cat(base_args, std::make_tuple(arg)));
+      static inline std::unique_ptr<Val> make_at(Type const& base_type, arg_tuple<typename Base::Args> base_args, std::unique_ptr<Val> arg) {
+        return std::make_unique<make_bin>(done_applied(base_type, arg->type()), std::tuple_cat(base_args, std::make_tuple(move(arg))));
       }
 
       // Head/Body overrides
-      handle<Val> operator()(handle<Val> arg) override {
+      std::unique_ptr<Val> operator()(std::unique_ptr<Val> arg) override {
         return super::template _call_operator_template<Next, typename _pht::head::base_type>(arg);
       }
     };
@@ -289,10 +288,10 @@ namespace sel {
       typedef make_bin Head;
 
       // Head-only constructor
-      make_bin(handle<Val> at): super(at, super::make(impl_::name), std::tuple<>()) { }
+      make_bin(): super(super::make(impl_::name), std::tuple<>()) { }
 
       // Head/Body overrides
-      handle<Val> operator()(handle<Val> arg) override {
+      std::unique_ptr<Val> operator()(std::unique_ptr<Val> arg) override {
         return super::template _call_operator_template<Next, typename _pht::head::base_type>(arg);
       }
     };
@@ -311,8 +310,8 @@ namespace sel {
       typedef make_bin<impl_, typename super::Pack, pack<>> Head;
 
       // Body/Tail offset ctor
-      static inline void make_at(handle<Val> at, Type const& base_type, arg_tuple<typename Base::Args> base_args, handle<Val> arg) {
-        new impl_(at, done_applied(base_type, arg->type()), std::tuple_cat(base_args, std::make_tuple(arg)));
+      static inline std::unique_ptr<Val> make_at(Type const& base_type, arg_tuple<typename Base::Args> base_args, std::unique_ptr<Val> arg) {
+        return std::make_unique<impl_>(done_applied(base_type, arg->type()), std::tuple_cat(base_args, std::make_tuple(move(arg))));
       }
     };
 
@@ -329,7 +328,7 @@ namespace sel {
       typedef impl_ Head;
 
       // Head-only constructor
-      make_bin(handle<Val> at): super(at, super::make(impl_::name), std::tuple<>()) { }
+      make_bin(): super(super::make(impl_::name), std::tuple<>()) { }
     };
 
     template <typename impl_, typename PackItself>
@@ -353,9 +352,9 @@ namespace sel {
       bool end() override; \
       std::ostream& entire(std::ostream& out) override;
 #define _BIN_lst \
-      handle<Val> operator++() override;
+      std::unique_ptr<Val> operator++() override;
 #define _BIN_unk \
-      handle<Val> operator()(handle<Val>) override;
+      std::unique_ptr<Val> operator()(std::unique_ptr<Val>) override;
 
 // used to remove the parenthesis from `__decl` and `__body`
 #define __rem_par(...) __VA_ARGS__
@@ -394,6 +393,9 @@ namespace sel {
     using bins_helpers::tpl;
     using bins_helpers::fun;
 
+    // template <typename T>
+    // using vvals = std::vector<std::unique_ptr<U>>
+
     BIN_num(abs, (num, num),
       "return the absolute value of a number", ());
 
@@ -401,27 +403,23 @@ namespace sel {
       "add two numbers", ());
 
     BIN_str(bin, (num, str),
-      "convert a number to its binary textual representation (without leading '0b')", (
-      bool read = false;
-    ));
+      "convert a number to its binary textual representation (without leading '0b')", ());
 
     BIN_lst(bytes, (istr, ilst<num>),
       "split a string of bytes into its actual bytes as numbers", (
       std::string buff = "";
       std::string::size_type off = 0;
+      bool finished = false;
     ));
 
     BIN_str(chr, (num, str),
-      "make a string of a single character with the given unicode codepoint", (
-      bool read = false;
-    ));
+      "make a string of a single character with the given unicode codepoint", ());
 
     BIN_lst(codepoints, (istr, ilst<num>),
       "split a string of bytes into its Unicode codepoints", (
-      Str_streambuf sb{std::get<0>(_args)};
-      std::istream* is = new std::istream(&sb);
+      Str_streambuf sb{move(std::get<0>(_args))};
+      std::unique_ptr<std::istream> is = std::make_unique<std::istream>(&sb);
       std::istream_iterator<codepoint> isi{*is};
-      ~codepoints_() { delete is; }
     ));
 
     // BIN_lst(conjunction, (lst<unk<'a'>>, ilst<unk<'a'>>, ilst<unk<'a'>>),
@@ -444,9 +442,7 @@ namespace sel {
       "divide the first number by the second number", ());
 
     BIN_lst(drop, (num, ilst<unk<'a'>>, ilst<unk<'a'>>),
-      "return the suffix past a given count, or the empty list if it is shorter", (
-      bool done = false;
-    ));
+      "return the suffix past a given count, or the empty list if it is shorter", ());
 
     BIN_lst(dropwhile, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
       "return the suffix remaining from the first element not verifying the predicate onward", (
@@ -470,7 +466,8 @@ namespace sel {
     BIN_lst(give, (num, lst<unk<'a'>>, lst<unk<'a'>>),
       "return the prefix prior to the given count, or the empty list if it is shorter", (
       size_t at = 0;
-      std::vector<handle<Val>> circ;
+      std::vector<std::unique_ptr<unk<'a'>>> circ;
+      bool finished = false;
     ));
 
     // YYY: graphemes_ (and codepoints_) are no longer /as/
@@ -482,19 +479,16 @@ namespace sel {
     // the whole chain sb-is-isi lazily
     BIN_lst(graphemes, (istr, ilst<str>),
       "split a stream of bytes into its Unicode graphemes", (
-      Str_streambuf sb{std::get<0>(_args)};
-      std::istream* is = new std::istream(&sb);
+      Str_streambuf sb{move(std::get<0>(_args))};
+      std::unique_ptr<std::istream> is = std::make_unique<std::istream>(&sb);
       std::istream_iterator<codepoint> isi{*is};
-      ~graphemes_() { delete is; }
     ));
 
     BIN_unk(head, (ilst<unk<'a'>>, unk<'a'>),
       "extract the first element of a list, which must not be empty", ());
 
     BIN_str(hex, (num, str),
-      "convert a number to its hexadecimal textual representation (without leading '0x')", (
-      bool read = false;
-    ));
+      "convert a number to its hexadecimal textual representation (without leading '0x')", ());
 
     BIN_unk(id, (unk<'a'>, unk<'a'>),
       "the identity function, returns its input", ());
@@ -507,8 +501,8 @@ namespace sel {
 
     BIN_lst(init, (lst<unk<'a'>>, lst<unk<'a'>>),
       "extract the elements before the last one of a list, which must not be empty", (
-      // handle<Val> prev = ++std::get<0>(_args);
-      handle<Val> prev = handle<Val>(h.app(), nullptr); // YYY: null_handle (or see above)
+      // handle<Val> prev = ++std::get<0>(_args); // YYY: ? but lazy..?
+      std::unique_ptr<unk<'a'>> prev;
       bool finished = false;
     ));
 
@@ -539,15 +533,10 @@ namespace sel {
       "multiply two numbers", ());
 
     BIN_str(oct, (num, str),
-      "convert a number to its octal textual representation (without leading '0o')", (
-      bool read = false;
-    ));
+      "convert a number to its octal textual representation (without leading '0o')", ());
 
     BIN_num(ord, (istr, num),
-      "give the codepoint of the (first) character", (
-      double r;
-      bool done = false;
-    ));
+      "give the codepoint of the (first) character", ());
 
     BIN_num(pi, (num),
       "pi, what did you expect", ());
@@ -560,20 +549,17 @@ namespace sel {
 
     BIN_lst(replicate, (num, unk<'a'>, lst<unk<'a'>>),
       "replicate a finite amount of copies of the same value", (
-      size_t did = 0;
+      size_t todo;
     ));
 
     BIN_lst(reverse, (lst<unk<'a'>>, lst<unk<'a'>>),
       "reverse the order of the elements in the list", (
-      std::vector<handle<Val>> cache;
-      bool did_once = false;
+      std::vector<std::unique_ptr<unk<'a'>>> cache;
       size_t curr;
     ));
 
     BIN_lst(singleton, (unk<'a'>, lst<unk<'a'>>),
-      "make a list of a single item", (
-      bool done = false;
-    ));
+      "make a list of a single item", ());
 
     BIN_lst(split, (str, istr, ilst<istr>),
       "break a string into pieces separated by the argument, consuming the delimiter; note that an empty delimiter does not split the input on every character, but rather is equivalent to `const [repeat ::]`, for this see `graphemes`", (
@@ -606,34 +592,26 @@ namespace sel {
 
     BIN_lst(take, (num, ilst<unk<'a'>>, lst<unk<'a'>>),
       "return the prefix of a given length, or the entire list if it is shorter", (
-      size_t did = 0;
+      size_t todo;
     ));
 
     BIN_lst(takewhile, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
-      "return the longest prefix of elements statisfying the predicate", (
-      bool finished = false;
-    ));
+      "return the longest prefix of elements statisfying the predicate", ());
 
     BIN_num(tonum, (istr, num),
       "convert a string into number", ());
 
     BIN_str(tostr, (num, str),
-      "convert a number into string", (
-      bool read = false;
-    ));
+      "convert a number into string", ());
 
     BIN_lst(tuple, (unk<'a'>, unk<'b'>, tpl<unk<'a'>, unk<'b'>>),
-      "construct a tuple", (
-      int did = 0;
-    ));
+      "construct a tuple", ());
 
     BIN_num(unbin, (istr, num),
       "convert a number into string from its binary textual representation (without leading '0b')", ());
 
     BIN_str(unbytes, (ilst<num>, istr),
-      "construct a string from its actual bytes; this can lead to broken UTF-8 or 'degenerate cases' if not careful", (
-      bool finished;
-    ));
+      "construct a string from its actual bytes; this can lead to broken UTF-8 or 'degenerate cases' if not careful", ());
 
     BIN_str(uncodepoints, (ilst<num>, istr),
       "construct a string from its Unicode codepoints; this can lead to 'degenerate cases' if not careful", (
@@ -764,7 +742,7 @@ namespace sel {
     static inline void static_assert_sorted() { are_sorted<all>{}; }
 
   public:
-    static std::unordered_map<std::string, handle<Val> (*)(App&)> const map;
+    static std::unordered_map<std::string, std::unique_ptr<Val> (*)()> const map;
     static char const* const* const names;
     static size_t const count;
   }; // bins_list

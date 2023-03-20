@@ -37,6 +37,19 @@ namespace sel {
       static constexpr unsigned value = _packed_index<Searched, 0, Pack...>::value;
     };
 
+    /**
+     * get the type at index
+     */
+    template <unsigned N, typename PackItself> struct pack_nth;
+    template <unsigned N, typename h, typename ...t>
+    struct pack_nth<N, pack<h, t...>> {
+      typedef typename pack_nth<N-1, pack<t...>>::type type;
+    };
+    template <typename h, typename ...t>
+    struct pack_nth<0, pack<h, t...>> {
+      typedef h type;
+    };
+
     template <typename PackItselfFrom, typename PackItselfInto> struct _reverse_impl;
     /**
      * reverse a ll::pack

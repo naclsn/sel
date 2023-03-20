@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "application.hpp"
 #include "engine.hpp"
 
 namespace sel {
@@ -21,12 +22,9 @@ namespace sel {
     double const n;
 
   public:
-    NumLiteral(handle<Num> at, double n)
-      : Num(at)
-      , n(n)
-    { }
+    NumLiteral(double n): n(n) { }
     double value() override;
-    handle<Val> copy() const override;
+    std::unique_ptr<Val> copy() const override;
 
     double underlying() const { return n; }
 
@@ -42,15 +40,15 @@ namespace sel {
     bool read;
 
   public:
-    StrLiteral(handle<Str> at, std::string s)
-      : Str(at, TyFlag::IS_FIN)
-      , s(s)
+    StrLiteral(std::string&& s)
+      : Str(TyFlag::IS_FIN)
+      , s(move(s))
       , read(false)
     { }
     std::ostream& stream(std::ostream& out) override;
     bool end() override;
     std::ostream& entire(std::ostream& out) override;
-    handle<Val> copy() const override;
+    std::unique_ptr<Val> copy() const override;
 
     std::string const& underlying() const { return s; }
 
@@ -62,24 +60,24 @@ namespace sel {
 
   struct LstLiteral : Lst {
   private:
-    std::vector<handle<Val>> const v;
+    std::vector<std::unique_ptr<Val>> v;
     size_t c;
 
   public:
-    LstLiteral(handle<Lst> at, std::vector<handle<Val>> v)
-      : Lst(at, Type::makeLst({/* ZZZ: right... */}, false, false))
-      , v(v)
+    LstLiteral(std::vector<std::unique_ptr<Val>>&& v)
+      : Lst(Type::makeLst({/* ZZZ: right... */}, false, false))
+      , v(move(v))
       , c(0)
     { }
-    LstLiteral(handle<Lst> at, std::vector<handle<Val>> v, std::vector<Type>&& has) // ZZZ
-      : Lst(at, Type::makeLst(std::move(has), false, false))
-      , v(v)
+    LstLiteral(std::vector<std::unique_ptr<Val>>&& v, std::vector<Type>&& has) // ZZZ
+      : Lst(Type::makeLst(std::move(has), false, false))
+      , v(move(v))
       , c(0)
     { }
-    handle<Val> operator++() override;
-    handle<Val> copy() const override;
+    std::unique_ptr<Val> operator++() override;
+    std::unique_ptr<Val> copy() const override;
 
-    std::vector<handle<Val>> const& underlying() const { return v; }
+    std::vector<std::unique_ptr<Val>> const& underlying() const { return v; }
 
   protected:
     VisitTable visit_table() const override {
@@ -89,20 +87,20 @@ namespace sel {
 
   struct FunChain : Fun {
   private:
-    std::vector<handle<Fun>> f;
+    std::vector<std::unique_ptr<Fun>> f;
 
   public:
-    FunChain(handle<Fun> at, std::vector<handle<Fun>> f)
-      : Fun(at, Type::makeFun(
+    FunChain(std::vector<std::unique_ptr<Fun>>&& f)
+      : Fun(Type::makeFun(
           Type(f[0]->type().from()),
           Type(f[f.size() ? f.size()-1 : 0]->type().to()) // YYY: size-1: a FunChain is never <1 from parsing
         ))
-      , f(f)
+      , f(move(f))
     { }
-    handle<Val> operator()(handle<Val> arg) override;
-    handle<Val> copy() const override;
+    std::unique_ptr<Val> operator()(std::unique_ptr<Val> arg) override;
+    std::unique_ptr<Val> copy() const override;
 
-    std::vector<handle<Fun>> const& underlying() const { return f; }
+    std::vector<std::unique_ptr<Fun>> const& underlying() const { return f; }
 
   protected:
     VisitTable visit_table() const override {
@@ -115,13 +113,13 @@ namespace sel {
   protected:
     std::string const name;
     std::string const doc;
-    handle<U> v;
+    std::unique_ptr<U> v;
 
-    Def(handle<U> at, std::string const name, std::string const doc, handle<U> v, Args... args)
-      : U(at, std::forward<Args>(args)...)
+    Def(std::string const name, std::string const doc, std::unique_ptr<U>&& v, Args&&... args)
+      : U(std::forward<Args>(args)...)
       , name(name)
       , doc(doc)
-      , v(v)
+      , v(move(v))
     { }
 
   public:
@@ -133,11 +131,11 @@ namespace sel {
 
   struct NumDefine : Def<Num> {
   public:
-    NumDefine(handle<Num> at, std::string const name, std::string const doc, handle<Num> v)
-      : Def(at, name, doc, v)
+    NumDefine(std::string const name, std::string const doc, std::unique_ptr<Num> v)
+      : Def(name, doc, move(v))
     { }
     double value() override;
-    handle<Val> copy() const override;
+    std::unique_ptr<Val> copy() const override;
 
   protected:
     VisitTable visit_table() const override {
@@ -147,13 +145,13 @@ namespace sel {
 
   struct StrDefine : Def<Str, bool> {
   public:
-    StrDefine(handle<Str> at, std::string const name, std::string const doc, handle<Str> v)
-      : Def(at, name, doc, v, v->type().is_inf())
+    StrDefine(std::string const name, std::string const doc, std::unique_ptr<Str> v)
+      : Def(name, doc, move(v), v->type().is_inf())
     { }
     std::ostream& stream(std::ostream& out) override;
     bool end() override;
     std::ostream& entire(std::ostream& out) override;
-    handle<Val> copy() const override;
+    std::unique_ptr<Val> copy() const override;
 
   protected:
     VisitTable visit_table() const override {
@@ -163,11 +161,11 @@ namespace sel {
 
   struct LstDefine : Def<Lst, Type&&> {
   public:
-    LstDefine(handle<Lst> at, std::string const name, std::string const doc, handle<Lst> v)
-      : Def(at, name, doc, v, Type(v->type()))
+    LstDefine(std::string const name, std::string const doc, std::unique_ptr<Lst> v)
+      : Def(name, doc, move(v), Type(v->type()))
     { }
-    handle<Val> operator++() override;
-    handle<Val> copy() const override;
+    std::unique_ptr<Val> operator++() override;
+    std::unique_ptr<Val> copy() const override;
 
   protected:
     VisitTable visit_table() const override {
@@ -177,11 +175,11 @@ namespace sel {
 
   struct FunDefine : Def<Fun, Type&&> {
   public:
-    FunDefine(handle<Fun> at, std::string const name, std::string const doc, handle<Fun> v)
-      : Def(at, name, doc, v, Type(v->type()))
+    FunDefine(std::string const name, std::string const doc, std::unique_ptr<Fun> v)
+      : Def(name, doc, move(v), Type(v->type()))
     { }
-    handle<Val> operator()(handle<Val> arg) override;
-    handle<Val> copy() const override;
+    std::unique_ptr<Val> operator()(std::unique_ptr<Val> arg) override;
+    std::unique_ptr<Val> copy() const override;
 
   protected:
     VisitTable visit_table() const override {
@@ -200,16 +198,15 @@ namespace sel {
     std::streamsize nowat = 0;
     bool first;
 
-  public:
-    // only to be used in an `Input`'s clone (not private for now so i can use `handle<Input>`)
-    Input(handle<Str> at, Input const& other)
-      : Str(at, TyFlag::IS_INF)
+    Input(Input const& other)
+      : Str(TyFlag::IS_INF)
       , buffer(other.buffer)
       , first(false)
     { }
+  public:
 
-    Input(handle<Str> at, std::istream& in)
-      : Str(at, TyFlag::IS_INF)
+    Input(std::istream& in)
+      : Str(TyFlag::IS_INF)
       , buffer(new InputBuffer(in))
       , first(true)
     { }
@@ -218,7 +215,7 @@ namespace sel {
     std::ostream& stream(std::ostream& out) override;
     bool end() override;
     std::ostream& entire(std::ostream& out) override;
-    handle<Val> copy() const override;
+    std::unique_ptr<Val> copy() const override;
 
     protected:
     VisitTable visit_table() const override {
@@ -228,7 +225,7 @@ namespace sel {
 
   /// parses `in`, using `app` as the registery for values;
   /// not meant to be used outside of the application TU
-  handle<Val> parseApplication(App& app, std::istream& in);
+  std::unique_ptr<Val> parseApplication(App& app, std::istream& in);
 
 } // namespace sel
 
