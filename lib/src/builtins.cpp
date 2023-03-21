@@ -349,8 +349,8 @@ struct _get_uarg<ll::pack<bins_helpers::fun<P, R>>> { typedef P type; };
 
     // XXX
     unique_ptr<Val> init_::operator++() {
-      if (finished) return nullptr;
       bind_args(l);
+      if (!l) return nullptr;
       unique_ptr<Val> r = move(prev);
       prev = next(l);
       if (!r) {
@@ -360,7 +360,6 @@ struct _get_uarg<ll::pack<bins_helpers::fun<P, R>>> { typedef P type; };
       }
       if (!prev) {
         l.reset();
-        finished = true;
         return nullptr;
       }
       return r;
@@ -736,7 +735,7 @@ struct _get_uarg<ll::pack<bins_helpers::fun<P, R>>> { typedef P type; };
       bind_args(l);
       if (auto it = next(l))
         out << (codepoint)eval(move(it));
-      else finished = true;
+      else l.reset();
       return out;
     }
     bool uncodepoints_::end() {
@@ -747,6 +746,7 @@ struct _get_uarg<ll::pack<bins_helpers::fun<P, R>>> { typedef P type; };
       bind_args(l);
       while (auto it = next(l))
         out << (codepoint)eval(move(it));
+      l.reset();
       return out;
     }
 

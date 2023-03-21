@@ -1,8 +1,10 @@
 #include "sel/unicode.hpp"
 
+using namespace std;
+
 namespace sel {
 
-  std::ostream& operator<<(std::ostream& out, codepoint const& r) {
+  ostream& operator<<(ostream& out, codepoint const& r) {
     uint32_t a = r.u;
     if (a < 0b10000000) out.put(a);
     else {
@@ -25,7 +27,7 @@ namespace sel {
     return out;
   }
 
-  std::istream& operator>>(std::istream& in, codepoint& r) {
+  istream& operator>>(istream& in, codepoint& r) {
     // does not checks on each get for eof and for garbled
     // garbage.. (but i don't think this can fail too badly
     // and its not like we can do anything on broken
@@ -43,7 +45,7 @@ namespace sel {
     if (0 == cp.many.zero) {
       many.zero = 0;
       many.vec = cp.many.vec;
-    } else std::copy(cp.few, cp.few+inl, few);
+    } else copy(cp.few, cp.few+inl, few);
     return *this;
   }
 
@@ -59,7 +61,7 @@ namespace sel {
         // in-place, in `many.vec`?
         // (if not: reserve+copy+back_inserter, would like
         // to avoid raw call to memcopy...)
-        std::vector<codepoint> onstack(few, few+inl);
+        vector<codepoint> onstack(few, few+inl);
         many.zero = 0;
         many.vec = onstack;
         return;
@@ -130,8 +132,8 @@ namespace sel {
   }
 
   // @thx: https://unicode.org/reports/tr29/#Grapheme_Cluster_Boundary_Rules
-  void read_grapheme(std::istream_iterator<codepoint>& it, grapheme& r) {
-    static std::istream_iterator<codepoint> eos;
+  void read_grapheme(istream_iterator<codepoint>& it, grapheme& r) {
+    static istream_iterator<codepoint> eos;
     codepoint cp = *it;
     r.init(cp);
     ++it;
@@ -223,15 +225,15 @@ namespace sel {
 
   } // read_grapheme
 
-  std::ostream& operator<<(std::ostream& out, grapheme const& r) {
+  ostream& operator<<(ostream& out, grapheme const& r) {
     grapheme::size_type l = r.size();
     for (grapheme::size_type k = 0; k < l; k++)
       out << r.at(k);
     return out;
   }
 
-  std::istream& operator>>(std::istream& in, grapheme& r) {
-    std::istream_iterator<codepoint> it(in);
+  istream& operator>>(istream& in, grapheme& r) {
+    istream_iterator<codepoint> it(in);
     read_grapheme(it, r);
     return in;
   }

@@ -57,6 +57,7 @@ static inline unique_ptr<Val> call(Args... args) {
 struct test_base {
   virtual ~test_base() { }
   operator int() {
+    cerr << "--- [test for '" << get_name() << "']\n";
     int r = run_test();
     if (r) cerr << "--> in test for '" << get_name() << "'\n";
     return r;

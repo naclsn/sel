@@ -2,9 +2,11 @@
 #include "sel/types.hpp"
 #include "sel/utils.hpp"
 
+using namespace std;
+
 namespace sel {
 
-  std::ostream& operator<<(std::ostream& out, Ty ty) {
+  ostream& operator<<(ostream& out, Ty ty) {
     switch (ty) {
       case Ty::UNK: out << "UNK"; break;
       case Ty::NUM: out << "NUM"; break;
@@ -16,7 +18,7 @@ namespace sel {
   }
 
   // internal
-  std::ostream& operator<<(std::ostream& out, TyFlag tf) {
+  ostream& operator<<(ostream& out, TyFlag tf) {
     out << (TyFlag::IS_INF & tf ? "IS_INF" : "IS_FIN");
     return out;
   }
@@ -24,11 +26,11 @@ namespace sel {
   Type::Type(Type const& ty) {
     switch (_base = ty.base()) {
       case Ty::UNK:
-        p.name = new std::string(ty.name());
+        p.name = new string(ty.name());
         break;
 
       case Ty::LST:
-        p.box_has = new std::vector<Type>(ty.has());
+        p.box_has = new vector<Type>(ty.has());
         break;
 
       case Ty::FUN:
@@ -91,15 +93,15 @@ namespace sel {
   Type& Type::operator=(Type ty) {
     switch (_base = ty.base()) {
       case Ty::UNK:
-        std::swap(p.name, ty.p.name);
+        swap(p.name, ty.p.name);
         break;
 
       case Ty::LST:
-        std::swap(p.box_has, ty.p.box_has);
+        swap(p.box_has, ty.p.box_has);
         break;
 
       case Ty::FUN:
-        std::swap(p.box_pair, ty.p.box_pair);
+        swap(p.box_pair, ty.p.box_pair);
         break;
 
       default: ;
@@ -108,7 +110,7 @@ namespace sel {
     return *this;
   }
 
-  void Type::repr(std::ostream& out, unsigned depth) const {
+  void Type::repr(ostream& out, unsigned depth) const {
     char indent[depth*3+1];
     for (size_t k = 0; k < depth*3; k++)
       indent[k] = ' ';
@@ -128,13 +130,13 @@ namespace sel {
 
       case Ty::STR:
         out << "STR";
-        out << "\n" << indent << "is_inf= " << std::boolalpha << !!(flags & TyFlag::IS_INF);
+        out << "\n" << indent << "is_inf= " << boolalpha << !!(flags & TyFlag::IS_INF);
         break;
 
       case Ty::LST:
         out << "LST";
-        out << "\n" << indent << "is_inf= " << std::boolalpha << !!(flags & TyFlag::IS_INF);
-        out << "\n" << indent << "is_tpl= " << std::boolalpha << !!(flags & TyFlag::IS_TPL);
+        out << "\n" << indent << "is_inf= " << boolalpha << !!(flags & TyFlag::IS_INF);
+        out << "\n" << indent << "is_tpl= " << boolalpha << !!(flags & TyFlag::IS_TPL);
         out << "\n" << indent << "has= {\n";
         for (const auto& it : has())
           it.repr(out << indent << indent, depth+2);
@@ -173,7 +175,7 @@ namespace sel {
           map.erase("_*");
           Type ty;
           ty.flags = TyFlag::IS_INF & nk.flags;
-          map.emplace("_*", std::move(ty));
+          map.emplace("_*", move(ty));
         }
         break;
 
@@ -201,7 +203,7 @@ namespace sel {
             map.erase("_*");
             Type ty;
             ty.flags = TyFlag::IS_INF & nk.flags;
-            map.emplace("_*", std::move(ty));
+            map.emplace("_*", move(ty));
           }
         }
         break;
@@ -293,11 +295,11 @@ namespace sel {
   // internal
   struct TyToken {
     TyTokenType type;
-    std::string text;
+    string text;
   };
 
   // internal
-  std::ostream& operator<<(std::ostream& out, TyToken const& tt) {
+  ostream& operator<<(ostream& out, TyToken const& tt) {
     out << "TyToken { .type=";
     switch (tt.type) {
       case TyTokenType::END:     out << "END";     break;
@@ -318,7 +320,7 @@ namespace sel {
 
   // internal
   void expected(char const* should, TyToken const& got) { // + tts->text + "..."
-    std::ostringstream oss;
+    ostringstream oss;
     oss << "expected " << should << " but got " << got << " instead";
     throw ParseError(oss.str(), 0, 1);
     // YYY: TyTokens do not store any location information...
@@ -326,7 +328,7 @@ namespace sel {
   }
 
   // internal
-  std::istream& operator>>(std::istream& in, TyToken& tt) {
+  istream& operator>>(istream& in, TyToken& tt) {
     char c = in.get();
     char cc = 0;
     if (in.eof()) return in;
@@ -399,8 +401,8 @@ unknown_token_push1:
   }
 
   // internal - friend
-  void parseTypeImpl(TyToken&& first, std::istream_iterator<TyToken>& tts, Type& res) {
-    static auto const eos = std::istream_iterator<TyToken>();
+  void parseTypeImpl(TyToken&& first, istream_iterator<TyToken>& tts, Type& res) {
+    static auto const eos = istream_iterator<TyToken>();
     TyToken new_first;
 
     // type ::= name
@@ -416,7 +418,7 @@ unknown_token_push1:
 
       case TyTokenType::NAME:
         res._base = Ty::UNK;
-        res.makeName() = std::move(first.text);
+        res.makeName() = move(first.text);
         break;
 
       case TyTokenType::TY_NAME:
@@ -429,25 +431,25 @@ unknown_token_push1:
         if (eos == tts) expected("type expression after '('", TyToken());
 
         new_first = *tts;
-        parseTypeImpl(std::move(new_first), ++tts, res);
+        parseTypeImpl(move(new_first), ++tts, res);
         if (eos == tts) expected("token ',' or matching token ')'", TyToken());
 
         //        | (type, type)
         if (TyTokenType::COMMA == tts->type) {
-          std::vector<Type> v;
-          v.push_back(std::move(res));
+          vector<Type> v;
+          v.push_back(move(res));
 
           do {
             new_first = *++tts;
             if (eos == tts) expected("type expression after ','", TyToken());
 
             v.emplace_back();
-            parseTypeImpl(std::move(new_first), ++tts, v.back());
+            parseTypeImpl(move(new_first), ++tts, v.back());
           } while (TyTokenType::COMMA == tts->type);
 
           res._base = Ty::LST;
           res.flags = TyFlag::IS_TPL;
-          res.makeHas() = std::move(v);
+          res.makeHas() = move(v);
         }
 
         if (eos == tts) expected("matching token ')'", TyToken());
@@ -465,7 +467,7 @@ unknown_token_push1:
           new_first = *tts;
 
           v.emplace_back();
-          parseTypeImpl(std::move(new_first), ++tts, v.back());
+          parseTypeImpl(move(new_first), ++tts, v.back());
 
           if (TyTokenType::COMMA != tts->type) break;
           ++tts;
@@ -494,20 +496,20 @@ unknown_token_push1:
     if (eos == tts) return;
     //        | type -> type
     if (TyTokenType::ARROW == tts->type) {
-      Type backup(std::move(res));
-      res.makeFrom() = std::move(backup);
+      Type backup(move(res));
+      res.makeFrom() = move(backup);
 
       new_first = *++tts;
-      parseTypeImpl(std::move(new_first), ++tts, res.makeTo());
+      parseTypeImpl(move(new_first), ++tts, res.makeTo());
 
       res._base = Ty::FUN;
       res.flags = 0;
     }
   }
 
-  void parseType(std::istream& in, std::string* named, Type& res) {
-    static auto const eos = std::istream_iterator<TyToken>();
-    auto lexer = std::istream_iterator<TyToken>(in);
+  void parseType(istream& in, string* named, Type& res) {
+    static auto const eos = istream_iterator<TyToken>();
+    auto lexer = istream_iterator<TyToken>(in);
 
     // first check for "<name> '::'"
     // note that the whole block needs to check the 2
@@ -519,7 +521,7 @@ unknown_token_push1:
       TyToken second = *++lexer;
       if (TyTokenType::TY_EQ == second.type) {
         ++lexer; // drop '::'
-        if (eos == lexer) throw std::string("end of token stream");
+        if (eos == lexer) throw string("end of token stream");
         if (named) named->assign(first.text);
         first = *lexer; // pop `first` (will forward to impl)
         ++lexer;
@@ -529,7 +531,7 @@ unknown_token_push1:
       ++lexer; // pop `first` (will forward to impl)
     }
 
-    parseTypeImpl(std::move(first), lexer, res);
+    parseTypeImpl(move(first), lexer, res);
   }
 
   // internal
@@ -598,14 +600,14 @@ unknown_token_push1:
   }
 
   bool Type::operator==(Type const& other) const {
-    std::unordered_map<std::string, Type const&> map;
+    unordered_map<string, Type const&> map;
     return recurseEqual(map, *this, other);
   }
   bool Type::operator!=(Type const& other) const {
     return !(*this == other);
   }
 
-  std::ostream& operator<<(std::ostream& out, Type const& ty) {
+  ostream& operator<<(ostream& out, Type const& ty) {
     switch (ty.base()) {
       case Ty::UNK:
         out << ty.name().substr(0, ty.name().find('_'));
@@ -648,7 +650,7 @@ unknown_token_push1:
     return out;
   }
 
-  std::istream& operator>>(std::istream& in, Type& res) {
+  istream& operator>>(istream& in, Type& res) {
     parseType(in, nullptr, res);
     return in;
   }

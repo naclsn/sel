@@ -3,9 +3,11 @@
 #include "sel/utils.hpp"
 #include "sel/visitors.hpp"
 
+using namespace std;
+
 namespace sel {
 
-  void VisRepr::reprHelper(Type const& type, char const* name, std::vector<ReprField> const& fields) {
+  void VisRepr::reprHelper(Type const& type, char const* name, vector<ReprField> const& fields) {
     if (cx.only_class) {
       res << name;
       return;
@@ -13,9 +15,9 @@ namespace sel {
 
     bool isln = 1 < fields.size() && !cx.single_line;
 
-    std::string ln = " ";
-    std::string ind = "";
-    std::string lnind = " ";
+    string ln = " ";
+    string ind = "";
+    string lnind = " ";
     ind.reserve(3 * cx.indents + 1);
     for (unsigned k = 0; k < cx.indents; k++)
       ind.append("   ");
@@ -81,11 +83,11 @@ namespace sel {
   VisRepr::Ret VisRepr::visit(LstLiteral const& it) {
     auto const& v = it.underlying();
     size_t c = v.size();
-    std::vector<char[16]> b(c);
-    std::vector<ReprField> a;
+    vector<char[16]> b(c);
+    vector<ReprField> a;
     a.reserve(c);
     for (size_t k = 0; k < c; k++) {
-      std::sprintf(b[k], "v[%zu]", k);
+      sprintf(b[k], "v[%zu]", k);
       a.push_back({b[k], &*v[k]});
     }
     reprHelper(it.type(), "LstLiteral", a);
@@ -95,11 +97,11 @@ namespace sel {
   VisRepr::Ret VisRepr::visit(FunChain const& it) {
     auto const& f = it.underlying();
     size_t c = f.size();
-    std::vector<char[16]> b(c);
-    std::vector<ReprField> a;
+    vector<char[16]> b(c);
+    vector<ReprField> a;
     a.reserve(c);
     for (size_t k = 0; k < c; k++) {
-      std::sprintf(b[k], "f[%zu]", k);
+      sprintf(b[k], "f[%zu]", k);
       a.push_back({b[k], &*f[k]});
     }
     reprHelper(it.type(), "FunChain", a);
@@ -155,11 +157,11 @@ namespace sel {
   VisRepr::Ret VisRepr::visit(StrChunks const& it) {
     auto const& vs = it.chunks();
     size_t c = vs.size();
-    std::vector<char[16]> b(c);
-    std::vector<ReprField> a;
+    vector<char[16]> b(c);
+    vector<ReprField> a;
     a.reserve(c);
     for (size_t k = 0; k < c; k++) {
-      std::sprintf(b[k], "v[%zu]", k);
+      sprintf(b[k], "v[%zu]", k);
       a.push_back({b[k], &vs[k]});
     }
     reprHelper(it.type(), "StrChunks", a);

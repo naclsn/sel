@@ -504,9 +504,8 @@ namespace sel {
 
     BIN_lst(init, (lst<unk<'a'>>, lst<unk<'a'>>),
       "extract the elements before the last one of a list, which must not be empty", (
-      // handle<Val> prev = ++std::get<0>(_args); // YYY: ? but lazy..?
+      // std::unique_ptr<unk<'a'>> prev = ++std::get<0>(_args); // YYY: ? but lazy..?
       std::unique_ptr<unk<'a'>> prev;
-      bool finished = false;
     ));
 
     BIN_lst(iterate, (fun<unk<'a'>, unk<'a'>>, unk<'a'>, ilst<unk<'a'>>),
@@ -617,9 +616,7 @@ namespace sel {
       "construct a string from its actual bytes; this can lead to broken UTF-8 or 'degenerate cases' if not careful", ());
 
     BIN_str(uncodepoints, (ilst<num>, istr),
-      "construct a string from its Unicode codepoints; this can lead to 'degenerate cases' if not careful", (
-      bool finished;
-    ));
+      "construct a string from its Unicode codepoints; this can lead to 'degenerate cases' if not careful", ());
 
     BIN_unk(uncurry, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, tpl<unk<'a'>, unk<'b'>>, unk<'c'>),
       "convert a curried function to a function on pairs", ());

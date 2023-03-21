@@ -2,21 +2,23 @@
 #include "sel/utils.hpp"
 #include "sel/visitors.hpp"
 
+using namespace std;
+
 namespace sel { namespace utils {
 
-  std::ostream& operator<<(std::ostream& out, raw ptr) {
+  ostream& operator<<(ostream& out, raw ptr) {
     ssize_t at = (ssize_t)ptr.ptr;
 
     int on_stack;
     int* stack = &on_stack;
     int* heap = new int;
 
-    ssize_t to_stack = std::abs((ssize_t)stack - at);
-    ssize_t to_heap = std::abs((ssize_t)heap - at);
+    ssize_t to_stack = abs((ssize_t)stack - at);
+    ssize_t to_heap = abs((ssize_t)heap - at);
 
     delete heap;
     char buf[16];
-    std::sprintf(buf, "0x%lX", at);
+    sprintf(buf, "0x%lX", at);
 
     if (to_stack < to_heap)
       return out << "\e[35m" << buf << "\e[m";
@@ -24,7 +26,7 @@ namespace sel { namespace utils {
       return out << "\e[33m" << buf << "\e[m";
   }
 
-  std::ostream& operator<<(std::ostream& out, repr me) {
+  ostream& operator<<(ostream& out, repr me) {
     VisRepr repr(out, {
       .single_line= me.single_line,
       .no_recurse= me.no_recurse,
@@ -34,9 +36,9 @@ namespace sel { namespace utils {
     return out;
   }
 
-  std::ostream& operator<<(std::ostream& out, quoted q) {
+  ostream& operator<<(ostream& out, quoted q) {
     if (q.put_quo) out << (q.do_col ? ':' : '"');
-    std::string const search =
+    string const search =
       { '\a'
       , '\b'
       , '\t'
@@ -47,8 +49,8 @@ namespace sel { namespace utils {
       , '\e'
       , q.do_col ? ':' : '"'
       };
-    std::string::size_type from = 0, to = q.str.find_first_of(search);
-    while (std::string::npos != to) {
+    string::size_type from = 0, to = q.str.find_first_of(search);
+    while (string::npos != to) {
       if (q.do_col && ':' == q.str.at(to)) {
         out << "::";
       } else {
