@@ -32,9 +32,9 @@ template <typename T> int dotest012(char const*);
 template <>
 int dotest012<LstLiteral>(char const* txt) {
   return
-  dotestone(txt, val_cast<Lst>(make_unique<LstLiteral>(Vals{})), 0)+
-  dotestone(txt, val_cast<Lst>(make_unique<LstLiteral>(Vals{make_unique<NumLiteral>(0)})), 1)+
-  dotestone(txt, val_cast<Lst>(make_unique<LstLiteral>(Vals{make_unique<NumLiteral>(1), make_unique<NumLiteral>(2)})), 2)+
+  dotestone(txt, val_cast<Lst>(make_unique<LstLiteral>(make_vals())), 0)+
+  dotestone(txt, val_cast<Lst>(make_unique<LstLiteral>(make_vals(make_unique<NumLiteral>(0)))), 1)+
+  dotestone(txt, val_cast<Lst>(make_unique<LstLiteral>(make_vals(make_unique<NumLiteral>(1), make_unique<NumLiteral>(2)))), 2)+
   0;
 }
 template <>

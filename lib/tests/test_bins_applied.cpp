@@ -55,7 +55,7 @@ int test_map() { // map tonum 4
     "<[Str*]* -> [Num]*> Map1 { arg_A=<Str* -> Num> Tonum1 { } }\n"
     );
 
-  auto map0 = (*val_cast<Fun>(move(map1)))(make_unique<LstLiteral>(Vals{make_unique<StrLiteral>("4")}, Types{Type::makeStr(false)}));
+  auto map0 = (*val_cast<Fun>(move(map1)))(make_unique<LstLiteral>(make_vals(make_unique<StrLiteral>("4")), Types{Type::makeStr(false)}));
   showv_test(map0,
     "<[Num]> Map0 {\n"
     "   arg_A=<Str* -> Num> Tonum1 { }\n"
@@ -92,7 +92,7 @@ int test_zipwith() { // zipwith map {repeat} {{1}}
     );
 
   auto _repeat1 = lookup_name("repeat");
-  auto zipwith1 = (*val_cast<Fun>(move(zipwith2)))(make_unique<LstLiteral>(Vals{move(_repeat1)}, Types{Type(_repeat1->type())}));
+  auto zipwith1 = (*val_cast<Fun>(move(zipwith2)))(make_unique<LstLiteral>(make_vals(move(_repeat1)), Types{Type(_repeat1->type())}));
   showv_test(zipwith1,
     // "<[[a]*] -> [[[a]*]*]> Zipwith1 {\n"
     "<[[a]] -> [[[a]*]]> Zipwith1 {\n"
@@ -101,9 +101,9 @@ int test_zipwith() { // zipwith map {repeat} {{1}}
     "}\n"
     );
 
-  auto _lst_lst_num = make_unique<LstLiteral>(Vals{
-    make_unique<LstLiteral>(Vals{make_unique<NumLiteral>(42)}, Types{Type::makeNum()})
-  }, Types{Type::makeLst({Type::makeNum()}, false, false)});
+  auto _lst_lst_num = make_unique<LstLiteral>(make_vals(
+    make_unique<LstLiteral>(make_vals(make_unique<NumLiteral>(42)), Types{Type::makeNum()})
+  ), Types{Type::makeLst({Type::makeNum()}, false, false)});
   auto zipwith0 = (*val_cast<Fun>(move(zipwith1)))(move(_lst_lst_num));
   showv_test(zipwith0,
     // "<[[[Num]]*]> Zipwith0 {\n"

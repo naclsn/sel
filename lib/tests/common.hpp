@@ -16,6 +16,31 @@ using namespace sel;
 typedef vector<Type> Types;
 typedef vector<unique_ptr<Val>> Vals;
 
+template <typename H, typename ...T>
+struct push_many {
+  static inline void function(Vals& v, H h, T... t) {
+    v.push_back(forward<H>(h));
+    push_many<T...>::function(v, forward<T>(t)...);
+  }
+};
+template <typename O>
+struct push_many<O> {
+  static inline void function(Vals& v, O o) {
+    v.push_back(forward<O>(o));
+  }
+};
+
+template <typename ...Args>
+Vals make_vals(Args... args) {
+  Vals r;
+  push_many<Args...>::function(r, forward<Args>(args)...);
+  return r;
+}
+template <>
+Vals make_vals() {
+  return Vals();
+}
+
 #define RED   "\e[31m"
 #define GREEN "\e[32m"
 #define BLUE  "\e[34m"
