@@ -8,7 +8,6 @@
 
 #include "engine.hpp"
 #include "types.hpp"
-#include "ll.hpp" // XXX
 #include "utils.hpp"
 #include "unicode.hpp"
 
@@ -86,7 +85,7 @@ namespace sel {
    */
   namespace bins_helpers {
 
-    using namespace ll;
+    using namespace packs;
 
     // XXX: idk, just xxx (it sais 'not needed and not emitted', but it /is/ used..?)
     inline static Type done_applied(Type const& base_fty, Type const& ty) {
@@ -171,7 +170,7 @@ namespace sel {
      */
     template <typename impl_, typename PackItselfParams, typename PackItselfargs> struct make_bin;
 
-    // makes the std::tuple of refs from ll::pack
+    // makes the std::tuple of refs from a pack
     template <typename PackItself> struct make_arg_tuple;
     template <typename ...Pack>
     struct make_arg_tuple<pack<Pack...>> {
@@ -638,7 +637,7 @@ namespace sel {
     // need to merge with below while keeping sorted (not
     // strictly necessary, but convenient); although for
     // now `bins_min` is not used
-    typedef ll::pack
+    typedef packs::pack
       < bins::add_
       , bins::codepoints_
       , bins::div_
@@ -654,7 +653,7 @@ namespace sel {
 
     // XXX: still would love if this list could be built automatically
     // (any chances to leverage templates if `bins` is made a class..?)
-    typedef ll::pack
+    typedef packs::pack
       < bins::abs_
       , bins::add_
       , bins::bin_
@@ -735,7 +734,7 @@ namespace sel {
     template <typename PackItself>
     struct are_sorted { };
     template <typename H1, typename H2, typename ...T>
-    struct are_sorted<ll::pack<H1, H2, T...>> : are_sorted<ll::pack<H2, T...>> {
+    struct are_sorted<packs::pack<H1, H2, T...>> : are_sorted<packs::pack<H2, T...>> {
       static_assert(is_sorted(H1::name, H2::name), "must be sorted");
     };
 

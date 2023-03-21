@@ -10,7 +10,6 @@
 #include <tuple>
 #include <vector>
 
-#include "ll.hpp" // TODO
 #include "utils.hpp"
 #include "visitors.hpp"
 
@@ -21,7 +20,7 @@ namespace sel {
 
   template <typename PackItself> struct _VisitTable;
   template <typename ...Pack>
-  struct _VisitTable<ll::pack<Pack...>> {
+  struct _VisitTable<packs::pack<Pack...>> {
     typedef std::tuple<visit_table_entry<Pack>*...> type;
   };
 
@@ -29,7 +28,7 @@ namespace sel {
 
   template <typename Va, typename PackItself> struct _make_visit_table;
   template <typename Va, typename ...Pack>
-  struct _make_visit_table<Va, ll::pack<Pack...>> {
+  struct _make_visit_table<Va, packs::pack<Pack...>> {
     constexpr inline static VisitTable function() {
       return {(visit_table_entry<Pack>*)visit<Pack, Va>...};
     }
@@ -64,7 +63,7 @@ namespace sel {
 
     template <typename Vi>
     typename Vi::Ret accept(Vi& visitor) const {
-      auto visit = std::get<ll::pack_index<Vi, visitors_list>::value>(visit_table());
+      auto visit = std::get<packs::pack_index<Vi, visitors_list>::value>(visit_table());
       return visit(visitor, this);
     }
   };

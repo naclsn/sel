@@ -106,7 +106,7 @@ namespace sel {
   // dispatches to the correct one dynamically
   // coersing to unk is used in builtins (eg. `const` or `id`)
   template <> unique_ptr<Val> coerse<Val>(unique_ptr<Val> from, Type const& to) {
-    Type const& ty = from->type();
+    // Type const& ty = from->type();
     // if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
     switch (to.base()) {
       case Ty::UNK: return from;

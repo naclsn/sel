@@ -9,6 +9,8 @@ using namespace std;
 
 namespace sel {
 
+  using namespace packs;
+
   unique_ptr<Val> lookup_name(string const& name) {
     auto itr = bins_list::map.find(name);
     if (bins_list::map.end() == itr) return nullptr;
@@ -28,7 +30,7 @@ namespace sel {
   template <bool is_inf, bool is_tpl, typename I>
   static inline unique_ptr<I> next(unique_ptr<bins_helpers::_lst<is_inf, is_tpl, I>>& l) { return val_cast<I>(++*l); }
   template <unsigned n, bool is_inf, bool is_tpl, typename ...I>
-  static inline unique_ptr<typename ll::pack_nth<n, ll::pack<I...>>::type> next(unique_ptr<bins_helpers::_lst<is_inf, is_tpl, I...>>& l) { return val_cast<typename ll::pack_nth<n, ll::pack<I...>>::type>(++*l); }
+  static inline unique_ptr<typename pack_nth<n, pack<I...>>::type> next(unique_ptr<bins_helpers::_lst<is_inf, is_tpl, I...>>& l) { return val_cast<typename pack_nth<n, pack<I...>>::type>(++*l); }
 
   template <typename P, typename R>
   static inline unique_ptr<R> call(unique_ptr<bins_helpers::fun<P, R>> f, unique_ptr<P> p) { return val_cast<R>((*f)(val_cast<Val>(move(p)))); }
@@ -50,7 +52,7 @@ namespace sel {
 // XXX: this more temporary, but will keep for as long as flem
 template <typename PackItself> struct _get_uarg;
 template <typename P, typename R>
-struct _get_uarg<ll::pack<bins_helpers::fun<P, R>>> { typedef P type; };
+struct _get_uarg<pack<bins_helpers::fun<P, R>>> { typedef P type; };
 #define bind_uarg(__last) auto __last = val_cast<_get_uarg<Params>::type>(move(_##__last))
 #define bind_uargs(__last, ...) bind_args(__VA_ARGS__); bind_uarg(__last)
 
@@ -801,20 +803,20 @@ struct _get_uarg<ll::pack<bins_helpers::fun<P, R>>> { typedef P type; };
 
   template <typename PackItself> struct _make_bins_list;
   template <typename ...Pack>
-  struct _make_bins_list<ll::pack<Pack...>> {
+  struct _make_bins_list<pack<Pack...>> {
     static unordered_map<string, unique_ptr<Val> (*)()> const map;
     static char const* const names[];
     constexpr static size_t count = sizeof...(Pack);
   };
 
   template <typename ...Pack>
-  constexpr char const* const _make_bins_list<ll::pack<Pack...>>::names[] = {Pack::name...};
+  constexpr char const* const _make_bins_list<pack<Pack...>>::names[] = {Pack::name...};
 
   template <typename Va>
   unique_ptr<Val> _bin_new() { return make_unique<typename Va::Head>(); }
   // XXX: static constructor
   template <typename ...Pack>
-  unordered_map<string, unique_ptr<Val> (*)()> const _make_bins_list<ll::pack<Pack...>>::map = {{Pack::name, _bin_new<Pack>}...};
+  unordered_map<string, unique_ptr<Val> (*)()> const _make_bins_list<pack<Pack...>>::map = {{Pack::name, _bin_new<Pack>}...};
 
   unordered_map<string, unique_ptr<Val> (*)()> const bins_list::map = _make_bins_list<bins_list::all>::map;
   char const* const* const bins_list::names = _make_bins_list<bins_list::all>::names;

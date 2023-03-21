@@ -75,10 +75,10 @@ struct test : test_base {
 
 template <typename PackItself> struct call_test;
 template <typename ...Pack>
-struct call_test<ll::pack<Pack...>> {
+struct call_test<packs::pack<Pack...>> {
   static inline int function() {
-    std::initializer_list<int> l{test<Pack>()...};
-    return std::accumulate(l.begin(), l.end(), 0);
+    ili<int> l{test<Pack>()...};
+    return accumulate(l.begin(), l.end(), 0);
   }
 };
 
