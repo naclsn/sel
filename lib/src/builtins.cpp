@@ -10,6 +10,7 @@ using namespace std;
 namespace sel {
 
   using namespace packs;
+  using namespace bins_helpers;
 
   unique_ptr<Val> lookup_name(string const& name) {
     auto itr = bins_list::map.find(name);
@@ -18,22 +19,55 @@ namespace sel {
     return f();
   }
 
-  // NOTE: may try to phase out the C++-ref overloaded helpers
-
-  // helpful templates to keep C++-side typing
   template <typename U>
-  static inline unique_ptr<U> clone(unique_ptr<U>& a) { return val_cast<U>(a->copy()); }
+  static inline unique_ptr<U> clone(unique_ptr<U>& a)
+  { return val_cast<U>(a->copy()); }
 
   template <typename U>
-  static inline double eval(unique_ptr<U> n) { return n->value(); }
+  static inline double eval(unique_ptr<U> n)
+  { return n->value(); }
+
+  // TODO: experiment with reworking Str's interface (eg. could return
+  // a string_view-like rather than streaming, etc..)  note to self:
+  // individual chunks of a Str could be string_views and that would
+  // essentially resemble the ptr-len used in codegen; the main
+  // underlying idea is that a not point is the caller supposed to
+  // mutate returned chunk; now that also means that the lifespan
+  // of said chunk is coupled with the Str instance in a somewhat
+  // complex way: requesting a new chunk *invalidates* any previous
+  // one (which, for comparison, is not the case with Lst items)
+  // --
+  // can make the C++-side type system work with me too because it
+  // then become impossible to return an infinit string when requesting
+  // a single chunk (behavior which would prevent eg. split_ from
+  // operating correctly)
+  // --
+  // should it be possible to send an empty chunk? probably yes,
+  // but then every consumer need to be aware and need to check for
+  // that case (but then the check is on the consumer, ie-also. "you
+  // pay for what you use" or whatever)
+  // --
+  // on the other hand, returning such as string_view means the Str
+  // instance may need to hold any temporary (think 'tostr', 'oct'
+  // or 'hex')
+
+  // returns a finit complete string, which is not possible with a _str<is_inf=true>
+  static inline string collect(unique_ptr<str> s) {
+    ostringstream r;
+    s->entire(r);
+    return r.str();
+  }
 
   template <bool is_inf, bool is_tpl, typename I>
-  static inline unique_ptr<I> next(unique_ptr<bins_helpers::_lst<is_inf, is_tpl, I>>& l) { return val_cast<I>(++*l); }
+  static inline unique_ptr<I> next(unique_ptr<_lst<is_inf, is_tpl, I>>& l)
+  { return val_cast<I>(++*l); }
   template <unsigned n, bool is_inf, bool is_tpl, typename ...I>
-  static inline unique_ptr<typename pack_nth<n, pack<I...>>::type> next(unique_ptr<bins_helpers::_lst<is_inf, is_tpl, I...>>& l) { return val_cast<typename pack_nth<n, pack<I...>>::type>(++*l); }
+  static inline unique_ptr<typename pack_nth<n, pack<I...>>::type> next(unique_ptr<_lst<is_inf, is_tpl, I...>>& l)
+  { return val_cast<typename pack_nth<n, pack<I...>>::type>(++*l); }
 
   template <typename P, typename R>
-  static inline unique_ptr<R> call(unique_ptr<bins_helpers::fun<P, R>> f, unique_ptr<P> p) { return val_cast<R>((*f)(val_cast<Val>(move(p)))); }
+  static inline unique_ptr<R> call(unique_ptr<fun<P, R>> f, unique_ptr<P> p)
+  { return val_cast<R>((*f)(val_cast<Val>(move(p)))); }
 
 #define _bind_some(__count) _bind_some_ ## __count
 #define _bind_some_0()
@@ -52,7 +86,7 @@ namespace sel {
 // XXX: this more temporary, but will keep for as long as flem
 template <typename PackItself> struct _get_uarg;
 template <typename P, typename R>
-struct _get_uarg<pack<bins_helpers::fun<P, R>>> { typedef P type; };
+struct _get_uarg<pack<fun<P, R>>> { typedef P type; };
 #define bind_uarg(__last) auto __last = val_cast<_get_uarg<Params>::type>(move(_##__last))
 #define bind_uargs(__last, ...) bind_args(__VA_ARGS__); bind_uarg(__last)
 
@@ -164,17 +198,14 @@ struct _get_uarg<pack<bins_helpers::fun<P, R>>> { typedef P type; };
 
     double contains_::value() {
       bind_args(substr, str);
-      ostringstream ossss;
-      substr->entire(ossss);
-      substr.reset();
-      string ss = ossss.str();
-      auto sslen = ss.length();
+      string ss = collect(move(substr));
+      size_t sslen = ss.length();
       bool does = false;
       ostringstream oss;
       while (!does && !str->end()) { // YYY: same as endswith_, this could do with a `sslen`-long circular buffer
-        auto plen = oss.str().length();
+        size_t plen = oss.str().length();
         oss << *str;
-        auto len = oss.str().length();
+        size_t len = oss.str().length();
         if (sslen <= len) { // have enough that searching is relevant
           string s = oss.str();
           for (auto k = plen < sslen ? sslen : plen; k <= len && !does; k++) { // only test over the range that was added
@@ -188,13 +219,11 @@ struct _get_uarg<pack<bins_helpers::fun<P, R>>> { typedef P type; };
 
     double count_::value() {
       bind_args(matchit, l);
-      ostringstream search; ((Str&)matchit).entire(search); // XXX
-      matchit.reset();
+      string const search = collect(val_cast<str>(move(matchit))); // XXX
       size_t n = 0;
       while (auto it = next(l)) {
-        ostringstream item; val_cast<Str>(move(it))->entire(item); // XXX
-        if (search.str() == item.str())
-          n++;
+        string item = collect(val_cast<str>(move(it))); // XXX
+        n+= search == item;
       }
       l.reset();
       return n;
@@ -232,18 +261,20 @@ struct _get_uarg<pack<bins_helpers::fun<P, R>>> { typedef P type; };
 
     unique_ptr<Val> duple_::operator++() {
       bind_args(o);
-      if (0 == did++) return clone(o);
-      if (1 == did) return move(o);
+      if (o) {
+        if (first) {
+          first = false;
+          return clone(o);
+        }
+        return move(o);
+      }
       return nullptr;
     }
 
     double endswith_::value() {
       bind_args(suffix, str);
-      ostringstream osssx;
-      suffix->entire(osssx);
-      suffix.reset();
-      string sx = osssx.str();
-      auto sxlen = sx.length();
+      string const sx = collect(move(suffix));
+      size_t sxlen = sx.length();
       ostringstream oss;
       while (!str->end()) { // YYY: that's essentially '::entire', but endswith_ could leverage a circular buffer...
         oss << *str;
@@ -256,9 +287,8 @@ struct _get_uarg<pack<bins_helpers::fun<P, R>>> { typedef P type; };
     unique_ptr<Val> filter_::operator++() {
       bind_args(p, l);
       while (auto it = next(l)) {
-        auto n = call(clone(p), clone(it));
-        bool is = 0 != n->value();
-        if (is) return it;
+        if (eval(call(clone(p), clone(it))))
+          return it;
       }
       p.reset();
       l.reset();
@@ -271,28 +301,34 @@ struct _get_uarg<pack<bins_helpers::fun<P, R>>> { typedef P type; };
     }
 
     unique_ptr<Val> give_::operator++() {
-      if (finished) return nullptr;
       bind_args(n, l);
-      if (0 == circ.capacity()) {
-        size_t count = eval(move(n));
-        if (0 == count) {
-          l.reset();
-          finished = true;
-          return nullptr;
+      if (!l) return nullptr;
+      if (n) {
+        size_t const count = eval(move(n));
+        if (0 < count) {
+          circ.reserve(count);
+          bool full = false;
+          while (auto it = next(l)) {
+            circ.emplace_back(move(it));
+            // buffer filled
+            if ((full = circ.size() == count)) break;
+          }
+          if (!full) {
+            // here if the list was smaller than the count
+            l.reset();
+            return nullptr;
+          }
         }
-        circ.reserve(count);
-        while (auto it = next(l)) {
-          circ.emplace_back(move(it));
-          // buffer filled, send the first one
-          if (circ.size() == count) return move(circ[at++]);
-        }
-        // here if the list was smaller than the count
-        l.reset();
-        finished = true;
-        return nullptr;
       }
+      // 'give 0'
+      if (circ.empty()) return next(l);
       if (circ.size() == at) at = 0;
       auto r = next(l);
+      if (!r) {
+        l.reset();
+        for (auto& it : circ) it.reset();
+        return nullptr;
+      }
       swap(circ[at++], r);
       return r;
     }
@@ -349,7 +385,6 @@ struct _get_uarg<pack<bins_helpers::fun<P, R>>> { typedef P type; };
       throw RuntimeError((oss << "index out of range: " << idx << " but length is " << len, oss.str()));
     }
 
-    // XXX
     unique_ptr<Val> init_::operator++() {
       bind_args(l);
       if (!l) return nullptr;
@@ -376,32 +411,31 @@ struct _get_uarg<pack<bins_helpers::fun<P, R>>> { typedef P type; };
 
     ostream& join_::stream(ostream& out) {
       bind_args(sep, lst);
-      if (beginning) {
-        ostringstream oss;
-        sep->entire(oss);
-        sep.reset();
-        ssep = oss.str();
-        beginning = false;
-      } else out << ssep;
-      auto it = next(lst);
-      if (!it) {
-        finished = true;
-        lst.reset();
-      } else it->entire(out);
+      if (!curr) {
+        curr = next(lst);
+        if (!curr) {
+          lst.reset();
+          return out;
+        }
+      }
+      out << *curr;
+      if (curr->end()) {
+        curr.reset();
+        if (sep) ssep = collect(move(sep));
+        out << ssep;
+      }
       return out;
     }
     bool join_::end() {
-      return finished;
+      bind_args(sep, lst);
+      return !lst;
     }
     ostream& join_::entire(ostream& out) {
       bind_args(sep, lst);
-      auto it = next(lst);
-      if (!it) return out;
-      it->entire(out);
-      ostringstream oss;
-      sep->entire(oss);
-      sep.reset();
-      ssep = oss.str();
+      auto first = next(lst);
+      if (!first) return out;
+      first->entire(out);
+      ssep = collect(move(sep));
       while (auto it = next(lst)) {
         out << ssep;
         it->entire(out);
@@ -432,12 +466,14 @@ struct _get_uarg<pack<bins_helpers::fun<P, R>>> { typedef P type; };
 
     ostream& ln_::stream(ostream& out) {
       bind_args(s);
-      return !s->end() ? out << *s : (done = true, out << '\n');
+      return !s->end() ? out << *s : (s.reset(), out << '\n');
     }
-    bool ln_::end() { return done; }
+    bool ln_::end() {
+      bind_args(s);
+      return !s;
+    }
     ostream& ln_::entire(ostream& out) {
       bind_args(s);
-      done = true;
       return s->entire(out) << '\n';
     }
 
@@ -565,10 +601,7 @@ struct _get_uarg<pack<bins_helpers::fun<P, R>>> { typedef P type; };
 
     double startswith_::value() {
       bind_args(prefix, str);
-      ostringstream osspx;
-      prefix->entire(osspx);
-      prefix.reset();
-      string px = osspx.str();
+      string px = collect(move(prefix));
       ostringstream oss;
       while (oss.str().length() < px.length() && 0 == px.compare(0, oss.str().length(), oss.str()) && !str->end()) {
         oss << *str;

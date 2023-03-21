@@ -30,6 +30,7 @@ template <> inline unique_ptr<Val> asval(initializer_list<string> x) { return _l
 
 template <typename T>
 using ili = initializer_list<T>;
+typedef char const* cstr;
 
 
 template <typename ...L> struct uncurry;
@@ -97,10 +98,12 @@ TEST(each) { return call_test<bins_list::all>::function(); }
 
 #define __rem_par(...) __VA_ARGS__
 
+// XXX: clean these assert macro (plz)
+
 #define assert_num(__should, __have) do {   \
   auto _num = val_cast<Num>(__have);        \
   assert_eq(Ty::NUM, _num->type().base());  \
-  assert_eq(__should, _num->value());      \
+  assert_eq(__should, _num->value());       \
 } while (0)
 
 #define assert_str(__should, __have) do {                \
@@ -110,31 +113,32 @@ TEST(each) { return call_test<bins_list::all>::function(); }
   assert_cmp(__should, (_str->entire(oss), oss.str()));  \
 } while (0)
 
+#define assert_ilstnum(__should, __have)                                \
+  auto _lst = val_cast<Lst>(__have);                                    \
+  assert_eq(Ty::LST, _lst->type().base());                              \
+  for (auto const& _it : __rem_par __should) {                          \
+    auto _cur = ++*_lst;                                                \
+    assert(_cur, #__have ":\n   should not have reached the end yet");  \
+    assert_num(_it, move(_cur));                                        \
+  }
+
 #define assert_lstnum(__should, __have) do {                             \
-  auto _lst = val_cast<Lst>(__have);                                     \
-  assert_eq(Ty::LST, _lst->type().base());                               \
-  for (auto const& _it : __rem_par __should) {                           \
-    auto _cur = ++*_lst;                                                 \
-    assert(_cur, #__have ":\n   should not have reached the end yet");   \
-    assert_num(_it, move(_cur));                                         \
-  }                                                                      \
+  assert_ilstnum(__should, __have);                                      \
   assert(!++*_lst, #__have ":\n   should have reached the end by now");  \
 } while(0)
+
+#define assert_ilststr(__should, __have)                                \
+  auto _lst = val_cast<Lst>(__have);                                    \
+  assert_eq(Ty::LST, _lst->type().base());                              \
+  for (auto const& _it : __rem_par __should) {                          \
+    auto _cur = ++*_lst;                                                \
+    assert(_cur, #__have ":\n   should not have reached the end yet");  \
+    assert_str(_it, move(_cur));                                        \
+  }
 
 #define assert_lststr(__should, __have) do {                             \
-  auto _lst = val_cast<Lst>(__have);                                     \
-  assert_eq(Ty::LST, _lst->type().base());                               \
-  for (auto const& _it : __rem_par __should) {                           \
-    auto _cur = ++*_lst;                                                 \
-    assert(_cur, #__have ":\n   should not have reached the end yet");   \
-    assert_str(_it, move(_cur));                                         \
-  }                                                                      \
+  assert_ilststr(__should, __have);                                      \
   assert(!++*_lst, #__have ":\n   should have reached the end by now");  \
-} while(0)
-
-#define assert_empty(__have) do {                          \
-  auto _lst = val_cast<Lst>(__have);                       \
-  assert(!++*_lst, "should have reached the end by now");  \
 } while(0)
 
 #define assert_lsterr(__throws) do {                 \
@@ -170,7 +174,7 @@ T(bytes_) {
     ({ 97, 227, 129, 181, 98, 13, 10, 99, 240, 159, 143, 179, 226, 128, 141, 226, 154, 167, 100 }),
     call<bytes_>("\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
   );
-  assert_empty(call<bytes_>(""));
+  assert_lststr((ili<cstr>{}), call<bytes_>(""));
   return 0;
 }
 
@@ -184,7 +188,7 @@ T(codepoints_) {
     ({ 97, 12405, 98, 13, 10, 99, 127987, 8205, 9895, 100 }),
     call<codepoints_>("\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
   );
-  assert_empty(call<codepoints_>(""));
+  assert_lststr((ili<cstr>{}), call<codepoints_>(""));
   return 0;
 }
 
@@ -216,6 +220,13 @@ T(drop_) {
   assert_lstnum(({5, 4, 3, 2, 1}), call<drop_>(0, (ili<int>{5, 4, 3, 2, 1})));
   assert_lstnum((ili<int>{}), call<drop_>(2, (ili<int>{})));
   assert_lstnum((ili<int>{}), call<drop_>(6, (ili<int>{5, 4, 3, 2, 1})));
+  assert_lstnum((ili<int>{}), call<drop_>(5, (ili<int>{5, 4, 3, 2, 1})));
+  return 0;
+}
+
+T(duple_) {
+  assert_lstnum(({1, 1}), call<duple_>(1));
+  assert_lststr(({"a", "a"}), call<duple_>("a"));
   return 0;
 }
 
@@ -232,19 +243,35 @@ T(endswith_) {
   return 0;
 }
 
+T(flip_) {
+  // dependance on sub_
+  assert_num(1, call<sub_>(2, 1));
+  assert_num(-1, call<flip_>(call<sub_>(), 2, 1));
+  return 0;
+}
+
+T(give_) {
+  assert_lstnum(({5, 4, 3}), call<give_>(2, (ili<int>{5, 4, 3, 2, 1})));
+  assert_lstnum(({5, 4, 3, 2, 1}), call<give_>(0, (ili<int>{5, 4, 3, 2, 1})));
+  assert_lstnum((ili<int>{}), call<give_>(2, (ili<int>{})));
+  assert_lstnum((ili<int>{}), call<give_>(6, (ili<int>{5, 4, 3, 2, 1})));
+  assert_lstnum((ili<int>{}), call<give_>(5, (ili<int>{5, 4, 3, 2, 1})));
+  return 0;
+}
+
 T(graphemes_) {
   assert_lststr(
-    ({ "\x61", "\xe3\x81\xb5", "\x62", "\x0d\x0a", "\x63", "\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7", "\x64" }),
+    ({"\x61", "\xe3\x81\xb5", "\x62", "\x0d\x0a", "\x63", "\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7", "\x64"}),
     call<graphemes_>("\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
   );
-  assert_empty(call<graphemes_>(""));
+  assert_lststr((ili<cstr>{}), call<graphemes_>(""));
   return 0;
 }
 
 T(head_) {
-  assert_num(1, call<head_>((ili<int>{ 1, 2, 3 })));
-  assert_num(1, call<head_>((ili<int>{ 1 })));
-  assert_lsterr(call<head_>((ili<int>{})));
+  assert_num(1, call<head_>(ili<int>{1, 2, 3}));
+  assert_num(1, call<head_>(ili<int>{1}));
+  assert_lsterr(call<head_>(ili<int>{}));
   return 0;
 }
 
@@ -259,17 +286,52 @@ T(id_) {
   return 0;
 }
 
+T(index_) {
+  assert_str("a", call<index_>(ili<cstr>{"a", "b", "c"}, 0));
+  assert_str("b", call<index_>(ili<cstr>{"a", "b", "c"}, 1));
+  assert_str("c", call<index_>(ili<cstr>{"a", "b", "c"}, 2));
+  assert_lsterr(call<index_>(ili<cstr>{"a", "b", "c"}, 3));
+  assert_lsterr(call<index_>(ili<cstr>{"a", "b", "c"}, -1));
+  return 0;
+}
+
 T(init_) {
-  assert_lstnum(({ 1, 2 }), call<init_>((ili<int>{ 1, 2, 3 })));
-  assert_empty(call<init_>((ili<int>{ 1 })));
-  assert_lsterr(call<init_>((ili<int>{})));
+  assert_lstnum(({1, 2}), call<init_>(ili<int>{1, 2, 3}));
+  assert_lstnum((ili<int>{}), call<init_>(ili<int>{1}));
+  assert_lsterr(call<init_>(ili<int>{}));
+  return 0;
+}
+
+T(iterate_) {
+  // dependance on add_
+  assert_ilstnum(({1, 2, 3, 4, 5, 6}), call<iterate_>(call<add_>(1), 1));
+  return 0;
+}
+
+T(join_) {
+  assert_str("a, b, c", call<join_>(", ", ili<cstr>{"a", "b", "c"}));
+  assert_str("w", call<join_>(", ", ili<cstr>{"w"}));
+  assert_str("", call<join_>(", ", ili<cstr>{}));
   return 0;
 }
 
 T(last_) {
-  assert_num(3, call<last_>((ili<int>{ 1, 2, 3 })));
-  assert_num(1, call<last_>((ili<int>{ 1 })));
-  assert_lsterr(call<last_>((ili<int>{})));
+  assert_num(3, call<last_>(ili<int>{1, 2, 3}));
+  assert_num(1, call<last_>(ili<int>{1}));
+  assert_lsterr(call<last_>(ili<int>{}));
+  return 0;
+}
+
+T(ln_) {
+  assert_str("coucou\n", call<ln_>("coucou"));
+  return 0;
+}
+
+T(map_) {
+  // dependance on abs
+  assert_lstnum(({4, 2}), call<map_>(call<abs_>(), ili<int>{-4, -2}));
+  assert_lstnum(({12}), call<map_>(call<abs_>(), ili<int>{-12}));
+  assert_lstnum((ili<int>{}), call<map_>(call<abs_>(), ili<int>{}));
   return 0;
 }
 
@@ -290,10 +352,43 @@ T(ord_) {
   return 0;
 }
 
+T(pi_) {
+  // floating point comparison haha
+  return 0;
+}
+
 T(prefix_) {
   assert_str("abcxyz", call<prefix_>("abc", "xyz"));
   assert_str("abc", call<prefix_>("abc", ""));
   assert_str("xyz", call<prefix_>("", "xyz"));
+  return 0;
+}
+
+T(repeat_) {
+  assert_ilststr(({"yes", "yes", "yes", "yes"}), call<repeat_>("yes"));
+  return 0;
+}
+
+T(replicate_) {
+  assert_lststr(({"yes", "yes", "yes", "yes"}), call<replicate_>(4, "yes"));
+  assert_lststr((ili<cstr>{}), call<replicate_>(0, "yes"));
+  return 0;
+}
+
+T(reverse_) {
+  assert_lstnum(({1, 2, 3, 4, 5}), call<reverse_>(ili<int>{5, 4, 3, 2, 1}));
+  return 0;
+}
+
+T(singleton_) {
+  assert_lststr(({"no"}), call<singleton_>("no"));
+  return 0;
+}
+
+T(split_) {
+  assert_lststr(({"a", "b", "c"}), call<split_>(", ", "a, b, c"));
+  assert_lststr(({"w"}), call<split_>(", ", "w"));
+  assert_lststr((ili<cstr>{}), call<split_>(", ", ""));
   return 0;
 }
 
@@ -331,17 +426,18 @@ T(surround_) {
 }
 
 T(tail_) {
-  assert_lstnum(({ 2, 3 }), call<tail_>((ili<int>{ 1, 2, 3 })));
-  assert_empty(call<tail_>((ili<int>{ 1 })));
-  assert_lsterr(call<tail_>((ili<int>{})));
+  assert_lstnum(({2, 3}), call<tail_>(ili<int>{1, 2, 3}));
+  assert_lstnum((ili<int>{}), call<tail_>(ili<int>{1}));
+  assert_lsterr(call<tail_>(ili<int>{}));
   return 0;
 }
 
 T(take_) {
-  assert_lstnum(({5, 4}), call<take_>(2, (ili<int>{5, 4, 3, 2, 1})));
-  assert_lstnum((ili<int>{}), call<take_>(0, (ili<int>{5, 4, 3, 2, 1})));
-  assert_lstnum((ili<int>{}), call<take_>(2, (ili<int>{})));
-  assert_lstnum(({5, 4, 3, 2, 1}), call<take_>(6, (ili<int>{5, 4, 3, 2, 1})));
+  assert_lstnum(({5, 4}), call<take_>(2, ili<int>{5, 4, 3, 2, 1}));
+  assert_lstnum((ili<int>{}), call<take_>(0, ili<int>{5, 4, 3, 2, 1}));
+  assert_lstnum((ili<int>{}), call<take_>(2, ili<int>{}));
+  assert_lstnum(({5, 4, 3, 2, 1}), call<take_>(6, ili<int>{5, 4, 3, 2, 1}));
+  assert_lstnum(({5, 4, 3, 2, 1}), call<take_>(5, ili<int>{5, 4, 3, 2, 1}));
   return 0;
 }
 
@@ -363,6 +459,12 @@ T(tostr_) {
   return 0;
 }
 
+T(tuple_) {
+  assert_lstnum(({4, 2}), call<tuple_>(4, 2));
+  assert_lststr(({"a", "b"}), call<tuple_>("a", "b"));
+  return 0;
+}
+
 T(unbin_) {
   assert_num(42, call<unbin_>("101010"));
   assert_num(0, call<unbin_>("garbage"));
@@ -372,18 +474,25 @@ T(unbin_) {
 T(unbytes_) {
   assert_str(
     "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64",
-    call<unbytes_>((ili<int>{ 97, 227, 129, 181, 98, 13, 10, 99, 240, 159, 143, 179, 226, 128, 141, 226, 154, 167, 100 }))
+    call<unbytes_>(ili<int>{97, 227, 129, 181, 98, 13, 10, 99, 240, 159, 143, 179, 226, 128, 141, 226, 154, 167, 100})
   );
-  assert_str("", call<unbytes_>((ili<int>{})));
+  assert_str("", call<unbytes_>(ili<int>{}));
   return 0;
 }
 
 T(uncodepoints_) {
   assert_str(
     "\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64",
-    call<uncodepoints_>((ili<int>{ 97, 12405, 98, 13, 10, 99, 127987, 8205, 9895, 100 }))
+    call<uncodepoints_>(ili<int>{97, 12405, 98, 13, 10, 99, 127987, 8205, 9895, 100})
   );
-  assert_str("", call<uncodepoints_>((ili<int>{})));
+  assert_str("", call<uncodepoints_>(ili<int>{}));
+  return 0;
+}
+
+T(uncurry_) {
+  // dependance on tuple_
+  assert_lstnum(({4, 2}), call<uncurry_>(call<tuple_>(), ili<int>{4, 2}));
+  assert_lststr(({"a", "b"}), call<uncurry_>(call<tuple_>(), ili<cstr>{"a", "b"}));
   return 0;
 }
 
@@ -396,6 +505,12 @@ T(unhex_) {
 T(unoct_) {
   assert_num(42, call<unoct_>("52"));
   assert_num(0, call<unoct_>("garbage"));
+  return 0;
+}
+
+T(zipwith_) {
+  // dependance on mul_
+  assert_lstnum(({6, 10, 12}), call<zipwith_>(call<mul_>(), ili<int>{1, 2, 3}, ili<int>{6, 5, 4}));
   return 0;
 }
 

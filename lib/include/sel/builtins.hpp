@@ -453,7 +453,7 @@ namespace sel {
 
     BIN_lst(duple, (unk<'a'>, tpl<unk<'a'>, unk<'a'>>),
       "create a pair off of a single item", (
-      int did = 0;
+      bool first = true;
     ));
 
     BIN_num(endswith, (str, str, num),
@@ -469,7 +469,6 @@ namespace sel {
       "return the prefix prior to the given count, or the empty list if it is shorter", (
       size_t at = 0;
       std::vector<std::unique_ptr<unk<'a'>>> circ;
-      bool finished = false;
     ));
 
     // YYY: graphemes_ (and codepoints_) are no longer /as/
@@ -515,17 +514,14 @@ namespace sel {
     BIN_str(join, (str, ilst<istr>, istr),
       "join a list of string with a separator between entries", (
       std::string ssep;
-      bool beginning = true;
-      bool finished = false;
+      std::unique_ptr<istr> curr;
     ));
 
     BIN_unk(last, (lst<unk<'a'>>, unk<'a'>),
       "extract the last element of a list, which must not be empty", ());
 
     BIN_str(ln, (istr, istr),
-      "append a new line to a string", (
-      bool done = false;
-    ));
+      "append a new line to a string", ());
 
     BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, ilst<unk<'a'>>, ilst<unk<'b'>>),
       "make a new list by applying an unary operation to each value from a list", ());
@@ -562,7 +558,8 @@ namespace sel {
     BIN_lst(singleton, (unk<'a'>, lst<unk<'a'>>),
       "make a list of a single item", ());
 
-    BIN_lst(split, (str, istr, ilst<istr>),
+    // BIN_lst(split, (str, istr, ilst<istr>),
+    BIN_lst(split, (str, str, ilst<str>),
       "break a string into pieces separated by the argument, consuming the delimiter; note that an empty delimiter does not split the input on every character, but rather is equivalent to `const [repeat ::]`, for this see `graphemes`", (
       bool did_once = false;
       std::string ssep;
