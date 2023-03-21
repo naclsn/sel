@@ -266,7 +266,8 @@ namespace sel {
 
       // Body/Tail offset ctor
       static inline std::unique_ptr<Val> make_at(Type const& base_type, arg_tuple<typename Base::Args>&& base_args, std::unique_ptr<typename _aht::head>&& arg) {
-        return std::make_unique<make_bin>(done_applied(base_type, arg->type()), std::tuple_cat(move(base_args), std::make_tuple(move(arg))));
+        auto niw_ty = done_applied(base_type, arg->type());
+        return std::make_unique<make_bin>(std::move(niw_ty), std::tuple_cat(move(base_args), std::make_tuple(move(arg))));
       }
 
       // Head/Body overrides
@@ -312,7 +313,8 @@ namespace sel {
 
       // Body/Tail offset ctor
       static inline std::unique_ptr<Val> make_at(Type const& base_type, arg_tuple<typename Base::Args>&& base_args, std::unique_ptr<typename _aht::head>&& arg) {
-        return std::make_unique<impl_>(done_applied(base_type, arg->type()), std::tuple_cat(move(base_args), std::make_tuple(move(arg))));
+        auto niw_ty = done_applied(base_type, arg->type());
+        return std::make_unique<impl_>(std::move(niw_ty), std::tuple_cat(move(base_args), std::make_tuple(move(arg))));
       }
     };
 
