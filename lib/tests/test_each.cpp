@@ -37,7 +37,7 @@ template <typename ...L> struct uncurry;
 template <typename H, typename ...T>
 struct uncurry<H, T...> {
   static inline unique_ptr<Val> function(unique_ptr<Val> f, H h, T... t) {
-    return uncurry<T...>::function((*val_cast<Fun>(move(f)))(asval(forward<H>(h))), t...);
+    return uncurry<T...>::function((*val_cast<Fun>(move(f)))(asval(forward<H>(h))), forward<T>(t)...);
   }
 };
 
@@ -50,14 +50,13 @@ struct uncurry<> {
 
 template <typename F, typename ...Args>
 static inline unique_ptr<Val> call(Args... args) {
-  return uncurry<Args...>::function(unique_ptr<typename F::Head>(), forward<Args>(args)...);
+  return uncurry<Args...>::function(make_unique<typename F::Head>(), forward<Args>(args)...);
 }
 
 
 struct test_base {
   virtual ~test_base() { }
   operator int() {
-    cerr << "--- [test for '" << get_name() << "']\n";
     int r = run_test();
     if (r) cerr << "--> in test for '" << get_name() << "'\n";
     return r;
@@ -171,10 +170,6 @@ T(bytes_) {
     ({ 97, 227, 129, 181, 98, 13, 10, 99, 240, 159, 143, 179, 226, 128, 141, 226, 154, 167, 100 }),
     call<bytes_>("\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
   );
-  // assert_lstnum(
-  //   ({ 97, 227, 129, 181, 98, 13, 10, 99, 240, 159, 143, 179, 226, 128, 141, 226, 154, 167, 100 }),
-  //   call<bytes_>("\x61\xe3\x81\xb5\x62\x0d\x0a\x63\xf0\x9f\x8f\xb3\xe2\x80\x8d\xe2\x9a\xa7\x64")
-  // );
   assert_empty(call<bytes_>(""));
   return 0;
 }
