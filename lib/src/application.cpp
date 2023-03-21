@@ -18,7 +18,7 @@ namespace sel {
     }
   }
   void App::define_name_user(string const& name, unique_ptr<Val> v) {
-    user.emplace(name, v);
+    user.emplace(name, move(v));
   }
 
   void App::run(istream& in, ostream& out) {

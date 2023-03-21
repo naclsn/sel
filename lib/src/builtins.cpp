@@ -51,9 +51,8 @@ namespace sel {
 template <typename PackItself> struct _get_uarg;
 template <typename P, typename R>
 struct _get_uarg<ll::pack<bins_helpers::fun<P, R>>> { typedef P type; };
-#define bind_uargs(__last, ...) \
-  bind_args(__VA_ARGS__); \
-  auto __last = val_cast<_get_uarg<Params>::type>(move(_##__last))
+#define bind_uarg(__last) auto __last = val_cast<_get_uarg<Params>::type>(move(_##__last))
+#define bind_uargs(__last, ...) bind_args(__VA_ARGS__); bind_uarg(__last)
 
   namespace bins {
 
@@ -281,7 +280,7 @@ struct _get_uarg<ll::pack<bins_helpers::fun<P, R>>> { typedef P type; };
         }
         circ.reserve(count);
         while (auto it = next(l)) {
-          circ.emplace_back(it);
+          circ.emplace_back(move(it));
           // buffer filled, send the first one
           if (circ.size() == count) return move(circ[at++]);
         }
@@ -306,7 +305,7 @@ struct _get_uarg<ll::pack<bins_helpers::fun<P, R>>> { typedef P type; };
     }
 
     unique_ptr<Val> head_::operator()(unique_ptr<Val> _l) {
-      bind_uargs(l);
+      bind_uarg(l);
       auto it = next(l);
       if (!it) throw RuntimeError("head of empty list");
       l.reset();
@@ -410,7 +409,7 @@ struct _get_uarg<ll::pack<bins_helpers::fun<P, R>>> { typedef P type; };
     }
 
     unique_ptr<Val> last_::operator()(unique_ptr<Val> _l) {
-      bind_uargs(l);
+      bind_uarg(l);
       auto prev = next(l);
       if (!prev) throw RuntimeError("last of empty list");
       while (auto it = next(l)) {
@@ -510,7 +509,7 @@ struct _get_uarg<ll::pack<bins_helpers::fun<P, R>>> { typedef P type; };
       bind_args(l);
       if (l) {
         while (auto it = next(l))
-          cache.emplace_back(it);
+          cache.emplace_back(move(it));
         curr = cache.size();
         l.reset();
       }

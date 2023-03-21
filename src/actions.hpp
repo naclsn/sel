@@ -37,7 +37,7 @@ int lookup(char const* const names[]) {
 
     for (size_t k = 0; k < bins_list::count; k++) {
       char const* name = bins_list::names[k];
-      auto it = lookup_name(app, name);
+      auto it = lookup_name(name);
 
       if (it->type() == ty && it->type().arity() == ar) {
         if (found) cout << "\n";
@@ -58,7 +58,7 @@ int lookup(char const* const names[]) {
     vector<char const*> not_found;
 
     while (*names) {
-      auto it = lookup_name(app, *names);
+      auto it = lookup_name(*names);
       if (it) {
         cout << *names << " :: " << it->type() << "\n";
         wwcout << it->accept(help) << endl;

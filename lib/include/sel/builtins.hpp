@@ -190,14 +190,14 @@ namespace sel {
 
     // deep-copy the arg tuple
     template <unsigned ...S, typename tuple>
-    static inline tuple copy_arg_tuple(seq<S...>, tuple t) {
-      return {std::get<S>(t)->copy()...};
+    static inline tuple copy_arg_tuple(seq<S...>, tuple const& t) {
+      return {val_cast<typename std::tuple_element<S, tuple>::type::element_type>(std::get<S>(t)->copy())...};
     }
 
     // make a vector off the arg tuple
     template <unsigned ...S, typename tuple>
-    static inline std::vector<std::unique_ptr<Val>> args_vector(seq<S...>, tuple t) {
-      return {std::get<S>(t)...};
+    static inline std::vector<std::reference_wrapper<Val const>> args_vector(seq<S...>, tuple const& t) {
+      return {std::cref(*std::get<S>(t).get())...};
     }
 
     // makes a pack 'a, b, c..' into a type 'a -> b -> c..'
@@ -222,9 +222,9 @@ namespace sel {
       constexpr static unsigned paramsN = count<Params>::value;
       constexpr static unsigned argsN = count<Args>::value;
 
-      _make_bin_common(Type&& ty, arg_tuple<Args> t)
+      _make_bin_common(Type&& ty, arg_tuple<Args>&& t)
         : ty_from_pack<fParams>(std::forward<Type>(ty))
-        , _args(t)
+        , _args(move(t))
       { }
 
       std::unique_ptr<Val> copy() const override {
@@ -232,7 +232,9 @@ namespace sel {
       }
 
       arg_tuple<Args> const& args() const { return _args; }
-      std::vector<std::unique_ptr<Val>> const args_v() const { return args_vector(arg_unpack<argsN>(), _args); }
+      std::vector<std::reference_wrapper<Val const>> const args_v() const {
+        return args_vector(arg_unpack<argsN>(), _args);
+      }
 
     protected:
       VisitTable visit_table() const override {
@@ -243,9 +245,8 @@ namespace sel {
 
       // used in Head/Body
       template <typename Next, typename param_h>
-      std::unique_ptr<Val> _call_operator_template(std::unique_ptr<Val> arg) {
-        std::unique_ptr<Val> ok = coerse<param_h>(arg, this->ty.from());
-        return Next::make_at(this->h, this->ty, _args, ok);
+      std::unique_ptr<Val> _call_operator_template(std::unique_ptr<Val>&& arg) {
+        return Next::make_at(this->ty, move(_args), val_cast<param_h>(coerse<typename param_h::base_type>(move(arg), this->ty.from())));
       }
     };
 
@@ -264,13 +265,13 @@ namespace sel {
       typedef make_bin<impl_, typename super::Pack, pack<>> Head;
 
       // Body/Tail offset ctor
-      static inline std::unique_ptr<Val> make_at(Type const& base_type, arg_tuple<typename Base::Args> base_args, std::unique_ptr<Val> arg) {
-        return std::make_unique<make_bin>(done_applied(base_type, arg->type()), std::tuple_cat(base_args, std::make_tuple(move(arg))));
+      static inline std::unique_ptr<Val> make_at(Type const& base_type, arg_tuple<typename Base::Args>&& base_args, std::unique_ptr<typename _aht::head>&& arg) {
+        return std::make_unique<make_bin>(done_applied(base_type, arg->type()), std::tuple_cat(move(base_args), std::make_tuple(move(arg))));
       }
 
       // Head/Body overrides
       std::unique_ptr<Val> operator()(std::unique_ptr<Val> arg) override {
-        return super::template _call_operator_template<Next, typename _pht::head::base_type>(arg);
+        return super::template _call_operator_template<Next, typename _pht::head>(move(arg));
       }
     };
 
@@ -292,7 +293,7 @@ namespace sel {
 
       // Head/Body overrides
       std::unique_ptr<Val> operator()(std::unique_ptr<Val> arg) override {
-        return super::template _call_operator_template<Next, typename _pht::head::base_type>(arg);
+        return super::template _call_operator_template<Next, typename _pht::head>(move(arg));
       }
     };
 
@@ -310,8 +311,8 @@ namespace sel {
       typedef make_bin<impl_, typename super::Pack, pack<>> Head;
 
       // Body/Tail offset ctor
-      static inline std::unique_ptr<Val> make_at(Type const& base_type, arg_tuple<typename Base::Args> base_args, std::unique_ptr<Val> arg) {
-        return std::make_unique<impl_>(done_applied(base_type, arg->type()), std::tuple_cat(base_args, std::make_tuple(move(arg))));
+      static inline std::unique_ptr<Val> make_at(Type const& base_type, arg_tuple<typename Base::Args>&& base_args, std::unique_ptr<typename _aht::head>&& arg) {
+        return std::make_unique<impl_>(done_applied(base_type, arg->type()), std::tuple_cat(move(base_args), std::make_tuple(move(arg))));
       }
     };
 

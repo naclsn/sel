@@ -64,9 +64,9 @@ namespace sel {
       char n[T::argsN][6];
       size_t k = 0;
       std::vector<ReprField> fields;
-      for (auto const& it : it.args_v()) {
+      for (auto const& v : it.args_v()) {
         std::copy(n_, n_+6, n[k])[-2] = 'A'+k;
-        fields.emplace_back(n[k++], &*it);
+        fields.emplace_back(n[k++], &v.get());
       }
       reprHelper(it.type(), normalized.c_str(), fields);
       return res;
@@ -143,8 +143,8 @@ namespace sel {
     template <typename T>
     Ret visit(T const& it) {
       res << "[" << T::Impl::name;
-      for (auto const& it : it.args_v()) {
-        res << " "; it->accept(*this);
+      for (auto const& v : it.args_v()) {
+        res << " "; v.get().accept(*this);
       }
       return res << "]";
     }
