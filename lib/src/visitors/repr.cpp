@@ -88,7 +88,7 @@ namespace sel {
     a.reserve(c);
     for (size_t k = 0; k < c; k++) {
       sprintf(b[k], "v[%zu]", k);
-      a.push_back({b[k], &*v[k]});
+      a.emplace_back(b[k], v[k].get());
     }
     reprHelper(it.type(), "LstLiteral", a);
     return res;
@@ -102,7 +102,7 @@ namespace sel {
     a.reserve(c);
     for (size_t k = 0; k < c; k++) {
       sprintf(b[k], "f[%zu]", k);
-      a.push_back({b[k], &*f[k]});
+      a.emplace_back(b[k], f[k].get());
     }
     reprHelper(it.type(), "FunChain", a);
     return res;
@@ -162,7 +162,7 @@ namespace sel {
     a.reserve(c);
     for (size_t k = 0; k < c; k++) {
       sprintf(b[k], "v[%zu]", k);
-      a.push_back({b[k], &vs[k]});
+      a.emplace_back(b[k], &vs[k]);
     }
     reprHelper(it.type(), "StrChunks", a);
     return res;

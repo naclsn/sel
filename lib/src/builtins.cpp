@@ -50,10 +50,15 @@ namespace sel {
   // on the other hand, returning such as string_view means the Str
   // instance may need to hold any temporary (think 'tostr', 'oct'
   // or 'hex')
+  // --
+  // stream operator might still be the best way to translate the
+  // 'volatile' aspect of a chunk; also would benefit from being able
+  // to use existing
 
   // returns a finit complete string, which is not possible with a _str<is_inf=true>
   static inline string collect(unique_ptr<str> s) {
     ostringstream r;
+    // while (r << s); // badbit means not more chunk
     s->entire(r);
     return r.str();
   }
@@ -67,10 +72,9 @@ namespace sel {
 
   template <typename P, typename R>
   static inline unique_ptr<R> call(unique_ptr<fun<P, R>> f, unique_ptr<P> p)
-  { return val_cast<R>((*f)(val_cast<Val>(move(p)))); }
+  { return val_cast<R>((*f)(move(p))); }
 
 #define _bind_some(__count) _bind_some_ ## __count
-#define _bind_some_0()
 #define _bind_some_1(a)          _bind_one(a, 0)
 #define _bind_some_2(a, b)       _bind_one(a, 1); _bind_some_1(b)
 #define _bind_some_3(a, b, c)    _bind_one(a, 2); _bind_some_2(b, c)
@@ -78,17 +82,18 @@ namespace sel {
 
 #define _bind_count(__count, ...) _bind_some(__count)(__VA_ARGS__)
 #define _bind_one(__name, __depth) auto& __name = get<argsN-1 - __depth>(_args); (void)__name
-// YYY: could it somehow be moved into `BIN_...`? in a way
-// that it is only written once and the named arg refs
-// are available all throughout the struct
 #define bind_args(...) _bind_count(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
 
-// XXX: this more temporary, but will keep for as long as flem
 template <typename PackItself> struct _get_uarg;
-template <typename P, typename R>
-struct _get_uarg<pack<fun<P, R>>> { typedef P type; };
-#define bind_uarg(__last) auto __last = val_cast<_get_uarg<Params>::type>(move(_##__last))
-#define bind_uargs(__last, ...) bind_args(__VA_ARGS__); bind_uarg(__last)
+template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P type; };
+#define _bind_usome(__count) _bind_usome_ ## __count
+#define _bind_usome_1(a)          auto a = val_cast<_get_uarg<Params>::type>(move(_##a))
+#define _bind_usome_2(a, b)       _bind_one(a, 1+1); _bind_usome_1(b)
+#define _bind_usome_3(a, b, c)    _bind_one(a, 2+1); _bind_usome_2(b, c)
+#define _bind_usome_4(a, b, c, d) _bind_one(a, 3+1); _bind_usome_3(b, c, d)
+
+#define _bind_ucount(__count, ...) _bind_usome(__count)(__VA_ARGS__)
+#define bind_uargs(...) _bind_ucount(__VA_COUNT(__VA_ARGS__), __VA_ARGS__)
 
   namespace bins {
 
@@ -296,7 +301,7 @@ struct _get_uarg<pack<fun<P, R>>> { typedef P type; };
     }
 
     unique_ptr<Val> flip_::operator()(unique_ptr<Val> _a) {
-      bind_uargs(a, fun, b);
+      bind_uargs(fun, b, a);
       return call(call(move(fun), move(a)), move(b));
     }
 
@@ -343,7 +348,7 @@ struct _get_uarg<pack<fun<P, R>>> { typedef P type; };
     }
 
     unique_ptr<Val> head_::operator()(unique_ptr<Val> _l) {
-      bind_uarg(l);
+      bind_uargs(l);
       auto it = next(l);
       if (!it) throw RuntimeError("head of empty list");
       l.reset();
@@ -368,14 +373,14 @@ struct _get_uarg<pack<fun<P, R>>> { typedef P type; };
     }
 
     unique_ptr<Val> if_::operator()(unique_ptr<Val> _argument) {
-      bind_uargs(argument, condition, consequence, alternative);
+      bind_uargs(condition, consequence, alternative, argument);
       unique_ptr<Num> n = call(move(condition), move(argument));
       bool is = eval(move(n));
       return move(is ? consequence : alternative);
     }
 
     unique_ptr<Val> index_::operator()(unique_ptr<Val> _k) {
-      bind_uargs(k, l);
+      bind_uargs(l, k);
       size_t len = 0;
       size_t const idx = eval(move(k));
       while (auto it = next(l))
@@ -444,7 +449,7 @@ struct _get_uarg<pack<fun<P, R>>> { typedef P type; };
     }
 
     unique_ptr<Val> last_::operator()(unique_ptr<Val> _l) {
-      bind_uarg(l);
+      bind_uargs(l);
       auto prev = next(l);
       if (!prev) throw RuntimeError("last of empty list");
       while (auto it = next(l)) {
@@ -786,7 +791,7 @@ struct _get_uarg<pack<fun<P, R>>> { typedef P type; };
     }
 
     unique_ptr<Val> uncurry_::operator()(unique_ptr<Val> _pair) {
-      bind_uargs(pair, f);
+      bind_uargs(f, pair);
       auto a = next<0>(pair);
       auto b = next<1>(pair);
       return call(call(move(f), move(a)), move(b));

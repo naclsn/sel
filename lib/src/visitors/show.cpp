@@ -50,7 +50,10 @@ namespace sel {
       return res << it.getname();
     }
 
-    VisShow::Ret VisShow::visit(Input const& it) { throw TypeError("show(LstMapCoerse) does not make sense"); }
+    VisShow::Ret VisShow::visit(Input const& it) {
+      // YYY: really
+      throw TypeError("show(LstMapCoerse) does not make sense");
+    }
 
     VisShow::Ret VisShow::visit(NumResult const& it) {
       return res << it.result();
