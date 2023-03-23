@@ -8,14 +8,13 @@
 #define __A11(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, ...) a11
 #define __VA_COUNT(...) __A11(dum, ## __VA_ARGS__, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
 
-#define TRACE(...) // std::cerr << __VA_ARGS__ << "\n"
-
-// YYY: because this exists in C++14 onward
 namespace std {
+
   template <typename T, typename ...Args>
   unique_ptr<T> make_unique(Args&&... args) {
     return unique_ptr<T>(new T(std::forward<Args>(args)...));
   }
+
 }
 
 namespace sel {

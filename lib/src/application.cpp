@@ -25,14 +25,10 @@ namespace sel {
     Type const& ty = f->type();
 
     auto asfun = coerse<Fun>(move(f), Type::makeFun(Type::makeStr(true), Type::makeStr(true)));
-    TRACE("run, before stuff");
-    // auto valin = coerse<Val>(unique_ptr<Val>((Val*)new Input(in)), ty.from());
     auto valin = coerse<Val>(make_unique<Input>(in), ty.from());
     auto valout = (*asfun)(move(valin));
-    TRACE("run, after stuff");
 
     auto res = coerse<Str>(move(valout), Type::makeStr(true));
-    TRACE("running");
     res->entire(out);
   }
 
