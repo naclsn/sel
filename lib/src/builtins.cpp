@@ -564,44 +564,22 @@ template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P 
       return o ? move(o) : nullptr;
     }
 
-    // XXX: idk if that could be re-visited
-    void split_::once() {
-      bind_args(sep, str);
-      ostringstream oss;
-      sep->entire(oss);
-      sep.reset();
-      ssep = oss.str();
-      did_once = true;
-    }
-    void split_::next() {
-      if (at_end) {
-        at_past_end = true;
-        return;
-      }
-      if (!did_once) once();
-      bind_args(sep, str);
-      string buf = acc.str();
-      string::size_type at = buf.find(ssep);
-      if (string::npos != at) {
-        // found in current acc, pop(0)
-        curr = buf.substr(0, at);
-        acc = ostringstream(buf.substr(at+ssep.size()));
-        return;
-      }
-      if (str->end()) {
-        // send the rest of acc, set end
-        curr = buf;
-        at_end = true;
-        str.reset();
-        return;
-      }
-      acc << *str;
-      return next();
-    }
     unique_ptr<Val> split_::operator++() {
-      next();
-      if (at_past_end) return nullptr;
-      return unique_ptr<Val>(new StrChunks(curr));
+      bind_args(sep, str);
+      if (!str) return nullptr;
+      if (sep) ssep = collect(move(sep));
+      string::size_type at;
+      while (string::npos == (at = curr.find(ssep))) {
+        if (str->end()) {
+          str.reset();
+          return curr.empty() ? nullptr : make_unique<StrChunks>(curr);
+        }
+        ostringstream oss;
+        curr+= (oss << *str, oss.str());
+      }
+      auto r = make_unique<StrChunks>(curr.substr(0, at));
+      curr.erase(0, at+ssep.size());
+      return r;
     }
 
     double startswith_::value() {

@@ -558,17 +558,10 @@ namespace sel {
     BIN_lst(singleton, (unk<'a'>, lst<unk<'a'>>),
       "make a list of a single item", ());
 
-    // BIN_lst(split, (str, istr, ilst<istr>),
-    BIN_lst(split, (str, str, ilst<str>),
+    BIN_lst(split, (str, istr, ilst<istr>),
       "break a string into pieces separated by the argument, consuming the delimiter; note that an empty delimiter does not split the input on every character, but rather is equivalent to `const [repeat ::]`, for this see `graphemes`", (
-      bool did_once = false;
       std::string ssep;
-      std::ostringstream acc = std::ostringstream(std::ios_base::ate);
-      std::string curr;
-      bool at_end = false;
-      bool at_past_end = false;
-      void once();
-      void next();
+      std::string curr = "";
     ));
 
     BIN_num(startswith, (str, istr, num),
