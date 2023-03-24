@@ -411,7 +411,7 @@ namespace sel {
   unique_ptr<Val> lookup(App& app, string const& name) {
     unique_ptr<Val> user = app.lookup_name_user(name);
     if (user) return user;
-    return lookup_name(name);
+    return lookup_name(name.c_str());
   }
   unique_ptr<Val> lookup_unary(App& app, Token const& t) {
     switch (t.as.chr) {

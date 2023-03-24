@@ -12,7 +12,7 @@ namespace sel {
   using namespace packs;
   using namespace bins_helpers;
 
-  unique_ptr<Val> lookup_name(string const& name) {
+  unique_ptr<Val> lookup_name(char const* const name) {
     auto itr = bins_list::map.find(name);
     if (bins_list::map.end() == itr) return nullptr;
     auto f = (*itr).second;
@@ -800,27 +800,10 @@ template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P 
 
   } // namespace bins
 
-// YYY: somehow, this seems to only be needed with BINS_MIN
-#ifdef BINS_MIN
-  namespace bins {
-    constexpr char const* const add_::name;
-    constexpr char const* const codepoints_::name;
-    constexpr char const* const div_::name;
-    constexpr char const* const flip_::name;
-    constexpr char const* const graphemes_::name;
-    constexpr char const* const index_::name;
-    constexpr char const* const join_::name;
-    constexpr char const* const mul_::name;
-    constexpr char const* const sub_::name;
-    constexpr char const* const tonum_::name;
-    constexpr char const* const tostr_::name;
-  }
-#endif
-
   template <typename PackItself> struct _make_bins_list;
   template <typename ...Pack>
   struct _make_bins_list<pack<Pack...>> {
-    static unordered_map<string, unique_ptr<Val> (*)()> const map;
+    static bins_list::_ctor_map_type map;
     static char const* const names[];
     constexpr static size_t count = sizeof...(Pack);
   };
@@ -830,13 +813,11 @@ template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P 
 
   template <typename Va>
   unique_ptr<Val> _bin_new() { return make_unique<typename Va::Head>(); }
-  // XXX: static constructor
   template <typename ...Pack>
-  unordered_map<string, unique_ptr<Val> (*)()> const _make_bins_list<pack<Pack...>>::map = {{Pack::name, _bin_new<Pack>}...};
+  bins_list::_ctor_map_type _make_bins_list<pack<Pack...>>::map = {{Pack::name, _bin_new<Pack>}...};
 
-  unordered_map<string, unique_ptr<Val> (*)()> const bins_list::map = _make_bins_list<bins_list::all>::map;
+  bins_list::_ctor_map_type bins_list::map = _make_bins_list<bins_list::all>::map;
   char const* const* const bins_list::names = _make_bins_list<bins_list::all>::names;
   size_t const bins_list::count = _make_bins_list<bins_list::all>::count;
-
 
 } // namespace sel

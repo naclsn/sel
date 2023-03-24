@@ -72,7 +72,7 @@ namespace sel {
   /**
    * Seach for a value by name, return nullptr if not found.
    */
-  std::unique_ptr<Val> lookup_name(std::string const& name);
+  std::unique_ptr<Val> lookup_name(char const* const name);
 
   /**
    * Same as `lookup_name`, but at compile time. Argument
@@ -368,8 +368,8 @@ namespace sel {
 // SEE: https://stackoverflow.com/a/4225302
 #define BIN(__ident, __decl, __docstr, __body) \
     struct __ident##_ : bins_helpers::make_bin_w<__ident##_, __rem_par __decl> { \
-      constexpr static char const* name = #__ident; \
-      constexpr static char const* doc = __docstr; \
+      constexpr static char const* const name = #__ident; \
+      constexpr static char const* const doc = __docstr; \
       using Tail::Tail; \
       __rem_par __body \
     }
@@ -731,7 +731,14 @@ namespace sel {
     static inline void static_assert_sorted() { are_sorted<all>{}; }
 
   public:
-    static std::unordered_map<std::string, std::unique_ptr<Val> (*)()> const map;
+    typedef std::unordered_map
+      < char const* const
+      , std::unique_ptr<Val> (* const)()
+      , std::hash<std::string> // XXX: std::string_view
+      , std::equal_to<std::string>
+      > const _ctor_map_type;
+
+    static _ctor_map_type map;
     static char const* const* const names;
     static size_t const count;
   }; // bins_list
