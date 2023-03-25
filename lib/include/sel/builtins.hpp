@@ -520,6 +520,11 @@ namespace sel {
     BIN_unk(last, (lst<unk<'a'>>, unk<'a'>),
       "extract the last element of a list, which must not be empty", ());
 
+    BIN_lst(lines, (istr, ilst<str>),
+      "split input by line separator (\\r\\n or simply \\n), discard from the last new line to the end if empty", (
+      std::string curr = "";
+    ));
+
     BIN_str(ln, (istr, istr),
       "append a new line to a string", ());
 
@@ -613,6 +618,11 @@ namespace sel {
     BIN_num(unhex, (istr, num),
       "convert a number into string from its hexadecimal textual representation (without leading '0x')", ());
 
+    BIN_str(unlines, (ilst<str>, istr),
+      "join input into lines, appending a new line (strictly \\n) to each entry", (
+      std::unique_ptr<str> curr;
+    ));
+
     BIN_num(unoct, (istr, num),
       "convert a number into string from its octal textual representation (without leading '0o')", ());
 
@@ -672,6 +682,7 @@ namespace sel {
       , bins::iterate_
       , bins::join_
       , bins::last_
+      , bins::lines_
       , bins::ln_
       , bins::map_
       , bins::mul_
@@ -699,6 +710,7 @@ namespace sel {
       , bins::uncodepoints_
       , bins::uncurry_
       , bins::unhex_
+      , bins::unlines_
       , bins::unoct_
       , bins::zipwith_
       > more;

@@ -312,6 +312,7 @@ T(join_) {
   assert_str("a, b, c", call<join_>(", ", ili<cstr>{"a", "b", "c"}));
   assert_str("w", call<join_>(", ", ili<cstr>{"w"}));
   assert_str("", call<join_>(", ", ili<cstr>{}));
+  assert_str("a, b, ", call<join_>(", ", ili<cstr>{"a", "b", ""}));
   return 0;
 }
 
@@ -319,6 +320,17 @@ T(last_) {
   assert_num(3, call<last_>(ili<int>{1, 2, 3}));
   assert_num(1, call<last_>(ili<int>{1}));
   assert_lsterr(call<last_>(ili<int>{}));
+  return 0;
+}
+
+T(lines_) {
+  assert_lststr(({"a", "b", "c"}), call<lines_>("a\nb\nc\n"));
+  assert_lststr(({"a", "b", "c"}), call<lines_>("a\r\nb\nc\r\n"));
+  assert_lststr((ili<cstr>{}), call<lines_>(""));
+  assert_lststr(({"a"}), call<lines_>("a"));
+  assert_lststr(({"a", "b", "c"}), call<lines_>("a\nb\nc"));
+  assert_lststr(({"a", "b", "c"}), call<lines_>("a\nb\nc\r"));
+  assert_lststr(({"", "a", "b", "c"}), call<lines_>("\na\nb\nc"));
   return 0;
 }
 
@@ -389,6 +401,8 @@ T(split_) {
   assert_lststr(({"a", "b", "c"}), call<split_>(", ", "a, b, c"));
   assert_lststr(({"w"}), call<split_>(", ", "w"));
   assert_lststr((ili<cstr>{}), call<split_>(", ", ""));
+  assert_lststr(({"a", "", "b", "c"}), call<split_>(", ", "a, , b, c"));
+  assert_lststr(({"a", "b", ""}), call<split_>(", ", "a, b, "));
   return 0;
 }
 
@@ -499,6 +513,14 @@ T(uncurry_) {
 T(unhex_) {
   assert_num(42, call<unhex_>("2a"));
   assert_num(0, call<unhex_>("garbage"));
+  return 0;
+}
+
+T(unlines_) {
+  assert_str("a\nb\nc\n", call<unlines_>(ili<cstr>{"a", "b", "c"}));
+  assert_str("", call<unlines_>(ili<cstr>{}));
+  assert_str("a\nb\n\n", call<unlines_>(ili<cstr>{"a", "b", ""}));
+  assert_str("\na\nb\n", call<unlines_>(ili<cstr>{"", "a", "b"}));
   return 0;
 }
 

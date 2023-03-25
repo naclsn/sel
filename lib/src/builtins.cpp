@@ -458,15 +458,27 @@ template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P 
       return prev;
     }
 
-    unique_ptr<Val> map_::operator++() {
-      bind_args(f, l);
-      auto it = next(l);
-      return it ? call(clone(f), move(it)) : nullptr;
-    }
-
-    double mul_::value() {
-      bind_args(a, b);
-      return eval(move(a)) * eval(move(b));
+    unique_ptr<Val> lines_::operator++() {
+      bind_args(str);
+      if (!str) return nullptr;
+      string::size_type at;
+      while (string::npos == (at = curr.find('\n'))) {
+        if (str->end()) {
+          str.reset();
+          return curr.empty()
+            ? nullptr
+            : make_unique<StrChunks>('\r' == curr.back()
+              ? (curr.pop_back(), curr)
+              : curr);
+        }
+        ostringstream oss;
+        curr+= (oss << *str, oss.str());
+      }
+      auto r = make_unique<StrChunks>('\r' == curr[at-1]
+        ? curr.substr(0, at-1)
+        : curr.substr(0, at));
+      curr.erase(0, at+1);
+      return r;
     }
 
     ostream& ln_::stream(ostream& out) {
@@ -480,6 +492,17 @@ template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P 
     ostream& ln_::entire(ostream& out) {
       bind_args(s);
       return s->entire(out) << '\n';
+    }
+
+    unique_ptr<Val> map_::operator++() {
+      bind_args(f, l);
+      auto it = next(l);
+      return it ? call(clone(f), move(it)) : nullptr;
+    }
+
+    double mul_::value() {
+      bind_args(a, b);
+      return eval(move(a)) * eval(move(b));
     }
 
     double pi_::value() {
@@ -567,12 +590,19 @@ template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P 
     unique_ptr<Val> split_::operator++() {
       bind_args(sep, str);
       if (!str) return nullptr;
-      if (sep) ssep = collect(move(sep));
+      if (sep) {
+        if (str->end()) {
+          sep.reset();
+          str.reset();
+          return nullptr;
+        }
+        ssep = collect(move(sep));
+      }
       string::size_type at;
       while (string::npos == (at = curr.find(ssep))) {
         if (str->end()) {
           str.reset();
-          return curr.empty() ? nullptr : make_unique<StrChunks>(curr);
+          return make_unique<StrChunks>(curr);
         }
         ostringstream oss;
         curr+= (oss << *str, oss.str());
@@ -781,6 +811,35 @@ template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P 
       Str_streambuf sb(move(s));
       istream(&sb) >> hex >> n;
       return n;
+    }
+
+    ostream& unlines_::stream(ostream& out) {
+      bind_args(lst);
+      if (!curr) {
+        curr = next(lst);
+        if (!curr) {
+          lst.reset();
+          return out;
+        }
+      }
+      out << *curr;
+      if (curr->end()) {
+        curr.reset();
+        out << '\n';
+      }
+      return out;
+    }
+    bool unlines_::end() {
+      bind_args(lst);
+      return !lst;
+    }
+    ostream& unlines_::entire(ostream& out) {
+      bind_args(lst);
+      while (auto it = next(lst)) {
+        it->entire(out);
+        out << '\n';
+      }
+      return out;
     }
 
     double unoct_::value() {

@@ -39,12 +39,12 @@ TEST(def_kw) {
     "join", ":", ":",
   }, "1 2 3", "5 6 7")+
   do_run({
-    "def", "lines::", "[split", ":\\n:];\n",
-    "def", "unlines::", "[join", ":\\n:];\n",
+    "def", "mylines::", "[split", ":\\n:];\n",
+    "def", "myunlines::", "[join", ":\\n:];\n",
     "def", "ltonum::", "[map", "tonum];\n",
     "def", "ltostr::", "[map", "tostr];\n",
     "def", "mappp::", "[map", "+1];\n",
-    "lines,", "ltonum,", "mappp,", "ltostr,", "unlines,", "ln",
+    "mylines,", "ltonum,", "mappp,", "ltostr,", "myunlines,", "ln",
   }, "1\na\n2\nb\n3\nc", "2\n1\n3\n1\n4\n1\n")+
   0;
 }
