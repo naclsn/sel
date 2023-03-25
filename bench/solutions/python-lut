@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+from sys import stdin, stdout
+m = { '+': lambda a, b: a+b
+    , '-': lambda a, b: a-b
+    , '*': lambda a, b: a*b
+    }
+for line in stdin.readlines():
+    a, op, b = line.split(' ')
+    stdout.write(str(m[op](int(a), int(b))) + '\n')

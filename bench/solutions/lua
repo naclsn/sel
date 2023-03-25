@@ -1,0 +1,17 @@
+#!/usr/bin/env lua
+local m =
+  { ['+']= function(a, b) return a + b end
+  , ['-']= function(a, b) return a - b end
+  , ['*']= function(a, b) return a * b end
+  }
+for line in io.lines() ---@cast line string
+  do
+    -- local at = line:find(' ', 1, true)
+    -- local a = tonumber(line:sub(1, at-1))
+    -- local op = line:sub(at+1, at+1)
+    -- local b = tonumber(line:sub(at+2))
+    -- io.write(m[op](a, b), '\n')
+
+    local a, op, b = line:match('(%d+) ([-+*]) (%d+)')
+    io.write(m[op](tonumber(a), tonumber(b)), '\n')
+end
