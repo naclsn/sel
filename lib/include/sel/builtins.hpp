@@ -459,6 +459,11 @@ namespace sel {
     BIN_num(endswith, (str, str, num),
       "true if the string ends with the given suffix", ());
 
+    BIN_lst(enumerate, (ilst<unk<'a'>>, ilst<tpl<num, unk<'a'>>>),
+      "create a list which consists of pair of the index and the item", (
+      size_t at = 0;
+    ));
+
     BIN_lst(filter, (fun<unk<'a'>, num>, ilst<unk<'a'>>, ilst<unk<'a'>>),
       "return the list of elements which satisfy the predicate", ());
 
@@ -626,6 +631,16 @@ namespace sel {
     BIN_num(unoct, (istr, num),
       "convert a number into string from its octal textual representation (without leading '0o')", ());
 
+    // BIN_str(unwords, (ilst<str>, istr),
+    //   "assemble words together with white space; blank charaters (space, new line, tabulation) are trimmed first", (
+    //   bool first = true;
+    // ));
+
+    // BIN_lst(words, (istr, ilst<str>),
+    //   "break a string into its words, delimited by blank characters (space, new line, tabulation)", (
+    //   std::string curr = "";
+    // ));
+
     BIN_lst(zipwith, (fun<unk<'a'>, fun<unk<'b'>, unk<'c'>>>, ilst<unk<'a'>>, ilst<unk<'b'>>, ilst<unk<'c'>>),
       "make a new list by applying an binary operation to each corresponding value from each lists; stops when either list ends", ());
 
@@ -669,6 +684,7 @@ namespace sel {
       , bins::dropwhile_
       , bins::duple_
       , bins::endswith_
+      , bins::enumerate_
       , bins::filter_
       , bins::flip_
       , bins::give_
@@ -712,6 +728,8 @@ namespace sel {
       , bins::unhex_
       , bins::unlines_
       , bins::unoct_
+      // , bins::unwords_
+      // , bins::words_
       , bins::zipwith_
       > more;
 

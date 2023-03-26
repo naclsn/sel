@@ -243,6 +243,11 @@ T(endswith_) {
   return 0;
 }
 
+// T(enumerate_) {
+//   // TODO: comparing tuples (+1 reason to rework the assert macros / use external)
+//   return 0;
+// }
+
 T(flip_) {
   // dependance on sub_
   assert_num(1, call<sub_>(2, 1));

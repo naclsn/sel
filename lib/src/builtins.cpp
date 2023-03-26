@@ -289,6 +289,18 @@ template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P 
       return sxlen <= s.length() && 0 == s.compare(s.length()-sxlen, sxlen, sx);
     }
 
+    unique_ptr<Val> enumerate_::operator++() {
+      bind_args(l);
+      auto r = next(l);
+      if (!r) return nullptr;
+      vector<Type> ty{Type::makeNum(), Type(r->type())};
+      vector<unique_ptr<Val>> v;
+      v.emplace_back(make_unique<NumResult>(at++));
+      v.emplace_back(move(r));
+      // XXX: dont like that it passes as a literal when its a generated (same as NumResult, StrChunks)
+      return make_unique<LstLiteral>(move(v), move(ty)); // XXX: no param in ctor that indicates is_tpl
+    }
+
     unique_ptr<Val> filter_::operator++() {
       bind_args(p, l);
       while (auto it = next(l)) {
@@ -849,6 +861,72 @@ template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P 
       istream(&sb) >> oct >> n;
       return n;
     }
+
+    // ostream& unwords_::stream(ostream& out) {
+    //   bind_args(lst);
+    //   auto curr = next(lst);
+    //   if (!curr) {
+    //     lst.reset();
+    //     return out;
+    //   }
+    //   string all = collect(move(curr));
+    //   string::size_type start = all.find_first_not_of("\t\n\r ");
+    //   string::size_type end = all.find_last_not_of("\t\n\r ");
+    //   if (first) first = false;
+    //   else out << ' ';
+    //   return out << (string::npos == start ? "" : all.substr(start, string::npos == end ? string::npos : end+1-start));
+    // }
+    // bool unwords_::end() {
+    //   bind_args(lst);
+    //   return !lst;
+    // }
+    // ostream& unwords_::entire(ostream& out) {
+    //   bind_args(lst);
+    //   auto first = next(lst);
+    //   if (!first) return out;
+    //   string all = collect(move(first));
+    //   string::size_type start = all.find_first_not_of("\t\n\r ");
+    //   string::size_type end = all.find_last_not_of("\t\n\r ");
+    //   out << (string::npos == start ? "" : all.substr(start, string::npos == end ? string::npos : end+1-start));
+    //   while (auto it = next(lst)) {
+    //     out << ' ';
+    //     string all = collect(move(it));
+    //     string::size_type start = all.find_first_not_of("\t\n\r ");
+    //     string::size_type end = all.find_last_not_of("\t\n\r ");
+    //     out << (string::npos == start ? "" : all.substr(start, string::npos == end ? string::npos : end+1-start));
+    //   }
+    //   return out;
+    // }
+
+    // unique_ptr<Val> words_::operator++() {
+    //   bind_args(str);
+    //   if (!str) return nullptr;
+    //   if (curr.empty()) {
+    //     string::size_type start;
+    //     while (!str->end()) {
+    //       ostringstream oss;
+    //       string part = (oss << *str, oss.str());
+    //       start = part.find_first_not_of("\t\n\r ");
+    //       if (string::npos == start) {
+    //         curr = part.substr(start);
+    //         break;
+    //       }
+    //     }
+    //   }
+    //   if (curr.empty()) {
+    //     str.reset();
+    //     return nullptr;
+    //   }
+    //   string::size_type end;
+    //   while (string::npos == (end = curr.find_first_of("\t\n\r ")) && !str->end()) {
+    //     ostringstream oss;
+    //     string part = (oss << *str, oss.str());
+    //     curr+= part;
+    //   }
+    //   auto r = make_unique<StrChunks>(curr.substr(0, end));
+    //   curr.erase(0, curr.find_first_not_of("\t\n\r ", end));
+    //   return r;
+    // }
 
     unique_ptr<Val> zipwith_::operator++() {
       bind_args(f, l1, l2);
