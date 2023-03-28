@@ -307,6 +307,22 @@ T(init_) {
   return 0;
 }
 
+T(iseven_) {
+  assert_num(1, call<iseven_>(2));
+  assert_num(0, call<iseven_>(1));
+  assert_num(1, call<iseven_>(0));
+  assert_num(0, call<iseven_>(-1));
+  return 0;
+}
+
+T(isodd_) {
+  assert_num(0, call<isodd_>(2));
+  assert_num(1, call<isodd_>(1));
+  assert_num(0, call<isodd_>(0));
+  assert_num(1, call<isodd_>(-1));
+  return 0;
+}
+
 T(iterate_) {
   // dependance on add_
   assert_ilstnum(({1, 2, 3, 4, 5, 6}), call<iterate_>(call<add_>(1), 1));

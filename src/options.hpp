@@ -10,6 +10,7 @@
 using namespace std;
 using namespace sel;
 
+// TODO: rewrite, but less "C" (eg. gotos)
 struct Options {
   int argc;
   char** argv;
@@ -87,7 +88,11 @@ struct Options {
       } else { // startswith '--'
         string argpp = arg;
 
-        if ("--help" == argpp) {
+        if ("--" == argpp) {
+          script = argv+k+1;
+          break;
+
+        } else if ("--help" == argpp) {
           usage(NULL);
           return;
 
@@ -106,7 +111,7 @@ struct Options {
           oss << utils::quoted(argpp);
           usage(oss.str().c_str());
           return;
-        } // switch argpp
+        } // ifs argpp
 
       } // if '-' / '--'
     } // for argv

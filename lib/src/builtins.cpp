@@ -419,6 +419,16 @@ template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P 
       return r;
     }
 
+    double iseven_::value() {
+      bind_args(n);
+      return 0 == ((int)eval(move(n)) & 0b1);
+    }
+
+    double isodd_::value() {
+      bind_args(n);
+      return 0 != ((int)eval(move(n)) & 0b1);
+    }
+
     unique_ptr<Val> iterate_::operator++() {
       bind_args(f, o);
       auto r = call(clone(f), clone(o));
@@ -541,6 +551,37 @@ template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P 
       istream(&sb) >> c;
       return c.u;
     }
+
+    unique_ptr<Val> partition_::operator++() {
+      if (!created) {
+        bind_args(p, l);
+        if (!l) return nullptr;
+        created = new partition_::_shared(move(p), move(l));
+        return make_unique<partition_::_half<true>>(created);
+      }
+      auto* r = created;
+      created = nullptr;
+      return make_unique<partition_::_half<false>>(r);
+    }
+    unique_ptr<Val> partition_::_shared::progress(bool match) {
+      auto& pending = match ? pending_true : pending_false;
+      if (!pending.empty()) {
+        auto r = move(pending.front());
+        pending.pop();
+        return r;
+      }
+      auto& other = match ? pending_false : pending_true;
+      while (auto it = next(l)) {
+        if (!!eval(call(clone(p), clone(it))) == match)
+          return it;
+        other.push(move(it));
+      }
+      return nullptr;
+    }
+    template <bool match>
+    unique_ptr<Val> partition_::_half<match>::copy() const { throw NIYError("creating copies of partition_::_half<bool>"); }
+    template <bool match>
+    unique_ptr<Val> partition_::_half<match>::operator++() { return shared->progress(match); }
 
     ostream& prefix_::stream(ostream& out) {
       bind_args(s, px);

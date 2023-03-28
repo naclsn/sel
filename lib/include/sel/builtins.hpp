@@ -1,6 +1,7 @@
 #ifndef SEL_BUILTINS_HPP
 #define SEL_BUILTINS_HPP
 
+#include <queue>
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
@@ -511,6 +512,12 @@ namespace sel {
       std::unique_ptr<unk<'a'>> prev;
     ));
 
+    BIN_num(iseven, (num, num),
+      "predicate for even even numbers", ());
+
+    BIN_num(isodd, (num, num),
+      "predicate for odd odd numbers", ());
+
     BIN_lst(iterate, (fun<unk<'a'>, unk<'a'>>, unk<'a'>, ilst<unk<'a'>>),
       "return an infinite list of repeated applications of the function to the input", (
       bool first = true;
@@ -544,6 +551,33 @@ namespace sel {
 
     BIN_num(ord, (istr, num),
       "give the codepoint of the (first) character", ());
+
+    BIN_lst(partition, (fun<unk<'a'>, num>, ilst<unk<'a'>>, tpl<ilst<unk<'a'>>, ilst<unk<'a'>>>),
+      "return the pair of lists of elements which do and do not satisfy the predicate, respectively", (
+      struct _shared {
+        std::unique_ptr<fun<unk<'a'>, num>> p;
+        std::unique_ptr<ilst<unk<'a'>>> l;
+        _shared(std::unique_ptr<fun<unk<'a'>, num>>&& p, std::unique_ptr<ilst<unk<'a'>>>&& l)
+          : p(move(p)), l(move(l))
+        { }
+        bool both_alives = true;
+        std::queue<std::unique_ptr<unk<'a'>>> pending_true;
+        std::queue<std::unique_ptr<unk<'a'>>> pending_false;
+        std::unique_ptr<Val> progress(bool);
+      }* created = nullptr;
+      template <bool>
+      struct _half : ilst<unk<'a'>> {
+        _shared* shared;
+        _half(_shared* shared): ilst<unk<'a'>>(Type(shared->l->type())), shared(shared) { }
+        ~_half() { if (shared->both_alives) shared->both_alives = false; else delete shared; }
+        std::unique_ptr<Val> copy() const override;
+        std::unique_ptr<Val> operator++() override;
+      protected:
+        // TODO: establish stronger sematics for non-visitable things
+        VisitTable visit_table() const override
+        { throw TypeError("value not visitable: partition_::_half<bool>"); }
+      };
+    ));
 
     BIN_num(pi, (num),
       "pi, what did you expect", ());
@@ -695,6 +729,8 @@ namespace sel {
       , bins::if_
       , bins::index_
       , bins::init_
+      , bins::iseven_
+      , bins::isodd_
       , bins::iterate_
       , bins::join_
       , bins::last_
@@ -704,6 +740,7 @@ namespace sel {
       , bins::mul_
       , bins::oct_
       , bins::ord_
+      , bins::partition_
       , bins::pi_
       , bins::prefix_
       , bins::repeat_

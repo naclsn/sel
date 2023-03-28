@@ -1,6 +1,8 @@
 #ifndef SELI_ACTIONS_HPP
 #define SELI_ACTIONS_HPP
 
+#include <cstring>
+
 #include "sel/builtins.hpp"
 #include "sel/utils.hpp"
 
@@ -58,11 +60,21 @@ int lookup(char const* const names[]) {
     vector<char const*> not_found;
 
     while (*names) {
-      auto it = lookup_name(*names);
-      if (it) {
-        cout << *names << " :: " << it->type() << "\n";
-        wwcout << it->accept(help) << endl;
-      } else not_found.push_back(*names);
+      if (0 == strcmp("def", *names)) {
+        cout << *names << " :: Ident -> Str -> a -> a\n";
+        wwcout << "pseudo-function to define an alias to a value" << endl;
+      } else if (0 == strcmp("let", *names)) {
+        cout << *names << " :: Pattern -> a -> b\n";
+        wwcout << "pseudo-function to perform matching-pattern extraction" << endl;
+      }
+
+      else {
+        auto it = lookup_name(*names);
+        if (it) {
+          cout << *names << " :: " << it->type() << "\n";
+          wwcout << it->accept(help) << endl;
+        } else not_found.push_back(*names);
+      }
 
       if (*++names) cout << endl;
     }
