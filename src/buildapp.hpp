@@ -2,6 +2,7 @@
 #define SELI_BUILDAPP_HPP
 
 #include <fstream>
+#include <iomanip>
 #include <sstream>
 #include <string>
 
@@ -32,11 +33,36 @@ int build(App& app, char const* const srcs[]) {
       cerr << "This is an error in the hard-coded prelude!\n";
       return -1;
     }
+
+    size_t at = err.start - prelude_source.length();
+    bool has_pline = false;
+    string pline;
+    string line = source.str().substr(prelude_source.length());
+
+    size_t count = 1;
+    string::size_type ln;
+    while (string::npos != (ln = line.find('\n'))) {
+      if (at < ln+1) {
+        line = line.substr(0, ln);
+        break;
+      }
+      count++;
+      at-= ln+1;
+      has_pline = true;
+      pline = line.substr(0, ln);
+      line = line.substr(ln+1);
+    }
+
     cerr
       << "Parsing error: "
       << err.what() << '\n'
-      << "at: " << source.str().substr(prelude_source.length()) << '\n'
-      << "    " << string(err.start-prelude_source.length(), ' ') << string(err.span, '~') << '\n'
+    ;
+    if (has_pline) cerr
+      << setw(5) << count-1 << " | " << pline << '\n'
+    ;
+    cerr
+      << setw(5) << count << " | " << line << '\n'
+      << setw(5) << ' ' << " ` " << string(at, ' ') << string(err.span, '~') << '\n'
     ;
     return EXIT_FAILURE;
   }
@@ -72,13 +98,14 @@ int buildfile(App& app, char const* filename) {
 
     if (file.read(buffer.data(), size)) {
       char const* const srcs[2] = {buffer.data(), NULL};
-      build(app, srcs);
+      return build(app, srcs);
 
     } else {
       cerr << "Could not read file: " << utils::quoted(filename) << "\n";
       return EXIT_FAILURE;
     }
 
+    // unreachable
     return EXIT_SUCCESS;
   }
 
@@ -95,13 +122,14 @@ int buildfile(App& app, char const* filename) {
     buffer+= small;
 
     char const* const srcs[2] = {buffer.data(), NULL};
-    build(app, srcs);
+    return build(app, srcs);
 
   } else {
     cerr << "Could not open file: " << utils::quoted(filename) << "\n";
     return EXIT_FAILURE;
   }
 
+  // unreachable
   return EXIT_SUCCESS;
 }
 
