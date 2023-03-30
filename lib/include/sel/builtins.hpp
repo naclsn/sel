@@ -405,6 +405,11 @@ namespace sel {
     BIN_num(add, (num, num, num),
       "add two numbers", ());
 
+    BIN_lst(adjust, (fun<unk<'a'>, unk<'a'>>, num, ilst<unk<'a'>>, ilst<unk<'a'>>),
+      "ajust a value at a specific index, if the list is shorter it is returned unmodified", (
+      size_t until; // = eval(move(std::get<1>()));
+    ));
+
     BIN_str(bin, (num, str),
       "convert a number to its binary textual representation (without leading '0b')", ());
 
@@ -539,6 +544,9 @@ namespace sel {
 
     BIN_str(ln, (istr, istr),
       "append a new line to a string", ());
+
+    BIN_unk(lookup, (unk<'a'>, ilst<tpl<unk<'a'>, unk<'b'>>>, unk<'b'>),
+      "lookup for the value at the matching key, which has to be present (fow now keys are expected to be string, until arbitraty value comparison)", ());
 
     BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, ilst<unk<'a'>>, ilst<unk<'b'>>),
       "make a new list by applying an unary operation to each value from a list", ());
@@ -705,6 +713,7 @@ namespace sel {
     typedef packs::pack
       < bins::abs_
       , bins::add_
+      , bins::adjust_
       , bins::bin_
       , bins::bytes_
       , bins::chr_
@@ -736,6 +745,7 @@ namespace sel {
       , bins::last_
       , bins::lines_
       , bins::ln_
+      , bins::lookup_
       , bins::map_
       , bins::mul_
       , bins::oct_

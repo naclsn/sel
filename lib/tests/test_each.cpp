@@ -28,6 +28,10 @@ template <> inline unique_ptr<Val> asval(initializer_list<char> x) { return _lst
 template <> inline unique_ptr<Val> asval(initializer_list<char const*> x) { return _lst_asval(x, Type::makeStr(false)); }
 template <> inline unique_ptr<Val> asval(initializer_list<string> x) { return _lst_asval(x, Type::makeStr(false)); }
 
+// template <typename T1, typename T2> inline unique_ptr<Val> asval(initializer_list<tuple<T1, T2>> x) { return _lst_asval(x, Type::makeLst); }
+
+// template <typename T1, typename T2> inline unique_ptr<Val> asval(tuple<T1, T2> x) { }
+
 template <typename T>
 using ili = initializer_list<T>;
 typedef char const* cstr;
@@ -160,6 +164,17 @@ T(abs_) {
 
 T(add_) {
   assert_num(6, call<add_>(4, 2));
+  return 0;
+}
+
+T(adjust_) {
+  // dependance on add_
+  assert_lstnum(({2, 2, 3}), call<adjust_>(call<add_>(1), 0, ili<int>{1, 2, 3}));
+  assert_lstnum(({1, 3, 3}), call<adjust_>(call<add_>(1), 1, ili<int>{1, 2, 3}));
+  assert_lstnum(({1, 2, 4}), call<adjust_>(call<add_>(1), 2, ili<int>{1, 2, 3}));
+  assert_lstnum(({1, 2, 3}), call<adjust_>(call<add_>(1), 3, ili<int>{1, 2, 3}));
+  assert_lstnum(({1, 2, 3}), call<adjust_>(call<add_>(1), -1, ili<int>{1, 2, 3}));
+  assert_lstnum((ili<int>{}), call<adjust_>(call<add_>(1), 0, ili<int>{}));
   return 0;
 }
 
@@ -359,6 +374,11 @@ T(ln_) {
   assert_str("coucou\n", call<ln_>("coucou"));
   return 0;
 }
+
+// T(lookup_) {
+//   assert_str("a", call<lookup_>(0, ili<tuple<int, char>>{{0, 'a'}, {1, 'b'}, {2, 'c'}}));
+//   return 0;
+// }
 
 T(map_) {
   // dependance on abs

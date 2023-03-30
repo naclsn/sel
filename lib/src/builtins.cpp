@@ -23,8 +23,7 @@ namespace sel {
   static inline unique_ptr<U> clone(unique_ptr<U>& a)
   { return val_cast<U>(a->copy()); }
 
-  template <typename U>
-  static inline double eval(unique_ptr<U> n)
+  static inline double eval(unique_ptr<num> n)
   { return n->value(); }
 
   // TODO: experiment with reworking Str's interface (eg. could return
@@ -61,6 +60,9 @@ namespace sel {
     // while (r << s); // badbit means not more chunk
     s->entire(r);
     return r.str();
+    // string r;
+    // while (s >> [&r](string_view sv) { r+= sv; });
+    // return r;
   }
 
   template <bool is_inf, bool is_tpl, typename I>
@@ -70,9 +72,44 @@ namespace sel {
   static inline unique_ptr<typename pack_nth<n, pack<I...>>::type> next(unique_ptr<_lst<is_inf, is_tpl, I...>>& l)
   { return val_cast<typename pack_nth<n, pack<I...>>::type>(++*l); }
 
+  // template <typename I>
+  // static inline vector<unique_ptr<I>> collect(unique_ptr<lst<I>> l) {
+  //   vector<unique_ptr<I>> r;
+  //   while (auto it = next(l)) r.emplace_back(move(it));
+  //   return r;
+  // }
+
   template <typename P, typename R>
   static inline unique_ptr<R> call(unique_ptr<fun<P, R>> f, unique_ptr<P> p)
   { return val_cast<R>((*f)(move(p))); }
+
+  struct BaseComparator {
+    virtual ~BaseComparator() { }
+    virtual bool operator==(unique_ptr<Val>) const noexcept = 0;
+    virtual string to_string() const = 0;
+  };
+  template <typename V, typename U, U make(unique_ptr<V>)>
+  struct Comparator : BaseComparator {
+    U a;
+    Comparator(unique_ptr<V> a): a(make(move(a))) { }
+    bool operator==(unique_ptr<Val> b) const noexcept override {
+      return //V::type_ty == b->type().base() && // isnt the type already supposed to match..?
+        a == make(val_cast<V>(move(b)));
+    }
+    string to_string() const override { return ::to_string(a); }
+  };
+
+  // template <typename V> ...
+  unique_ptr<BaseComparator> compare(unique_ptr<Val> a) {
+    switch (a->type().base()) {
+      case Ty::NUM: return make_unique<Comparator<num, double, eval>>(val_cast<num>(move(a)));
+      case Ty::STR: return make_unique<Comparator<str, string, collect>>(val_cast<str>(move(a)));
+      // case Ty::LST: return make_unique<Comparator<lst<Val>, vector<unique_ptr<Val>>, collect>>(val_cast<lst<Val>>(move(a)));
+      default: break;
+    }
+    ostringstream oss;
+    throw RuntimeError((oss << "cannot compare values of type " << a->type(), oss.str()));
+  }
 
 #define _bind_some(__count) _bind_some_ ## __count
 #define _bind_some_1(a)          _bind_one(a, 0)
@@ -105,6 +142,14 @@ template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P 
     double add_::value() {
       bind_args(a, b);
       return eval(move(a)) + eval(move(b));
+    }
+
+    unique_ptr<Val> adjust_::operator++() {
+      bind_args(f, n, l);
+      if (n) until = eval(move(n))+1;
+      auto it = next(l);
+      if (0 == until || 1 < until--) return it;
+      return it ? call(move(f), move(it)) : nullptr;
     }
 
     ostream& bin_::stream(ostream& out) {
@@ -386,9 +431,9 @@ template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P 
 
     unique_ptr<Val> if_::operator()(unique_ptr<Val> _argument) {
       bind_uargs(condition, consequence, alternative, argument);
-      unique_ptr<Num> n = call(move(condition), move(argument));
-      bool is = eval(move(n));
-      return move(is ? consequence : alternative);
+      return eval(call(move(condition), move(argument)))
+        ? move(consequence)
+        : move(alternative);
     }
 
     unique_ptr<Val> index_::operator()(unique_ptr<Val> _k) {
@@ -514,6 +559,17 @@ template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P 
     ostream& ln_::entire(ostream& out) {
       bind_args(s);
       return s->entire(out) << '\n';
+    }
+
+    unique_ptr<Val> lookup_::operator()(unique_ptr<Val> _map) {
+      bind_uargs(key, map);
+      // string const skey = collect(val_cast<str>(move(key))); // XXX
+      auto cmp = compare(move(key));
+      while (auto pair = next(map))
+        // if (skey == collect(val_cast<str>(next<0>(pair)))) // XXX
+        if (*cmp == next<0>(pair))
+          return next<1>(pair);
+      throw RuntimeError("key not found: " + cmp->to_string());
     }
 
     unique_ptr<Val> map_::operator++() {

@@ -15,6 +15,8 @@ namespace std {
     return unique_ptr<T>(new T(std::forward<Args>(args)...));
   }
 
+  inline string to_string(string s) { return s; }
+
 }
 
 namespace sel {
