@@ -24,7 +24,7 @@ namespace sel {
     if (Ty::STR == ty.base())
       return val_cast<Num>((*static_lookup_name(tonum))(move(from)));
 
-    throw TypeError(ty, to);
+    throw TypeError(*from, to);
   }
 
   // Num => Str: same as `tostr`
@@ -39,7 +39,7 @@ namespace sel {
     if (Ty::LST == ty.base())
       return val_cast<Str>((*val_cast<Fun>((*static_lookup_name(join))(make_unique<StrChunks>(""))))(move(from)));
 
-    throw TypeError(ty, to);
+    throw TypeError(*from, to);
   }
 
   // Str => [Num]: same as `codepoints`
@@ -82,7 +82,7 @@ namespace sel {
         return val_cast<Lst>((*static_lookup_name(graphemes))(move(from)));
     }
 
-    throw TypeError(ty, to);
+    throw TypeError(*from, to);
   }
 
   // special case for type checking, (effectively a cast)
@@ -91,16 +91,13 @@ namespace sel {
     Type const& ty = from->type();
     // if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
     if (Ty::FUN == to.base()) {
-      if (ty.arity() != to.arity()) {
-        ostringstream oss;
-        throw TypeError((oss << "function arity of " << ty << " does not match with " << to, oss.str()));
-      }
+      if (ty.arity() != to.arity())
+        throw TypeError(*from, to);
 
       return val_cast<Fun>(move(from));
     }
 
-    ostringstream oss;
-    throw TypeError((oss << "value of type " << ty << " is not a function", oss.str()));
+    throw TypeError(*from, to);
   }
 
   // dispatches to the correct one dynamically

@@ -15,6 +15,8 @@
 
 namespace sel {
 
+  struct Val;
+
   struct BaseError : std::runtime_error {
     BaseError(std::string const& msg)
       : std::runtime_error(msg)
@@ -41,14 +43,11 @@ namespace sel {
     TypeError(std::string const& msg) // range..
       : BaseError(msg)
     { }
-    TypeError(Type const& from, Type const& to) // range..
+    TypeError(Val const& from, Type const& to) // range..
       : TypeError(bidoof(from, to))
     { }
   private:
-    inline static std::string bidoof(Type const& from, Type const& to) {
-      std::ostringstream oss;
-      return (oss << "cannot coerse from " << from << " to " << to, oss.str());
-    }
+    static std::string bidoof(Val const& from, Type const& to);
   };
 
   struct RuntimeError : BaseError {

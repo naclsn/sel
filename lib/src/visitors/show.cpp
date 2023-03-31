@@ -21,7 +21,7 @@ namespace sel {
         sep = ", ";
         v->accept(*this);
       }
-      return res << "}";
+      return res << " }";
     }
 
     VisShow::Ret VisShow::visit(FunChain const& it) {

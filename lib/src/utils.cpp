@@ -36,6 +36,12 @@ namespace sel { namespace utils {
     return out;
   }
 
+  ostream& operator<<(ostream& out, show me) {
+    VisShow show(out);
+    me.val.accept(show);
+    return out;
+  }
+
   ostream& operator<<(ostream& out, quoted q) {
     if (q.put_quo) out << (q.do_col ? ':' : '"');
     string const search =

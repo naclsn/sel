@@ -58,6 +58,12 @@ namespace sel {
     };
     std::ostream& operator<<(std::ostream& out, repr me);
 
+    struct show {
+      Val const& val;
+      inline show(Val const& val): val(val) { }
+    };
+    std::ostream& operator<<(std::ostream& out, show me);
+
     /**
      * For use in representing text.
      */
