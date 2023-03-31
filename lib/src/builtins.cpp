@@ -152,6 +152,11 @@ template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P 
       return it ? call(move(f), move(it)) : nullptr;
     }
 
+    unique_ptr<Val> apply_::operator()(unique_ptr<Val> _arg) {
+      bind_uargs(fun, arg);
+      return call(move(fun), move(arg));
+    }
+
     ostream& bin_::stream(ostream& out) {
       bind_args(n);
       uint64_t a = eval(move(n));
@@ -576,6 +581,36 @@ template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P 
       bind_args(f, l);
       auto it = next(l);
       return it ? call(clone(f), move(it)) : nullptr;
+    }
+
+    unique_ptr<Val> mapfirst_::operator++() {
+      bind_args(f, t);
+      switch (at++) {
+        case 0: return call(move(f), next<0>(t));
+        case 1: return next<1>(t);
+        case 2: return next<2>(t);
+      }
+      return nullptr;
+    }
+
+    unique_ptr<Val> mapsecond_::operator++() {
+      bind_args(f, t);
+      switch (at++) {
+        case 0: return next<0>(t);
+        case 1: return call(move(f), next<1>(t));
+        case 2: return next<2>(t);
+      }
+      return nullptr;
+    }
+
+    unique_ptr<Val> mapthird_::operator++() {
+      bind_args(f, t);
+      switch (at++) {
+        case 0: return next<0>(t);
+        case 1: return next<1>(t);
+        case 2: return call(move(f), next<2>(t));
+      }
+      return nullptr;
     }
 
     double mul_::value() {

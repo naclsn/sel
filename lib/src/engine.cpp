@@ -91,7 +91,7 @@ namespace sel {
     Type const& ty = from->type();
     // if (app.is_strict_type() && to != ty) throw TypeError(ty, to);
     if (Ty::FUN == to.base()) {
-      if (ty.arity() != to.arity())
+      if (ty.arity() < to.arity())
         throw TypeError(*from, to);
 
       return val_cast<Fun>(move(from));

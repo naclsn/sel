@@ -405,10 +405,14 @@ namespace sel {
     BIN_num(add, (num, num, num),
       "add two numbers", ());
 
+    // XXX: pattern thingy would make this usable in more situations
     BIN_lst(adjust, (fun<unk<'a'>, unk<'a'>>, num, ilst<unk<'a'>>, ilst<unk<'a'>>),
-      "ajust a value at a specific index, if the list is shorter it is returned unmodified", (
+      "adjust a value at a specific index, if the list is shorter it is returned unmodified", (
       size_t until; // = eval(move(std::get<1>()));
     ));
+
+    BIN_unk(apply, (fun<unk<'a'>, unk<'b'>>, unk<'a'>, unk<'b'>),
+      "application operator", ());
 
     BIN_str(bin, (num, str),
       "convert a number to its binary textual representation (without leading '0b')", ());
@@ -550,6 +554,21 @@ namespace sel {
 
     BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, ilst<unk<'a'>>, ilst<unk<'b'>>),
       "make a new list by applying an unary operation to each value from a list", ());
+
+    BIN_lst(mapfirst, (fun<unk<'a'>, unk<'d'>>, tpl<unk<'a'>, unk<'b'>, unk<'c'>>, tpl<unk<'d'>, unk<'b'>, unk<'c'>>),
+      "make a new tuple by applying an unary operation to the first value from a tuple", (
+      size_t at = 0;
+    ));
+
+    BIN_lst(mapsecond, (fun<unk<'b'>, unk<'d'>>, tpl<unk<'a'>, unk<'b'>, unk<'c'>>, tpl<unk<'a'>, unk<'d'>, unk<'c'>>),
+      "make a new tuple by applying an unary operation to the second value from a tuple", (
+      size_t at = 0;
+    ));
+
+    BIN_lst(mapthird, (fun<unk<'c'>, unk<'d'>>, tpl<unk<'a'>, unk<'b'>, unk<'c'>>, tpl<unk<'a'>, unk<'b'>, unk<'d'>>),
+      "make a new tuple by applying an unary operation to the third value from a tuple", (
+      size_t at = 0;
+    ));
 
     BIN_num(mul, (num, num, num),
       "multiply two numbers", ());
@@ -714,6 +733,7 @@ namespace sel {
       < bins::abs_
       , bins::add_
       , bins::adjust_
+      , bins::apply_
       , bins::bin_
       , bins::bytes_
       , bins::chr_
@@ -747,6 +767,9 @@ namespace sel {
       , bins::ln_
       , bins::lookup_
       , bins::map_
+      , bins::mapfirst_
+      , bins::mapsecond_
+      , bins::mapthird_
       , bins::mul_
       , bins::oct_
       , bins::ord_
