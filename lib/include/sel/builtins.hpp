@@ -549,7 +549,7 @@ namespace sel {
     BIN_str(ln, (istr, istr),
       "append a new line to a string", ());
 
-    BIN_unk(lookup, (unk<'a'>, ilst<tpl<unk<'a'>, unk<'b'>>>, unk<'b'>),
+    BIN_unk(lookup, (ilst<tpl<unk<'a'>, unk<'b'>>>, unk<'a'>, unk<'b'>),
       "lookup for the value at the matching key, which has to be present (fow now keys are expected to be string, until arbitraty value comparison)", ());
 
     BIN_lst(map, (fun<unk<'a'>, unk<'b'>>, ilst<unk<'a'>>, ilst<unk<'b'>>),

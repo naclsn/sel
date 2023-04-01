@@ -566,13 +566,14 @@ template <typename P, typename R> struct _get_uarg<pack<fun<P, R>>> { typedef P 
       return s->entire(out) << '\n';
     }
 
-    unique_ptr<Val> lookup_::operator()(unique_ptr<Val> _map) {
-      bind_uargs(key, map);
-      // string const skey = collect(val_cast<str>(move(key))); // XXX
+    unique_ptr<Val> lookup_::operator()(unique_ptr<Val> _key) {
+      bind_uargs(map, key);
+      string const skey = collect(val_cast<str>(move(key))); // XXX
+      // std::cerr << utils::repr(*key) << "\n";
       auto cmp = compare(move(key));
       while (auto pair = next(map))
-        // if (skey == collect(val_cast<str>(next<0>(pair)))) // XXX
-        if (*cmp == next<0>(pair))
+        if (skey == collect(val_cast<str>(next<0>(pair)))) // XXX
+        // if (*cmp == next<0>(pair))
           return next<1>(pair);
       throw RuntimeError("key not found: " + cmp->to_string());
     }

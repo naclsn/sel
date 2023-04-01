@@ -1,0 +1,57 @@
+[x] std
+[x] ll:: -> utils:: or something
+
+[x] ptr<Val> -> ptr<..>
+
+[x] before 'r': "finish"s
+[x] [remove eager resets?]
+
+[x] re-work bind_args (using std::tie?)
+[x] split
+[~] the val_cast thingy (there is still this idea floating around of having every operation be alos on base Val: no need to cast this way, no template Defs)
+[ ] coersion uh
+[ ] rework the Str interface (string_view is C++17 (so is variant))
+[ ] attach a token to parsed values or something idk (use: type errors, runtime errors) -> for type errors, see with coerseion rework, it should not appear at 'runtime'; for runtime.. well granted that can be helpful (std::optional? - not every Val would have an attached source location)
+[x] &*
+[x] *make_unique, *val_cast and such
+[x] throw TypeError("show(LstMapCoerse) does not make sense")
+[x] test_each assert macros
+
+
+
+s/el -f <(echo bytes, map tostr, join::) -o tmp
+=> segfaults at emitting object code
+
+
+codegen: have source script in file?
+(or at least in .ll?)
+
+
+
+still need to put proper type-s on literal lists
+
+make TypeError have a range or something
+putting a range on type errors is idk how... maybe values
+will have to link back to token-s (or nil when that doesnt
+make sense)
+
+prelude (include/header/...) ((and help for `def`s))
+
+-- doc'ing
+https://github.com/hdoc/hdoc
+https://github.com/standardese/standardese
+
+-- test'ing
+[doctest?]
+keep with what have, just actually do
+
+https://about.codecov.io/product/features/
+
+
+
+=== LLVM notes:
+keep select in mind
+think about landingpad/catchpad and whatnot for eg. `head {}`
+
+https://llvm.org/docs/ExceptionHandling.html#overview
+https://llvm.org/docs/LangRef.html?highlight=constantint#landingpad-instruction

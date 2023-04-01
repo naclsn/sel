@@ -1,0 +1,32 @@
+#!build/src/sel -f
+lines
+, map
+  [ split : :
+  # (l, op, r)
+  , enumerate, partition [_0, isodd], map [map [drop 1]]
+  # ([op], [l, r])
+  , mapfirst
+    [ _0
+    , lookup
+      { {:+:, add}
+      , {:-:, sub}
+      , {:*:, mul}
+      }
+    , uncurry
+    ]
+  # ((l, r) -> y, (l, r))
+  , uncurry apply
+  ]
+, unlines
+
+
+# duple, mappair {[_1, lookup {..}], %undex 1}
+
+# let {l, op, r} [[lookup {..} op] l r]
+
+# def map::
+#   [ let {f, l}
+#     [ [letpat {a} [f a]] l
+#     ]
+#   , uncurry
+#   ]
