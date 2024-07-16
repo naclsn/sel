@@ -1,5 +1,0 @@
-#!/bin/sh -e
-t=build
-cd "${0%/*}/.."
-test -d $t/ || meson $t/ --buildtype=release --strip
-ninja -C $t/ && $t/src/sel "$@"

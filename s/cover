@@ -1,9 +1,0 @@
-#!/bin/sh -e
-t=build/debug
-cd "${0%/*}/.."
-test -d $t/ || meson $t/ -Db_coverage=true
-command -v gcovr |: || pip install gcovr
-ninja -C $t/ test
-ninja -C $t/ coverage
-test -f ignore/gcovr-style.css && cp ignore/gcovr-style.css $t/meson-logs/coveragereport/index.css
-xdg-open $t/meson-logs/coveragereport/index.html
