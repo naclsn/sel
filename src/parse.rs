@@ -2,7 +2,7 @@ use std::io;
 use std::iter;
 
 #[derive(Debug)]
-enum Token {
+pub enum Token {
     Word(String),
     Text(Vec<u8>),
     Number(i32),
@@ -25,7 +25,7 @@ impl<T: io::Read> Iterator for Bytes<T> {
     }
 }
 
-struct Lexer<T: io::Read> {
+pub(crate) struct Lexer<T: io::Read> {
     bytes: iter::Peekable<Bytes<T>>,
 }
 
@@ -44,23 +44,8 @@ impl<T: io::Read> Iterator for Lexer<T> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(first) = self
-            .bytes
-            .by_ref()
-            .find(|c| !c.is_ascii_whitespace())
-        {
+        if let Some(first) = self.bytes.find(|c| !c.is_ascii_whitespace()) {
             Some(match first {
-                c @ b'a'..=b'z' => Token::Word(
-                    String::from_utf8(
-                        iter::once(c)
-                            .chain(iter::from_fn(|| {
-                                self.bytes.next_if(u8::is_ascii_lowercase)
-                            }))
-                            .collect(),
-                    )
-                    .unwrap(),
-                ),
-
                 b':' => Token::Text({
                     iter::from_fn(|| match (self.bytes.next(), self.bytes.peek()) {
                         (Some(b':'), Some(b':')) => {
@@ -73,47 +58,62 @@ impl<T: io::Read> Iterator for Lexer<T> {
                     .collect()
                 }),
 
-                c @ b'0'..=b'9' => Token::Number({
-                    let mut r = 0i32;
-                    let (shift, digits) = match (c, self.bytes.peek()) {
-                        (b'0', Some(b'B' | b'b')) => {
-                            let _ = self.bytes.next();
-                            (1, b"01".as_slice())
-                        }
-                        (b'0', Some(b'O' | b'o')) => {
-                            let _ = self.bytes.next();
-                            (3, b"01234567".as_slice())
-                        }
-                        (b'0', Some(b'X' | b'x')) => {
-                            let _ = self.bytes.next();
-                            (4, b"0123456789abcdef".as_slice())
-                        }
-                        _ => {
-                            r = c as i32 - 48;
-                            (0, b"0123456789".as_slice())
-                        }
-                    };
-                    while let Some(c) = self.bytes.peek() {
-                        let Some(k) = digits.iter().position(|&x| c | 32 == x) else {
-                            break;
-                        };
-                        let _ = self.bytes.next();
-                        if 0 == shift {
-                            r = r * 10 + k as i32;
-                        } else {
-                            r = r << shift | k as i32;
-                        }
-                    }
-                    r
-                }),
-
                 b',' => Token::Comma,
                 b'[' => Token::OpenBracket,
                 b']' => Token::CloseBracket,
                 b'{' => Token::OpenBrace,
                 b'}' => Token::CloseBrace,
 
-                _ => return None,
+                c => {
+                    if c.is_ascii_lowercase() {
+                        Token::Word(
+                            String::from_utf8(
+                                iter::once(c)
+                                    .chain(iter::from_fn(|| {
+                                        self.bytes.next_if(u8::is_ascii_lowercase)
+                                    }))
+                                    .collect(),
+                            )
+                            .unwrap(),
+                        )
+                    } else if c.is_ascii_digit() {
+                        Token::Number({
+                            let mut r = 0i32;
+                            let (shift, digits) = match (c, self.bytes.peek()) {
+                                (b'0', Some(b'B' | b'b')) => {
+                                    let _ = self.bytes.next();
+                                    (1, b"01".as_slice())
+                                }
+                                (b'0', Some(b'O' | b'o')) => {
+                                    let _ = self.bytes.next();
+                                    (3, b"01234567".as_slice())
+                                }
+                                (b'0', Some(b'X' | b'x')) => {
+                                    let _ = self.bytes.next();
+                                    (4, b"0123456789abcdef".as_slice())
+                                }
+                                _ => {
+                                    r = c as i32 - 48;
+                                    (0, b"0123456789".as_slice())
+                                }
+                            };
+                            while let Some(c) = self.bytes.peek() {
+                                let Some(k) = digits.iter().position(|&x| c | 32 == x) else {
+                                    break;
+                                };
+                                let _ = self.bytes.next();
+                                if 0 == shift {
+                                    r = r * 10 + k as i32;
+                                } else {
+                                    r = r << shift | k as i32;
+                                }
+                            }
+                            r
+                        })
+                    } else {
+                        return None;
+                    }
+                }
             })
         } else {
             None
@@ -136,9 +136,7 @@ pub enum Error {
 }
 
 impl Tree {
-    fn from_peekable(
-        peekable: &mut iter::Peekable<Lexer<impl io::Read>>,
-    ) -> Result<Tree, Error> {
+    fn from_peekable(peekable: &mut iter::Peekable<Lexer<impl io::Read>>) -> Result<Tree, Error> {
         let one = match peekable.next() {
             Some(token @ (Token::Word(_) | Token::Text(_) | Token::Number(_))) => Tree::Atom(token),
 
@@ -164,7 +162,7 @@ impl Tree {
                     .collect::<Result<_, _>>()?,
             ),
 
-            Some(token @ _) => return Err(Error::Unexpected(token)),
+            Some(token) => return Err(Error::Unexpected(token)),
             None => return Err(Error::UnexpectedEOF),
         };
 
