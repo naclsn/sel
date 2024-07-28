@@ -249,7 +249,9 @@ mod tests {
     #[test]
     fn parsing() {
         assert_eq!(
-            Ok(Tree::Chain(vec![Tree::Atom(Token::Word("coucou".to_string()))])),
+            Ok(Tree::Chain(vec![Tree::Atom(Token::Word(
+                "coucou".to_string()
+            ))])),
             Tree::from_str("coucou")
         );
 
