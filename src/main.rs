@@ -1,11 +1,13 @@
 use std::fmt::Debug;
 use std::io::{self, Write};
 
+mod builtin;
 mod parse;
+mod value;
 mod reform;
 
 use parse::{Token, Tree};
-use reform::ATree;
+use reform::App;
 
 fn main() -> Result<(), Box<dyn Debug>> {
     print!(">: ");
@@ -20,12 +22,16 @@ fn main() -> Result<(), Box<dyn Debug>> {
         Ok(other) => Tree::Chain(vec![other, input]),
         Err(err) => return Err(Box::new(err)),
     };
+    println!("{tree:#?}");
 
-    let expr = match ATree::from_tree(tree) {
+    let expr = match App::from_tree(tree) {
         Ok(ok) => ok,
         Err(err) => return Err(Box::new(err)),
     };
-
     println!("{expr:#?}");
-    Ok(())
+
+    match expr.types[expr.atree.ty].repr(&expr.types, &mut io::stdout()) {
+        Ok(()) => Ok(()),
+        Err(err) => return Err(Box::new(err)),
+    }
 }

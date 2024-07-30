@@ -5,7 +5,7 @@ use std::iter;
 pub enum Token {
     Unknown(String),
     Word(String),
-    Text(Vec<u8>),
+    Bytes(Vec<u8>),
     Number(i32),
     Comma,
     OpenBracket,
@@ -46,7 +46,7 @@ impl<T: io::Read> Iterator for Lexer<T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         Some(match self.bytes.find(|c| !c.is_ascii_whitespace())? {
-            b':' => Token::Text({
+            b':' => Token::Bytes({
                 iter::from_fn(|| match (self.bytes.next(), self.bytes.peek()) {
                     (Some(b':'), Some(b':')) => {
                         let _ = self.bytes.next();
@@ -141,7 +141,9 @@ impl Tree {
         peekable: &mut iter::Peekable<Lexer<impl io::Read>>,
     ) -> Result<Tree, Error> {
         let one = match peekable.next() {
-            Some(token @ (Token::Word(_) | Token::Text(_) | Token::Number(_))) => Tree::Atom(token),
+            Some(token @ (Token::Word(_) | Token::Bytes(_) | Token::Number(_))) => {
+                Tree::Atom(token)
+            }
 
             Some(Token::OpenBracket) => Tree::Chain(
                 iter::once(Tree::one_from_peekable(peekable))
@@ -155,6 +157,7 @@ impl Tree {
             ),
 
             Some(Token::OpenBrace) => Tree::List(
+                // XXX: doesn't allow empty, this is half intentional
                 iter::once(Tree::one_from_peekable(peekable))
                     .chain(iter::from_fn(|| match peekable.next() {
                         Some(Token::Comma) => Some(Tree::one_from_peekable(peekable)),
@@ -237,7 +240,7 @@ mod tests {
         assert_eq!(
             &[
                 Token::Number(42),
-                Token::Text(vec![42]),
+                Token::Bytes(vec![42]),
                 Token::Number(42),
                 Token::Number(42),
                 Token::Number(42),
