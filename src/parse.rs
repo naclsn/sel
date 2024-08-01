@@ -1,5 +1,9 @@
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::io;
 use std::iter;
+
+use crate::builtin::lookup_type;
+use crate::typing::{Type, Types};
 
 #[derive(PartialEq, Debug)]
 pub enum Token {
@@ -124,43 +128,117 @@ impl<T: io::Read> Iterator for Lexer<T> {
 
 #[derive(PartialEq, Debug)]
 pub enum Tree {
-    Apply(Box<Tree>, Vec<Tree>),
     Atom(Token),
-    Chain(Vec<Tree>),
     List(Vec<Tree>),
+    Apply(usize, String, Vec<Tree>),
+}
+
+impl Display for Tree {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Tree::Atom(atom) => match atom {
+                Token::Word(w) => write!(f, "{w}"),
+                Token::Bytes(v) => write!(f, "{v:?}"),
+                Token::Number(n) => write!(f, "{n}"),
+                _ => unreachable!(),
+            },
+
+            Tree::List(items) => {
+                write!(f, "{{")?;
+                let mut sep = "";
+                for it in items {
+                    write!(f, "{sep}{it}")?;
+                    sep = ", ";
+                }
+                write!(f, "}}")
+            }
+
+            Tree::Apply(_, name, args) => {
+                write!(f, "{name}(")?;
+                let mut sep = "";
+                for it in args {
+                    write!(f, "{sep}{it}")?;
+                    sep = ", ";
+                }
+                write!(f, ")")
+            }
+        }
+    }
 }
 
 #[derive(PartialEq, Debug)]
 pub enum Error {
     Unexpected(Token),
     UnexpectedEOF,
+
+    UnknownName(String),
+    NotFunc(usize, Types),
+    ExpectedButGot(usize, usize, Types),
+    InfWhereFinExpected,
 }
 
 impl Tree {
+    pub fn try_apply(self, arg: Tree, types: &mut Types) -> Result<Tree, Error> {
+        let (ty, name, mut args) = match self {
+            Tree::Atom(Token::Word(name)) => (lookup_type(&name, types)?, name, vec![]),
+            Tree::Apply(ty, name, args) => (ty, name, args),
+            _ => {
+                return Err(Error::NotFunc(
+                    self.make_type(types).unwrap(),
+                    types.clone(),
+                ))
+            }
+        };
+
+        let ty = Type::applied(ty, arg.make_type(types)?, types)?;
+        args.push(arg);
+        Ok(Tree::Apply(ty, name, args))
+    }
+
+    pub fn make_type(&self, types: &mut Types) -> Result<usize, Error> {
+        match self {
+            Tree::Atom(atom) => match atom {
+                Token::Word(name) => lookup_type(name, types),
+                Token::Bytes(_) => Ok(1),
+                Token::Number(_) => Ok(0),
+                _ => unreachable!(),
+            },
+
+            Tree::List(_items) => todo!(),
+
+            Tree::Apply(ty, _, _) => Ok(*ty),
+        }
+    }
+
     fn one_from_peekable(
         peekable: &mut iter::Peekable<Lexer<impl io::Read>>,
+        types: &mut Types,
     ) -> Result<Tree, Error> {
-        let one = match peekable.next() {
+        let mut r = match peekable.next() {
             Some(token @ (Token::Word(_) | Token::Bytes(_) | Token::Number(_))) => {
                 Tree::Atom(token)
             }
 
-            Some(Token::OpenBracket) => Tree::Chain(
-                iter::once(Tree::one_from_peekable(peekable))
-                    .chain(iter::from_fn(|| match peekable.next() {
-                        Some(Token::Comma) => Some(Tree::one_from_peekable(peekable)),
-                        Some(Token::CloseBracket) => None,
-                        Some(token) => Some(Err(Error::Unexpected(token))),
-                        None => Some(Err(Error::UnexpectedEOF)),
-                    }))
-                    .collect::<Result<_, _>>()?,
-            ),
+            Some(Token::OpenBracket) => {
+                let mut rr = Tree::one_from_peekable(peekable, types)?;
+                loop {
+                    match peekable.next() {
+                        Some(Token::Comma) => {
+                            rr = Tree::one_from_peekable(peekable, types)?.try_apply(rr, types)?
+                        }
+                        Some(Token::CloseBracket) => break rr,
+
+                        Some(token) => return Err(Error::Unexpected(token)),
+                        None => return Err(Error::UnexpectedEOF),
+                    }
+                }
+            }
 
             Some(Token::OpenBrace) => Tree::List(
                 // XXX: doesn't allow empty, this is half intentional
-                iter::once(Tree::one_from_peekable(peekable))
+                iter::once(Tree::one_from_peekable(peekable, types))
                     .chain(iter::from_fn(|| match peekable.next() {
-                        Some(Token::Comma) => Some(Tree::one_from_peekable(peekable)),
+                        Some(Token::Comma) => Some(Tree::one_from_peekable(peekable, types)),
                         Some(Token::CloseBrace) => None,
                         Some(token) => Some(Err(Error::Unexpected(token))),
                         None => Some(Err(Error::UnexpectedEOF)),
@@ -172,36 +250,36 @@ impl Tree {
             None => return Err(Error::UnexpectedEOF),
         };
 
-        let args: Vec<_> = iter::from_fn(|| match peekable.peek() {
-            Some(Token::Comma | Token::CloseBracket | Token::CloseBrace) | None => None,
-            _ => Some(Tree::one_from_peekable(peekable)),
-        })
-        .collect::<Result<_, _>>()?;
-        Ok(if args.is_empty() {
-            one
-        } else {
-            Tree::Apply(Box::new(one), args)
-        })
-    }
-
-    fn from_peekable(peekable: &mut iter::Peekable<Lexer<impl io::Read>>) -> Result<Tree, Error> {
-        let mut r = vec![Tree::one_from_peekable(peekable)?];
-        while let Some(Token::Comma) = peekable.next() {
-            r.push(Tree::one_from_peekable(peekable)?);
+        while !matches!(
+            peekable.peek(),
+            Some(Token::Comma | Token::CloseBracket | Token::CloseBrace) | None
+        ) {
+            r = r.try_apply(Tree::one_from_peekable(peekable, types)?, types)?;
         }
-        Ok(Tree::Chain(r))
+        Ok(r)
     }
 
-    pub fn from_lexer(lexer: Lexer<impl io::Read>) -> Result<Tree, Error> {
-        Tree::from_peekable(&mut lexer.peekable())
+    fn from_peekable(
+        peekable: &mut iter::Peekable<Lexer<impl io::Read>>,
+        types: &mut Types,
+    ) -> Result<Tree, Error> {
+        let mut r = Tree::one_from_peekable(peekable, types)?;
+        while let Some(Token::Comma) = peekable.next() {
+            r = Tree::one_from_peekable(peekable, types)?.try_apply(r, types)?;
+        }
+        Ok(r)
     }
 
-    pub fn from_stream(stream: impl io::Read) -> Result<Tree, Error> {
-        Tree::from_lexer(Lexer::new(stream))
+    pub fn from_lexer(lexer: Lexer<impl io::Read>, types: &mut Types) -> Result<Tree, Error> {
+        Tree::from_peekable(&mut lexer.peekable(), types)
     }
 
-    pub fn from_str(text: &str) -> Result<Tree, Error> {
-        Tree::from_stream(text.as_bytes())
+    pub fn from_stream(stream: impl io::Read, types: &mut Types) -> Result<Tree, Error> {
+        Tree::from_lexer(Lexer::new(stream), types)
+    }
+
+    pub fn from_str(text: &str, types: &mut Types) -> Result<Tree, Error> {
+        Tree::from_stream(text.as_bytes(), types)
     }
 }
 
@@ -213,7 +291,7 @@ mod tests {
     fn lexing() {
         assert_eq!(
             &[Token::Word("coucou".into()),][..],
-            Lexer::new("coucou".as_bytes()).collect::<Vec<Token>>()
+            Lexer::new("coucou".as_bytes()).collect::<Vec<_>>()
         );
 
         assert_eq!(
@@ -234,7 +312,7 @@ mod tests {
                 Token::CloseBrace,
                 Token::CloseBracket,
             ][..],
-            Lexer::new("[a 1 b, {w, x, y, z}]".as_bytes()).collect::<Vec<Token>>()
+            Lexer::new("[a 1 b, {w, x, y, z}]".as_bytes()).collect::<Vec<_>>()
         );
 
         assert_eq!(
@@ -245,39 +323,49 @@ mod tests {
                 Token::Number(42),
                 Token::Number(42),
             ][..],
-            Lexer::new("42 :*: 0x2a 0b101010 0o52".as_bytes()).collect::<Vec<Token>>()
+            Lexer::new("42 :*: 0x2a 0b101010 0o52".as_bytes()).collect::<Vec<_>>()
         );
     }
 
     #[test]
     fn parsing() {
         assert_eq!(
-            Ok(Tree::Chain(vec![Tree::Atom(Token::Word(
-                "coucou".to_string()
-            ))])),
-            Tree::from_str("coucou")
+            Ok(Tree::Atom(Token::Word("coucou".to_string()))),
+            Tree::from_str("coucou", &mut Types::new())
         );
 
         assert_eq!(
-            Ok(Tree::Chain(vec![
-                Tree::Apply(
-                    Box::new(Tree::Atom(Token::Word("a".to_string()))),
-                    vec![Tree::Apply(
-                        Box::new(Tree::Atom(Token::Number(1))),
-                        vec![Tree::Atom(Token::Word("b".to_string()))],
-                    )],
-                ),
-                Tree::List(vec![
-                    Tree::Atom(Token::Word("w".to_string())),
-                    Tree::Atom(Token::Word("x".to_string())),
-                    Tree::Atom(Token::Word("y".to_string())),
-                    Tree::Atom(Token::Word("z".to_string())),
-                ])
-            ])),
-            Tree::from_str("a 1 b, {w, x, y, z}")
+            Ok(Tree::Apply(
+                0,
+                "join".to_string(),
+                vec![
+                    Tree::Atom(Token::Bytes(vec![43])),
+                    Tree::Apply(
+                        0,
+                        "map".to_string(),
+                        vec![
+                            Tree::Apply(0, "add".to_string(), vec![Tree::Atom(Token::Number(1))],),
+                            Tree::Apply(
+                                0,
+                                "split".to_string(),
+                                vec![
+                                    Tree::Atom(Token::Bytes(vec![45])),
+                                    Tree::Atom(Token::Word("input".to_string())),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            )),
+            Tree::from_str("input, split:-:, map[add1], join:+:", &mut Types::new())
         );
 
         // todo
         //assert_eq!(Err...)
+    }
+
+    #[test]
+    fn typing() {
+        // todo
     }
 }

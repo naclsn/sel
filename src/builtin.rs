@@ -1,21 +1,25 @@
-use crate::value::{Type, Boundedness};
+use crate::parse::Error;
+use crate::typing::{Type, Types};
 
-pub fn lookup(name: &str, types: &mut Vec<Type>) -> Result<(), ()> {
-    if "input" == name {
-        types.push(Type::Bytes(Boundedness::Infinite));
-        Ok(())
-    } else if "slice" == name {
-        // TODO: boundedness needs to be a type in of itself so it can propagate the same way
-        // slice :: Str -> Str* -> [Str*]*
-        types.push(Type::Bytes(Boundedness::Infinite)); // here
-        let strinf = types.len()-1;
-        types.push(Type::List(Boundedness::Infinite, strinf)); // and here
-        let lstinfstrinf = types.len()-1;
-        types.push(Type::Func(strinf, lstinfstrinf));
-        let blablablablabla = types.len()-1;
-        types.push(Type::Func(1/*Str*/, blablablablabla));
-        Ok(())
-    } else {
-        Err(())
+pub fn lookup_type(name: &str, types: &mut Types) -> Result<usize, Error> {
+    match name {
+        "input" => {
+            let inf = types.push(Type::Finite(false));
+            Ok(types.push(Type::Bytes(inf)))
+        }
+        "split" => {
+            // slice :: Str -> Str* -> [Str*]*
+            let inf = types.push(Type::Finite(false));
+            let strinf = types.push(Type::Bytes(inf));
+            let lststrinf = types.push(Type::List(inf, strinf));
+            let blablablabla = types.push(Type::Func(strinf, lststrinf));
+            Ok(types.push(Type::Func(1, blablablabla)))
+        }
+        "join" => {
+            // join :: Str -> [Str*]* -> Str*
+            // uuhh :<
+            todo!()
+        }
+        _ => Err(Error::UnknownName(name.to_string())),
     }
 }
