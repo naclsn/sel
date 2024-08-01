@@ -1,5 +1,4 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
-use std::io;
 use std::iter;
 
 use crate::builtin::lookup_type;
@@ -18,42 +17,23 @@ pub enum Token {
     CloseBrace,
 }
 
-struct Bytes<T: io::Read> {
-    inner: io::Bytes<T>,
-}
+pub(crate) struct Lexer<I: Iterator<Item = u8>>(iter::Peekable<I>);
 
-impl<T: io::Read> Iterator for Bytes<T> {
-    type Item = u8;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().and_then(|e| e.ok())
+impl<I: Iterator<Item = u8>> Lexer<I> {
+    fn new(iter: I) -> Self {
+        Self(iter.peekable())
     }
 }
 
-pub(crate) struct Lexer<T: io::Read> {
-    bytes: iter::Peekable<Bytes<T>>,
-}
-
-impl<T: io::Read> Lexer<T> {
-    fn new(stream: T) -> Self {
-        Self {
-            bytes: Bytes {
-                inner: stream.bytes(),
-            }
-            .peekable(),
-        }
-    }
-}
-
-impl<T: io::Read> Iterator for Lexer<T> {
+impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
-        Some(match self.bytes.find(|c| !c.is_ascii_whitespace())? {
+        Some(match self.0.find(|c| !c.is_ascii_whitespace())? {
             b':' => Token::Bytes({
-                iter::from_fn(|| match (self.bytes.next(), self.bytes.peek()) {
+                iter::from_fn(|| match (self.0.next(), self.0.peek()) {
                     (Some(b':'), Some(b':')) => {
-                        let _ = self.bytes.next();
+                        let _ = self.0.next();
                         Some(b':')
                     }
                     (Some(b':'), _) => None,
@@ -68,12 +48,12 @@ impl<T: io::Read> Iterator for Lexer<T> {
             b'{' => Token::OpenBrace,
             b'}' => Token::CloseBrace,
 
-            b'#' => self.bytes.find(|&c| b'\n' == c).and_then(|_| self.next())?,
+            b'#' => self.0.find(|&c| b'\n' == c).and_then(|_| self.next())?,
 
             c if c.is_ascii_lowercase() => Token::Word(
                 String::from_utf8(
                     iter::once(c)
-                        .chain(iter::from_fn(|| self.bytes.next_if(u8::is_ascii_lowercase)))
+                        .chain(iter::from_fn(|| self.0.next_if(u8::is_ascii_lowercase)))
                         .collect(),
                 )
                 .unwrap(),
@@ -81,17 +61,17 @@ impl<T: io::Read> Iterator for Lexer<T> {
 
             c if c.is_ascii_digit() => Token::Number({
                 let mut r = 0i32;
-                let (shift, digits) = match (c, self.bytes.peek()) {
+                let (shift, digits) = match (c, self.0.peek()) {
                     (b'0', Some(b'B' | b'b')) => {
-                        self.bytes.next();
+                        self.0.next();
                         (1, b"01".as_slice())
                     }
                     (b'0', Some(b'O' | b'o')) => {
-                        self.bytes.next();
+                        self.0.next();
                         (3, b"01234567".as_slice())
                     }
                     (b'0', Some(b'X' | b'x')) => {
-                        self.bytes.next();
+                        self.0.next();
                         (4, b"0123456789abcdef".as_slice())
                     }
                     _ => {
@@ -100,15 +80,15 @@ impl<T: io::Read> Iterator for Lexer<T> {
                     }
                 };
                 while let Some(k) = self
-                    .bytes
+                    .0
                     .peek()
-                    .and_then(|&c| digits.iter().position(|&k| k == c | 32))
+                    .and_then(|&c| digits.iter().position(|&k| k == c | 32).map(|k| k as i32))
                 {
-                    self.bytes.next();
+                    self.0.next();
                     r = if 0 == shift {
-                        r * 10 + k as i32
+                        r * 10 + k
                     } else {
-                        r << shift | k as i32
+                        r << shift | k
                     }
                 }
                 r
@@ -117,7 +97,7 @@ impl<T: io::Read> Iterator for Lexer<T> {
             c => Token::Unknown(
                 String::from_utf8_lossy(
                     &iter::once(c)
-                        .chain(self.bytes.by_ref().take_while(|c| !c.is_ascii_whitespace()))
+                        .chain(self.0.by_ref().take_while(|c| !c.is_ascii_whitespace()))
                         .collect::<Vec<_>>(),
                 )
                 .into_owned(),
@@ -211,7 +191,7 @@ impl Tree {
     }
 
     fn one_from_peekable(
-        peekable: &mut iter::Peekable<Lexer<impl io::Read>>,
+        peekable: &mut iter::Peekable<Lexer<impl Iterator<Item = u8>>>,
         types: &mut Types,
     ) -> Result<Tree, Error> {
         let mut r = match peekable.next() {
@@ -260,7 +240,7 @@ impl Tree {
     }
 
     fn from_peekable(
-        peekable: &mut iter::Peekable<Lexer<impl io::Read>>,
+        peekable: &mut iter::Peekable<Lexer<impl Iterator<Item = u8>>>,
         types: &mut Types,
     ) -> Result<Tree, Error> {
         let mut r = Tree::one_from_peekable(peekable, types)?;
@@ -270,16 +250,15 @@ impl Tree {
         Ok(r)
     }
 
-    pub fn from_lexer(lexer: Lexer<impl io::Read>, types: &mut Types) -> Result<Tree, Error> {
+    fn from_lexer(
+        lexer: Lexer<impl Iterator<Item = u8>>,
+        types: &mut Types,
+    ) -> Result<Tree, Error> {
         Tree::from_peekable(&mut lexer.peekable(), types)
     }
 
-    pub fn from_stream(stream: impl io::Read, types: &mut Types) -> Result<Tree, Error> {
-        Tree::from_lexer(Lexer::new(stream), types)
-    }
-
-    pub fn from_str(text: &str, types: &mut Types) -> Result<Tree, Error> {
-        Tree::from_stream(text.as_bytes(), types)
+    pub fn new(iter: impl IntoIterator<Item = u8>, types: &mut Types) -> Result<Tree, Error> {
+        Tree::from_lexer(Lexer::new(iter.into_iter()), types)
     }
 }
 
@@ -291,7 +270,7 @@ mod tests {
     fn lexing() {
         assert_eq!(
             &[Token::Word("coucou".into()),][..],
-            Lexer::new("coucou".as_bytes()).collect::<Vec<_>>()
+            Lexer::new("coucou".bytes()).collect::<Vec<_>>()
         );
 
         assert_eq!(
@@ -312,7 +291,7 @@ mod tests {
                 Token::CloseBrace,
                 Token::CloseBracket,
             ][..],
-            Lexer::new("[a 1 b, {w, x, y, z}]".as_bytes()).collect::<Vec<_>>()
+            Lexer::new("[a 1 b, {w, x, y, z}]".bytes()).collect::<Vec<_>>()
         );
 
         assert_eq!(
@@ -323,7 +302,7 @@ mod tests {
                 Token::Number(42),
                 Token::Number(42),
             ][..],
-            Lexer::new("42 :*: 0x2a 0b101010 0o52".as_bytes()).collect::<Vec<_>>()
+            Lexer::new("42 :*: 0x2a 0b101010 0o52".bytes()).collect::<Vec<_>>()
         );
     }
 
@@ -331,7 +310,7 @@ mod tests {
     fn parsing() {
         assert_eq!(
             Ok(Tree::Atom(Token::Word("coucou".to_string()))),
-            Tree::from_str("coucou", &mut Types::new())
+            Tree::new("coucou".bytes(), &mut Types::new())
         );
 
         assert_eq!(
@@ -357,7 +336,10 @@ mod tests {
                     ),
                 ],
             )),
-            Tree::from_str("input, split:-:, map[add1], join:+:", &mut Types::new())
+            Tree::new(
+                "input, split:-:, map[add1], join:+:".bytes(),
+                &mut Types::new()
+            )
         );
 
         // todo

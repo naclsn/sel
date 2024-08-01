@@ -46,8 +46,8 @@ impl Types {
 
     pub fn pop(&mut self, at: usize) -> Type {
         let r = self.0[at].take().unwrap();
-        if self.0.iter().skip(at).all(|o| o.is_none()) {
-            drop(self.0.drain(at..));
+        while let Some(None) = self.0.last() {
+            self.0.pop();
         }
         r
     }
