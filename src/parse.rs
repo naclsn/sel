@@ -118,7 +118,7 @@ impl Display for Tree {
         match self {
             Tree::Atom(atom) => match atom {
                 Token::Word(w) => write!(f, "{w}"),
-                Token::Bytes(v) => write!(f, "{v:?}"),
+                Token::Bytes(v) => write!(f, ":{v:?}:"),
                 Token::Number(n) => write!(f, "{n}"),
                 _ => unreachable!(),
             },

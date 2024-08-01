@@ -4,6 +4,7 @@ use std::io;
 mod builtin;
 mod parse;
 mod typing;
+mod interp;
 
 use parse::{Error, Tree};
 use typing::Types;
