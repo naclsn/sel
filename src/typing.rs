@@ -88,15 +88,27 @@ impl Type {
                 _ => unreachable!(),
             },
 
-            (Type::List(_fw, _), Type::List(_fg, _)) => todo!(),
+            (Type::List(fw, l_ty), Type::List(fg, r_ty)) => {
+                let (l_ty, r_ty) = (*l_ty, *r_ty);
+                match (types.get(*fw), types.get(*fg)) {
+                    (Type::Finite(fw_bool), Type::Finite(fg_bool)) if fw_bool == fg_bool => (),
+                    (Type::Finite(false), Type::Finite(true)) => {
+                        *types.get_mut(*fw) = Type::Finite(true)
+                    }
+                    (Type::Finite(true), Type::Finite(false)) => {
+                        return Err(Error::InfWhereFinExpected)
+                    }
+                    _ => unreachable!(),
+                }
+                Type::concretize(l_ty, r_ty, types)
+            }
 
             (Type::Func(l_arg, l_ret), Type::Func(r_arg, r_ret)) => {
                 let (l_arg, r_arg) = (*l_arg, *r_arg);
                 let (l_ret, r_ret) = (*l_ret, *r_ret);
                 // (a -> b) <- (Str -> Num)
                 Type::concretize(l_arg, r_arg, types)?;
-                Type::concretize(l_ret, r_ret, types)?;
-                Ok(())
+                Type::concretize(l_ret, r_ret, types)
             }
 
             //(Type::Named(_), Type::Named(_)) => todo!(),

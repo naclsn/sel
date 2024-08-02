@@ -7,6 +7,7 @@ pub fn lookup_type(name: &str, types: &mut Types) -> Result<usize, Error> {
             let inf = types.push(Type::Finite(false));
             Ok(types.push(Type::Bytes(inf)))
         }
+
         "split" => {
             // slice :: Str -> Str* -> [Str*]*
             let inf = types.push(Type::Finite(false));
@@ -15,11 +16,19 @@ pub fn lookup_type(name: &str, types: &mut Types) -> Result<usize, Error> {
             let blablablabla = types.push(Type::Func(strinf, lststrinf));
             Ok(types.push(Type::Func(1, blablablabla)))
         }
+
         "join" => {
             // join :: Str -> [Str*]* -> Str*
             // uuhh :<
-            todo!()
+            // this is still not enough, both * in [Str*]*
+            // should be &&'d when applying the 2nd arg
+            let inf = types.push(Type::Finite(false));
+            let strinf = types.push(Type::Bytes(inf));
+            let lststrinf = types.push(Type::List(inf, strinf));
+            let blablablabla = types.push(Type::Func(lststrinf, strinf));
+            Ok(types.push(Type::Func(1, blablablabla)))
         }
+
         _ => Err(Error::UnknownName(name.to_string())),
     }
 }

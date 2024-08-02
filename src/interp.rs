@@ -1,25 +1,27 @@
 use std::io::{self, Read};
+use std::iter;
 
-use crate::parse::Error;
+use crate::parse::{Token, Tree};
 
-pub trait NumberEval { fn number_eval(self) -> i32; }
-pub trait BytesStream { fn bytes_stream(&mut self) -> Option<Vec<u8>>; }
-pub trait ListNext { fn list_next(&mut self) -> Option<Value>; }
-pub trait FuncCall { fn func_call(self) -> Value; }
+pub struct Number(pub Box<dyn FnOnce() -> i32>);
+pub struct Bytes(pub Box<dyn FnMut() -> Option<Vec<u8>>>);
+pub struct List(pub Box<dyn FnMut() -> Option<Value>>);
+pub struct Func(pub Box<dyn FnOnce(Value) -> Value>);
 
 // bytes and list to standard iterators {{{
-pub struct BytesStreamIterator(
-    Box<dyn BytesStream>,
-    Option<<Vec<u8> as IntoIterator>::IntoIter>,
-);
+pub struct BytesIterator(Bytes, Option<<Vec<u8> as IntoIterator>::IntoIter>);
 
-impl Iterator for BytesStreamIterator {
+impl Iterator for BytesIterator {
     type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(iter) = &mut self.1 {
-            iter.next()
-        } else if let Some(chunk) = self.0.bytes_stream() {
+            let r = iter.next();
+            if r.is_some() {
+                return r;
+            }
+        }
+        if let Some(chunk) = self.0 .0() {
             let mut iter = chunk.into_iter();
             let r = iter.next();
             self.1 = Some(iter);
@@ -30,28 +32,23 @@ impl Iterator for BytesStreamIterator {
     }
 }
 
-impl IntoIterator for Box<dyn BytesStream> {
+impl IntoIterator for Bytes {
     type Item = u8;
-    type IntoIter = BytesStreamIterator;
+    type IntoIter = BytesIterator;
 
     fn into_iter(self) -> Self::IntoIter {
-        BytesStreamIterator(self, Some(vec![].into_iter()))
+        BytesIterator(self, None)
     }
 }
 
-impl Iterator for Box<dyn ListNext> {
+impl Iterator for List {
     type Item = Value;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.list_next()
+        self.0()
     }
 }
 // }}}
-
-pub type Number = Box<dyn NumberEval>;
-pub type Bytes = Box<dyn BytesStream>;
-pub type List = Box<dyn ListNext>;
-pub type Func = Box<dyn FuncCall>;
 
 pub enum Value {
     Number(Number),
@@ -62,50 +59,102 @@ pub enum Value {
 
 impl Value {
     pub fn number(self) -> Number {
-        if let Value::Number(r) = self { r } else { unreachable!() }
+        if let Value::Number(r) = self {
+            r
+        } else {
+            unreachable!()
+        }
     }
     pub fn bytes(self) -> Bytes {
-        if let Value::Bytes(r) = self { r } else { unreachable!() }
+        if let Value::Bytes(r) = self {
+            r
+        } else {
+            unreachable!()
+        }
     }
     pub fn list(self) -> List {
-        if let Value::List(r) = self { r } else { unreachable!() }
+        if let Value::List(r) = self {
+            r
+        } else {
+            unreachable!()
+        }
     }
     pub fn func(self) -> Func {
-        if let Value::Func(r) = self { r } else { unreachable!() }
-    }
-}
-
-pub fn lookup_val(name: &str, mut args: Vec<Value>) -> Result<Value, Error> {
-    match name {
-        "input" => Ok(Value::Bytes(Box::new(Input(io::stdin())))),
-        "split" => {
-            let b = args.pop().unwrap().bytes();
-            let a = args.pop().unwrap().bytes();
-            Ok(Value::List(Box::new(Split(Some(a), Vec::new(), b.into_iter()))))
-        },
-        _ => Err(Error::UnknownName(name.to_string())),
-    }
-}
-
-// value implementations {{{
-struct Input(io::Stdin);
-impl BytesStream for Input {
-    fn bytes_stream(&mut self) -> Option<Vec<u8>> {
-        let mut c = vec![0u8];
-        self.0.read(&mut c[..]).ok().and_then(|k| if 0 == k { None } else { Some(c) })
-    }
-}
-
-struct Split(Option<Bytes>, Vec<u8>, BytesStreamIterator);
-struct SplitChunk(Vec<u8>);
-impl ListNext for Split {
-    fn list_next(&mut self) -> Option<Value> {
-        if let Some(b) = self.0.take() {
-            self.1 = b.into_iter().collect();
+        if let Value::Func(r) = self {
+            r
+        } else {
+            unreachable!()
         }
-        let chunk: Vec<u8> =;
-            self.2.by_ref().take_while(|&x| self.1[0] != x).collect();
-        Some(SplitChunk)
     }
 }
-// }}}
+
+pub fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
+    match name {
+        "input" => {
+            let mut stdin = io::stdin();
+            Value::Bytes(Bytes(Box::new(move || {
+                let mut r = vec![0];
+                match stdin.read(&mut r[..]) {
+                    Ok(1) => Some(r),
+                    _ => None,
+                }
+            })))
+        }
+
+        "split" => {
+            let mut uncollected_sep = Some(args.next().unwrap().bytes().into_iter());
+            let mut bytes_iter = args.next().unwrap().bytes().into_iter().peekable();
+            let mut sep = Vec::<u8>::new();
+            Value::List(List(Box::new(move || {
+                bytes_iter.peek()?;
+                if let Some(a) = uncollected_sep.take() {
+                    sep = a.collect();
+                }
+                let mut v = Some(bytes_iter.by_ref().take_while(|x| *x != sep[0]).collect());
+                Some(Value::Bytes(Bytes(Box::new(move || v.take()))))
+            })))
+        }
+
+        "join" => {
+            let mut uncollected_sep = Some(args.next().unwrap().bytes().into_iter());
+            let mut list_iter = args.next().unwrap().list().map(Value::bytes).peekable();
+            let mut sep = Vec::<u8>::new();
+            Value::Bytes(Bytes(Box::new(move || {
+                if let Some(ref mut chunks) = list_iter.peek_mut() {
+                    let chunk = chunks.0();
+                    if chunk.is_some() {
+                        return chunk;
+                    }
+                    drop(list_iter.next());
+                    if list_iter.peek().is_some() {
+                        if let Some(a) = uncollected_sep.take() {
+                            sep = a.collect();
+                        }
+                        return Some(sep.clone());
+                    }
+                }
+                None
+            })))
+        }
+
+        _ => unreachable!(),
+    }
+}
+
+pub fn interp(tree: &Tree) -> Value {
+    match tree {
+        Tree::Atom(atom) => match atom {
+            Token::Word(w) => lookup_val(w, iter::empty()),
+            Token::Bytes(v) => {
+                let mut v = Some(v.clone());
+                Value::Bytes(Bytes(Box::new(move || v.take())))
+            }
+            &Token::Number(n) => Value::Number(Number(Box::new(move || n))),
+            _ => unreachable!(),
+        },
+
+        Tree::List(_) => todo!(),
+
+        Tree::Apply(_, name, args) => lookup_val(name, args.iter().map(interp)),
+    }
+}
