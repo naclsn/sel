@@ -1,7 +1,7 @@
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::iter;
 
-use crate::parse::{Token, Tree};
+use crate::parse::{Tree, TreeLeaf};
 
 pub struct Number(pub Box<dyn FnOnce() -> i32>);
 pub struct Bytes(pub Box<dyn FnMut() -> Option<Vec<u8>>>);
@@ -58,28 +58,28 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn number(self) -> Number {
+    fn number(self) -> Number {
         if let Value::Number(r) = self {
             r
         } else {
             unreachable!()
         }
     }
-    pub fn bytes(self) -> Bytes {
+    fn bytes(self) -> Bytes {
         if let Value::Bytes(r) = self {
             r
         } else {
             unreachable!()
         }
     }
-    pub fn list(self) -> List {
+    fn list(self) -> List {
         if let Value::List(r) = self {
             r
         } else {
             unreachable!()
         }
     }
-    pub fn func(self) -> Func {
+    fn func(self) -> Func {
         if let Value::Func(r) = self {
             r
         } else {
@@ -88,7 +88,7 @@ impl Value {
     }
 }
 
-pub fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
+fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
     match name {
         "input" => {
             let mut stdin = io::stdin();
@@ -144,17 +144,34 @@ pub fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
 pub fn interp(tree: &Tree) -> Value {
     match tree {
         Tree::Atom(atom) => match atom {
-            Token::Word(w) => lookup_val(w, iter::empty()),
-            Token::Bytes(v) => {
+            TreeLeaf::Word(w) => lookup_val(w, iter::empty()),
+            TreeLeaf::Bytes(v) => {
                 let mut v = Some(v.clone());
                 Value::Bytes(Bytes(Box::new(move || v.take())))
             }
-            &Token::Number(n) => Value::Number(Number(Box::new(move || n))),
-            _ => unreachable!(),
+            &TreeLeaf::Number(n) => Value::Number(Number(Box::new(move || n))),
         },
 
         Tree::List(_) => todo!(),
 
         Tree::Apply(_, name, args) => lookup_val(name, args.iter().map(interp)),
+    }
+}
+
+pub fn run_print(val: Value) {
+    match val {
+        Value::Number(n) => println!("{}", n.0()),
+        Value::Bytes(mut b) => {
+            while let Some(ch) = b.0() {
+                io::stdout().write_all(&ch).unwrap();
+            }
+        }
+        Value::List(l) => {
+            for it in l {
+                run_print(it);
+                println!();
+            }
+        }
+        Value::Func(_f) => todo!(),
     }
 }

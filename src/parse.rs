@@ -2,7 +2,6 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::iter;
 
 use crate::builtin::lookup_type;
-use crate::typing::{Type, Types};
 
 #[derive(PartialEq, Debug)]
 pub enum Token {
@@ -17,7 +16,44 @@ pub enum Token {
     CloseBrace,
 }
 
-pub(crate) struct Lexer<I: Iterator<Item = u8>>(iter::Peekable<I>);
+#[derive(PartialEq, Debug)]
+pub enum TreeLeaf {
+    Word(String),
+    Bytes(Vec<u8>),
+    Number(i32),
+}
+
+#[derive(PartialEq, Debug)]
+pub enum Tree {
+    Atom(TreeLeaf),
+    List(Vec<Tree>),
+    Apply(TypeRef, String, Vec<Tree>),
+}
+
+#[derive(PartialEq, Debug)]
+pub enum Error {
+    Unexpected(Token),
+    UnexpectedEnd,
+    UnknownName(String),
+    NotFunc(TypeRef, TypeList),
+    ExpectedButGot(TypeRef, TypeRef, TypeList),
+    InfWhereFinExpected,
+}
+
+pub type TypeRef = usize;
+pub type Boundedness = usize;
+#[derive(PartialEq, Debug, Clone)]
+pub enum Type {
+    Number,
+    Bytes(Boundedness),
+    List(Boundedness, TypeRef),
+    Func(TypeRef, TypeRef),
+    Named(String),
+    Finite(bool),
+}
+
+// lexing into tokens {{{
+struct Lexer<I: Iterator<Item = u8>>(iter::Peekable<I>);
 
 impl<I: Iterator<Item = u8>> Lexer<I> {
     fn new(iter: I) -> Self {
@@ -105,22 +141,284 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
         })
     }
 }
+// }}}
 
-#[derive(PartialEq, Debug)]
-pub enum Tree {
-    Atom(Token),
-    List(Vec<Tree>),
-    Apply(usize, String, Vec<Tree>),
+// types vec with holes {{{
+#[derive(PartialEq, Debug, Clone)]
+pub struct TypeList(Vec<Option<Type>>);
+pub struct TypeRepr<'a>(TypeRef, &'a TypeList);
+
+impl TypeList {
+    pub fn new() -> TypeList {
+        TypeList(vec![
+            Some(Type::Number),
+            Some(Type::Bytes(2)),
+            Some(Type::Finite(true)),
+        ])
+    }
+
+    pub fn push(&mut self, it: Type) -> TypeRef {
+        if let Some((k, o)) = self.0.iter_mut().enumerate().find(|(_, o)| o.is_none()) {
+            *o = Some(it);
+            k
+        } else {
+            self.0.push(Some(it));
+            self.0.len() - 1
+        }
+    }
+
+    pub fn get(&self, at: TypeRef) -> &Type {
+        self.0[at].as_ref().unwrap()
+    }
+
+    pub fn get_mut(&mut self, at: TypeRef) -> &mut Type {
+        self.0[at].as_mut().unwrap()
+    }
+
+    pub fn repr(&self, at: TypeRef) -> TypeRepr {
+        TypeRepr(at, self)
+    }
+
+    pub fn pop(&mut self, at: TypeRef) -> Type {
+        let r = self.0[at].take().unwrap();
+        while let Some(None) = self.0.last() {
+            self.0.pop();
+        }
+        r
+    }
+}
+// }}}
+
+// type apply and concretize {{{
+impl Type {
+    fn applied(func: TypeRef, give: TypeRef, types: &mut TypeList) -> Result<TypeRef, Error> {
+        let &Type::Func(want, ret) = types.get(func) else {
+            return Err(Error::NotFunc(func, types.clone()));
+        };
+
+        // want(a, b..) <- give(A, b..)
+        Type::concretize(want, give, types)?;
+
+        Ok(ret)
+    }
+
+    /// Concretizes boundedness and unknown named types:
+    /// * fin <- fin is fin
+    /// * inf <- inf is inf
+    /// * inf <- fin is fin
+    /// * unk <- Knw is Knw
+    ///
+    /// The others are left unchanged, just checked for assignable.
+    /// This uses the fact that inf types and unk named types are
+    /// only depended on by the functions that introduced them.
+    fn concretize(want: TypeRef, give: TypeRef, types: &mut TypeList) -> Result<(), Error> {
+        match (types.get(want), types.get(give)) {
+            (Type::Number, Type::Number) => Ok(()),
+
+            (Type::Bytes(fw), Type::Bytes(fg)) => match (types.get(*fw), types.get(*fg)) {
+                (Type::Finite(fw_bool), Type::Finite(fg_bool)) if fw_bool == fg_bool => Ok(()),
+                (Type::Finite(false), Type::Finite(true)) => {
+                    *types.get_mut(*fw) = Type::Finite(true);
+                    Ok(())
+                }
+                (Type::Finite(true), Type::Finite(false)) => Err(Error::InfWhereFinExpected),
+                _ => unreachable!(),
+            },
+
+            (Type::List(fw, l_ty), Type::List(fg, r_ty)) => {
+                let (l_ty, r_ty) = (*l_ty, *r_ty);
+                match (types.get(*fw), types.get(*fg)) {
+                    (Type::Finite(fw_bool), Type::Finite(fg_bool)) if fw_bool == fg_bool => (),
+                    (Type::Finite(false), Type::Finite(true)) => {
+                        *types.get_mut(*fw) = Type::Finite(true)
+                    }
+                    (Type::Finite(true), Type::Finite(false)) => {
+                        return Err(Error::InfWhereFinExpected)
+                    }
+                    _ => unreachable!(),
+                }
+                Type::concretize(l_ty, r_ty, types)
+            }
+
+            (Type::Func(l_arg, l_ret), Type::Func(r_arg, r_ret)) => {
+                let (l_arg, r_arg) = (*l_arg, *r_arg);
+                let (l_ret, r_ret) = (*l_ret, *r_ret);
+                // (a -> b) <- (Str -> Num)
+                Type::concretize(l_arg, r_arg, types)?;
+                Type::concretize(l_ret, r_ret, types)
+            }
+
+            //(Type::Named(_), Type::Named(_)) => todo!(),
+            (Type::Named(_), other) => {
+                *types.get_mut(want) = other.clone();
+                Ok(())
+            }
+
+            _ => Err(Error::ExpectedButGot(want, give, types.clone())),
+        }
+    }
+}
+// }}}
+
+// parsing into tree {{{
+impl Tree {
+    fn try_apply(self, arg: Tree, types: &mut TypeList) -> Result<Tree, Error> {
+        let (ty, name, mut args) = match self {
+            Tree::Atom(TreeLeaf::Word(name)) => (
+                lookup_type(&name, types).ok_or_else(|| Error::UnknownName(name.to_string()))?,
+                name,
+                vec![],
+            ),
+            Tree::Apply(ty, name, args) => (ty, name, args),
+            _ => {
+                return Err(Error::NotFunc(
+                    self.make_type(types).unwrap(),
+                    types.clone(),
+                ))
+            }
+        };
+
+        let ty = Type::applied(ty, arg.make_type(types)?, types)?;
+        args.push(arg);
+        Ok(Tree::Apply(ty, name, args))
+    }
+
+    fn make_type(&self, types: &mut TypeList) -> Result<TypeRef, Error> {
+        match self {
+            Tree::Atom(atom) => match atom {
+                TreeLeaf::Word(name) => {
+                    lookup_type(name, types).ok_or_else(|| Error::UnknownName(name.to_string()))
+                }
+                TreeLeaf::Bytes(_) => Ok(1),
+                TreeLeaf::Number(_) => Ok(0),
+            },
+
+            Tree::List(_items) => todo!(),
+
+            Tree::Apply(ty, _, _) => Ok(*ty),
+        }
+    }
+
+    fn one_from_peekable(
+        peekable: &mut iter::Peekable<Lexer<impl Iterator<Item = u8>>>,
+        types: &mut TypeList,
+    ) -> Result<Tree, Error> {
+        let mut r = match peekable.next() {
+            Some(Token::Word(w)) => Tree::Atom(TreeLeaf::Word(w)),
+            Some(Token::Bytes(b)) => Tree::Atom(TreeLeaf::Bytes(b)),
+            Some(Token::Number(n)) => Tree::Atom(TreeLeaf::Number(n)),
+
+            Some(Token::OpenBracket) => {
+                let mut rr = Tree::one_from_peekable(peekable, types)?;
+                loop {
+                    match peekable.next() {
+                        Some(Token::Comma) => {
+                            rr = Tree::one_from_peekable(peekable, types)?.try_apply(rr, types)?
+                        }
+                        Some(Token::CloseBracket) => break rr,
+
+                        Some(token) => return Err(Error::Unexpected(token)),
+                        None => return Err(Error::UnexpectedEnd),
+                    }
+                }
+            }
+
+            Some(Token::OpenBrace) => Tree::List(
+                // XXX: doesn't allow empty, this is half intentional
+                iter::once(Tree::one_from_peekable(peekable, types))
+                    .chain(iter::from_fn(|| match peekable.next() {
+                        Some(Token::Comma) => Some(Tree::one_from_peekable(peekable, types)),
+                        Some(Token::CloseBrace) => None,
+                        Some(token) => Some(Err(Error::Unexpected(token))),
+                        None => Some(Err(Error::UnexpectedEnd)),
+                    }))
+                    .collect::<Result<_, _>>()?,
+            ),
+
+            Some(token) => return Err(Error::Unexpected(token)),
+            None => return Err(Error::UnexpectedEnd),
+        };
+
+        while !matches!(
+            peekable.peek(),
+            Some(Token::Comma | Token::CloseBracket | Token::CloseBrace) | None
+        ) {
+            r = r.try_apply(Tree::one_from_peekable(peekable, types)?, types)?;
+        }
+        Ok(r)
+    }
+
+    fn from_peekable(
+        peekable: &mut iter::Peekable<Lexer<impl Iterator<Item = u8>>>,
+        types: &mut TypeList,
+    ) -> Result<Tree, Error> {
+        let mut r = Tree::one_from_peekable(peekable, types)?;
+        while let Some(Token::Comma) = peekable.next() {
+            r = Tree::one_from_peekable(peekable, types)?.try_apply(r, types)?;
+        }
+        Ok(r)
+    }
+
+    fn from_lexer(
+        lexer: Lexer<impl Iterator<Item = u8>>,
+        types: &mut TypeList,
+    ) -> Result<Tree, Error> {
+        Tree::from_peekable(&mut lexer.peekable(), types)
+    }
+
+    pub fn new(iter: impl IntoIterator<Item = u8>, types: &mut TypeList) -> Result<Tree, Error> {
+        Tree::from_lexer(Lexer::new(iter.into_iter()), types)
+    }
+
+    pub fn new_typed(
+        iter: impl IntoIterator<Item = u8>,
+        types: &mut TypeList,
+    ) -> Result<(TypeRef, Tree), Error> {
+        Tree::from_lexer(Lexer::new(iter.into_iter()), types)
+            .and_then(|r| Ok((r.make_type(types)?, r)))
+    }
+}
+// }}}
+
+// display impls {{{
+impl Display for TypeRepr<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let types = &self.1;
+        match types.get(self.0) {
+            Type::Number => write!(f, "Num"),
+
+            Type::Bytes(b) => write!(f, "Str{}", types.repr(*b)),
+
+            Type::List(b, has) => write!(f, "[{}]{}", types.repr(*has), types.repr(*b)),
+
+            Type::Func(arg, ret) => {
+                let funcarg = matches!(types.get(*arg), Type::Func(_, _));
+                if funcarg {
+                    write!(f, "(")?;
+                }
+                write!(f, "{}", types.repr(*arg))?;
+                if funcarg {
+                    write!(f, ")")?;
+                }
+                write!(f, " -> ")?;
+                write!(f, "{}", types.repr(*ret))
+            }
+
+            Type::Named(name) => write!(f, "{name}"),
+
+            Type::Finite(true) => Ok(()),
+            Type::Finite(false) => write!(f, "*"),
+        }
+    }
 }
 
 impl Display for Tree {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Tree::Atom(atom) => match atom {
-                Token::Word(w) => write!(f, "{w}"),
-                Token::Bytes(v) => write!(f, ":{v:?}:"),
-                Token::Number(n) => write!(f, "{n}"),
-                _ => unreachable!(),
+                TreeLeaf::Word(w) => write!(f, "{w}"),
+                TreeLeaf::Bytes(v) => write!(f, ":{v:?}:"),
+                TreeLeaf::Number(n) => write!(f, "{n}"),
             },
 
             Tree::List(items) => {
@@ -145,123 +443,9 @@ impl Display for Tree {
         }
     }
 }
+// }}}
 
-#[derive(PartialEq, Debug)]
-pub enum Error {
-    Unexpected(Token),
-    UnexpectedEOF,
-
-    UnknownName(String),
-    NotFunc(usize, Types),
-    ExpectedButGot(usize, usize, Types),
-    InfWhereFinExpected,
-}
-
-impl Tree {
-    pub fn try_apply(self, arg: Tree, types: &mut Types) -> Result<Tree, Error> {
-        let (ty, name, mut args) = match self {
-            Tree::Atom(Token::Word(name)) => (lookup_type(&name, types)?, name, vec![]),
-            Tree::Apply(ty, name, args) => (ty, name, args),
-            _ => {
-                return Err(Error::NotFunc(
-                    self.make_type(types).unwrap(),
-                    types.clone(),
-                ))
-            }
-        };
-
-        let ty = Type::applied(ty, arg.make_type(types)?, types)?;
-        args.push(arg);
-        Ok(Tree::Apply(ty, name, args))
-    }
-
-    pub fn make_type(&self, types: &mut Types) -> Result<usize, Error> {
-        match self {
-            Tree::Atom(atom) => match atom {
-                Token::Word(name) => lookup_type(name, types),
-                Token::Bytes(_) => Ok(1),
-                Token::Number(_) => Ok(0),
-                _ => unreachable!(),
-            },
-
-            Tree::List(_items) => todo!(),
-
-            Tree::Apply(ty, _, _) => Ok(*ty),
-        }
-    }
-
-    fn one_from_peekable(
-        peekable: &mut iter::Peekable<Lexer<impl Iterator<Item = u8>>>,
-        types: &mut Types,
-    ) -> Result<Tree, Error> {
-        let mut r = match peekable.next() {
-            Some(token @ (Token::Word(_) | Token::Bytes(_) | Token::Number(_))) => {
-                Tree::Atom(token)
-            }
-
-            Some(Token::OpenBracket) => {
-                let mut rr = Tree::one_from_peekable(peekable, types)?;
-                loop {
-                    match peekable.next() {
-                        Some(Token::Comma) => {
-                            rr = Tree::one_from_peekable(peekable, types)?.try_apply(rr, types)?
-                        }
-                        Some(Token::CloseBracket) => break rr,
-
-                        Some(token) => return Err(Error::Unexpected(token)),
-                        None => return Err(Error::UnexpectedEOF),
-                    }
-                }
-            }
-
-            Some(Token::OpenBrace) => Tree::List(
-                // XXX: doesn't allow empty, this is half intentional
-                iter::once(Tree::one_from_peekable(peekable, types))
-                    .chain(iter::from_fn(|| match peekable.next() {
-                        Some(Token::Comma) => Some(Tree::one_from_peekable(peekable, types)),
-                        Some(Token::CloseBrace) => None,
-                        Some(token) => Some(Err(Error::Unexpected(token))),
-                        None => Some(Err(Error::UnexpectedEOF)),
-                    }))
-                    .collect::<Result<_, _>>()?,
-            ),
-
-            Some(token) => return Err(Error::Unexpected(token)),
-            None => return Err(Error::UnexpectedEOF),
-        };
-
-        while !matches!(
-            peekable.peek(),
-            Some(Token::Comma | Token::CloseBracket | Token::CloseBrace) | None
-        ) {
-            r = r.try_apply(Tree::one_from_peekable(peekable, types)?, types)?;
-        }
-        Ok(r)
-    }
-
-    fn from_peekable(
-        peekable: &mut iter::Peekable<Lexer<impl Iterator<Item = u8>>>,
-        types: &mut Types,
-    ) -> Result<Tree, Error> {
-        let mut r = Tree::one_from_peekable(peekable, types)?;
-        while let Some(Token::Comma) = peekable.next() {
-            r = Tree::one_from_peekable(peekable, types)?.try_apply(r, types)?;
-        }
-        Ok(r)
-    }
-
-    fn from_lexer(
-        lexer: Lexer<impl Iterator<Item = u8>>,
-        types: &mut Types,
-    ) -> Result<Tree, Error> {
-        Tree::from_peekable(&mut lexer.peekable(), types)
-    }
-
-    pub fn new(iter: impl IntoIterator<Item = u8>, types: &mut Types) -> Result<Tree, Error> {
-        Tree::from_lexer(Lexer::new(iter.into_iter()), types)
-    }
-}
-
+// tests {{{
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -309,8 +493,8 @@ mod tests {
     #[test]
     fn parsing() {
         assert_eq!(
-            Ok(Tree::Atom(Token::Word("coucou".to_string()))),
-            Tree::new("coucou".bytes(), &mut Types::new())
+            Ok(Tree::Atom(TreeLeaf::Word("coucou".to_string()))),
+            Tree::new("coucou".bytes(), &mut TypeList::new())
         );
 
         assert_eq!(
@@ -318,18 +502,22 @@ mod tests {
                 0,
                 "join".to_string(),
                 vec![
-                    Tree::Atom(Token::Bytes(vec![43])),
+                    Tree::Atom(TreeLeaf::Bytes(vec![43])),
                     Tree::Apply(
                         0,
                         "map".to_string(),
                         vec![
-                            Tree::Apply(0, "add".to_string(), vec![Tree::Atom(Token::Number(1))],),
+                            Tree::Apply(
+                                0,
+                                "add".to_string(),
+                                vec![Tree::Atom(TreeLeaf::Number(1))],
+                            ),
                             Tree::Apply(
                                 0,
                                 "split".to_string(),
                                 vec![
-                                    Tree::Atom(Token::Bytes(vec![45])),
-                                    Tree::Atom(Token::Word("input".to_string())),
+                                    Tree::Atom(TreeLeaf::Bytes(vec![45])),
+                                    Tree::Atom(TreeLeaf::Word("input".to_string())),
                                 ],
                             ),
                         ],
@@ -338,7 +526,7 @@ mod tests {
             )),
             Tree::new(
                 "input, split:-:, map[add1], join:+:".bytes(),
-                &mut Types::new()
+                &mut TypeList::new()
             )
         );
 
@@ -351,3 +539,4 @@ mod tests {
         // todo
     }
 }
+// }}}
