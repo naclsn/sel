@@ -179,13 +179,13 @@ impl TypeList {
         TypeRepr(at, self)
     }
 
-    pub fn pop(&mut self, at: TypeRef) -> Type {
-        let r = self.0[at].take().unwrap();
-        while let Some(None) = self.0.last() {
-            self.0.pop();
-        }
-        r
-    }
+    //pub fn pop(&mut self, at: TypeRef) -> Type {
+    //    let r = self.0[at].take().unwrap();
+    //    while let Some(None) = self.0.last() {
+    //        self.0.pop();
+    //    }
+    //    r
+    //}
 }
 // }}}
 
@@ -299,82 +299,72 @@ impl Tree {
         }
     }
 
-    fn one_from_peekable(
+    fn parse_value(
         peekable: &mut iter::Peekable<Lexer<impl Iterator<Item = u8>>>,
         types: &mut TypeList,
     ) -> Result<Tree, Error> {
-        let mut r = match peekable.next() {
-            Some(Token::Word(w)) => Tree::Atom(TreeLeaf::Word(w)),
-            Some(Token::Bytes(b)) => Tree::Atom(TreeLeaf::Bytes(b)),
-            Some(Token::Number(n)) => Tree::Atom(TreeLeaf::Number(n)),
+        match peekable.next() {
+            Some(Token::Word(w)) => Ok(Tree::Atom(TreeLeaf::Word(w))),
+            Some(Token::Bytes(b)) => Ok(Tree::Atom(TreeLeaf::Bytes(b))),
+            Some(Token::Number(n)) => Ok(Tree::Atom(TreeLeaf::Number(n))),
 
             Some(Token::OpenBracket) => {
-                let mut rr = Tree::one_from_peekable(peekable, types)?;
-                loop {
-                    match peekable.next() {
-                        Some(Token::Comma) => {
-                            rr = Tree::one_from_peekable(peekable, types)?.try_apply(rr, types)?
-                        }
-                        Some(Token::CloseBracket) => break rr,
-
-                        Some(token) => return Err(Error::Unexpected(token)),
-                        None => return Err(Error::UnexpectedEnd),
-                    }
-                }
+                Tree::parse_script(peekable, types).and_then(|rr| match peekable.next() {
+                    Some(Token::CloseBracket) => Ok(rr),
+                    Some(token) => Err(Error::Unexpected(token)),
+                    None => Err(Error::UnexpectedEnd),
+                })
             }
 
-            Some(Token::OpenBrace) => Tree::List(
-                // XXX: doesn't allow empty, this is half intentional
-                iter::once(Tree::one_from_peekable(peekable, types))
-                    .chain(iter::from_fn(|| match peekable.next() {
-                        Some(Token::Comma) => Some(Tree::one_from_peekable(peekable, types)),
-                        Some(Token::CloseBrace) => None,
-                        Some(token) => Some(Err(Error::Unexpected(token))),
-                        None => Some(Err(Error::UnexpectedEnd)),
-                    }))
-                    .collect::<Result<_, _>>()?,
-            ),
+            Some(Token::OpenBrace) => iter::once(Tree::parse_value(peekable, types))
+                .chain(iter::from_fn(|| match peekable.next() {
+                    Some(Token::Comma) => Some(Tree::parse_value(peekable, types)),
+                    Some(Token::CloseBrace) => None,
+                    Some(token) => Some(Err(Error::Unexpected(token))),
+                    None => Some(Err(Error::UnexpectedEnd)),
+                }))
+                .collect::<Result<_, _>>()
+                .map(Tree::List),
 
-            Some(token) => return Err(Error::Unexpected(token)),
-            None => return Err(Error::UnexpectedEnd),
-        };
+            Some(token) => Err(Error::Unexpected(token)),
+            None => Err(Error::UnexpectedEnd),
+        }
+    }
 
+    fn parse_apply(
+        peekable: &mut iter::Peekable<Lexer<impl Iterator<Item = u8>>>,
+        types: &mut TypeList,
+    ) -> Result<Tree, Error> {
+        let mut r = Tree::parse_value(peekable, types)?;
         while !matches!(
             peekable.peek(),
             Some(Token::Comma | Token::CloseBracket | Token::CloseBrace) | None
         ) {
-            r = r.try_apply(Tree::one_from_peekable(peekable, types)?, types)?;
+            r = r.try_apply(Tree::parse_value(peekable, types)?, types)?;
         }
         Ok(r)
     }
 
-    fn from_peekable(
+    fn parse_script(
         peekable: &mut iter::Peekable<Lexer<impl Iterator<Item = u8>>>,
         types: &mut TypeList,
     ) -> Result<Tree, Error> {
-        let mut r = Tree::one_from_peekable(peekable, types)?;
+        let mut r = Tree::parse_apply(peekable, types)?;
         while let Some(Token::Comma) = peekable.next() {
-            r = Tree::one_from_peekable(peekable, types)?.try_apply(r, types)?;
+            r = Tree::parse_apply(peekable, types)?.try_apply(r, types)?;
         }
         Ok(r)
     }
 
-    fn from_lexer(
-        lexer: Lexer<impl Iterator<Item = u8>>,
-        types: &mut TypeList,
-    ) -> Result<Tree, Error> {
-        Tree::from_peekable(&mut lexer.peekable(), types)
-    }
-
     pub fn new(iter: impl IntoIterator<Item = u8>, types: &mut TypeList) -> Result<Tree, Error> {
-        Tree::from_lexer(Lexer::new(iter.into_iter()), types)
+        Tree::parse_script(&mut Lexer::new(iter.into_iter()).peekable(), types)
     }
 
     pub fn new_typed(
         iter: impl IntoIterator<Item = u8>,
         types: &mut TypeList,
     ) -> Result<(TypeRef, Tree), Error> {
-        Tree::from_lexer(Lexer::new(iter.into_iter()), types)
+        Tree::parse_script(&mut Lexer::new(iter.into_iter()).peekable(), types)
             .and_then(|r| Ok((r.make_type(types)?, r)))
     }
 }

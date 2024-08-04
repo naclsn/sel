@@ -16,6 +16,12 @@ pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
             Some(types.push(Type::Func(1, blablablabla)))
         }
 
+        "add" => {
+            // add :: Num -> Num -> Num
+            let nton = types.push(Type::Func(0, 0));
+            Some(types.push(Type::Func(0, nton)))
+        }
+
         "join" => {
             // join :: Str -> [Str*]* -> Str*
             // uuhh :<

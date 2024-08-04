@@ -73,6 +73,18 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
             })))
         }
 
+        "add" => {
+            let a = args.next().unwrap().number();
+            let b = args.next().unwrap().number();
+            Value::Number(Box::new(|| a() + b()))
+        }
+
+        //"map" => {
+        //    let f = args.next().unwrap().func();
+        //    let mut l = args.next().unwrap().list();
+        //    Value::List(Box::new(iter::from_fn(move || l.next().map(f))))
+        //}
+
         "join" => {
             let mut uncollected_sep = Some(args.next().unwrap().bytes().into_iter());
             let mut list_iter = args.next().unwrap().list().map(Value::bytes).peekable();
