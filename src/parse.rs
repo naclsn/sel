@@ -144,20 +144,138 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
 }
 // }}}
 
+// parsing into tree {{{
+struct Parser<I: Iterator<Item = u8>> {
+    peekable: iter::Peekable<Lexer<I>>,
+    types: TypeList,
+}
+
+impl<I: Iterator<Item = u8>> Parser<I> {
+    fn new(iter: I) -> Parser<I> {
+        Parser {
+            peekable: Lexer::new(iter.into_iter()).peekable(),
+            types: TypeList::default(),
+        }
+    }
+
+    fn parse_value(&mut self) -> Result<Tree, Error> {
+        match self.peekable.next() {
+            Some(Token::Word(w)) => Ok(Tree::Atom(TreeLeaf::Word(w))),
+            Some(Token::Bytes(b)) => Ok(Tree::Atom(TreeLeaf::Bytes(b))),
+            Some(Token::Number(n)) => Ok(Tree::Atom(TreeLeaf::Number(n))),
+
+            Some(Token::OpenBracket) => {
+                self.parse_script()
+                    .and_then(|rr| match self.peekable.next() {
+                        Some(Token::CloseBracket) => Ok(rr),
+                        Some(token) => Err(Error::Unexpected(token)),
+                        None => Err(Error::UnexpectedEnd),
+                    })
+            }
+
+            Some(Token::OpenBrace) => iter::once(self.parse_value())
+                .chain(iter::from_fn(|| match self.peekable.next() {
+                    Some(Token::Comma) => Some(self.parse_value()),
+                    Some(Token::CloseBrace) => None,
+                    Some(token) => Some(Err(Error::Unexpected(token))),
+                    None => Some(Err(Error::UnexpectedEnd)),
+                }))
+                .collect::<Result<_, _>>()
+                .map(Tree::List),
+
+            Some(token) => Err(Error::Unexpected(token)),
+            None => Err(Error::UnexpectedEnd),
+        }
+    }
+
+    fn parse_apply(&mut self) -> Result<Tree, Error> {
+        let mut r = self.parse_value()?;
+        while !matches!(
+            self.peekable.peek(),
+            Some(Token::Comma | Token::CloseBracket | Token::CloseBrace) | None
+        ) {
+            match r {
+                Tree::Apply(_, ref name, args) if "(,)" == name => {
+                    // [tonum, add 1, tostr] :42:
+                    //  `-> (,)((,)(tonum, add(1)), tostr)
+                    // `-> (,)((,)(tonum(:[52, 50]:), add(1)), tostr)
+                    // => tostr(add(1, tonum(:[52, 50]:)))
+                    //
+                    // r is Apply(
+                    //   "(,)",
+                    //   [
+                    //     Apply(
+                    //       "(,)",
+                    //       [
+                    //         tonum,    <--- ref func
+                    //         add1,
+                    //       ]
+                    //     ),
+                    //     tostr
+                    //   ]
+                    // )
+
+                    // (,)((,)(tonum, add(1)), tostr)
+                    // f = (,)(tonum, add(1))   g = tostr
+
+                    // TODO: there is probably a way to 'lift' bidoof a level above
+                    // and remove the surrounding match given how similar they are
+                    let mut args = args.into_iter();
+                    let (f, g) = (args.next().unwrap(), args.next().unwrap());
+                    r = self.bidoof(f, g)?;
+                }
+                _ => r = r.try_apply(self.parse_value()?, &mut self.types)?,
+            }
+        }
+        Ok(r)
+    }
+
+    fn parse_script(&mut self) -> Result<Tree, Error> {
+        let mut r = self.parse_apply()?;
+        while let Some(Token::Comma) = self.peekable.peek() {
+            drop(self.peekable.next());
+            r = Tree::Atom(TreeLeaf::Word("(,)".into()))
+                .try_apply(r, &mut self.types)?
+                .try_apply(self.parse_apply()?, &mut self.types)?;
+        }
+        Ok(r)
+    }
+
+    // (TODO: name)
+    fn bidoof(&mut self, f: Tree, g: Tree) -> Result<Tree, Error> {
+        g.try_apply(
+            match f {
+                // (,)( (,)(h, i) , g) => g(bidoof(h, i)) => g(i(h(..)))
+                Tree::Apply(_, ref name, args) if "(,)" == name => {
+                    let mut args = args.into_iter();
+                    let (h, i) = (args.next().unwrap(), args.next().unwrap());
+                    self.bidoof(h, i)
+                }
+                // (,)(f, g) => g(f(..))
+                _ => f.try_apply(self.parse_value()?, &mut self.types),
+            }?,
+            &mut self.types,
+        )
+    }
+}
+// }}}
+
 // types vec with holes {{{
 #[derive(PartialEq, Debug, Clone)]
 pub struct TypeList(Vec<Option<Type>>);
 pub struct TypeRepr<'a>(TypeRef, &'a TypeList);
 
-impl TypeList {
-    pub fn new() -> TypeList {
+impl Default for TypeList {
+    fn default() -> Self {
         TypeList(vec![
             Some(Type::Number),
             Some(Type::Bytes(2)),
             Some(Type::Finite(true)),
         ])
     }
+}
 
+impl TypeList {
     pub fn push(&mut self, it: Type) -> TypeRef {
         if let Some((k, o)) = self.0.iter_mut().enumerate().find(|(_, o)| o.is_none()) {
             *o = Some(it);
@@ -262,7 +380,7 @@ impl Type {
 }
 // }}}
 
-// parsing into tree {{{
+// uuhh.. tree- the entry point (Tree::new) {{{
 impl Tree {
     fn try_apply(self, arg: Tree, types: &mut TypeList) -> Result<Tree, Error> {
         let (ty, name, mut args) = match self {
@@ -301,130 +419,18 @@ impl Tree {
         }
     }
 
-    fn parse_value(
-        peekable: &mut iter::Peekable<Lexer<impl Iterator<Item = u8>>>,
-        types: &mut TypeList,
-    ) -> Result<Tree, Error> {
-        match peekable.next() {
-            Some(Token::Word(w)) => Ok(Tree::Atom(TreeLeaf::Word(w))),
-            Some(Token::Bytes(b)) => Ok(Tree::Atom(TreeLeaf::Bytes(b))),
-            Some(Token::Number(n)) => Ok(Tree::Atom(TreeLeaf::Number(n))),
-
-            Some(Token::OpenBracket) => {
-                Tree::parse_script(peekable, types).and_then(|rr| match peekable.next() {
-                    Some(Token::CloseBracket) => Ok(rr),
-                    Some(token) => Err(Error::Unexpected(token)),
-                    None => Err(Error::UnexpectedEnd),
-                })
-            }
-
-            Some(Token::OpenBrace) => iter::once(Tree::parse_value(peekable, types))
-                .chain(iter::from_fn(|| match peekable.next() {
-                    Some(Token::Comma) => Some(Tree::parse_value(peekable, types)),
-                    Some(Token::CloseBrace) => None,
-                    Some(token) => Some(Err(Error::Unexpected(token))),
-                    None => Some(Err(Error::UnexpectedEnd)),
-                }))
-                .collect::<Result<_, _>>()
-                .map(Tree::List),
-
-            Some(token) => Err(Error::Unexpected(token)),
-            None => Err(Error::UnexpectedEnd),
-        }
-    }
-
-    fn parse_apply(
-        peekable: &mut iter::Peekable<Lexer<impl Iterator<Item = u8>>>,
-        types: &mut TypeList,
-    ) -> Result<Tree, Error> {
-        let mut r = Tree::parse_value(peekable, types)?;
-        while !matches!(
-            peekable.peek(),
-            Some(Token::Comma | Token::CloseBracket | Token::CloseBrace) | None
-        ) {
-            match r {
-                Tree::Apply(_, ref name, args) if "(,)" == name => {
-                    // [tonum, add 1, tostr] :42:
-                    //  `-> (,)((,)(tonum, add(1)), tostr)
-                    // `-> (,)((,)(tonum(:[52, 50]:), add(1)), tostr)
-                    // => tostr(add(1, tonum(:[52, 50]:)))
-                    //
-                    // r is Apply(
-                    //   "(,)",
-                    //   [
-                    //     Apply(
-                    //       "(,)",
-                    //       [
-                    //         tonum,    <--- ref func
-                    //         add1,
-                    //       ]
-                    //     ),
-                    //     tostr
-                    //   ]
-                    // )
-
-                    // (,)((,)(tonum, add(1)), tostr)
-                    // f = (,)(tonum, add(1))   g = tostr
-
-                    // TODO: there is probably a way to 'lift' bidoof a level above
-                    // and remove the surrounding match given how similar they are
-                    fn bidoof(
-                        f: Tree,
-                        g: Tree,
-                        peekable: &mut iter::Peekable<Lexer<impl Iterator<Item = u8>>>,
-                        types: &mut TypeList,
-                    ) -> Result<Tree, Error> {
-                        g.try_apply(
-                            match f {
-                                // (,)( (,)(h, i) , g) => g(bidoof(h, i)) => g(i(h(..)))
-                                Tree::Apply(_, ref name, args) if "(,)" == name => {
-                                    let mut args = args.into_iter();
-                                    let (h, i) = (args.next().unwrap(), args.next().unwrap());
-                                    bidoof(h, i, peekable, types)
-                                }
-                                // (,)(f, g) => g(f(..))
-                                _ => f.try_apply(Tree::parse_value(peekable, types)?, types),
-                            }?,
-                            types,
-                        )
-                    }
-
-                    let mut args = args.into_iter();
-                    let (f, g) = (args.next().unwrap(), args.next().unwrap());
-                    r = bidoof(f, g, peekable, types)?;
-                }
-                _ => r = r.try_apply(Tree::parse_value(peekable, types)?, types)?,
-            }
-        }
-        Ok(r)
-    }
-
-    fn parse_script(
-        peekable: &mut iter::Peekable<Lexer<impl Iterator<Item = u8>>>,
-        types: &mut TypeList,
-    ) -> Result<Tree, Error> {
-        let mut r = Tree::parse_apply(peekable, types)?;
-        while let Some(Token::Comma) = peekable.peek() {
-            drop(peekable.next());
-            r = Tree::Atom(TreeLeaf::Word("(,)".into()))
-                .try_apply(r, types)?
-                .try_apply(Tree::parse_apply(peekable, types)?, types)?;
-        }
-        Ok(r)
-    }
-
     #[allow(dead_code)]
-    pub fn new(iter: impl IntoIterator<Item = u8>, types: &mut TypeList) -> Result<Tree, Error> {
-        Tree::parse_script(&mut Lexer::new(iter.into_iter()).peekable(), types)
+    pub fn new(iter: impl IntoIterator<Item = u8>) -> Result<Tree, Error> {
+        Parser::new(iter.into_iter()).parse_script()
     }
 
     #[allow(dead_code)]
     pub fn new_typed(
         iter: impl IntoIterator<Item = u8>,
-        types: &mut TypeList,
-    ) -> Result<(TypeRef, Tree), Error> {
-        Tree::parse_script(&mut Lexer::new(iter.into_iter()).peekable(), types)
-            .and_then(|r| Ok((r.make_type(types)?, r)))
+    ) -> Result<(TypeRef, TypeList, Tree), Error> {
+        let mut p = Parser::new(iter.into_iter());
+        p.parse_script()
+            .and_then(|r| Ok((r.make_type(&mut p.types)?, p.types, r)))
     }
 }
 // }}}
