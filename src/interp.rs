@@ -237,7 +237,6 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
 pub fn interp(tree: &Tree) -> Value {
     match tree {
         Tree::Atom(atom) => match atom {
-            TreeLeaf::Word(w) => lookup_val(w, iter::empty()),
             TreeLeaf::Bytes(v) => {
                 Value::Bytes(Box::new(v.clone().into_iter()), Rc::new(|| todo!()))
             }

@@ -18,7 +18,6 @@ pub enum Token {
 
 #[derive(PartialEq, Debug)]
 pub enum TreeLeaf {
-    Word(String),
     Bytes(Vec<u8>),
     Number(i32),
 }
@@ -28,7 +27,6 @@ pub enum Tree {
     Atom(TreeLeaf),
     List(Vec<Tree>),
     Apply(TypeRef, String, Vec<Tree>),
-    // Apply(TypeRef, Box<Tree>, Box<Tree>),
 }
 
 #[derive(PartialEq, Debug)]
@@ -160,7 +158,11 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
     fn parse_value(&mut self) -> Result<Tree, Error> {
         match self.peekable.next() {
-            Some(Token::Word(w)) => Ok(Tree::Atom(TreeLeaf::Word(w))),
+            Some(Token::Word(w)) => Ok(Tree::Apply(
+                lookup_type(&w, &mut self.types).ok_or_else(|| Error::UnknownName(w.clone()))?,
+                w,
+                Vec::new(),
+            )),
             Some(Token::Bytes(b)) => Ok(Tree::Atom(TreeLeaf::Bytes(b))),
             Some(Token::Number(n)) => Ok(Tree::Atom(TreeLeaf::Number(n))),
 
@@ -232,11 +234,40 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
     fn parse_script(&mut self) -> Result<Tree, Error> {
         let mut r = self.parse_apply()?;
-        while let Some(Token::Comma) = self.peekable.peek() {
+        if let Some(Token::Comma) = self.peekable.peek() {
             drop(self.peekable.next());
-            r = Tree::Atom(TreeLeaf::Word("(,)".into()))
-                .try_apply(r, &mut self.types)?
-                .try_apply(self.parse_apply()?, &mut self.types)?;
+            let mut then = self.parse_apply()?;
+
+            // [x, f, g, h] :: d; where
+            // - x :: A
+            // - f, g, h :: a -> b, b -> c, c -> d
+            if then.can_apply(&r, &self.types) {
+                while let Some(Token::Comma) = {
+                    r = then.try_apply(r, &mut self.types)?;
+                    self.peekable.peek()
+                } {
+                    drop(self.peekable.next());
+                    then = self.parse_apply()?;
+                }
+            }
+            // [f, g, h] :: a -> d; where
+            // - f, g, h :: a -> b, b -> c, c -> d
+            else {
+                while let Some(Token::Comma) = {
+                    r = Tree::Apply(
+                        // TODO: maybe inline its type def
+                        lookup_type("(,)", &mut self.types).unwrap(),
+                        "(,)".into(),
+                        Vec::new(),
+                    )
+                    .try_apply(r, &mut self.types)?
+                    .try_apply(then, &mut self.types)?;
+                    self.peekable.peek()
+                } {
+                    drop(self.peekable.next());
+                    then = self.parse_apply()?;
+                }
+            }
         }
         Ok(r)
     }
@@ -312,14 +343,12 @@ impl TypeList {
 impl Type {
     /// `func give` so returns type of `func` (if checks out)
     fn applied(func: TypeRef, give: TypeRef, types: &mut TypeList) -> Result<TypeRef, Error> {
-        let &Type::Func(want, ret) = types.get(func) else {
-            return Err(Error::NotFunc(func, types.clone()));
-        };
-
-        // want(a, b..) <- give(A, b..)
-        Type::concretize(want, give, types)?;
-
-        Ok(ret)
+        if let &Type::Func(want, ret) = types.get(func) {
+            // want(a, b..) <- give(A, b..)
+            Type::concretize(want, give, types).map(|()| ret)
+        } else {
+            Err(Error::NotFunc(func, types.clone()))
+        }
     }
 
     /// Concretizes boundedness and unknown named types:
@@ -377,45 +406,78 @@ impl Type {
             _ => Err(Error::ExpectedButGot(want, give, types.clone())),
         }
     }
+
+    fn applicable(func: TypeRef, give: TypeRef, types: &TypeList) -> bool {
+        if let &Type::Func(want, _) = types.get(func) {
+            Type::compatible(want, give, types)
+        } else {
+            false
+        }
+    }
+
+    fn compatible(want: TypeRef, give: TypeRef, types: &TypeList) -> bool {
+        match (types.get(want), types.get(give)) {
+            (Type::Number, Type::Number) => true,
+
+            (Type::Bytes(fw), Type::Bytes(fg)) => match (types.get(*fw), types.get(*fg)) {
+                (Type::Finite(true), Type::Finite(false)) => false,
+                (Type::Finite(_), Type::Finite(_)) => true,
+                _ => unreachable!(),
+            },
+
+            (Type::List(fw, l_ty), Type::List(fg, r_ty)) => {
+                match (types.get(*fw), types.get(*fg)) {
+                    (Type::Finite(true), Type::Finite(false)) => false,
+                    (Type::Finite(_), Type::Finite(_)) => Type::compatible(*l_ty, *r_ty, types),
+                    _ => unreachable!(),
+                }
+            }
+
+            (Type::Func(l_arg, l_ret), Type::Func(r_arg, r_ret)) => {
+                let (l_arg, r_arg) = (*l_arg, *r_arg);
+                let (l_ret, r_ret) = (*l_ret, *r_ret);
+                // ig so
+                Type::compatible(l_arg, r_arg, types) && Type::compatible(l_ret, r_ret, types)
+            }
+
+            (Type::Named(_), _) => true,
+
+            _ => false,
+        }
+    }
 }
 // }}}
 
 // uuhh.. tree- the entry point (Tree::new) {{{
 impl Tree {
     fn try_apply(self, arg: Tree, types: &mut TypeList) -> Result<Tree, Error> {
-        let (ty, name, mut args) = match self {
-            Tree::Atom(TreeLeaf::Word(name)) => (
-                lookup_type(&name, types).ok_or_else(|| Error::UnknownName(name.to_string()))?,
-                name,
-                vec![],
-            ),
-            Tree::Apply(ty, name, args) => (ty, name, args),
-            _ => {
-                return Err(Error::NotFunc(
-                    self.make_type(types).unwrap(),
-                    types.clone(),
-                ))
-            }
+        let ty = Type::applied(self.get_type(), arg.get_type(), types)?;
+        let Tree::Apply(_, name, mut args) = self else {
+            unreachable!();
         };
-
-        let ty = Type::applied(ty, arg.make_type(types)?, types)?;
         args.push(arg);
         Ok(Tree::Apply(ty, name, args))
     }
 
-    fn make_type(&self, types: &mut TypeList) -> Result<TypeRef, Error> {
+    /// Essentially the same as `try_apply`, but doesn't concretize.
+    /// Mutates `self` and `arg` (and `types`) to type them;
+    /// such as when it was `Atom(Word(name))`, it becomes `Apply(ty, name, vec![])`.
+    /// It is okay to do so because this will have to be done anyways
+    /// and as it is it won't do it multiple times needlessly.
+    fn can_apply(&self, arg: &Tree, types: &TypeList) -> bool {
+        Type::applicable(self.get_type(), arg.get_type(), types)
+    }
+
+    fn get_type(&self) -> TypeRef {
         match self {
             Tree::Atom(atom) => match atom {
-                TreeLeaf::Word(name) => {
-                    lookup_type(name, types).ok_or_else(|| Error::UnknownName(name.to_string()))
-                }
-                TreeLeaf::Bytes(_) => Ok(1),
-                TreeLeaf::Number(_) => Ok(0),
+                TreeLeaf::Bytes(_) => 1,
+                TreeLeaf::Number(_) => 0,
             },
 
             Tree::List(_items) => todo!(),
 
-            Tree::Apply(ty, _, _) => Ok(*ty),
+            Tree::Apply(ty, _, _) => *ty,
         }
     }
 
@@ -429,8 +491,7 @@ impl Tree {
         iter: impl IntoIterator<Item = u8>,
     ) -> Result<(TypeRef, TypeList, Tree), Error> {
         let mut p = Parser::new(iter.into_iter());
-        p.parse_script()
-            .and_then(|r| Ok((r.make_type(&mut p.types)?, p.types, r)))
+        p.parse_script().map(|r| (r.get_type(), p.types, r))
     }
 }
 // }}}
@@ -471,7 +532,6 @@ impl Display for Tree {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Tree::Atom(atom) => match atom {
-                TreeLeaf::Word(w) => write!(f, "{w}"),
                 TreeLeaf::Bytes(v) => write!(f, ":{v:?}:"),
                 TreeLeaf::Number(n) => write!(f, "{n}"),
             },
@@ -486,6 +546,7 @@ impl Display for Tree {
                 write!(f, "}}")
             }
 
+            Tree::Apply(_, w, empty) if empty.is_empty() => write!(f, "{w}"),
             Tree::Apply(_, name, args) => {
                 write!(f, "{name}(")?;
                 let mut sep = "";
@@ -500,6 +561,7 @@ impl Display for Tree {
 }
 // }}}
 
+/*
 // tests {{{
 #[cfg(test)]
 mod tests {
@@ -595,3 +657,4 @@ mod tests {
     }
 }
 // }}}
+*/
