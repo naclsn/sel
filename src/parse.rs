@@ -28,6 +28,7 @@ pub enum Tree {
     Atom(TreeLeaf),
     List(Vec<Tree>),
     Apply(TypeRef, String, Vec<Tree>),
+    // Apply(TypeRef, Box<Tree>, Box<Tree>),
 }
 
 #[derive(PartialEq, Debug)]
@@ -191,6 +192,7 @@ impl TypeList {
 
 // type apply and concretize {{{
 impl Type {
+    /// `func give` so returns type of `func` (if checks out)
     fn applied(func: TypeRef, give: TypeRef, types: &mut TypeList) -> Result<TypeRef, Error> {
         let &Type::Func(want, ret) = types.get(func) else {
             return Err(Error::NotFunc(func, types.clone()));
@@ -340,7 +342,59 @@ impl Tree {
             peekable.peek(),
             Some(Token::Comma | Token::CloseBracket | Token::CloseBrace) | None
         ) {
-            r = r.try_apply(Tree::parse_value(peekable, types)?, types)?;
+            match r {
+                Tree::Apply(_, ref name, args) if "(,)" == name => {
+                    // [tonum, add 1, tostr] :42:
+                    //  `-> (,)((,)(tonum, add(1)), tostr)
+                    // `-> (,)((,)(tonum(:[52, 50]:), add(1)), tostr)
+                    // => tostr(add(1, tonum(:[52, 50]:)))
+                    //
+                    // r is Apply(
+                    //   "(,)",
+                    //   [
+                    //     Apply(
+                    //       "(,)",
+                    //       [
+                    //         tonum,    <--- ref func
+                    //         add1,
+                    //       ]
+                    //     ),
+                    //     tostr
+                    //   ]
+                    // )
+
+                    // (,)((,)(tonum, add(1)), tostr)
+                    // f = (,)(tonum, add(1))   g = tostr
+
+                    // TODO: there is probably a way to 'lift' bidoof a level above
+                    // and remove the surrounding match given how similar they are
+                    fn bidoof(
+                        f: Tree,
+                        g: Tree,
+                        peekable: &mut iter::Peekable<Lexer<impl Iterator<Item = u8>>>,
+                        types: &mut TypeList,
+                    ) -> Result<Tree, Error> {
+                        g.try_apply(
+                            match f {
+                                // (,)( (,)(h, i) , g) => g(bidoof(h, i)) => g(i(h(..)))
+                                Tree::Apply(_, ref name, args) if "(,)" == name => {
+                                    let mut args = args.into_iter();
+                                    let (h, i) = (args.next().unwrap(), args.next().unwrap());
+                                    bidoof(h, i, peekable, types)
+                                }
+                                // (,)(f, g) => g(f(..))
+                                _ => f.try_apply(Tree::parse_value(peekable, types)?, types),
+                            }?,
+                            types,
+                        )
+                    }
+
+                    let mut args = args.into_iter();
+                    let (f, g) = (args.next().unwrap(), args.next().unwrap());
+                    r = bidoof(f, g, peekable, types)?;
+                }
+                _ => r = r.try_apply(Tree::parse_value(peekable, types)?, types)?,
+            }
         }
         Ok(r)
     }
@@ -350,16 +404,21 @@ impl Tree {
         types: &mut TypeList,
     ) -> Result<Tree, Error> {
         let mut r = Tree::parse_apply(peekable, types)?;
-        while let Some(Token::Comma) = peekable.next() {
-            r = Tree::parse_apply(peekable, types)?.try_apply(r, types)?;
+        while let Some(Token::Comma) = peekable.peek() {
+            drop(peekable.next());
+            r = Tree::Atom(TreeLeaf::Word("(,)".into()))
+                .try_apply(r, types)?
+                .try_apply(Tree::parse_apply(peekable, types)?, types)?;
         }
         Ok(r)
     }
 
+    #[allow(dead_code)]
     pub fn new(iter: impl IntoIterator<Item = u8>, types: &mut TypeList) -> Result<Tree, Error> {
         Tree::parse_script(&mut Lexer::new(iter.into_iter()).peekable(), types)
     }
 
+    #[allow(dead_code)]
     pub fn new_typed(
         iter: impl IntoIterator<Item = u8>,
         types: &mut TypeList,
