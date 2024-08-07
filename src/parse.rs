@@ -3,6 +3,7 @@ use std::iter;
 
 use crate::builtin::lookup_type;
 
+// principal public types {{{
 #[derive(PartialEq, Debug)]
 pub enum Token {
     Unknown(String),
@@ -51,12 +52,26 @@ pub enum Type {
     Finite(bool),
 }
 
+#[derive(PartialEq, Debug, Clone)]
+pub enum FrozenType {
+    Number,
+    Bytes(bool),
+    List(bool, Box<FrozenType>),
+    Func(Box<FrozenType>, Box<FrozenType>),
+    Named(String),
+}
+// }}}
+
 // lexing into tokens {{{
-struct Lexer<I: Iterator<Item = u8>>(iter::Peekable<I>);
+struct Lexer<I: Iterator<Item = u8>> {
+    stream: iter::Peekable<I>,
+}
 
 impl<I: Iterator<Item = u8>> Lexer<I> {
     fn new(iter: I) -> Self {
-        Self(iter.peekable())
+        Self {
+            stream: iter.peekable(),
+        }
     }
 }
 
@@ -64,11 +79,11 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
-        Some(match self.0.find(|c| !c.is_ascii_whitespace())? {
+        Some(match self.stream.find(|c| !c.is_ascii_whitespace())? {
             b':' => Token::Bytes({
-                iter::from_fn(|| match (self.0.next(), self.0.peek()) {
+                iter::from_fn(|| match (self.stream.next(), self.stream.peek()) {
                     (Some(b':'), Some(b':')) => {
-                        let _ = self.0.next();
+                        let _ = self.stream.next();
                         Some(b':')
                     }
                     (Some(b':'), _) => None,
@@ -83,12 +98,17 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
             b'{' => Token::OpenBrace,
             b'}' => Token::CloseBrace,
 
-            b'#' => self.0.find(|&c| b'\n' == c).and_then(|_| self.next())?,
+            b'#' => self
+                .stream
+                .find(|&c| b'\n' == c)
+                .and_then(|_| self.next())?,
 
             c if c.is_ascii_lowercase() => Token::Word(
                 String::from_utf8(
                     iter::once(c)
-                        .chain(iter::from_fn(|| self.0.next_if(u8::is_ascii_lowercase)))
+                        .chain(iter::from_fn(|| {
+                            self.stream.next_if(u8::is_ascii_lowercase)
+                        }))
                         .collect(),
                 )
                 .unwrap(),
@@ -96,17 +116,17 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
 
             c if c.is_ascii_digit() => Token::Number({
                 let mut r = 0i32;
-                let (shift, digits) = match (c, self.0.peek()) {
+                let (shift, digits) = match (c, self.stream.peek()) {
                     (b'0', Some(b'B' | b'b')) => {
-                        self.0.next();
+                        self.stream.next();
                         (1, b"01".as_slice())
                     }
                     (b'0', Some(b'O' | b'o')) => {
-                        self.0.next();
+                        self.stream.next();
                         (3, b"01234567".as_slice())
                     }
                     (b'0', Some(b'X' | b'x')) => {
-                        self.0.next();
+                        self.stream.next();
                         (4, b"0123456789abcdef".as_slice())
                     }
                     _ => {
@@ -115,11 +135,11 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
                     }
                 };
                 while let Some(k) = self
-                    .0
+                    .stream
                     .peek()
                     .and_then(|&c| digits.iter().position(|&k| k == c | 32).map(|k| k as i32))
                 {
-                    self.0.next();
+                    self.stream.next();
                     r = if 0 == shift {
                         r * 10 + k
                     } else {
@@ -132,7 +152,11 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
             c => Token::Unknown(
                 String::from_utf8_lossy(
                     &iter::once(c)
-                        .chain(self.0.by_ref().take_while(|c| !c.is_ascii_whitespace()))
+                        .chain(
+                            self.stream
+                                .by_ref()
+                                .take_while(|c| !c.is_ascii_whitespace()),
+                        )
                         .collect::<Vec<_>>(),
                 )
                 .into_owned(),
@@ -196,38 +220,26 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             self.peekable.peek(),
             Some(Token::Comma | Token::CloseBracket | Token::CloseBrace) | None
         ) {
-            match r {
-                Tree::Apply(_, ref name, args) if "(,)" == name => {
-                    // [tonum, add 1, tostr] :42:
-                    //  `-> (,)((,)(tonum, add(1)), tostr)
-                    // `-> (,)((,)(tonum(:[52, 50]:), add(1)), tostr)
-                    // => tostr(add(1, tonum(:[52, 50]:)))
-                    //
-                    // r is Apply(
-                    //   "(,)",
-                    //   [
-                    //     Apply(
-                    //       "(,)",
-                    //       [
-                    //         tonum,    <--- ref func
-                    //         add1,
-                    //       ]
-                    //     ),
-                    //     tostr
-                    //   ]
-                    // )
-
-                    // (,)((,)(tonum, add(1)), tostr)
-                    // f = (,)(tonum, add(1))   g = tostr
-
-                    // TODO: there is probably a way to 'lift' bidoof a level above
-                    // and remove the surrounding match given how similar they are
-                    let mut args = args.into_iter();
-                    let (f, g) = (args.next().unwrap(), args.next().unwrap());
-                    r = self.bidoof(f, g)?;
+            // "unfold" means as in this example:
+            // [tonum, add 1, tostr] :42:
+            //  `-> (,)((,)(tonum, add(1)), tostr)
+            // `-> (,)((,)(tonum(:[52, 50]:), add(1)), tostr)
+            // => tostr(add(1, tonum(:[52, 50]:)))
+            fn apply_maybe_unfold(
+                p: &mut Parser<impl Iterator<Item = u8>>,
+                func: Tree,
+            ) -> Result<Tree, Error> {
+                match func {
+                    Tree::Apply(_, ref name, args) if "(,)" == name => {
+                        let mut args = args.into_iter();
+                        let (f, g) = (args.next().unwrap(), args.next().unwrap());
+                        // (,)(f, g) => g(f(..))
+                        g.try_apply(apply_maybe_unfold(p, f)?, &mut p.types)
+                    }
+                    _ => func.try_apply(p.parse_value()?, &mut p.types),
                 }
-                _ => r = r.try_apply(self.parse_value()?, &mut self.types)?,
             }
+            r = apply_maybe_unfold(self, r)?;
         }
         Ok(r)
     }
@@ -237,7 +249,6 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         if let Some(Token::Comma) = self.peekable.peek() {
             drop(self.peekable.next());
             let mut then = self.parse_apply()?;
-
             // [x, f, g, h] :: d; where
             // - x :: A
             // - f, g, h :: a -> b, b -> c, c -> d
@@ -270,23 +281,6 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             }
         }
         Ok(r)
-    }
-
-    // (TODO: name)
-    fn bidoof(&mut self, f: Tree, g: Tree) -> Result<Tree, Error> {
-        g.try_apply(
-            match f {
-                // (,)( (,)(h, i) , g) => g(bidoof(h, i)) => g(i(h(..)))
-                Tree::Apply(_, ref name, args) if "(,)" == name => {
-                    let mut args = args.into_iter();
-                    let (h, i) = (args.next().unwrap(), args.next().unwrap());
-                    self.bidoof(h, i)
-                }
-                // (,)(f, g) => g(f(..))
-                _ => f.try_apply(self.parse_value()?, &mut self.types),
-            }?,
-            &mut self.types,
-        )
     }
 }
 // }}}
@@ -327,6 +321,29 @@ impl TypeList {
 
     pub fn repr(&self, at: TypeRef) -> TypeRepr {
         TypeRepr(at, self)
+    }
+
+    #[allow(dead_code)]
+    pub fn frozen(&self, at: TypeRef) -> FrozenType {
+        match self.get(at) {
+            Type::Number => FrozenType::Number,
+            Type::Bytes(b) => FrozenType::Bytes(match self.get(*b) {
+                Type::Finite(b) => *b,
+                _ => unreachable!(),
+            }),
+            Type::List(b, items) => FrozenType::List(
+                match self.get(*b) {
+                    Type::Finite(b) => *b,
+                    _ => unreachable!(),
+                },
+                Box::new(self.frozen(*items)),
+            ),
+            Type::Func(par, ret) => {
+                FrozenType::Func(Box::new(self.frozen(*par)), Box::new(self.frozen(*ret)))
+            }
+            Type::Named(name) => FrozenType::Named(name.clone()),
+            Type::Finite(_) => unreachable!(),
+        }
     }
 
     //pub fn pop(&mut self, at: TypeRef) -> Type {
@@ -462,11 +479,7 @@ impl Tree {
         Ok(Tree::Apply(ty, name, args))
     }
 
-    /// Essentially the same as `try_apply`, but doesn't concretize.
-    /// Mutates `self` and `arg` (and `types`) to type them;
-    /// such as when it was `Atom(Word(name))`, it becomes `Apply(ty, name, vec![])`.
-    /// It is okay to do so because this will have to be done anyways
-    /// and as it is it won't do it multiple times needlessly.
+    /// Essentially the same as `try_apply`, but doesn't concretize and doesn't fail.
     fn can_apply(&self, arg: &Tree, types: &TypeList) -> bool {
         Type::applicable(self.get_type(), arg.get_type(), types)
     }
@@ -564,47 +577,106 @@ impl Display for Tree {
 }
 // }}}
 
-/*
 // tests {{{
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn expect<T>(r: Result<T, Error>) -> T {
+        r.unwrap_or_else(|e| match e {
+            Error::Unexpected(t) => panic!("error: Unexpected token {t:?}"),
+            Error::UnexpectedEnd => panic!("error: Unexpected end of script"),
+            Error::UnknownName(n) => panic!("error: Unknown name '{n}'"),
+            Error::NotFunc(o, types) => {
+                panic!("error: Expected a function type, but got {}", types.repr(o))
+            }
+            Error::ExpectedButGot(w, g, types) => panic!(
+                "error: Expected type {}, but got {}",
+                types.repr(w),
+                types.repr(g)
+            ),
+            Error::InfWhereFinExpected => {
+                panic!("error: Expected finite type, but got infinite type")
+            }
+        })
+    }
+
+    fn compare(left: &Tree, right: &Tree) -> bool {
+        match (left, right) {
+            (Tree::List(la), Tree::List(ra)) => la
+                .iter()
+                .zip(ra.iter())
+                .find(|(l, r)| !compare(l, r))
+                .is_none(),
+            (Tree::Apply(_, ln, la), Tree::Apply(_, rn, ra))
+                if ln == rn && la.len() == ra.len() =>
+            {
+                la.iter()
+                    .zip(ra.iter())
+                    .find(|(l, r)| !compare(l, r))
+                    .is_none()
+            }
+            (l, r) => *l == *r,
+        }
+    }
+
+    macro_rules! assert_tree {
+        ($left:expr, $right:expr) => {
+            match (&$left, &$right) {
+                (l, r) if !compare(l, r) => assert_eq!(l, r),
+                _ => (),
+            }
+        };
+    }
+
     #[test]
     fn lexing() {
+        use Token::*;
+
         assert_eq!(
-            &[Token::Word("coucou".into()),][..],
+            &[Word("coucou".into()),][..],
             Lexer::new("coucou".bytes()).collect::<Vec<_>>()
         );
 
         assert_eq!(
             &[
-                Token::OpenBracket,
-                Token::Word("a".to_string()),
-                Token::Number(1),
-                Token::Word("b".to_string()),
-                Token::Comma,
-                Token::OpenBrace,
-                Token::Word("w".to_string()),
-                Token::Comma,
-                Token::Word("x".to_string()),
-                Token::Comma,
-                Token::Word("y".to_string()),
-                Token::Comma,
-                Token::Word("z".to_string()),
-                Token::CloseBrace,
-                Token::CloseBracket,
+                OpenBracket,
+                Word("a".into()),
+                Number(1),
+                Word("b".into()),
+                Comma,
+                OpenBrace,
+                Word("w".into()),
+                Comma,
+                Word("x".into()),
+                Comma,
+                Word("y".into()),
+                Comma,
+                Word("z".into()),
+                CloseBrace,
+                CloseBracket,
             ][..],
             Lexer::new("[a 1 b, {w, x, y, z}]".bytes()).collect::<Vec<_>>()
         );
 
         assert_eq!(
             &[
-                Token::Number(42),
-                Token::Bytes(vec![42]),
-                Token::Number(42),
-                Token::Number(42),
-                Token::Number(42),
+                Bytes(vec![104, 97, 121]),
+                Bytes(vec![104, 101, 121, 58, 32, 110, 111, 116, 32, 104, 97, 121]),
+                Bytes(vec![]),
+                Bytes(vec![58]),
+                Word("fin".into()),
+            ][..],
+            Lexer::new(":hay: :hey:: not hay: :: :::: fin".bytes()).collect::<Vec<_>>()
+        );
+
+        assert_eq!(
+            &[
+                Number(42),
+                Bytes(vec![42]),
+                Number(42),
+                Number(42),
+                Number(42),
             ][..],
             Lexer::new("42 :*: 0x2a 0b101010 0o52".bytes()).collect::<Vec<_>>()
         );
@@ -612,52 +684,115 @@ mod tests {
 
     #[test]
     fn parsing() {
-        assert_eq!(
-            Ok(Tree::Atom(TreeLeaf::Word("coucou".to_string()))),
-            Tree::new("coucou".bytes(), &mut TypeList::new())
-        );
+        use Tree::*;
+        use TreeLeaf::*;
 
-        assert_eq!(
-            Ok(Tree::Apply(
+        let (ty, types, res) = expect(Tree::new_typed("input".bytes()));
+        assert_tree!(Apply(0, "input".into(), vec![]), res);
+        assert_eq!(FrozenType::Bytes(false), types.frozen(ty));
+
+        let (ty, types, res) = expect(Tree::new_typed(
+            "input, split:-:, map[tonum, add1, tostr], join:+:".bytes(),
+        ));
+        assert_tree!(
+            Apply(
                 0,
-                "join".to_string(),
+                "join".into(),
                 vec![
-                    Tree::Atom(TreeLeaf::Bytes(vec![43])),
-                    Tree::Apply(
+                    Atom(TreeLeaf::Bytes(vec![43])),
+                    Apply(
                         0,
-                        "map".to_string(),
+                        "map".into(),
                         vec![
-                            Tree::Apply(
+                            Apply(
                                 0,
-                                "add".to_string(),
-                                vec![Tree::Atom(TreeLeaf::Number(1))],
-                            ),
-                            Tree::Apply(
-                                0,
-                                "split".to_string(),
+                                "(,)".into(),
                                 vec![
-                                    Tree::Atom(TreeLeaf::Bytes(vec![45])),
-                                    Tree::Atom(TreeLeaf::Word("input".to_string())),
+                                    Apply(
+                                        0,
+                                        "(,)".into(),
+                                        vec![
+                                            Apply(0, "tonum".into(), vec![]),
+                                            Apply(0, "add".into(), vec![Atom(TreeLeaf::Number(1))])
+                                        ]
+                                    ),
+                                    Apply(0, "tostr".into(), vec![])
+                                ]
+                            ),
+                            Apply(
+                                0,
+                                "split".into(),
+                                vec![
+                                    Atom(TreeLeaf::Bytes(vec![45])),
+                                    Apply(0, "input".into(), vec![]),
                                 ],
                             ),
                         ],
                     ),
                 ],
-            )),
-            Tree::new(
-                "input, split:-:, map[add1], join:+:".bytes(),
-                &mut TypeList::new()
-            )
+            ),
+            res
+        );
+        assert_eq!(
+            FrozenType::Bytes(true /* FIXME: this should be false, right? */),
+            types.frozen(ty)
         );
 
-        // todo
-        //assert_eq!(Err...)
-    }
+        let (ty, types, res) = expect(Tree::new_typed("tonum, add234121, tostr, ln".bytes()));
+        assert_tree!(
+            Apply(
+                0,
+                "(,)".into(),
+                vec![
+                    Apply(
+                        0,
+                        "(,)".into(),
+                        vec![
+                            Apply(
+                                0,
+                                "(,)".into(),
+                                vec![
+                                    Apply(0, "tonum".into(), vec![]),
+                                    Apply(0, "add".into(), vec![Atom(Number(234121))])
+                                ]
+                            ),
+                            Apply(0, "tostr".into(), vec![])
+                        ]
+                    ),
+                    Apply(0, "ln".into(), vec![])
+                ]
+            ),
+            res
+        );
+        assert_eq!(
+            FrozenType::Func(
+                Box::new(FrozenType::Bytes(false)),
+                Box::new(FrozenType::Bytes(true))
+            ),
+            types.frozen(ty)
+        );
 
-    #[test]
-    fn typing() {
-        // todo
+        let (ty, types, res) = expect(Tree::new_typed("[tonum, add234121, tostr] :13242:".bytes()));
+        assert_tree!(
+            Apply(
+                0,
+                "tostr".into(),
+                vec![Apply(
+                    0,
+                    "add".into(),
+                    vec![
+                        Atom(Number(234121)),
+                        Apply(
+                            0,
+                            "tonum".into(),
+                            vec![Atom(Bytes(vec![49, 51, 50, 52, 50]))]
+                        )
+                    ]
+                )]
+            ),
+            res
+        );
+        assert_eq!(FrozenType::Bytes(true), types.frozen(ty));
     }
 }
 // }}}
-*/
