@@ -5,7 +5,7 @@ use std::mem;
 use std::ptr;
 use std::rc::Rc;
 
-use crate::parse::{Tree, TreeLeaf};
+use crate::parse::{Tree, COMPOSE_OP_FUNC_NAME};
 
 pub type Number = Box<dyn FnOnce() -> i32>;
 pub type Bytes = Box<dyn Iterator<Item = u8>>;
@@ -105,7 +105,7 @@ impl<A, B> Bival<A, B> {
 
 fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
     match name {
-        "(,)" => {
+        COMPOSE_OP_FUNC_NAME => {
             let f = args.next().unwrap().func().0;
             let g = args.next().unwrap().func().0;
             Value::Func(Box::new(move |v| g(f(v))), Rc::new(|| todo!()))
@@ -236,14 +236,10 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
 
 pub fn interp(tree: &Tree) -> Value {
     match tree {
-        Tree::Atom(atom) => match atom {
-            TreeLeaf::Bytes(v) => {
-                Value::Bytes(Box::new(v.clone().into_iter()), Rc::new(|| todo!()))
-            }
-            &TreeLeaf::Number(n) => Value::Number(Box::new(move || n), Rc::new(|| todo!())),
-        },
+        Tree::Bytes(v) => Value::Bytes(Box::new(v.clone().into_iter()), Rc::new(|| todo!())),
+        &Tree::Number(n) => Value::Number(Box::new(move || n), Rc::new(|| todo!())),
 
-        Tree::List(_) => todo!(),
+        Tree::List(_) => todo!("interp(tree a literal list `Tree::List(v)`)"),
 
         Tree::Apply(_, name, args) => lookup_val(name, args.iter().map(interp)),
     }
@@ -264,6 +260,6 @@ pub fn run_print(val: Value) {
                 println!();
             }
         }
-        Value::Func(_f, _) => todo!(),
+        Value::Func(_f, _) => panic!("run_print on a function value"),
     }
 }

@@ -3,7 +3,11 @@ use std::iter;
 
 use crate::builtin::lookup_type;
 
-// principal public types {{{
+// principal public types (and consts) {{{
+pub const COMPOSE_OP_FUNC_NAME: &str = "(,)";
+pub const NUMBER_TYPEREF: usize = 0;
+pub const STRFIN_TYPEREF: usize = 1;
+
 #[derive(PartialEq, Debug)]
 pub enum Token {
     Unknown(String),
@@ -18,15 +22,10 @@ pub enum Token {
 }
 
 #[derive(PartialEq, Debug)]
-pub enum TreeLeaf {
+pub enum Tree {
     Bytes(Vec<u8>),
     Number(i32),
-}
-
-#[derive(PartialEq, Debug)]
-pub enum Tree {
-    Atom(TreeLeaf),
-    List(Vec<Tree>),
+    List(/*WIP: TypeRef,*/ Vec<Tree>),
     Apply(TypeRef, String, Vec<Tree>),
 }
 
@@ -187,8 +186,8 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 w,
                 Vec::new(),
             )),
-            Some(Token::Bytes(b)) => Ok(Tree::Atom(TreeLeaf::Bytes(b))),
-            Some(Token::Number(n)) => Ok(Tree::Atom(TreeLeaf::Number(n))),
+            Some(Token::Bytes(b)) => Ok(Tree::Bytes(b)),
+            Some(Token::Number(n)) => Ok(Tree::Number(n)),
 
             Some(Token::OpenBracket) => {
                 self.parse_script()
@@ -230,7 +229,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 func: Tree,
             ) -> Result<Tree, Error> {
                 match func {
-                    Tree::Apply(_, ref name, args) if "(,)" == name => {
+                    Tree::Apply(_, ref name, args) if COMPOSE_OP_FUNC_NAME == name => {
                         let mut args = args.into_iter();
                         let (f, g) = (args.next().unwrap(), args.next().unwrap());
                         // (,)(f, g) => g(f(..))
@@ -266,9 +265,18 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             else {
                 while let Some(Token::Comma) = {
                     r = Tree::Apply(
-                        // TODO: maybe inline its type def
-                        lookup_type("(,)", &mut self.types).unwrap(),
-                        "(,)".into(),
+                        {
+                            // (,) :: (a -> b) -> (b -> c) -> a -> c
+                            let a = self.types.push(Type::Named("a".into()));
+                            let b = self.types.push(Type::Named("b".into()));
+                            let c = self.types.push(Type::Named("c".into()));
+                            let ab = self.types.push(Type::Func(a, b));
+                            let bc = self.types.push(Type::Func(b, c));
+                            let ac = self.types.push(Type::Func(a, c));
+                            let ret = self.types.push(Type::Func(bc, ac));
+                            self.types.push(Type::Func(ab, ret))
+                        },
+                        COMPOSE_OP_FUNC_NAME.into(),
                         Vec::new(),
                     )
                     .try_apply(r, &mut self.types)?
@@ -293,8 +301,8 @@ pub struct TypeRepr<'a>(TypeRef, &'a TypeList);
 impl Default for TypeList {
     fn default() -> Self {
         TypeList(vec![
-            Some(Type::Number),
-            Some(Type::Bytes(2)),
+            Some(Type::Number), // [NUMBER_TYPEREF]
+            Some(Type::Bytes(2)), // [STRFIN_TYPEREF]
             Some(Type::Finite(true)),
         ])
     }
@@ -486,12 +494,10 @@ impl Tree {
 
     fn get_type(&self) -> TypeRef {
         match self {
-            Tree::Atom(atom) => match atom {
-                TreeLeaf::Bytes(_) => 1,
-                TreeLeaf::Number(_) => 0,
-            },
+            Tree::Bytes(_) => STRFIN_TYPEREF,
+            Tree::Number(_) => NUMBER_TYPEREF,
 
-            Tree::List(_items) => todo!(),
+            Tree::List(_items) => todo!("list typing (here in get_type)"),
 
             Tree::Apply(ty, _, _) => *ty,
         }
@@ -547,10 +553,8 @@ impl Display for TypeRepr<'_> {
 impl Display for Tree {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            Tree::Atom(atom) => match atom {
-                TreeLeaf::Bytes(v) => write!(f, ":{v:?}:"),
-                TreeLeaf::Number(n) => write!(f, "{n}"),
-            },
+            Tree::Bytes(v) => write!(f, ":{v:?}:"),
+            Tree::Number(n) => write!(f, "{n}"),
 
             Tree::List(items) => {
                 write!(f, "{{")?;
@@ -685,7 +689,6 @@ mod tests {
     #[test]
     fn parsing() {
         use Tree::*;
-        use TreeLeaf::*;
 
         let (ty, types, res) = expect(Tree::new_typed("input".bytes()));
         assert_tree!(Apply(0, "input".into(), vec![]), res);
@@ -699,21 +702,21 @@ mod tests {
                 0,
                 "join".into(),
                 vec![
-                    Atom(TreeLeaf::Bytes(vec![43])),
+                    Bytes(vec![43]),
                     Apply(
                         0,
                         "map".into(),
                         vec![
                             Apply(
                                 0,
-                                "(,)".into(),
+                                COMPOSE_OP_FUNC_NAME.into(),
                                 vec![
                                     Apply(
                                         0,
-                                        "(,)".into(),
+                                        COMPOSE_OP_FUNC_NAME.into(),
                                         vec![
                                             Apply(0, "tonum".into(), vec![]),
-                                            Apply(0, "add".into(), vec![Atom(TreeLeaf::Number(1))])
+                                            Apply(0, "add".into(), vec![Number(1)])
                                         ]
                                     ),
                                     Apply(0, "tostr".into(), vec![])
@@ -723,7 +726,7 @@ mod tests {
                                 0,
                                 "split".into(),
                                 vec![
-                                    Atom(TreeLeaf::Bytes(vec![45])),
+                                    Bytes(vec![45]),
                                     Apply(0, "input".into(), vec![]),
                                 ],
                             ),
@@ -742,18 +745,18 @@ mod tests {
         assert_tree!(
             Apply(
                 0,
-                "(,)".into(),
+                COMPOSE_OP_FUNC_NAME.into(),
                 vec![
                     Apply(
                         0,
-                        "(,)".into(),
+                        COMPOSE_OP_FUNC_NAME.into(),
                         vec![
                             Apply(
                                 0,
-                                "(,)".into(),
+                                COMPOSE_OP_FUNC_NAME.into(),
                                 vec![
                                     Apply(0, "tonum".into(), vec![]),
-                                    Apply(0, "add".into(), vec![Atom(Number(234121))])
+                                    Apply(0, "add".into(), vec![Number(234121)])
                                 ]
                             ),
                             Apply(0, "tostr".into(), vec![])
@@ -781,11 +784,11 @@ mod tests {
                     0,
                     "add".into(),
                     vec![
-                        Atom(Number(234121)),
+                        Number(234121),
                         Apply(
                             0,
                             "tonum".into(),
-                            vec![Atom(Bytes(vec![49, 51, 50, 52, 50]))]
+                            vec![Bytes(vec![49, 51, 50, 52, 50])]
                         )
                     ]
                 )]

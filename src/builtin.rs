@@ -1,19 +1,7 @@
-use crate::parse::{Type, TypeList, TypeRef};
+use crate::parse::{Type, TypeList, TypeRef, NUMBER_TYPEREF, STRFIN_TYPEREF};
 
 pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
     match name {
-        "(,)" => {
-            // (,) :: (a -> b) -> (b -> c) -> a -> c
-            let a = types.push(Type::Named("a".into()));
-            let b = types.push(Type::Named("b".into()));
-            let c = types.push(Type::Named("c".into()));
-            let ab = types.push(Type::Func(a, b));
-            let bc = types.push(Type::Func(b, c));
-            let ac = types.push(Type::Func(a, c));
-            let push = types.push(Type::Func(bc, ac));
-            Some(types.push(Type::Func(ab, push)))
-        }
-
         "input" => {
             // input :: Str*
             let inf = types.push(Type::Finite(false));
@@ -38,8 +26,8 @@ pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
 
         "add" => {
             // add :: Num -> Num -> Num
-            let nton = types.push(Type::Func(0, 0));
-            Some(types.push(Type::Func(0, nton)))
+            let nton = types.push(Type::Func(NUMBER_TYPEREF, NUMBER_TYPEREF));
+            Some(types.push(Type::Func(NUMBER_TYPEREF, nton)))
         }
 
         "map" => {
@@ -58,12 +46,12 @@ pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
             // tonum :: Str* -> Num
             let inf = types.push(Type::Finite(false));
             let strinf = types.push(Type::Bytes(inf));
-            Some(types.push(Type::Func(strinf, 0)))
+            Some(types.push(Type::Func(strinf, NUMBER_TYPEREF)))
         }
 
         "tostr" => {
             // tostr :: Num -> Str
-            Some(types.push(Type::Func(0, 1)))
+            Some(types.push(Type::Func(NUMBER_TYPEREF, STRFIN_TYPEREF)))
         }
 
         "join" => {
@@ -75,7 +63,7 @@ pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
             let strinf = types.push(Type::Bytes(inf));
             let lststrinf = types.push(Type::List(inf, strinf));
             let blablablabla = types.push(Type::Func(lststrinf, strinf));
-            Some(types.push(Type::Func(1, blablablabla)))
+            Some(types.push(Type::Func(STRFIN_TYPEREF, blablablabla)))
         }
 
         _ => None,

@@ -39,7 +39,7 @@ fn main() {
     };
 
     if arg_lookup {
-        todo!("lookup");
+        todo!("-l: lookup and list names");
     }
 
     let (ty, types, tree) = match Tree::new_typed(args.flat_map(|mut a| {
