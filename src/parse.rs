@@ -357,7 +357,7 @@ impl Type {
     /// * inf <- fin is fin
     /// * unk <- Knw is Knw
     ///
-    /// The others are left unchanged, just checked for assignable.
+    /// Both types may be modified (due to contravariance of func in parameter type).
     /// This uses the fact that inf types and unk named types are
     /// only depended on by the functions that introduced them.
     fn concretize(want: TypeRef, give: TypeRef, types: &mut TypeList) -> Result<(), Error> {
@@ -389,15 +389,19 @@ impl Type {
                 Type::concretize(l_ty, r_ty, types)
             }
 
-            (Type::Func(l_arg, l_ret), Type::Func(r_arg, r_ret)) => {
-                let (l_arg, r_arg) = (*l_arg, *r_arg);
-                let (l_ret, r_ret) = (*l_ret, *r_ret);
+            (&Type::Func(l_par, l_ret), &Type::Func(r_par, r_ret)) => {
                 // (a -> b) <- (Str -> Num)
-                Type::concretize(l_arg, r_arg, types)?;
+                // parameter compare contravariantly:
+                // (Str -> c) <- (Str* -> Str*)
+                // (a -> b) <- (c -> c)
+                Type::concretize(r_par, l_par, types)?;
                 Type::concretize(l_ret, r_ret, types)
             }
 
-            //(Type::Named(_), Type::Named(_)) => todo!(),
+            (other, Type::Named(_)) => {
+                *types.get_mut(give) = other.clone();
+                Ok(())
+            }
             (Type::Named(_), other) => {
                 *types.get_mut(want) = other.clone();
                 Ok(())
@@ -433,13 +437,12 @@ impl Type {
                 }
             }
 
-            (Type::Func(l_arg, l_ret), Type::Func(r_arg, r_ret)) => {
-                let (l_arg, r_arg) = (*l_arg, *r_arg);
-                let (l_ret, r_ret) = (*l_ret, *r_ret);
-                // ig so
-                Type::compatible(l_arg, r_arg, types) && Type::compatible(l_ret, r_ret, types)
+            (Type::Func(l_par, l_ret), Type::Func(r_par, r_ret)) => {
+                // parameter compare contravariantly: (Str -> c) <- (Str* -> Str*)
+                Type::compatible(*r_par, *l_par, types) && Type::compatible(*l_ret, *r_ret, types)
             }
 
+            (_, Type::Named(_)) => true,
             (Type::Named(_), _) => true,
 
             _ => false,
@@ -507,12 +510,12 @@ impl Display for TypeRepr<'_> {
 
             Type::List(b, has) => write!(f, "[{}]{}", types.repr(*has), types.repr(*b)),
 
-            Type::Func(arg, ret) => {
-                let funcarg = matches!(types.get(*arg), Type::Func(_, _));
+            Type::Func(par, ret) => {
+                let funcarg = matches!(types.get(*par), Type::Func(_, _));
                 if funcarg {
                     write!(f, "(")?;
                 }
-                write!(f, "{}", types.repr(*arg))?;
+                write!(f, "{}", types.repr(*par))?;
                 if funcarg {
                     write!(f, ")")?;
                 }
