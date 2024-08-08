@@ -7,6 +7,7 @@ use crate::builtin::lookup_type;
 pub const COMPOSE_OP_FUNC_NAME: &str = "(,)";
 pub const NUMBER_TYPEREF: usize = 0;
 pub const STRFIN_TYPEREF: usize = 1;
+pub const FINITE_TYPEREF: usize = 2;
 
 #[derive(PartialEq, Debug)]
 pub enum Token {
@@ -25,7 +26,7 @@ pub enum Token {
 pub enum Tree {
     Bytes(Vec<u8>),
     Number(i32),
-    List(/*WIP: TypeRef,*/ Vec<Tree>),
+    List(TypeRef, Vec<Tree>),
     Apply(TypeRef, String, Vec<Tree>),
 }
 
@@ -198,15 +199,33 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     })
             }
 
-            Some(Token::OpenBrace) => iter::once(self.parse_value())
-                .chain(iter::from_fn(|| match self.peekable.next() {
-                    Some(Token::Comma) => Some(self.parse_value()),
-                    Some(Token::CloseBrace) => None,
-                    Some(token) => Some(Err(Error::Unexpected(token))),
-                    None => Some(Err(Error::UnexpectedEnd)),
-                }))
-                .collect::<Result<_, _>>()
-                .map(Tree::List),
+            Some(Token::OpenBrace) => {
+                let mut items = Vec::new();
+                let ty = self.types.push(Type::Named("a".into()));
+                if let Some(Token::CloseBrace) = self.peekable.peek() {
+                    drop(self.peekable.next());
+                } else {
+                    loop {
+                        let item = self.parse_value()?;
+                        Type::concretize(ty, item.get_type(), &mut self.types)?;
+                        items.push(item);
+                        match self.peekable.next() {
+                            Some(Token::Comma) => {
+                                if let Some(Token::CloseBrace) = self.peekable.peek() {
+                                    break;
+                                }
+                            }
+                            Some(Token::CloseBrace) => break,
+                            Some(token) => return Err(Error::Unexpected(token)),
+                            None => return Err(Error::UnexpectedEnd),
+                        }
+                    }
+                }
+                Ok(Tree::List(
+                    self.types.push(Type::List(FINITE_TYPEREF, ty)),
+                    items,
+                ))
+            }
 
             Some(token) => Err(Error::Unexpected(token)),
             None => Err(Error::UnexpectedEnd),
@@ -301,9 +320,9 @@ pub struct TypeRepr<'a>(TypeRef, &'a TypeList);
 impl Default for TypeList {
     fn default() -> Self {
         TypeList(vec![
-            Some(Type::Number), // [NUMBER_TYPEREF]
-            Some(Type::Bytes(2)), // [STRFIN_TYPEREF]
-            Some(Type::Finite(true)),
+            Some(Type::Number),       // [NUMBER_TYPEREF]
+            Some(Type::Bytes(2)),     // [STRFIN_TYPEREF]
+            Some(Type::Finite(true)), // [FINITE_TYPEREF]
         ])
     }
 }
@@ -497,7 +516,7 @@ impl Tree {
             Tree::Bytes(_) => STRFIN_TYPEREF,
             Tree::Number(_) => NUMBER_TYPEREF,
 
-            Tree::List(_items) => todo!("list typing (here in get_type)"),
+            Tree::List(ty, _) => *ty,
 
             Tree::Apply(ty, _, _) => *ty,
         }
@@ -556,7 +575,7 @@ impl Display for Tree {
             Tree::Bytes(v) => write!(f, ":{v:?}:"),
             Tree::Number(n) => write!(f, "{n}"),
 
-            Tree::List(items) => {
+            Tree::List(_, items) => {
                 write!(f, "{{")?;
                 let mut sep = "";
                 for it in items {
@@ -607,7 +626,7 @@ mod tests {
 
     fn compare(left: &Tree, right: &Tree) -> bool {
         match (left, right) {
-            (Tree::List(la), Tree::List(ra)) => la
+            (Tree::List(_, la), Tree::List(_, ra)) => la
                 .iter()
                 .zip(ra.iter())
                 .find(|(l, r)| !compare(l, r))
@@ -725,10 +744,7 @@ mod tests {
                             Apply(
                                 0,
                                 "split".into(),
-                                vec![
-                                    Bytes(vec![45]),
-                                    Apply(0, "input".into(), vec![]),
-                                ],
+                                vec![Bytes(vec![45]), Apply(0, "input".into(), vec![]),],
                             ),
                         ],
                     ),
@@ -785,11 +801,7 @@ mod tests {
                     "add".into(),
                     vec![
                         Number(234121),
-                        Apply(
-                            0,
-                            "tonum".into(),
-                            vec![Bytes(vec![49, 51, 50, 52, 50])]
-                        )
+                        Apply(0, "tonum".into(), vec![Bytes(vec![49, 51, 50, 52, 50])])
                     ]
                 )]
             ),

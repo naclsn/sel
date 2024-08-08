@@ -1,4 +1,4 @@
-use crate::parse::{Type, TypeList, TypeRef, NUMBER_TYPEREF, STRFIN_TYPEREF};
+use crate::parse::{Type, TypeList, TypeRef, FINITE_TYPEREF, NUMBER_TYPEREF, STRFIN_TYPEREF};
 
 pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
     match name {
@@ -8,6 +8,14 @@ pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
             Some(types.push(Type::Bytes(inf)))
         }
 
+        "const" => {
+            let a = types.push(Type::Named("a".into()));
+            let b = types.push(Type::Named("b".into()));
+            let ba = types.push(Type::Func(b, a));
+            Some(types.push(Type::Func(a, ba)))
+        }
+
+        // xxx: maybe change to nl because of math ln..
         "ln" => {
             // ln :: Str* -> Str*
             let inf = types.push(Type::Finite(false));
@@ -64,6 +72,13 @@ pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
             let lststrinf = types.push(Type::List(inf, strinf));
             let blablablabla = types.push(Type::Func(lststrinf, strinf));
             Some(types.push(Type::Func(STRFIN_TYPEREF, blablablabla)))
+        }
+
+        "len" => {
+            // len :: [a] -> Number
+            let a = types.push(Type::Named("a".into()));
+            let lst = types.push(Type::List(FINITE_TYPEREF, a));
+            Some(types.push(Type::Func(lst, NUMBER_TYPEREF)))
         }
 
         _ => None,

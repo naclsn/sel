@@ -230,6 +230,11 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
             )
         }
 
+        "len" => {
+            let list = args.next().unwrap().list().0;
+            Value::Number(Box::new(move || list.count() as i32), Rc::new(|| todo!()))
+        }
+
         _ => unreachable!(),
     }
 }
@@ -239,7 +244,10 @@ pub fn interp(tree: &Tree) -> Value {
         Tree::Bytes(v) => Value::Bytes(Box::new(v.clone().into_iter()), Rc::new(|| todo!())),
         &Tree::Number(n) => Value::Number(Box::new(move || n), Rc::new(|| todo!())),
 
-        Tree::List(_) => todo!("interp(tree a literal list `Tree::List(v)`)"),
+        Tree::List(_, items) => Value::List(
+            Box::new(items.iter().map(interp).collect::<Vec<_>>().into_iter()),
+            Rc::new(|| todo!()),
+        ),
 
         Tree::Apply(_, name, args) => lookup_val(name, args.iter().map(interp)),
     }
@@ -257,7 +265,6 @@ pub fn run_print(val: Value) {
         Value::List(l, _) => {
             for it in l {
                 run_print(it);
-                println!();
             }
         }
         Value::Func(_f, _) => panic!("run_print on a function value"),
