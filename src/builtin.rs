@@ -1,65 +1,68 @@
-use crate::parse::{Type, TypeList, TypeRef, FINITE_TYPEREF, NUMBER_TYPEREF, STRFIN_TYPEREF};
+use crate::parse::{TypeList, TypeRef};
 
 pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
-    match name {
+    Some(match name {
         "input" => {
             // input :: Str*
-            let inf = types.push(Type::Finite(false));
-            Some(types.push(Type::Bytes(inf)))
+            let inf = types.infinite();
+            types.bytes(inf)
         }
 
         "const" => {
-            let a = types.push(Type::Named("a".into()));
-            let b = types.push(Type::Named("b".into()));
-            let ba = types.push(Type::Func(b, a));
-            Some(types.push(Type::Func(a, ba)))
+            // const :: a -> b -> a
+            let a = types.named("a");
+            let b = types.named("b");
+            let ba = types.func(b, a);
+            types.func(a, ba)
         }
 
-        // xxx: maybe change to nl because of math ln..
+        // xxx: maybe change back to nl because of math ln..
         "ln" => {
             // ln :: Str* -> Str*
-            let inf = types.push(Type::Finite(false));
-            let strinf = types.push(Type::Bytes(inf));
-            Some(types.push(Type::Func(strinf, strinf)))
+            let inf = types.infinite();
+            let strinf = types.bytes(inf);
+            types.func(strinf, strinf)
         }
 
         "split" => {
             // slice :: Str -> Str* -> [Str*]*
-            let inf = types.push(Type::Finite(false));
-            let strinf = types.push(Type::Bytes(inf));
-            let lststrinf = types.push(Type::List(inf, strinf));
-            let blablablabla = types.push(Type::Func(strinf, lststrinf));
-            Some(types.push(Type::Func(1, blablablabla)))
+            let strfin = types.bytes(types.finite());
+            let inf = types.infinite();
+            let strinf = types.bytes(inf);
+            let ret = types.list(inf, strinf);
+            let ret = types.func(strinf, ret);
+            types.func(strfin, ret)
         }
 
         "add" => {
             // add :: Num -> Num -> Num
-            let nton = types.push(Type::Func(NUMBER_TYPEREF, NUMBER_TYPEREF));
-            Some(types.push(Type::Func(NUMBER_TYPEREF, nton)))
+            let ret = types.func(types.number(), types.number());
+            types.func(types.number(), ret)
         }
 
         "map" => {
             // map :: (a -> b) -> [a]* -> [b]*
-            let inf = types.push(Type::Finite(false));
-            let a = types.push(Type::Named("a".into()));
-            let b = types.push(Type::Named("b".into()));
-            let aa = types.push(Type::List(inf, a));
-            let bb = types.push(Type::List(inf, b));
-            let f = types.push(Type::Func(a, b));
-            let ff = types.push(Type::Func(aa, bb));
-            Some(types.push(Type::Func(f, ff)))
+            let inf = types.infinite();
+            let a = types.named("a");
+            let b = types.named("b");
+            let f = types.func(a, b);
+            let aa = types.list(inf, a);
+            let bb = types.list(inf, b);
+            let ff = types.func(aa, bb);
+            types.func(f, ff)
         }
 
         "tonum" => {
             // tonum :: Str* -> Num
-            let inf = types.push(Type::Finite(false));
-            let strinf = types.push(Type::Bytes(inf));
-            Some(types.push(Type::Func(strinf, NUMBER_TYPEREF)))
+            let inf = types.infinite();
+            let strinf = types.bytes(inf);
+            types.func(strinf, types.number())
         }
 
         "tostr" => {
             // tostr :: Num -> Str
-            Some(types.push(Type::Func(NUMBER_TYPEREF, STRFIN_TYPEREF)))
+            let strfin = types.bytes(types.finite());
+            types.func(types.number(), strfin)
         }
 
         "join" => {
@@ -67,20 +70,29 @@ pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
             // uuhh :<
             // this is still not enough, both * in [Str*]*
             // should be &&'d when applying the 2nd arg
-            let inf = types.push(Type::Finite(false));
-            let strinf = types.push(Type::Bytes(inf));
-            let lststrinf = types.push(Type::List(inf, strinf));
-            let blablablabla = types.push(Type::Func(lststrinf, strinf));
-            Some(types.push(Type::Func(STRFIN_TYPEREF, blablablabla)))
+            let inf = types.infinite();
+            let strinf = types.bytes(inf);
+            let lststrinf = types.list(inf, strinf);
+            let strfin = types.bytes(types.finite());
+            let ret = types.func(lststrinf, strinf);
+            types.func(strfin, ret)
         }
 
         "len" => {
             // len :: [a] -> Number
-            let a = types.push(Type::Named("a".into()));
-            let lst = types.push(Type::List(FINITE_TYPEREF, a));
-            Some(types.push(Type::Func(lst, NUMBER_TYPEREF)))
+            let a = types.named("a");
+            let lstfin = types.list(types.finite(), a);
+            types.func(lstfin, types.number())
         }
 
-        _ => None,
-    }
+        "repeat" => {
+            // repeat :: a -> [a]*
+            let a = types.named("a");
+            let inf = types.infinite();
+            let lstinf = types.list(inf, a);
+            types.func(a, lstinf)
+        }
+
+        _ => return None,
+    })
 }

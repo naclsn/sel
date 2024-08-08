@@ -5,9 +5,9 @@ use crate::builtin::lookup_type;
 
 // principal public types (and consts) {{{
 pub const COMPOSE_OP_FUNC_NAME: &str = "(,)";
-pub const NUMBER_TYPEREF: usize = 0;
-pub const STRFIN_TYPEREF: usize = 1;
-pub const FINITE_TYPEREF: usize = 2;
+const NUMBER_TYPEREF: usize = 0;
+const STRFIN_TYPEREF: usize = 1;
+const FINITE_TYPEREF: usize = 2;
 
 #[derive(PartialEq, Debug)]
 pub enum Token {
@@ -43,7 +43,7 @@ pub enum Error {
 pub type TypeRef = usize;
 pub type Boundedness = usize;
 #[derive(PartialEq, Debug, Clone)]
-pub enum Type {
+enum Type {
     Number,
     Bytes(Boundedness),
     List(Boundedness, TypeRef),
@@ -201,7 +201,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
             Some(Token::OpenBrace) => {
                 let mut items = Vec::new();
-                let ty = self.types.push(Type::Named("a".into()));
+                let ty = self.types.named("a");
                 if let Some(Token::CloseBrace) = self.peekable.peek() {
                     drop(self.peekable.next());
                 } else {
@@ -221,10 +221,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                         }
                     }
                 }
-                Ok(Tree::List(
-                    self.types.push(Type::List(FINITE_TYPEREF, ty)),
-                    items,
-                ))
+                Ok(Tree::List(self.types.list(self.types.finite(), ty), items))
             }
 
             Some(token) => Err(Error::Unexpected(token)),
@@ -286,14 +283,14 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     r = Tree::Apply(
                         {
                             // (,) :: (a -> b) -> (b -> c) -> a -> c
-                            let a = self.types.push(Type::Named("a".into()));
-                            let b = self.types.push(Type::Named("b".into()));
-                            let c = self.types.push(Type::Named("c".into()));
-                            let ab = self.types.push(Type::Func(a, b));
-                            let bc = self.types.push(Type::Func(b, c));
-                            let ac = self.types.push(Type::Func(a, c));
-                            let ret = self.types.push(Type::Func(bc, ac));
-                            self.types.push(Type::Func(ab, ret))
+                            let a = self.types.named("a");
+                            let b = self.types.named("b");
+                            let c = self.types.named("c");
+                            let ab = self.types.func(a, b);
+                            let bc = self.types.func(b, c);
+                            let ac = self.types.func(a, c);
+                            let ret = self.types.func(bc, ac);
+                            self.types.func(ab, ret)
                         },
                         COMPOSE_OP_FUNC_NAME.into(),
                         Vec::new(),
@@ -328,7 +325,7 @@ impl Default for TypeList {
 }
 
 impl TypeList {
-    pub fn push(&mut self, it: Type) -> TypeRef {
+    fn push(&mut self, it: Type) -> TypeRef {
         if let Some((k, o)) = self.0.iter_mut().enumerate().find(|(_, o)| o.is_none()) {
             *o = Some(it);
             k
@@ -338,11 +335,37 @@ impl TypeList {
         }
     }
 
-    pub fn get(&self, at: TypeRef) -> &Type {
+    pub fn number(&self) -> TypeRef {
+        NUMBER_TYPEREF
+    }
+    pub fn bytes(&mut self, finite: Boundedness) -> TypeRef {
+        if FINITE_TYPEREF == finite {
+            STRFIN_TYPEREF
+        } else {
+            self.push(Type::Bytes(finite))
+        }
+    }
+    pub fn list(&mut self, finite: Boundedness, item: TypeRef) -> TypeRef {
+        self.push(Type::List(finite, item))
+    }
+    pub fn func(&mut self, par: TypeRef, ret: TypeRef) -> TypeRef {
+        self.push(Type::Func(par, ret))
+    }
+    pub fn named(&mut self, name: &str) -> TypeRef {
+        self.push(Type::Named(name.to_string()))
+    }
+    pub fn finite(&self) -> Boundedness {
+        FINITE_TYPEREF
+    }
+    pub fn infinite(&mut self) -> Boundedness {
+        self.push(Type::Finite(false))
+    }
+
+    fn get(&self, at: TypeRef) -> &Type {
         self.0[at].as_ref().unwrap()
     }
 
-    pub fn get_mut(&mut self, at: TypeRef) -> &mut Type {
+    fn get_mut(&mut self, at: TypeRef) -> &mut Type {
         self.0[at].as_mut().unwrap()
     }
 
