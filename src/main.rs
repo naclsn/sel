@@ -21,11 +21,11 @@ fn main() {
             }
             "-l" => {
                 arg_lookup = true;
-                drop(args.next());
+                args.next();
             }
             "-t" => {
                 arg_typeof = true;
-                drop(args.next());
+                args.next();
             }
             dash if dash.starts_with('-') => {
                 eprintln!("Unexpected '{dash}', see usage with -h");
@@ -71,7 +71,5 @@ fn main() {
         return;
     }
 
-    let val = interp::interp(&tree);
-    drop(tree);
-    interp::run_print(val);
+    interp::run_print(interp::interp(&tree));
 }

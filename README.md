@@ -31,11 +31,11 @@ value ::= <atom> | <subscr> | <list>
 
 atom ::= <word> | <bytes> | <number>
 subscr ::= '[' <script> ']'
-list ::= '{' <apply> {',' <apply>} '}'
+list ::= '{' [<apply> {',' <apply>} [',']] '}'
 
 word ::= /[a-z]+/
-bytes ::= ':' /([^:]|::)*/ ':'
-number ::= ...
+bytes ::= /:([^:]|::)*:/
+number ::= /0b[01]+/ | /0o[0-7]+/ | /0x[0-9A-Fa-f]+/ | /[0-9]+(\.[0-9]+)/
 
 comment ::= '#' /.*/ '\n'
 ```

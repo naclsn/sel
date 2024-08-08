@@ -14,7 +14,7 @@ pub enum Token {
     Unknown(String),
     Word(String),
     Bytes(Vec<u8>),
-    Number(i32),
+    Number(f64),
     Comma,
     OpenBracket,
     CloseBracket,
@@ -25,7 +25,7 @@ pub enum Token {
 #[derive(PartialEq, Debug)]
 pub enum Tree {
     Bytes(Vec<u8>),
-    Number(i32),
+    Number(f64),
     List(TypeRef, Vec<Tree>),
     Apply(TypeRef, String, Vec<Tree>),
 }
@@ -83,7 +83,7 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
             b':' => Token::Bytes({
                 iter::from_fn(|| match (self.stream.next(), self.stream.peek()) {
                     (Some(b':'), Some(b':')) => {
-                        let _ = self.stream.next();
+                        self.stream.next();
                         Some(b':')
                     }
                     (Some(b':'), _) => None,
@@ -115,7 +115,7 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
             ),
 
             c if c.is_ascii_digit() => Token::Number({
-                let mut r = 0i32;
+                let mut r = 0usize;
                 let (shift, digits) = match (c, self.stream.peek()) {
                     (b'0', Some(b'B' | b'b')) => {
                         self.stream.next();
@@ -130,23 +130,38 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
                         (4, b"0123456789abcdef".as_slice())
                     }
                     _ => {
-                        r = c as i32 - 48;
+                        r = c as usize - 48;
                         (0, b"0123456789".as_slice())
                     }
                 };
                 while let Some(k) = self
                     .stream
                     .peek()
-                    .and_then(|&c| digits.iter().position(|&k| k == c | 32).map(|k| k as i32))
+                    .and_then(|&c| digits.iter().position(|&k| k == c | 32))
                 {
                     self.stream.next();
                     r = if 0 == shift {
                         r * 10 + k
                     } else {
                         r << shift | k
-                    }
+                    };
                 }
-                r
+                if 0 == shift && self.stream.peek().is_some_and(|&c| b'.' == c) {
+                    self.stream.next();
+                    let mut d = match self.stream.next() {
+                        Some(c) if c.is_ascii_digit() => (c - b'0') as usize,
+                        _ => return Some(Token::Unknown(r.to_string() + ".")),
+                    };
+                    let mut w = 10usize;
+                    while let Some(c) = self.stream.peek().copied().filter(u8::is_ascii_digit) {
+                        self.stream.next();
+                        d = d * 10 + (c - b'0') as usize;
+                        w *= 10;
+                    }
+                    r as f64 + (d as f64 / w as f64)
+                } else {
+                    r as f64
+                }
             }),
 
             c => Token::Unknown(
@@ -203,10 +218,11 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 let mut items = Vec::new();
                 let ty = self.types.named("a");
                 if let Some(Token::CloseBrace) = self.peekable.peek() {
-                    drop(self.peekable.next());
+                    self.peekable.next();
                 } else {
                     loop {
-                        let item = self.parse_value()?;
+                        let item = self.parse_apply()?;
+                        // FIXME: not accurate, see `{repeat 1, {}} :: [[Num]]`
                         Type::concretize(ty, item.get_type(), &mut self.types)?;
                         items.push(item);
                         match self.peekable.next() {
@@ -262,7 +278,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
     fn parse_script(&mut self) -> Result<Tree, Error> {
         let mut r = self.parse_apply()?;
         if let Some(Token::Comma) = self.peekable.peek() {
-            drop(self.peekable.next());
+            self.peekable.next();
             let mut then = self.parse_apply()?;
             // [x, f, g, h] :: d; where
             // - x :: A
@@ -272,7 +288,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     r = then.try_apply(r, &mut self.types)?;
                     self.peekable.peek()
                 } {
-                    drop(self.peekable.next());
+                    self.peekable.next();
                     then = self.parse_apply()?;
                 }
             }
@@ -299,7 +315,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     .try_apply(then, &mut self.types)?;
                     self.peekable.peek()
                 } {
-                    drop(self.peekable.next());
+                    self.peekable.next();
                     then = self.parse_apply()?;
                 }
             }
@@ -688,7 +704,7 @@ mod tests {
             &[
                 OpenBracket,
                 Word("a".into()),
-                Number(1),
+                Number(1.0),
                 Word("b".into()),
                 Comma,
                 OpenBrace,
@@ -700,9 +716,11 @@ mod tests {
                 Comma,
                 Word("z".into()),
                 CloseBrace,
+                Comma,
+                Number(0.5),
                 CloseBracket,
             ][..],
-            Lexer::new("[a 1 b, {w, x, y, z}]".bytes()).collect::<Vec<_>>()
+            Lexer::new("[a 1 b, {w, x, y, z}, 0.5]".bytes()).collect::<Vec<_>>()
         );
 
         assert_eq!(
@@ -718,11 +736,11 @@ mod tests {
 
         assert_eq!(
             &[
-                Number(42),
+                Number(42.0),
                 Bytes(vec![42]),
-                Number(42),
-                Number(42),
-                Number(42),
+                Number(42.0),
+                Number(42.0),
+                Number(42.0),
             ][..],
             Lexer::new("42 :*: 0x2a 0b101010 0o52".bytes()).collect::<Vec<_>>()
         );
@@ -758,7 +776,7 @@ mod tests {
                                         COMPOSE_OP_FUNC_NAME.into(),
                                         vec![
                                             Apply(0, "tonum".into(), vec![]),
-                                            Apply(0, "add".into(), vec![Number(1)])
+                                            Apply(0, "add".into(), vec![Number(1.0)])
                                         ]
                                     ),
                                     Apply(0, "tostr".into(), vec![])
@@ -795,7 +813,7 @@ mod tests {
                                 COMPOSE_OP_FUNC_NAME.into(),
                                 vec![
                                     Apply(0, "tonum".into(), vec![]),
-                                    Apply(0, "add".into(), vec![Number(234121)])
+                                    Apply(0, "add".into(), vec![Number(234121.0)])
                                 ]
                             ),
                             Apply(0, "tostr".into(), vec![])
@@ -823,7 +841,7 @@ mod tests {
                     0,
                     "add".into(),
                     vec![
-                        Number(234121),
+                        Number(234121.0),
                         Apply(0, "tonum".into(), vec![Bytes(vec![49, 51, 50, 52, 50])])
                     ]
                 )]

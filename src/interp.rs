@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 use crate::parse::{Tree, COMPOSE_OP_FUNC_NAME};
 
-pub type Number = Box<dyn FnOnce() -> i32>;
+pub type Number = Box<dyn FnOnce() -> f64>;
 pub type Bytes = Box<dyn Iterator<Item = u8>>;
 pub type List = Box<dyn Iterator<Item = Value>>;
 pub type Func = Box<dyn FnOnce(Value) -> Value>;
@@ -181,10 +181,10 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
             let s = args.next().unwrap().bytes().0;
             Value::Number(
                 Box::new(move || {
-                    let mut r = 0;
+                    let mut r = 0.0;
                     for n in s {
                         if n.is_ascii_digit() {
-                            r = 10 * r + (n - b'0') as i32;
+                            r = 10.0 * r + (n - b'0') as f64;
                         } else {
                             break;
                         }
@@ -216,7 +216,7 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
                         if b.is_some() {
                             return b;
                         }
-                        drop(list_iter.next());
+                        list_iter.next();
                         if list_iter.peek().is_some() {
                             if let Some(a) = uncollected_sep.take() {
                                 sep = a.collect();
@@ -232,7 +232,7 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
 
         "len" => {
             let list = args.next().unwrap().list().0;
-            Value::Number(Box::new(move || list.count() as i32), Rc::new(|| todo!()))
+            Value::Number(Box::new(move || list.count() as f64), Rc::new(|| todo!()))
         }
 
         _ => unreachable!(),
