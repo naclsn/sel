@@ -7,6 +7,7 @@ use std::rc::Rc;
 
 use crate::parse::{Tree, COMPOSE_OP_FUNC_NAME};
 
+// runtime concrete value {{{
 pub type Number = Box<dyn FnOnce() -> f64>;
 pub type Bytes = Box<dyn Iterator<Item = u8>>;
 pub type List = Box<dyn Iterator<Item = Value>>;
@@ -74,7 +75,9 @@ impl Value {
         }
     }
 }
+// }}}
 
+// Bival<A, B> (essentially a lazy value then its result cached) {{{
 enum Bival<A, B> {
     Init(A),
     Fini(B),
@@ -102,7 +105,9 @@ impl<A, B> Bival<A, B> {
         }
     }
 }
+// }}}
 
+// lookup and make {{{
 fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
     match name {
         COMPOSE_OP_FUNC_NAME => {
@@ -252,6 +257,7 @@ pub fn interp(tree: &Tree) -> Value {
         Tree::Apply(_, name, args) => lookup_val(name, args.iter().map(interp)),
     }
 }
+// }}}
 
 pub fn run_print(val: Value) {
     match val {

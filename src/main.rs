@@ -1,10 +1,12 @@
 use std::env;
 
 mod builtin;
+mod error;
 mod interp;
 mod parse;
+mod types;
 
-use parse::{Error, Tree};
+use crate::parse::Tree;
 
 fn main() {
     let mut args = env::args().peekable();
@@ -47,21 +49,8 @@ fn main() {
         a.into_bytes()
     })) {
         Ok(app) => app,
-        Err(e) => {
-            match e {
-                Error::Unexpected(t) => eprintln!("Unexpected token {t:?}"),
-                Error::UnexpectedEnd => eprintln!("Unexpected end of script"),
-                Error::UnknownName(n) => eprintln!("Unknown name '{n}'"),
-                Error::NotFunc(o, types) => {
-                    eprintln!("Expected a function type, but got {}", types.repr(o))
-                }
-                Error::ExpectedButGot(w, g, types) => {
-                    eprintln!("Expected type {}, but got {}", types.repr(w), types.repr(g))
-                }
-                Error::InfWhereFinExpected => {
-                    eprintln!("Expected finite type, but got infinite type")
-                }
-            }
+        Err(err) => {
+            err.crud_report();
             return;
         }
     };

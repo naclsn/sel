@@ -2,14 +2,13 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::iter;
 
 use crate::builtin::lookup_type;
+use crate::error::{Error, ErrorContext, ErrorList};
+use crate::types::{self, Type, TypeList, TypeRef};
 
-// principal public types (and consts) {{{
 pub const COMPOSE_OP_FUNC_NAME: &str = "(,)";
-const NUMBER_TYPEREF: usize = 0;
-const STRFIN_TYPEREF: usize = 1;
-const FINITE_TYPEREF: usize = 2;
+const UNKNOWN_NAME: &str = "{unknown}";
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Token {
     Unknown(String),
     Word(String),
@@ -29,38 +28,6 @@ pub enum Tree {
     List(TypeRef, Vec<Tree>),
     Apply(TypeRef, String, Vec<Tree>),
 }
-
-#[derive(PartialEq, Debug)]
-pub enum Error {
-    Unexpected(Token),
-    UnexpectedEnd,
-    UnknownName(String),
-    NotFunc(TypeRef, TypeList),
-    ExpectedButGot(TypeRef, TypeRef, TypeList),
-    InfWhereFinExpected,
-}
-
-pub type TypeRef = usize;
-pub type Boundedness = usize;
-#[derive(PartialEq, Debug, Clone)]
-enum Type {
-    Number,
-    Bytes(Boundedness),
-    List(Boundedness, TypeRef),
-    Func(TypeRef, TypeRef),
-    Named(String),
-    Finite(bool),
-}
-
-#[derive(PartialEq, Debug, Clone)]
-pub enum FrozenType {
-    Number,
-    Bytes(bool),
-    List(bool, Box<FrozenType>),
-    Func(Box<FrozenType>, Box<FrozenType>),
-    Named(String),
-}
-// }}}
 
 // lexing into tokens {{{
 struct Lexer<I: Iterator<Item = u8>> {
@@ -185,6 +152,7 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
 struct Parser<I: Iterator<Item = u8>> {
     peekable: iter::Peekable<Lexer<I>>,
     types: TypeList,
+    errors: Vec<Error>,
 }
 
 impl<I: Iterator<Item = u8>> Parser<I> {
@@ -192,60 +160,130 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         Parser {
             peekable: Lexer::new(iter.into_iter()).peekable(),
             types: TypeList::default(),
+            errors: Vec::new(),
         }
     }
 
-    fn parse_value(&mut self) -> Result<Tree, Error> {
-        match self.peekable.next() {
-            Some(Token::Word(w)) => Ok(Tree::Apply(
-                lookup_type(&w, &mut self.types).ok_or_else(|| Error::UnknownName(w.clone()))?,
-                w,
-                Vec::new(),
-            )),
-            Some(Token::Bytes(b)) => Ok(Tree::Bytes(b)),
-            Some(Token::Number(n)) => Ok(Tree::Number(n)),
+    fn report(&mut self, err: Error) {
+        self.errors.push(err);
+    }
+    fn report_caused(&mut self, err: Error, because: ErrorContext) {
+        self.errors.push(Error::ContextCaused {
+            error: Box::new(err),
+            because,
+        })
+    }
 
-            Some(Token::OpenBracket) => {
-                self.parse_script()
-                    .and_then(|rr| match self.peekable.next() {
-                        Some(Token::CloseBracket) => Ok(rr),
-                        Some(token) => Err(Error::Unexpected(token)),
-                        None => Err(Error::UnexpectedEnd),
-                    })
+    fn parse_value(&mut self) -> Tree {
+        let mkerr = |types: &mut TypeList| {
+            Tree::Apply(
+                types.named(types::ERROR_TYPE),
+                UNKNOWN_NAME.to_string(),
+                Vec::new(),
+            )
+        };
+
+        if let Some(token @ Token::CloseBracket) | Some(token @ Token::CloseBrace) =
+            self.peekable.peek()
+        {
+            let token = token.clone();
+            self.report(Error::Unexpected {
+                token,
+                expected: "a value",
+            });
+            return mkerr(&mut self.types);
+        }
+
+        match self.peekable.next() {
+            Some(Token::Word(w)) => match lookup_type(&w, &mut self.types) {
+                Some(ty) => Tree::Apply(ty, w, Vec::new()),
+                None => {
+                    self.report(Error::UnknownName(w));
+                    mkerr(&mut self.types)
+                }
+            },
+
+            Some(Token::Bytes(b)) => Tree::Bytes(b),
+            Some(Token::Number(n)) => Tree::Number(n),
+
+            Some(open_token @ Token::OpenBracket) => {
+                let rr = self.parse_script();
+                match self.peekable.peek() {
+                    Some(Token::CloseBracket) => _ = self.peekable.next(),
+                    Some(token) => {
+                        let token = token.clone();
+                        if let Token::Comma = token {
+                            self.peekable.next();
+                        }
+                        self.report_caused(
+                            Error::Unexpected {
+                                token,
+                                expected: "next argument or closing ']'",
+                            },
+                            ErrorContext::Unmatched(open_token),
+                        )
+                    }
+                    None => self
+                        .report_caused(Error::UnexpectedEnd, ErrorContext::Unmatched(open_token)),
+                }
+                rr
             }
 
-            Some(Token::OpenBrace) => {
+            Some(open_token @ Token::OpenBrace) => {
                 let mut items = Vec::new();
                 let ty = self.types.named("a");
                 if let Some(Token::CloseBrace) = self.peekable.peek() {
                     self.peekable.next();
                 } else {
                     loop {
-                        let item = self.parse_apply()?;
-                        Type::harmonize(ty, item.get_type(), &mut self.types)?;
+                        let item = self.parse_apply();
+                        Type::harmonize(ty, item.get_type(), &mut self.types).unwrap_or_else(|e| {
+                            self.report_caused(e, ErrorContext::TypeListInferred(0 /* TODO */))
+                        });
                         items.push(item);
                         match self.peekable.next() {
+                            Some(Token::CloseBrace) => (),
                             Some(Token::Comma) => {
                                 if let Some(Token::CloseBrace) = self.peekable.peek() {
-                                    break;
+                                    self.peekable.next();
+                                } else {
+                                    continue;
                                 }
                             }
-                            Some(Token::CloseBrace) => break,
-                            Some(token) => return Err(Error::Unexpected(token)),
-                            None => return Err(Error::UnexpectedEnd),
+                            Some(token) => self.report_caused(
+                                Error::Unexpected {
+                                    token,
+                                    expected: "next item or closing '}'",
+                                },
+                                ErrorContext::Unmatched(open_token),
+                            ),
+                            None => self.report_caused(
+                                Error::UnexpectedEnd,
+                                ErrorContext::Unmatched(open_token),
+                            ),
                         }
+                        break;
                     }
                 }
-                Ok(Tree::List(self.types.list(self.types.finite(), ty), items))
+                Tree::List(self.types.list(self.types.finite(), ty), items)
             }
 
-            Some(token) => Err(Error::Unexpected(token)),
-            None => Err(Error::UnexpectedEnd),
+            Some(token) => {
+                self.report(Error::Unexpected {
+                    token,
+                    expected: "a value",
+                });
+                mkerr(&mut self.types)
+            }
+            None => {
+                self.report(Error::UnexpectedEnd);
+                mkerr(&mut self.types)
+            }
         }
     }
 
-    fn parse_apply(&mut self) -> Result<Tree, Error> {
-        let mut r = self.parse_value()?;
+    fn parse_apply(&mut self) -> Tree {
+        let mut r = self.parse_value();
         while !matches!(
             self.peekable.peek(),
             Some(Token::Comma | Token::CloseBracket | Token::CloseBrace) | None
@@ -257,45 +295,53 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             // => tostr(add(1, tonum(:[52, 50]:)))
             fn apply_maybe_unfold(
                 p: &mut Parser<impl Iterator<Item = u8>>,
-                func: Tree,
-            ) -> Result<Tree, Error> {
+                mut func: Tree,
+            ) -> Tree {
                 match func {
                     Tree::Apply(_, ref name, args) if COMPOSE_OP_FUNC_NAME == name => {
                         let mut args = args.into_iter();
-                        let (f, g) = (args.next().unwrap(), args.next().unwrap());
+                        let (f, mut g) = (args.next().unwrap(), args.next().unwrap());
                         // (,)(f, g) => g(f(..))
-                        g.try_apply(apply_maybe_unfold(p, f)?, &mut p.types)
+                        g.try_apply(apply_maybe_unfold(p, f), &mut p.types)
+                            .unwrap_or_else(|e| p.report(e)); // XXX: "because arg to.."
+                        g
                     }
-                    _ => func.try_apply(p.parse_value()?, &mut p.types),
+                    _ => {
+                        func.try_apply(p.parse_value(), &mut p.types)
+                            .unwrap_or_else(|e| p.report(e)); // XXX: "because arg to.."
+                        func
+                    }
                 }
             }
-            r = apply_maybe_unfold(self, r)?;
+            r = apply_maybe_unfold(self, r);
         }
-        Ok(r)
+        r
     }
 
-    fn parse_script(&mut self) -> Result<Tree, Error> {
-        let mut r = self.parse_apply()?;
+    fn parse_script(&mut self) -> Tree {
+        let mut r = self.parse_apply();
         if let Some(Token::Comma) = self.peekable.peek() {
             self.peekable.next();
-            let mut then = self.parse_apply()?;
+            let mut then = self.parse_apply();
             // [x, f, g, h] :: d; where
             // - x :: A
             // - f, g, h :: a -> b, b -> c, c -> d
-            if then.can_apply(&r, &self.types) {
+            if Type::applicable(then.get_type(), r.get_type(), &self.types) {
                 while let Some(Token::Comma) = {
-                    r = then.try_apply(r, &mut self.types)?;
+                    then.try_apply(r, &mut self.types)
+                        .unwrap_or_else(|e| self.report(e)); // XXX: "because arg to.."
+                    r = then;
                     self.peekable.peek()
                 } {
                     self.peekable.next();
-                    then = self.parse_apply()?;
+                    then = self.parse_apply();
                 }
             }
             // [f, g, h] :: a -> d; where
             // - f, g, h :: a -> b, b -> c, c -> d
             else {
                 while let Some(Token::Comma) = {
-                    r = Tree::Apply(
+                    let mut compose = Tree::Apply(
                         {
                             // (,) :: (a -> b) -> (b -> c) -> a -> c
                             let a = self.types.named("a");
@@ -309,309 +355,41 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                         },
                         COMPOSE_OP_FUNC_NAME.into(),
                         Vec::new(),
-                    )
-                    .try_apply(r, &mut self.types)?
-                    .try_apply(then, &mut self.types)?;
+                    );
+                    compose
+                        .try_apply(r, &mut self.types)
+                        .unwrap_or_else(|e| self.report(e)); // XXX: "because arg to.."
+                    compose
+                        .try_apply(then, &mut self.types)
+                        .unwrap_or_else(|e| self.report(e)); // XXX: "because arg to.."
+                    r = compose;
                     self.peekable.peek()
                 } {
                     self.peekable.next();
-                    then = self.parse_apply()?;
+                    then = self.parse_apply();
                 }
             }
         }
-        Ok(r)
+        r
     }
 }
 // }}}
 
-// types vec with holes {{{
-#[derive(PartialEq, Debug, Clone)]
-pub struct TypeList(Vec<Option<Type>>);
-pub struct TypeRepr<'a>(TypeRef, &'a TypeList);
-
-impl Default for TypeList {
-    fn default() -> Self {
-        TypeList(vec![
-            Some(Type::Number),       // [NUMBER_TYPEREF]
-            Some(Type::Bytes(2)),     // [STRFIN_TYPEREF]
-            Some(Type::Finite(true)), // [FINITE_TYPEREF]
-        ])
-    }
-}
-
-impl TypeList {
-    fn push(&mut self, it: Type) -> TypeRef {
-        if let Some((k, o)) = self.0.iter_mut().enumerate().find(|(_, o)| o.is_none()) {
-            *o = Some(it);
-            k
-        } else {
-            self.0.push(Some(it));
-            self.0.len() - 1
-        }
-    }
-
-    pub fn number(&self) -> TypeRef {
-        NUMBER_TYPEREF
-    }
-    pub fn bytes(&mut self, finite: Boundedness) -> TypeRef {
-        if FINITE_TYPEREF == finite {
-            STRFIN_TYPEREF
-        } else {
-            self.push(Type::Bytes(finite))
-        }
-    }
-    pub fn list(&mut self, finite: Boundedness, item: TypeRef) -> TypeRef {
-        self.push(Type::List(finite, item))
-    }
-    pub fn func(&mut self, par: TypeRef, ret: TypeRef) -> TypeRef {
-        self.push(Type::Func(par, ret))
-    }
-    pub fn named(&mut self, name: &str) -> TypeRef {
-        self.push(Type::Named(name.to_string()))
-    }
-    pub fn finite(&self) -> Boundedness {
-        FINITE_TYPEREF
-    }
-    pub fn infinite(&mut self) -> Boundedness {
-        self.push(Type::Finite(false))
-    }
-
-    fn get(&self, at: TypeRef) -> &Type {
-        self.0[at].as_ref().unwrap()
-    }
-
-    fn get_mut(&mut self, at: TypeRef) -> &mut Type {
-        self.0[at].as_mut().unwrap()
-    }
-
-    pub fn repr(&self, at: TypeRef) -> TypeRepr {
-        TypeRepr(at, self)
-    }
-
-    #[allow(dead_code)]
-    pub fn frozen(&self, at: TypeRef) -> FrozenType {
-        match self.get(at) {
-            Type::Number => FrozenType::Number,
-            Type::Bytes(b) => FrozenType::Bytes(match self.get(*b) {
-                Type::Finite(b) => *b,
-                _ => unreachable!(),
-            }),
-            Type::List(b, items) => FrozenType::List(
-                match self.get(*b) {
-                    Type::Finite(b) => *b,
-                    _ => unreachable!(),
-                },
-                Box::new(self.frozen(*items)),
-            ),
-            Type::Func(par, ret) => {
-                FrozenType::Func(Box::new(self.frozen(*par)), Box::new(self.frozen(*ret)))
-            }
-            Type::Named(name) => FrozenType::Named(name.clone()),
-            Type::Finite(_) => unreachable!(),
-        }
-    }
-
-    //pub fn pop(&mut self, at: TypeRef) -> Type {
-    //    let r = self.0[at].take().unwrap();
-    //    while let Some(None) = self.0.last() {
-    //        self.0.pop();
-    //    }
-    //    r
-    //}
-}
-// }}}
-
-// type apply and concretize {{{
-impl Type {
-    /// `func give` so returns type of `func` (if checks out)
-    fn applied(func: TypeRef, give: TypeRef, types: &mut TypeList) -> Result<TypeRef, Error> {
-        if let &Type::Func(want, ret) = types.get(func) {
-            // want(a, b..) <- give(A, b..)
-            Type::concretize(want, give, types).map(|()| ret)
-        } else {
-            Err(Error::NotFunc(func, types.clone()))
-        }
-    }
-
-    /// Concretizes boundedness and unknown named types:
-    /// * fin <- fin is fin
-    /// * inf <- inf is inf
-    /// * inf <- fin is fin
-    /// * unk <- Knw is Knw
-    ///
-    /// Both types may be modified (due to contravariance of func in parameter type).
-    /// This uses the fact that inf types and unk named types are
-    /// only depended on by the functions that introduced them.
-    fn concretize(want: TypeRef, give: TypeRef, types: &mut TypeList) -> Result<(), Error> {
-        use Type::*;
-        match (types.get(want), types.get(give)) {
-            (Number, Number) => Ok(()),
-
-            (Bytes(fw), Bytes(fg)) => match (types.get(*fw), types.get(*fg)) {
-                (Finite(fw_bool), Finite(fg_bool)) if fw_bool == fg_bool => Ok(()),
-                (Finite(false), Finite(true)) => {
-                    *types.get_mut(*fw) = Finite(true);
-                    Ok(())
-                }
-                (Finite(true), Finite(false)) => Err(Error::InfWhereFinExpected),
-                _ => unreachable!(),
-            },
-
-            (List(fw, l_ty), List(fg, r_ty)) => {
-                let (l_ty, r_ty) = (*l_ty, *r_ty);
-                match (types.get(*fw), types.get(*fg)) {
-                    (Finite(fw_bool), Finite(fg_bool)) if fw_bool == fg_bool => (),
-                    (Finite(false), Finite(true)) => {
-                        *types.get_mut(*fw) = Finite(true)
-                    }
-                    (Finite(true), Finite(false)) => {
-                        return Err(Error::InfWhereFinExpected);
-                    }
-                    _ => unreachable!(),
-                }
-                Type::concretize(l_ty, r_ty, types)
-            }
-
-            (&Func(l_par, l_ret), &Func(r_par, r_ret)) => {
-                // (a -> b) <- (Str -> Num)
-                // parameter compare contravariantly:
-                // (Str -> c) <- (Str* -> Str*)
-                // (a -> b) <- (c -> c)
-                Type::concretize(r_par, l_par, types)?;
-                Type::concretize(l_ret, r_ret, types)
-            }
-
-            (other, Named(_)) => {
-                *types.get_mut(give) = other.clone();
-                Ok(())
-            }
-            (Named(_), other) => {
-                *types.get_mut(want) = other.clone();
-                Ok(())
-            }
-
-            _ => Err(Error::ExpectedButGot(want, give, types.clone())),
-        }
-    }
-
-    /// Not sure what is this operation;
-    /// it's not union because it is asymmetric..
-    /// it's used when finding the item type of a list.
-    ///
-    /// ```plaintext
-    /// a | [Num]* | [Num] ->> [Num]*
-    /// a | Str | Num ->> never
-    /// a | Str* | Str ->> Str*
-    /// a | Str | Str* ->> never // XXX: disputable, same with []|[]*
-    /// a | [Str*] | [Str] ->> [Str*]
-    /// a | (Str -> c) | (Str* -> Str*) ->> (Str -> Str*)
-    /// a | ([Str*] -> x) | ([Str] -> x) ->> ([Str] -> x)
-    /// ```
-    fn harmonize(curr: TypeRef, item: TypeRef, types: &mut TypeList) -> Result<(), Error> {
-        use Type::*;
-        match (types.get(curr), types.get(item)) {
-            (Number, Number) => Ok(()),
-
-            (Bytes(fw), Bytes(fg)) => match (types.get(*fw), types.get(*fg)) {
-                (Finite(fw_bool), Finite(fg_bool)) if fw_bool == fg_bool => Ok(()),
-                (Finite(false), Finite(true)) => Ok(()),
-                (Finite(true), Finite(false)) => Err(Error::InfWhereFinExpected),
-                _ => unreachable!(),
-            },
-
-            (List(fw, l_ty), List(fg, r_ty)) => {
-                let (l_ty, r_ty) = (*l_ty, *r_ty);
-                match (types.get(*fw), types.get(*fg)) {
-                    (Finite(fw_bool), Finite(fg_bool)) if fw_bool == fg_bool => (),
-                    (Finite(false), Finite(true)) => (),
-                    (Finite(true), Finite(false)) => {
-                        return Err(Error::InfWhereFinExpected);
-                    }
-                    _ => unreachable!(),
-                }
-                Type::harmonize(l_ty, r_ty, types)
-            }
-
-            (&Func(l_par, l_ret), &Func(r_par, r_ret)) => {
-                // contravariance
-                Type::harmonize(r_par, l_par, types)?;
-                Type::harmonize(l_ret, r_ret, types)
-            }
-
-            (other, Named(_)) => {
-                *types.get_mut(item) = other.clone();
-                Ok(())
-            }
-            (Named(_), other) => {
-                *types.get_mut(curr) = other.clone();
-                Ok(())
-            }
-
-            _ => Err(Error::ExpectedButGot(curr, item, types.clone())),
-        }
-    }
-
-    fn applicable(func: TypeRef, give: TypeRef, types: &TypeList) -> bool {
-        if let &Type::Func(want, _) = types.get(func) {
-            Type::compatible(want, give, types)
-        } else {
-            false
-        }
-    }
-
-    fn compatible(want: TypeRef, give: TypeRef, types: &TypeList) -> bool {
-        use Type::*;
-        match (types.get(want), types.get(give)) {
-            (Number, Number) => true,
-
-            (Bytes(fw), Bytes(fg)) => match (types.get(*fw), types.get(*fg)) {
-                (Finite(true), Finite(false)) => false,
-                (Finite(_), Finite(_)) => true,
-                _ => unreachable!(),
-            },
-
-            (List(fw, l_ty), List(fg, r_ty)) => {
-                match (types.get(*fw), types.get(*fg)) {
-                    (Finite(true), Finite(false)) => false,
-                    (Finite(_), Finite(_)) => Type::compatible(*l_ty, *r_ty, types),
-                    _ => unreachable!(),
-                }
-            }
-
-            (Func(l_par, l_ret), Func(r_par, r_ret)) => {
-                // parameter compare contravariantly: (Str -> c) <- (Str* -> Str*)
-                Type::compatible(*r_par, *l_par, types) && Type::compatible(*l_ret, *r_ret, types)
-            }
-
-            (_, Named(_)) => true,
-            (Named(_), _) => true,
-
-            _ => false,
-        }
-    }
-}
-// }}}
-
-// uuhh.. tree- the entry point (Tree::new) {{{
+// uuhh.. tree itself (the entry point, Tree::new) {{{
 impl Tree {
-    fn try_apply(self, arg: Tree, types: &mut TypeList) -> Result<Tree, Error> {
-        let ty = Type::applied(self.get_type(), arg.get_type(), types)?;
-        let Tree::Apply(_, name, mut args) = self else {
-            unreachable!();
-        };
-        args.push(arg);
-        Ok(Tree::Apply(ty, name, args))
-    }
-
-    /// Essentially the same as `try_apply`, but doesn't concretize and doesn't fail.
-    fn can_apply(&self, arg: &Tree, types: &TypeList) -> bool {
-        Type::applicable(self.get_type(), arg.get_type(), types)
+    fn try_apply(&mut self, arg: Tree, types: &mut TypeList) -> Result<(), Error> {
+        let niw = Type::applied(self.get_type(), arg.get_type(), types)?;
+        if let Tree::Apply(ty, _, args) = self {
+            *ty = niw;
+            args.push(arg);
+        } // XXX: maybe else { unreachable!(); }
+        Ok(())
     }
 
     fn get_type(&self) -> TypeRef {
         match self {
-            Tree::Bytes(_) => STRFIN_TYPEREF,
-            Tree::Number(_) => NUMBER_TYPEREF,
+            Tree::Bytes(_) => types::STRFIN_TYPEREF,
+            Tree::Number(_) => types::NUMBER_TYPEREF,
 
             Tree::List(ty, _) => *ty,
 
@@ -620,48 +398,26 @@ impl Tree {
     }
 
     #[allow(dead_code)]
-    pub fn new(iter: impl IntoIterator<Item = u8>) -> Result<Tree, Error> {
-        Parser::new(iter.into_iter()).parse_script()
+    pub fn new(iter: impl IntoIterator<Item = u8>) -> Result<Tree, ErrorList> {
+        let mut p = Parser::new(iter.into_iter());
+        let r = p.parse_script();
+        if p.errors.is_empty() {
+            Ok(r)
+        } else {
+            Err(ErrorList(p.errors, p.types))
+        }
     }
 
     #[allow(dead_code)]
     pub fn new_typed(
         iter: impl IntoIterator<Item = u8>,
-    ) -> Result<(TypeRef, TypeList, Tree), Error> {
+    ) -> Result<(TypeRef, TypeList, Tree), ErrorList> {
         let mut p = Parser::new(iter.into_iter());
-        p.parse_script().map(|r| (r.get_type(), p.types, r))
-    }
-}
-// }}}
-
-// display impls {{{
-impl Display for TypeRepr<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let types = &self.1;
-        match types.get(self.0) {
-            Type::Number => write!(f, "Num"),
-
-            Type::Bytes(b) => write!(f, "Str{}", types.repr(*b)),
-
-            Type::List(b, has) => write!(f, "[{}]{}", types.repr(*has), types.repr(*b)),
-
-            Type::Func(par, ret) => {
-                let funcarg = matches!(types.get(*par), Type::Func(_, _));
-                if funcarg {
-                    write!(f, "(")?;
-                }
-                write!(f, "{}", types.repr(*par))?;
-                if funcarg {
-                    write!(f, ")")?;
-                }
-                write!(f, " -> ")?;
-                write!(f, "{}", types.repr(*ret))
-            }
-
-            Type::Named(name) => write!(f, "{name}"),
-
-            Type::Finite(true) => Ok(()),
-            Type::Finite(false) => write!(f, "*"),
+        let r = p.parse_script();
+        if p.errors.is_empty() {
+            Ok((r.get_type(), p.types, r))
+        } else {
+            Err(ErrorList(p.errors, p.types))
         }
     }
 }
@@ -701,23 +457,12 @@ impl Display for Tree {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::FrozenType;
 
-    fn expect<T>(r: Result<T, Error>) -> T {
-        r.unwrap_or_else(|e| match e {
-            Error::Unexpected(t) => panic!("error: Unexpected token {t:?}"),
-            Error::UnexpectedEnd => panic!("error: Unexpected end of script"),
-            Error::UnknownName(n) => panic!("error: Unknown name '{n}'"),
-            Error::NotFunc(o, types) => {
-                panic!("error: Expected a function type, but got {}", types.repr(o))
-            }
-            Error::ExpectedButGot(w, g, types) => panic!(
-                "error: Expected type {}, but got {}",
-                types.repr(w),
-                types.repr(g)
-            ),
-            Error::InfWhereFinExpected => {
-                panic!("error: Expected finite type, but got infinite type")
-            }
+    fn expect<T>(r: Result<T, ErrorList>) -> T {
+        r.unwrap_or_else(|e| {
+            e.crud_report();
+            panic!("errors above")
         })
     }
 

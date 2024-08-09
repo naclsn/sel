@@ -1,4 +1,4 @@
-use crate::parse::{TypeList, TypeRef};
+use crate::types::{TypeList, TypeRef};
 
 pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
     Some(match name {
