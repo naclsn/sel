@@ -222,8 +222,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 } else {
                     loop {
                         let item = self.parse_apply()?;
-                        // FIXME: not accurate, see `{repeat 1, {}} :: [[Num]]`
-                        Type::concretize(ty, item.get_type(), &mut self.types)?;
+                        Type::harmonize(ty, item.get_type(), &mut self.types)?;
                         items.push(item);
                         match self.peekable.next() {
                             Some(Token::Comma) => {
@@ -444,35 +443,36 @@ impl Type {
     /// This uses the fact that inf types and unk named types are
     /// only depended on by the functions that introduced them.
     fn concretize(want: TypeRef, give: TypeRef, types: &mut TypeList) -> Result<(), Error> {
+        use Type::*;
         match (types.get(want), types.get(give)) {
-            (Type::Number, Type::Number) => Ok(()),
+            (Number, Number) => Ok(()),
 
-            (Type::Bytes(fw), Type::Bytes(fg)) => match (types.get(*fw), types.get(*fg)) {
-                (Type::Finite(fw_bool), Type::Finite(fg_bool)) if fw_bool == fg_bool => Ok(()),
-                (Type::Finite(false), Type::Finite(true)) => {
-                    *types.get_mut(*fw) = Type::Finite(true);
+            (Bytes(fw), Bytes(fg)) => match (types.get(*fw), types.get(*fg)) {
+                (Finite(fw_bool), Finite(fg_bool)) if fw_bool == fg_bool => Ok(()),
+                (Finite(false), Finite(true)) => {
+                    *types.get_mut(*fw) = Finite(true);
                     Ok(())
                 }
-                (Type::Finite(true), Type::Finite(false)) => Err(Error::InfWhereFinExpected),
+                (Finite(true), Finite(false)) => Err(Error::InfWhereFinExpected),
                 _ => unreachable!(),
             },
 
-            (Type::List(fw, l_ty), Type::List(fg, r_ty)) => {
+            (List(fw, l_ty), List(fg, r_ty)) => {
                 let (l_ty, r_ty) = (*l_ty, *r_ty);
                 match (types.get(*fw), types.get(*fg)) {
-                    (Type::Finite(fw_bool), Type::Finite(fg_bool)) if fw_bool == fg_bool => (),
-                    (Type::Finite(false), Type::Finite(true)) => {
-                        *types.get_mut(*fw) = Type::Finite(true)
+                    (Finite(fw_bool), Finite(fg_bool)) if fw_bool == fg_bool => (),
+                    (Finite(false), Finite(true)) => {
+                        *types.get_mut(*fw) = Finite(true)
                     }
-                    (Type::Finite(true), Type::Finite(false)) => {
-                        return Err(Error::InfWhereFinExpected)
+                    (Finite(true), Finite(false)) => {
+                        return Err(Error::InfWhereFinExpected);
                     }
                     _ => unreachable!(),
                 }
                 Type::concretize(l_ty, r_ty, types)
             }
 
-            (&Type::Func(l_par, l_ret), &Type::Func(r_par, r_ret)) => {
+            (&Func(l_par, l_ret), &Func(r_par, r_ret)) => {
                 // (a -> b) <- (Str -> Num)
                 // parameter compare contravariantly:
                 // (Str -> c) <- (Str* -> Str*)
@@ -481,16 +481,73 @@ impl Type {
                 Type::concretize(l_ret, r_ret, types)
             }
 
-            (other, Type::Named(_)) => {
+            (other, Named(_)) => {
                 *types.get_mut(give) = other.clone();
                 Ok(())
             }
-            (Type::Named(_), other) => {
+            (Named(_), other) => {
                 *types.get_mut(want) = other.clone();
                 Ok(())
             }
 
             _ => Err(Error::ExpectedButGot(want, give, types.clone())),
+        }
+    }
+
+    /// Not sure what is this operation;
+    /// it's not union because it is asymmetric..
+    /// it's used when finding the item type of a list.
+    ///
+    /// ```plaintext
+    /// a | [Num]* | [Num] ->> [Num]*
+    /// a | Str | Num ->> never
+    /// a | Str* | Str ->> Str*
+    /// a | Str | Str* ->> never // XXX: disputable, same with []|[]*
+    /// a | [Str*] | [Str] ->> [Str*]
+    /// a | (Str -> c) | (Str* -> Str*) ->> (Str -> Str*)
+    /// a | ([Str*] -> x) | ([Str] -> x) ->> ([Str] -> x)
+    /// ```
+    fn harmonize(curr: TypeRef, item: TypeRef, types: &mut TypeList) -> Result<(), Error> {
+        use Type::*;
+        match (types.get(curr), types.get(item)) {
+            (Number, Number) => Ok(()),
+
+            (Bytes(fw), Bytes(fg)) => match (types.get(*fw), types.get(*fg)) {
+                (Finite(fw_bool), Finite(fg_bool)) if fw_bool == fg_bool => Ok(()),
+                (Finite(false), Finite(true)) => Ok(()),
+                (Finite(true), Finite(false)) => Err(Error::InfWhereFinExpected),
+                _ => unreachable!(),
+            },
+
+            (List(fw, l_ty), List(fg, r_ty)) => {
+                let (l_ty, r_ty) = (*l_ty, *r_ty);
+                match (types.get(*fw), types.get(*fg)) {
+                    (Finite(fw_bool), Finite(fg_bool)) if fw_bool == fg_bool => (),
+                    (Finite(false), Finite(true)) => (),
+                    (Finite(true), Finite(false)) => {
+                        return Err(Error::InfWhereFinExpected);
+                    }
+                    _ => unreachable!(),
+                }
+                Type::harmonize(l_ty, r_ty, types)
+            }
+
+            (&Func(l_par, l_ret), &Func(r_par, r_ret)) => {
+                // contravariance
+                Type::harmonize(r_par, l_par, types)?;
+                Type::harmonize(l_ret, r_ret, types)
+            }
+
+            (other, Named(_)) => {
+                *types.get_mut(item) = other.clone();
+                Ok(())
+            }
+            (Named(_), other) => {
+                *types.get_mut(curr) = other.clone();
+                Ok(())
+            }
+
+            _ => Err(Error::ExpectedButGot(curr, item, types.clone())),
         }
     }
 
@@ -503,30 +560,31 @@ impl Type {
     }
 
     fn compatible(want: TypeRef, give: TypeRef, types: &TypeList) -> bool {
+        use Type::*;
         match (types.get(want), types.get(give)) {
-            (Type::Number, Type::Number) => true,
+            (Number, Number) => true,
 
-            (Type::Bytes(fw), Type::Bytes(fg)) => match (types.get(*fw), types.get(*fg)) {
-                (Type::Finite(true), Type::Finite(false)) => false,
-                (Type::Finite(_), Type::Finite(_)) => true,
+            (Bytes(fw), Bytes(fg)) => match (types.get(*fw), types.get(*fg)) {
+                (Finite(true), Finite(false)) => false,
+                (Finite(_), Finite(_)) => true,
                 _ => unreachable!(),
             },
 
-            (Type::List(fw, l_ty), Type::List(fg, r_ty)) => {
+            (List(fw, l_ty), List(fg, r_ty)) => {
                 match (types.get(*fw), types.get(*fg)) {
-                    (Type::Finite(true), Type::Finite(false)) => false,
-                    (Type::Finite(_), Type::Finite(_)) => Type::compatible(*l_ty, *r_ty, types),
+                    (Finite(true), Finite(false)) => false,
+                    (Finite(_), Finite(_)) => Type::compatible(*l_ty, *r_ty, types),
                     _ => unreachable!(),
                 }
             }
 
-            (Type::Func(l_par, l_ret), Type::Func(r_par, r_ret)) => {
+            (Func(l_par, l_ret), Func(r_par, r_ret)) => {
                 // parameter compare contravariantly: (Str -> c) <- (Str* -> Str*)
                 Type::compatible(*r_par, *l_par, types) && Type::compatible(*l_ret, *r_ret, types)
             }
 
-            (_, Type::Named(_)) => true,
-            (Type::Named(_), _) => true,
+            (_, Named(_)) => true,
+            (Named(_), _) => true,
 
             _ => false,
         }
