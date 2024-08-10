@@ -44,7 +44,7 @@ fn main() {
         todo!("-l: lookup and list names");
     }
 
-    let (ty, types, tree) = match Tree::new_typed(args.flat_map(|mut a| {
+    let (ty, tree) = match Tree::new_typed(args.flat_map(|mut a| {
         a.push(' ');
         a.into_bytes()
     })) {
@@ -56,7 +56,7 @@ fn main() {
     };
 
     if arg_typeof {
-        println!("{} ## {tree}", types.repr(ty));
+        println!("{ty} ## {tree}");
         return;
     }
 

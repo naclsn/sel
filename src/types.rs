@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
-use crate::error::Error;
+use crate::error::ErrorKind;
 
 pub(crate) const ERROR_TYPE: &str = "{error}";
 pub(crate) const NUMBER_TYPEREF: usize = 0;
@@ -133,11 +133,11 @@ impl Type {
         func: TypeRef,
         give: TypeRef,
         types: &mut TypeList,
-    ) -> Result<TypeRef, Error> {
+    ) -> Result<TypeRef, ErrorKind> {
         match types.get(func) {
             &Type::Func(want, ret) => Type::concretize(want, give, types).map(|()| ret),
             Type::Named(err) if ERROR_TYPE == err => Ok(func),
-            _ => Err(Error::NotFunc(func)),
+            _ => Err(ErrorKind::NotFunc(types.frozen(func))),
         }
     }
 
@@ -159,7 +159,7 @@ impl Type {
     /// Both types may be modified (due to contravariance of func in parameter type).
     /// This uses the fact that inf types and unk named types are
     /// only depended on by the functions that introduced them.
-    fn concretize(want: TypeRef, give: TypeRef, types: &mut TypeList) -> Result<(), Error> {
+    fn concretize(want: TypeRef, give: TypeRef, types: &mut TypeList) -> Result<(), ErrorKind> {
         use Type::*;
         match (types.get(want), types.get(give)) {
             (Named(err), _) if ERROR_TYPE == err => {
@@ -179,7 +179,7 @@ impl Type {
                 (Finite(true), Finite(false)) => {
                     // XXX: I think here it doesn't make sense
                     //*types.get_mut(want) = Type::Named(ERROR_TYPE.into());
-                    Err(Error::InfWhereFinExpected)
+                    Err(ErrorKind::InfWhereFinExpected)
                 }
                 _ => unreachable!(),
             },
@@ -192,7 +192,7 @@ impl Type {
                     (Finite(true), Finite(false)) => {
                         // XXX: I think here it doesn't make sense
                         //*types.get_mut(want) = Type::Named(ERROR_TYPE.into());
-                        return Err(Error::InfWhereFinExpected);
+                        return Err(ErrorKind::InfWhereFinExpected);
                     }
                     _ => unreachable!(),
                 }
@@ -220,7 +220,10 @@ impl Type {
             _ => {
                 let pwant = types.push(types.get(want).clone());
                 *types.get_mut(want) = Type::Named(ERROR_TYPE.into());
-                Err(Error::ExpectedButGot(pwant, give))
+                Err(ErrorKind::ExpectedButGot(
+                    types.frozen(pwant),
+                    types.frozen(give),
+                ))
             }
         }
     }
@@ -242,7 +245,7 @@ impl Type {
         curr: TypeRef,
         item: TypeRef,
         types: &mut TypeList,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ErrorKind> {
         use Type::*;
         match (types.get(curr), types.get(item)) {
             (Named(err), _) if ERROR_TYPE == err => Ok(()),
@@ -254,7 +257,7 @@ impl Type {
                 (Finite(false), Finite(true)) => Ok(()),
                 (Finite(true), Finite(false)) => {
                     *types.get_mut(curr) = Type::Named(ERROR_TYPE.into());
-                    Err(Error::InfWhereFinExpected)
+                    Err(ErrorKind::InfWhereFinExpected)
                 }
                 _ => unreachable!(),
             },
@@ -266,7 +269,7 @@ impl Type {
                     (Finite(false), Finite(true)) => (),
                     (Finite(true), Finite(false)) => {
                         *types.get_mut(curr) = Type::Named(ERROR_TYPE.into());
-                        return Err(Error::InfWhereFinExpected);
+                        return Err(ErrorKind::InfWhereFinExpected);
                     }
                     _ => unreachable!(),
                 }
@@ -291,7 +294,10 @@ impl Type {
             _ => {
                 let pcurr = types.push(types.get(curr).clone());
                 *types.get_mut(curr) = Type::Named(ERROR_TYPE.into());
-                Err(Error::ExpectedButGot(pcurr, item))
+                Err(ErrorKind::ExpectedButGot(
+                    types.frozen(pcurr),
+                    types.frozen(item),
+                ))
             }
         }
     }
@@ -327,6 +333,7 @@ impl Type {
 }
 // }}}
 
+// maybe unused in the end, idk
 impl Display for TypeRepr<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let types = &self.1;
@@ -354,6 +361,35 @@ impl Display for TypeRepr<'_> {
 
             Type::Finite(true) => Ok(()),
             Type::Finite(false) => write!(f, "*"),
+        }
+    }
+}
+
+impl Display for FrozenType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            FrozenType::Number => write!(f, "Num"),
+
+            FrozenType::Bytes(true) => write!(f, "Str"),
+            FrozenType::Bytes(false) => write!(f, "Str*"),
+
+            FrozenType::List(true, has) => write!(f, "[{has}]"),
+            FrozenType::List(false, has) => write!(f, "[{has}]*"),
+
+            FrozenType::Func(par, ret) => {
+                let funcarg = matches!(**par, FrozenType::Func(_, _));
+                if funcarg {
+                    write!(f, "(")?;
+                }
+                write!(f, "{par}")?;
+                if funcarg {
+                    write!(f, ")")?;
+                }
+                write!(f, " -> ")?;
+                write!(f, "{ret}")
+            }
+
+            FrozenType::Named(name) => write!(f, "{name}"),
         }
     }
 }

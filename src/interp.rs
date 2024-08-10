@@ -5,7 +5,7 @@ use std::mem;
 use std::ptr;
 use std::rc::Rc;
 
-use crate::parse::{Tree, COMPOSE_OP_FUNC_NAME};
+use crate::parse::{Tree, TreeKind, COMPOSE_OP_FUNC_NAME};
 
 // runtime concrete value {{{
 pub type Number = Box<dyn FnOnce() -> f64>;
@@ -245,16 +245,16 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
 }
 
 pub fn interp(tree: &Tree) -> Value {
-    match tree {
-        Tree::Bytes(v) => Value::Bytes(Box::new(v.clone().into_iter()), Rc::new(|| todo!())),
-        &Tree::Number(n) => Value::Number(Box::new(move || n), Rc::new(|| todo!())),
+    match &tree.1 {
+        TreeKind::Bytes(v) => Value::Bytes(Box::new(v.clone().into_iter()), Rc::new(|| todo!())),
+        &TreeKind::Number(n) => Value::Number(Box::new(move || n), Rc::new(|| todo!())),
 
-        Tree::List(_, items) => Value::List(
+        TreeKind::List(_, items) => Value::List(
             Box::new(items.iter().map(interp).collect::<Vec<_>>().into_iter()),
             Rc::new(|| todo!()),
         ),
 
-        Tree::Apply(_, name, args) => lookup_val(name, args.iter().map(interp)),
+        TreeKind::Apply(_, name, args) => lookup_val(name, args.iter().map(interp)),
     }
 }
 // }}}
