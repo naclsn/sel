@@ -3,9 +3,10 @@ use crate::types::FrozenType;
 
 #[derive(PartialEq, Debug)]
 pub enum ErrorContext {
-    Unmatched(TokenKind),          // WIP
-    TypeListInferred(FrozenType),  // WIP
-    AsNthArgTo(usize, FrozenType), // WIP
+    Unmatched(TokenKind),
+    TypeListInferredItemType(FrozenType),
+    AsNthArgToNamedNowTyped(usize, String, FrozenType),
+    ChainedFromAsNthArgToNamedNowTyped(Location, usize, String, FrozenType),
 }
 
 #[derive(PartialEq, Debug)]
@@ -14,14 +15,11 @@ pub enum ErrorKind {
         error: Box<Error>,
         because: ErrorContext,
     },
-
     Unexpected {
         token: TokenKind,
         expected: &'static str,
     },
-
     UnknownName(String),
-
     NotFunc(FrozenType),
     ExpectedButGot(FrozenType, FrozenType),
     InfWhereFinExpected,
@@ -31,8 +29,27 @@ pub enum ErrorKind {
 pub struct Error(pub Location, pub ErrorKind);
 
 #[derive(PartialEq, Debug)]
-pub struct ErrorList(Vec<Error>);
+pub struct ErrorList(pub(crate) Vec<Error>);
 
+impl ErrorList {
+    pub fn new() -> ErrorList {
+        ErrorList(Vec::new())
+    }
+
+    //pub fn len(&self) -> usize {
+    //    self.0.len()
+    //}
+
+    pub fn push(&mut self, err: Error) {
+        self.0.push(err);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+// crud report eprints {{{
 impl Error {
     fn crud_report(&self) {
         use ErrorContext::*;
@@ -43,19 +60,37 @@ impl Error {
                 error.crud_report();
                 match because {
                     Unmatched(token) => eprint!("`-> because of {token:?}"),
-                    TypeListInferred(i) => {
-                        eprint!("`-> because list type was inferred to be {i} at this point")
+                    TypeListInferredItemType(i) => {
+                        eprint!("`-> because list type was inferred to be [{i}] at this point")
                     }
-                    AsNthArgTo(n, par) => eprint!("`-> because of the {n} parameter at {par:?}"),
+                    AsNthArgToNamedNowTyped(nth, name, func) => {
+                        eprint!(
+                            "`-> because of the parameter in {func} (overall {nth}{} argument to {name})",
+                            match nth {
+                                1 => "st",
+                                2 => "nd",
+                                3 => "rd",
+                                _ => "th",
+                            }
+                        );
+                    }
+                    ChainedFromAsNthArgToNamedNowTyped(from, nth, name, func) => {
+                        eprint!(
+                            "`-> because of chaining at {from:?} as parameter in {func} (overall {nth}{} argument to {name})",
+                            match nth {
+                                1 => "st",
+                                2 => "nd",
+                                3 => "rd",
+                                _ => "th",
+                            }
+                        );
+                    }
                 }
             }
-
             Unexpected { token, expected } => {
                 eprint!("Unexpected {token:?}, expected {expected}")
             }
-
             UnknownName(n) => eprint!("Unknown name '{n}'"),
-
             NotFunc(o) => eprint!("Expected a function type, but got {o}"),
             ExpectedButGot(w, g) => eprint!("Expected type {w}, but got {g}"),
             InfWhereFinExpected => eprint!("Expected finite type, but got infinite type"),
@@ -75,22 +110,6 @@ impl IntoIterator for ErrorList {
 }
 
 impl ErrorList {
-    pub fn new() -> ErrorList {
-        ErrorList(Vec::new())
-    }
-
-    //pub fn len(&self) -> usize {
-    //    self.0.len()
-    //}
-
-    pub fn push(&mut self, err: Error) {
-        self.0.push(err);
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
     pub fn crud_report(&self) {
         let ErrorList(errors) = self;
         eprintln!(
@@ -104,3 +123,4 @@ impl ErrorList {
         eprintln!("===");
     }
 }
+// }}}

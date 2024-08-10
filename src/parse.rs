@@ -8,8 +8,8 @@ use crate::types::{self, FrozenType, Type, TypeList, TypeRef};
 pub const COMPOSE_OP_FUNC_NAME: &str = "(,)";
 const UNKNOWN_NAME: &str = "{unknown}";
 
-#[derive(PartialEq, Debug, Clone, Copy)]
-pub struct Location(usize);
+#[derive(PartialEq, Debug, Clone)]
+pub struct Location(pub(crate) usize);
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum TokenKind {
@@ -25,7 +25,7 @@ pub enum TokenKind {
     End,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug)]
 pub struct Token(pub Location, pub TokenKind);
 
 #[derive(PartialEq, Debug)]
@@ -40,12 +40,12 @@ pub enum TreeKind {
 pub struct Tree(pub Location, pub TreeKind);
 
 // lexing into tokens {{{
-struct Lexer<I: Iterator<Item = u8>> {
+pub(crate) struct Lexer<I: Iterator<Item = u8>> {
     stream: iter::Peekable<iter::Enumerate<I>>,
 }
 
 impl<I: Iterator<Item = u8>> Lexer<I> {
-    fn new(iter: I) -> Self {
+    pub(crate) fn new(iter: I) -> Self {
         Self {
             stream: iter.enumerate().peekable(),
         }
@@ -204,39 +204,24 @@ impl<I: Iterator<Item = u8>> Parser<I> {
     fn report(&mut self, err: Error) {
         self.errors.push(err);
     }
-    fn report_caused(&mut self, err: Error, loc_ctx: Location, because: ErrorContext) {
-        self.errors.push(Error(
-            loc_ctx,
-            ErrorKind::ContextCaused {
-                error: Box::new(err),
-                because,
-            },
-        ));
-    }
 
     fn parse_value(&mut self) -> Tree {
         use TokenKind::*;
-        let mkerr = |types: &mut TypeList| {
-            TreeKind::Apply(
-                types.named(types::ERROR_TYPE),
-                UNKNOWN_NAME.to_string(),
-                Vec::new(),
-            )
-        };
+        let mkerr = || TreeKind::Apply(types::ERROR_TYPEREF, UNKNOWN_NAME.to_string(), Vec::new());
 
         if let Some(Token(loc, kind @ CloseBracket)) | Some(Token(loc, kind @ CloseBrace)) =
             self.peekable.peek()
         {
-            let loc = *loc;
+            let loc = loc.clone();
             let kind = kind.clone();
             self.report(Error(
-                loc,
+                loc.clone(),
                 ErrorKind::Unexpected {
-                    token: kind.clone(),
+                    token: kind,
                     expected: "a value",
                 },
             ));
-            return Tree(loc, mkerr(&mut self.types));
+            return Tree(loc, mkerr());
         }
 
         let Some(Token(first_loc, first_kind)) = self.peekable.next() else {
@@ -249,17 +234,17 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     expected: "a value",
                 },
             ));
-            return Tree(Location(0), mkerr(&mut self.types));
+            return Tree(Location(0), mkerr());
         };
 
         Tree(
-            first_loc,
+            first_loc.clone(),
             match first_kind {
                 Word(w) => match lookup_type(&w, &mut self.types) {
                     Some(ty) => TreeKind::Apply(ty, w, Vec::new()),
                     None => {
                         self.report(Error(first_loc, ErrorKind::UnknownName(w)));
-                        mkerr(&mut self.types)
+                        mkerr()
                     }
                 },
 
@@ -272,7 +257,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                         Some(Token(_, CloseBracket)) => _ = self.peekable.next(),
                         Some(Token(here, kind)) => {
                             let err = Error(
-                                *here,
+                                here.clone(),
                                 ErrorKind::Unexpected {
                                     token: kind.clone(),
                                     expected: "next argument or closing ']'",
@@ -281,7 +266,13 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                             if let Comma = kind {
                                 self.peekable.next();
                             }
-                            self.report_caused(err, first_loc, ErrorContext::Unmatched(open_token))
+                            self.report(Error(
+                                first_loc,
+                                ErrorKind::ContextCaused {
+                                    error: Box::new(err),
+                                    because: ErrorContext::Unmatched(open_token),
+                                },
+                            ))
                         }
                         None => (),
                     }
@@ -296,14 +287,20 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     } else {
                         loop {
                             let item = self.parse_apply();
+                            // NOTE: easy way out, used to report type error,
+                            // needless cloning for 90% of the time tho
+                            let snapshot = self.types.clone();
                             Type::harmonize(ty, item.get_type(), &mut self.types).unwrap_or_else(
                                 |e| {
-                                    self.report_caused(
-                                        Error(item.get_loc(), e),
-                                        first_loc,
-                                        // FIXME: but this is too late, rigth?
-                                        ErrorContext::TypeListInferred(self.types.frozen(ty)),
-                                    )
+                                    self.report(Error(
+                                        first_loc.clone(),
+                                        ErrorKind::ContextCaused {
+                                            error: Box::new(Error(item.get_loc(), e)),
+                                            because: ErrorContext::TypeListInferredItemType(
+                                                snapshot.frozen(ty),
+                                            ),
+                                        },
+                                    ))
                                 },
                             );
                             items.push(item);
@@ -317,17 +314,19 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                                         continue;
                                     }
                                 }
-                                Some(Token(here, kind)) => self.report_caused(
-                                    Error(
-                                        here,
-                                        ErrorKind::Unexpected {
-                                            token: kind.clone(),
-                                            expected: "next item or closing '}'",
-                                        },
-                                    ),
+                                Some(Token(here, kind)) => self.report(Error(
                                     first_loc,
-                                    ErrorContext::Unmatched(open_token),
-                                ),
+                                    ErrorKind::ContextCaused {
+                                        error: Box::new(Error(
+                                            here,
+                                            ErrorKind::Unexpected {
+                                                token: kind.clone(),
+                                                expected: "next item or closing '}'",
+                                            },
+                                        )),
+                                        because: ErrorContext::Unmatched(open_token),
+                                    },
+                                )),
                                 None => (),
                             }
                             break;
@@ -344,7 +343,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                             expected: "a value",
                         },
                     ));
-                    mkerr(&mut self.types)
+                    mkerr()
                 }
             },
         )
@@ -392,13 +391,23 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         use TokenKind::*;
         let mut r = self.parse_apply();
         if let Some(Token(comma_loc, Comma)) = self.peekable.peek() {
-            let mut comma_loc = *comma_loc;
+            let mut comma_loc = comma_loc.clone();
             self.peekable.next();
             let mut then = self.parse_apply();
+            // `then` not a function
+            if !matches!(self.types.get(then.get_type()), Type::Func(_, _)) {
+                if types::ERROR_TYPEREF != then.get_type() {
+                    self.report(Error(
+                        then.get_loc(),
+                        ErrorKind::NotFunc(self.types.frozen(then.get_type())),
+                    ));
+                }
+                r.1 = TreeKind::Apply(types::ERROR_TYPEREF, UNKNOWN_NAME.to_string(), Vec::new());
+            }
             // [x, f, g, h] :: d; where
             // - x :: A
             // - f, g, h :: a -> b, b -> c, c -> d
-            if Type::applicable(then.get_type(), r.get_type(), &self.types) {
+            else if Type::applicable(then.get_type(), r.get_type(), &self.types) {
                 while let Some(Token(_, Comma)) = {
                     then.try_apply(r, &mut self.types)
                         .unwrap_or_else(|e| self.report(e));
@@ -411,7 +420,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             }
             // [f, g, h] :: a -> d; where
             // - f, g, h :: a -> b, b -> c, c -> d
-            else {
+            else if matches!(self.types.get(r.get_type()), Type::Func(_, _)) {
                 // (do..while)
                 while let Some(Token(then_comma_loc, Comma)) = {
                     let mut compose = Tree(
@@ -432,19 +441,47 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                             Vec::new(),
                         ),
                     );
-                    compose
-                        .try_apply(r, &mut self.types)
-                        .unwrap_or_else(|e| self.report(e));
+                    // unwrap because `r` already known to be a function
+                    compose.try_apply(r, &mut self.types).unwrap();
                     compose
                         .try_apply(then, &mut self.types)
                         .unwrap_or_else(|e| self.report(e));
                     r = compose;
                     self.peekable.peek()
                 } {
-                    comma_loc = *then_comma_loc;
+                    comma_loc = then_comma_loc.clone();
                     self.peekable.next();
                     then = self.parse_apply();
                 }
+            }
+            // `r, then` but `r` is neither the arg to `then` nor a function
+            // (but we know that `then` is a function from the first 'if')
+            else {
+                let Tree(then_loc, TreeKind::Apply(ty, name, args)) = then else {
+                    unreachable!();
+                };
+                let ty = self.types.frozen(ty);
+                self.report(Error(
+                    then_loc,
+                    ErrorKind::ContextCaused {
+                        error: Box::new(Error(
+                            r.get_loc(),
+                            ErrorKind::ExpectedButGot(
+                                match &ty {
+                                    FrozenType::Func(par, _) => *par.clone(),
+                                    _ => unreachable!(),
+                                },
+                                self.types.frozen(r.get_type()),
+                            ),
+                        )),
+                        because: ErrorContext::ChainedFromAsNthArgToNamedNowTyped(
+                            comma_loc,
+                            args.len() + 1,
+                            name,
+                            ty,
+                        ),
+                    },
+                ));
             }
         }
         r
@@ -455,24 +492,46 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 // uuhh.. tree itself (the entry point, Tree::new) {{{
 impl Tree {
     fn try_apply(&mut self, arg: Tree, types: &mut TypeList) -> Result<(), Error> {
+        // NOTE: easy way out, used to report type error,
+        // needless cloning for 90% of the time tho
+        let snapshot = types.clone();
         let niw = Type::applied(self.get_type(), arg.get_type(), types).map_err(|e| {
-            Error(
-                // FIXME: type errors accross ',' op are unhelpful
-                self.get_loc(),
-                ErrorKind::ContextCaused {
-                    error: Box::new(Error(arg.get_loc(), e)),
-                    because: ErrorContext::AsNthArgTo(
-                        if let TreeKind::Apply(_, _, args) = &self.1 {
-                            args.len()
-                        } else {
-                            0
-                        },
-                        // FIXME: but this is too late, rigth?
-                        types.frozen(self.get_type()),
-                    ),
-                },
-            )
+            let Tree(base_loc, TreeKind::Apply(_, name, args)) = &self else {
+                unreachable!();
+            };
+            if COMPOSE_OP_FUNC_NAME == name {
+                let (f, g) = (&args[0], &arg);
+                // `then` (ie 'g') is known to be a function from back in `parse_script`
+                let Tree(then_loc, TreeKind::Apply(ty, name, args)) = g else {
+                    unreachable!();
+                };
+                Error(
+                    then_loc.clone(),
+                    ErrorKind::ContextCaused {
+                        error: Box::new(Error(f.get_loc(), e)),
+                        because: ErrorContext::ChainedFromAsNthArgToNamedNowTyped(
+                            base_loc.clone(), // the (,)
+                            args.len() + 1,
+                            name.clone(),
+                            snapshot.frozen(*ty),
+                        ),
+                    },
+                )
+            } else {
+                Error(
+                    base_loc.clone(),
+                    ErrorKind::ContextCaused {
+                        error: Box::new(Error(arg.get_loc(), e)),
+                        because: ErrorContext::AsNthArgToNamedNowTyped(
+                            args.len() + 1,
+                            name.clone(),
+                            snapshot.frozen(self.get_type()),
+                        ),
+                    },
+                )
+            }
         })?;
+
         let TreeKind::Apply(ty, _, args) = &mut self.1 else {
             unreachable!();
         };
@@ -493,7 +552,7 @@ impl Tree {
     }
 
     fn get_loc(&self) -> Location {
-        self.0
+        self.0.clone()
     }
 
     #[allow(dead_code)]
@@ -560,293 +619,6 @@ impl Display for Tree {
                 write!(f, ")")
             }
         }
-    }
-}
-// }}}
-
-// tests {{{
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::types::FrozenType;
-
-    fn expect<T>(r: Result<T, ErrorList>) -> T {
-        r.unwrap_or_else(|e| {
-            e.crud_report();
-            panic!()
-        })
-    }
-
-    fn compare(left: &Tree, right: &Tree) -> bool {
-        match (&left.1, &right.1) {
-            (TreeKind::List(_, la), TreeKind::List(_, ra)) => la
-                .iter()
-                .zip(ra.iter())
-                .find(|(l, r)| !compare(l, r))
-                .is_none(),
-            (TreeKind::Apply(_, ln, la), TreeKind::Apply(_, rn, ra))
-                if ln == rn && la.len() == ra.len() =>
-            {
-                la.iter()
-                    .zip(ra.iter())
-                    .find(|(l, r)| !compare(l, r))
-                    .is_none()
-            }
-            (l, r) => *l == *r,
-        }
-    }
-
-    macro_rules! assert_tree {
-        ($left:expr, $right:expr) => {
-            match (&$left, &$right) {
-                (l, r) if !compare(l, r) => assert_eq!(l, r),
-                _ => (),
-            }
-        };
-    }
-
-    #[test]
-    fn lexing() {
-        use TokenKind::*;
-
-        assert_eq!(
-            Vec::<Token>::new(),
-            Lexer::new("".bytes()).collect::<Vec<_>>()
-        );
-
-        assert_eq!(
-            &[Token(Location(0), Word("coucou".into()))][..],
-            Lexer::new("coucou".bytes()).collect::<Vec<_>>()
-        );
-
-        assert_eq!(
-            &[
-                Token(Location(0), OpenBracket),
-                Token(Location(1), Word("a".into())),
-                Token(Location(3), Number(1.0)),
-                Token(Location(5), Word("b".into())),
-                Token(Location(6), Comma),
-                Token(Location(8), OpenBrace),
-                Token(Location(9), Word("w".into())),
-                Token(Location(10), Comma),
-                Token(Location(12), Word("x".into())),
-                Token(Location(13), Comma),
-                Token(Location(15), Word("y".into())),
-                Token(Location(16), Comma),
-                Token(Location(18), Word("z".into())),
-                Token(Location(19), CloseBrace),
-                Token(Location(20), Comma),
-                Token(Location(22), Number(0.5)),
-                Token(Location(25), CloseBracket)
-            ][..],
-            Lexer::new("[a 1 b, {w, x, y, z}, 0.5]".bytes()).collect::<Vec<_>>()
-        );
-
-        assert_eq!(
-            &[
-                Token(Location(0), Bytes(vec![104, 97, 121])),
-                Token(
-                    Location(6),
-                    Bytes(vec![104, 101, 121, 58, 32, 110, 111, 116, 32, 104, 97, 121])
-                ),
-                Token(Location(22), Bytes(vec![])),
-                Token(Location(25), Bytes(vec![58])),
-                Token(Location(30), Word("fin".into()))
-            ][..],
-            Lexer::new(":hay: :hey:: not hay: :: :::: fin".bytes()).collect::<Vec<_>>()
-        );
-
-        assert_eq!(
-            &[
-                Token(Location(0), Number(42.0)),
-                Token(Location(3), Bytes(vec![42])),
-                Token(Location(7), Number(42.0)),
-                Token(Location(12), Number(42.0)),
-                Token(Location(21), Number(42.0)),
-            ][..],
-            Lexer::new("42 :*: 0x2a 0b101010 0o52".bytes()).collect::<Vec<_>>()
-        );
-    }
-
-    #[test]
-    fn parsing() {
-        use TreeKind::*;
-
-        assert_eq!(
-            Err({
-                let mut el = ErrorList::new();
-                el.push(Error(
-                    Location(0),
-                    ErrorKind::Unexpected {
-                        token: TokenKind::End,
-                        expected: "a value",
-                    },
-                ));
-                el
-            }),
-            Tree::new_typed("".bytes())
-        );
-
-        let (ty, res) = expect(Tree::new_typed("input".bytes()));
-        assert_tree!(Tree(Location(0), Apply(0, "input".into(), vec![])), res);
-        assert_eq!(FrozenType::Bytes(false), ty);
-
-        let (ty, res) = expect(Tree::new_typed(
-            "input, split:-:, map[tonum, add1, tostr], join:+:".bytes(),
-        ));
-        assert_tree!(
-            Tree(
-                Location(42),
-                Apply(
-                    0,
-                    "join".into(),
-                    vec![
-                        Tree(Location(46), Bytes(vec![43])),
-                        Tree(
-                            Location(17),
-                            Apply(
-                                0,
-                                "map".into(),
-                                vec![
-                                    Tree(
-                                        Location(20),
-                                        Apply(
-                                            0,
-                                            COMPOSE_OP_FUNC_NAME.into(),
-                                            vec![
-                                                Tree(
-                                                    Location(26),
-                                                    Apply(
-                                                        0,
-                                                        COMPOSE_OP_FUNC_NAME.into(),
-                                                        vec![
-                                                            Tree(
-                                                                Location(21),
-                                                                Apply(0, "tonum".into(), vec![])
-                                                            ),
-                                                            Tree(
-                                                                Location(28),
-                                                                Apply(
-                                                                    0,
-                                                                    "add".into(),
-                                                                    vec![Tree(
-                                                                        Location(31),
-                                                                        Number(1.0)
-                                                                    )]
-                                                                )
-                                                            )
-                                                        ]
-                                                    )
-                                                ),
-                                                Tree(
-                                                    Location(34),
-                                                    Apply(0, "tostr".into(), vec![])
-                                                )
-                                            ]
-                                        )
-                                    ),
-                                    Tree(
-                                        Location(7),
-                                        Apply(
-                                            0,
-                                            "split".into(),
-                                            vec![
-                                                Tree(Location(12), Bytes(vec![45])),
-                                                Tree(Location(0), Apply(0, "input".into(), vec![]))
-                                            ]
-                                        )
-                                    )
-                                ]
-                            )
-                        )
-                    ]
-                )
-            ),
-            res
-        );
-        // FIXME: this should be false, right?
-        assert_eq!(FrozenType::Bytes(true), ty);
-
-        let (ty, res) = expect(Tree::new_typed("tonum, add234121, tostr, ln".bytes()));
-        assert_tree!(
-            Tree(
-                Location(23),
-                Apply(
-                    0,
-                    COMPOSE_OP_FUNC_NAME.into(),
-                    vec![
-                        Tree(
-                            Location(16),
-                            Apply(
-                                0,
-                                COMPOSE_OP_FUNC_NAME.into(),
-                                vec![
-                                    Tree(
-                                        Location(5),
-                                        Apply(
-                                            0,
-                                            COMPOSE_OP_FUNC_NAME.into(),
-                                            vec![
-                                                Tree(Location(0), Apply(0, "tonum".into(), vec![])),
-                                                Tree(
-                                                    Location(7),
-                                                    Apply(
-                                                        0,
-                                                        "add".into(),
-                                                        vec![Tree(Location(10), Number(234121.0))]
-                                                    )
-                                                )
-                                            ]
-                                        )
-                                    ),
-                                    Tree(Location(18), Apply(0, "tostr".into(), vec![]))
-                                ]
-                            )
-                        ),
-                        Tree(Location(25), Apply(0, "ln".into(), vec![]))
-                    ]
-                )
-            ),
-            res
-        );
-        assert_eq!(
-            FrozenType::Func(
-                Box::new(FrozenType::Bytes(false)),
-                Box::new(FrozenType::Bytes(true))
-            ),
-            ty
-        );
-
-        let (ty, res) = expect(Tree::new_typed("[tonum, add234121, tostr] :13242:".bytes()));
-        assert_tree!(
-            Tree(
-                Location(19),
-                Apply(
-                    0,
-                    "tostr".into(),
-                    vec![Tree(
-                        Location(8),
-                        Apply(
-                            0,
-                            "add".into(),
-                            vec![
-                                Tree(Location(11), Number(234121.0)),
-                                Tree(
-                                    Location(1),
-                                    Apply(
-                                        0,
-                                        "tonum".into(),
-                                        vec![Tree(Location(26), Bytes(vec![49, 51, 50, 52, 50]))]
-                                    )
-                                )
-                            ]
-                        )
-                    )]
-                )
-            ),
-            res
-        );
-        assert_eq!(FrozenType::Bytes(true), ty);
     }
 }
 // }}}

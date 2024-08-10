@@ -2,15 +2,16 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 
 use crate::error::ErrorKind;
 
-pub(crate) const ERROR_TYPE: &str = "{error}";
+pub(crate) const ERROR_TYPE_NAME: &str = "{error}";
 pub(crate) const NUMBER_TYPEREF: usize = 0;
 pub(crate) const STRFIN_TYPEREF: usize = 1;
 pub(crate) const FINITE_TYPEREF: usize = 2;
+pub(crate) const ERROR_TYPEREF: usize = 3;
 
 pub type TypeRef = usize;
 pub type Boundedness = usize;
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(Clone)]
 pub(crate) enum Type {
     Number,
     Bytes(Boundedness),
@@ -29,16 +30,16 @@ pub enum FrozenType {
     Named(String),
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(Clone)]
 pub struct TypeList(Vec<Option<Type>>);
-pub struct TypeRepr<'a>(TypeRef, &'a TypeList);
 
 impl Default for TypeList {
     fn default() -> Self {
         TypeList(vec![
-            Some(Type::Number),       // [NUMBER_TYPEREF]
-            Some(Type::Bytes(2)),     // [STRFIN_TYPEREF]
-            Some(Type::Finite(true)), // [FINITE_TYPEREF]
+            Some(Type::Number),                        // [NUMBER_TYPEREF]
+            Some(Type::Bytes(2)),                      // [STRFIN_TYPEREF]
+            Some(Type::Finite(true)),                  // [FINITE_TYPEREF]
+            Some(Type::Named(ERROR_TYPE_NAME.into())), // [ERROR_TYPEREF]
         ])
     }
 }
@@ -81,7 +82,7 @@ impl TypeList {
         self.push(Type::Finite(false))
     }
 
-    fn get(&self, at: TypeRef) -> &Type {
+    pub fn get(&self, at: TypeRef) -> &Type {
         self.0[at].as_ref().unwrap()
     }
 
@@ -89,11 +90,6 @@ impl TypeList {
         self.0[at].as_mut().unwrap()
     }
 
-    pub fn repr(&self, at: TypeRef) -> TypeRepr {
-        TypeRepr(at, self)
-    }
-
-    #[allow(dead_code)]
     pub fn frozen(&self, at: TypeRef) -> FrozenType {
         match self.get(at) {
             Type::Number => FrozenType::Number,
@@ -136,7 +132,7 @@ impl Type {
     ) -> Result<TypeRef, ErrorKind> {
         match types.get(func) {
             &Type::Func(want, ret) => Type::concretize(want, give, types).map(|()| ret),
-            Type::Named(err) if ERROR_TYPE == err => Ok(func),
+            Type::Named(err) if ERROR_TYPE_NAME == err => Ok(func),
             _ => Err(ErrorKind::NotFunc(types.frozen(func))),
         }
     }
@@ -145,7 +141,7 @@ impl Type {
     pub(crate) fn applicable(func: TypeRef, give: TypeRef, types: &TypeList) -> bool {
         match types.get(func) {
             &Type::Func(want, _) => Type::compatible(want, give, types),
-            Type::Named(err) if ERROR_TYPE == err => true,
+            Type::Named(err) if ERROR_TYPE_NAME == err => true,
             _ => false,
         }
     }
@@ -162,7 +158,7 @@ impl Type {
     fn concretize(want: TypeRef, give: TypeRef, types: &mut TypeList) -> Result<(), ErrorKind> {
         use Type::*;
         match (types.get(want), types.get(give)) {
-            (Named(err), _) if ERROR_TYPE == err => {
+            (Named(err), _) if ERROR_TYPE_NAME == err => {
                 // XXX: I think here it doesn't make sense
                 //*types.get_mut(want) = other.clone();
                 Ok(())
@@ -202,7 +198,7 @@ impl Type {
             (&Func(l_par, l_ret), &Func(r_par, r_ret)) => {
                 // (a -> b) <- (Str -> Num)
                 // parameter compare contravariantly:
-                // (Str -> c) <- (Str* -> Str*)
+                // (Str -> c) <- (Str+ -> Str+)
                 // (a -> b) <- (c -> c)
                 Type::concretize(r_par, l_par, types)?;
                 Type::concretize(l_ret, r_ret, types)
@@ -219,7 +215,7 @@ impl Type {
 
             _ => {
                 let pwant = types.push(types.get(want).clone());
-                *types.get_mut(want) = Type::Named(ERROR_TYPE.into());
+                *types.get_mut(want) = Type::Named(ERROR_TYPE_NAME.into());
                 Err(ErrorKind::ExpectedButGot(
                     types.frozen(pwant),
                     types.frozen(give),
@@ -233,13 +229,13 @@ impl Type {
     /// it's used when finding the item type of a list.
     ///
     /// ```plaintext
-    /// a | [Num]* | [Num] ->> [Num]*
+    /// a | [Num]+ | [Num] ->> [Num]+
     /// a | Str | Num ->> never
-    /// a | Str* | Str ->> Str*
-    /// a | Str | Str* ->> never // XXX: disputable, same with []|[]*
-    /// a | [Str*] | [Str] ->> [Str*]
-    /// a | (Str -> c) | (Str* -> Str*) ->> (Str -> Str*)
-    /// a | ([Str*] -> x) | ([Str] -> x) ->> ([Str] -> x)
+    /// a | Str+ | Str ->> Str+
+    /// a | Str | Str+ ->> never // XXX: disputable, same with []|[]+
+    /// a | [Str+] | [Str] ->> [Str+]
+    /// a | (Str -> c) | (Str+ -> Str+) ->> (Str -> Str+)
+    /// a | ([Str+] -> x) | ([Str] -> x) ->> ([Str] -> x)
     /// ```
     pub(crate) fn harmonize(
         curr: TypeRef,
@@ -248,7 +244,7 @@ impl Type {
     ) -> Result<(), ErrorKind> {
         use Type::*;
         match (types.get(curr), types.get(item)) {
-            (Named(err), _) if ERROR_TYPE == err => Ok(()),
+            (Named(err), _) if ERROR_TYPE_NAME == err => Ok(()),
 
             (Number, Number) => Ok(()),
 
@@ -256,7 +252,7 @@ impl Type {
                 (Finite(fw_bool), Finite(fg_bool)) if fw_bool == fg_bool => Ok(()),
                 (Finite(false), Finite(true)) => Ok(()),
                 (Finite(true), Finite(false)) => {
-                    *types.get_mut(curr) = Type::Named(ERROR_TYPE.into());
+                    *types.get_mut(curr) = Type::Named(ERROR_TYPE_NAME.into());
                     Err(ErrorKind::InfWhereFinExpected)
                 }
                 _ => unreachable!(),
@@ -268,7 +264,7 @@ impl Type {
                     (Finite(fw_bool), Finite(fg_bool)) if fw_bool == fg_bool => (),
                     (Finite(false), Finite(true)) => (),
                     (Finite(true), Finite(false)) => {
-                        *types.get_mut(curr) = Type::Named(ERROR_TYPE.into());
+                        *types.get_mut(curr) = Type::Named(ERROR_TYPE_NAME.into());
                         return Err(ErrorKind::InfWhereFinExpected);
                     }
                     _ => unreachable!(),
@@ -293,7 +289,7 @@ impl Type {
 
             _ => {
                 let pcurr = types.push(types.get(curr).clone());
-                *types.get_mut(curr) = Type::Named(ERROR_TYPE.into());
+                *types.get_mut(curr) = Type::Named(ERROR_TYPE_NAME.into());
                 Err(ErrorKind::ExpectedButGot(
                     types.frozen(pcurr),
                     types.frozen(item),
@@ -320,7 +316,7 @@ impl Type {
             },
 
             (Func(l_par, l_ret), Func(r_par, r_ret)) => {
-                // parameter compare contravariantly: (Str -> c) <- (Str* -> Str*)
+                // parameter compare contravariantly: (Str -> c) <- (Str+ -> Str+)
                 Type::compatible(*r_par, *l_par, types) && Type::compatible(*l_ret, *r_ret, types)
             }
 
@@ -333,48 +329,16 @@ impl Type {
 }
 // }}}
 
-// maybe unused in the end, idk
-impl Display for TypeRepr<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let types = &self.1;
-        match types.get(self.0) {
-            Type::Number => write!(f, "Num"),
-
-            Type::Bytes(b) => write!(f, "Str{}", types.repr(*b)),
-
-            Type::List(b, has) => write!(f, "[{}]{}", types.repr(*has), types.repr(*b)),
-
-            Type::Func(par, ret) => {
-                let funcarg = matches!(types.get(*par), Type::Func(_, _));
-                if funcarg {
-                    write!(f, "(")?;
-                }
-                write!(f, "{}", types.repr(*par))?;
-                if funcarg {
-                    write!(f, ")")?;
-                }
-                write!(f, " -> ")?;
-                write!(f, "{}", types.repr(*ret))
-            }
-
-            Type::Named(name) => write!(f, "{name}"),
-
-            Type::Finite(true) => Ok(()),
-            Type::Finite(false) => write!(f, "*"),
-        }
-    }
-}
-
 impl Display for FrozenType {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             FrozenType::Number => write!(f, "Num"),
 
             FrozenType::Bytes(true) => write!(f, "Str"),
-            FrozenType::Bytes(false) => write!(f, "Str*"),
+            FrozenType::Bytes(false) => write!(f, "Str+"),
 
             FrozenType::List(true, has) => write!(f, "[{has}]"),
-            FrozenType::List(false, has) => write!(f, "[{has}]*"),
+            FrozenType::List(false, has) => write!(f, "[{has}]+"),
 
             FrozenType::Func(par, ret) => {
                 let funcarg = matches!(**par, FrozenType::Func(_, _));

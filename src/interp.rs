@@ -166,8 +166,7 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
                         Rc::new(|| todo!()),
                     )
                 };
-                let ff = f.clone();
-                Value::Func(Box::new(ff), Rc::new(move || Box::new(f.clone())))
+                Value::Func(Box::new(f.clone()), Rc::new(move || Box::new(f.clone())))
             }
         }
 
@@ -240,6 +239,11 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
             Value::Number(Box::new(move || list.count() as f64), Rc::new(|| todo!()))
         }
 
+        "repeat" => {
+            let val = args.next().unwrap();
+            Value::List(Box::new(iter::repeat(val)), Rc::new(|| todo!()))
+        }
+
         _ => unreachable!(),
     }
 }
@@ -247,7 +251,9 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
 pub fn interp(tree: &Tree) -> Value {
     match &tree.1 {
         TreeKind::Bytes(v) => Value::Bytes(Box::new(v.clone().into_iter()), Rc::new(|| todo!())),
-        &TreeKind::Number(n) => Value::Number(Box::new(move || n), Rc::new(|| todo!())),
+        &TreeKind::Number(n) => {
+            Value::Number(Box::new(move || n), Rc::new(move || Box::new(move || n)))
+        }
 
         TreeKind::List(_, items) => Value::List(
             Box::new(items.iter().map(interp).collect::<Vec<_>>().into_iter()),

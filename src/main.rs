@@ -6,6 +6,9 @@ mod interp;
 mod parse;
 mod types;
 
+#[cfg(test)]
+mod tests;
+
 use crate::parse::Tree;
 
 fn main() {
