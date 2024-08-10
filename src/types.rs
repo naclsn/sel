@@ -158,11 +158,7 @@ impl Type {
     fn concretize(want: TypeRef, give: TypeRef, types: &mut TypeList) -> Result<(), ErrorKind> {
         use Type::*;
         match (types.get(want), types.get(give)) {
-            (Named(err), _) if ERROR_TYPE_NAME == err => {
-                // XXX: I think here it doesn't make sense
-                //*types.get_mut(want) = other.clone();
-                Ok(())
-            }
+            (Named(err), _) if ERROR_TYPE_NAME == err => Ok(()),
 
             (Number, Number) => Ok(()),
 
@@ -172,11 +168,7 @@ impl Type {
                     *types.get_mut(*fw) = Finite(true);
                     Ok(())
                 }
-                (Finite(true), Finite(false)) => {
-                    // XXX: I think here it doesn't make sense
-                    //*types.get_mut(want) = Type::Named(ERROR_TYPE.into());
-                    Err(ErrorKind::InfWhereFinExpected)
-                }
+                (Finite(true), Finite(false)) => Err(ErrorKind::InfWhereFinExpected),
                 _ => unreachable!(),
             },
 
@@ -185,11 +177,7 @@ impl Type {
                 match (types.get(*fw), types.get(*fg)) {
                     (Finite(fw_bool), Finite(fg_bool)) if fw_bool == fg_bool => (),
                     (Finite(false), Finite(true)) => *types.get_mut(*fw) = Finite(true),
-                    (Finite(true), Finite(false)) => {
-                        // XXX: I think here it doesn't make sense
-                        //*types.get_mut(want) = Type::Named(ERROR_TYPE.into());
-                        return Err(ErrorKind::InfWhereFinExpected);
-                    }
+                    (Finite(true), Finite(false)) => return Err(ErrorKind::InfWhereFinExpected),
                     _ => unreachable!(),
                 }
                 Type::concretize(l_ty, r_ty, types)
@@ -232,7 +220,7 @@ impl Type {
     /// a | [Num]+ | [Num] ->> [Num]+
     /// a | Str | Num ->> never
     /// a | Str+ | Str ->> Str+
-    /// a | Str | Str+ ->> never // XXX: disputable, same with []|[]+
+    /// a | Str | Str+ ->> never // xxx: disputable, same with []|[]+
     /// a | [Str+] | [Str] ->> [Str+]
     /// a | (Str -> c) | (Str+ -> Str+) ->> (Str -> Str+)
     /// a | ([Str+] -> x) | ([Str] -> x) ->> ([Str] -> x)

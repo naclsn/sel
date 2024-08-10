@@ -3,7 +3,7 @@ use crate::types::{TypeList, TypeRef};
 pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
     Some(match name {
         "input" => {
-            // input :: Str*
+            // input :: Str+
             let inf = types.infinite();
             types.bytes(inf)
         }
@@ -18,14 +18,14 @@ pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
 
         // xxx: maybe change back to nl because of math ln..
         "ln" => {
-            // ln :: Str* -> Str*
+            // ln :: Str+ -> Str+
             let inf = types.infinite();
             let strinf = types.bytes(inf);
             types.func(strinf, strinf)
         }
 
         "split" => {
-            // slice :: Str -> Str* -> [Str*]*
+            // slice :: Str -> Str+ -> [Str+]+
             let strfin = types.bytes(types.finite());
             let inf = types.infinite();
             let strinf = types.bytes(inf);
@@ -41,7 +41,7 @@ pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
         }
 
         "map" => {
-            // map :: (a -> b) -> [a]* -> [b]*
+            // map :: (a -> b) -> [a]+ -> [b]+
             let inf = types.infinite();
             let a = types.named("a");
             let b = types.named("b");
@@ -53,7 +53,7 @@ pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
         }
 
         "tonum" => {
-            // tonum :: Str* -> Num
+            // tonum :: Str+ -> Num
             let inf = types.infinite();
             let strinf = types.bytes(inf);
             types.func(strinf, types.number())
@@ -66,9 +66,9 @@ pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
         }
 
         "join" => {
-            // join :: Str -> [Str*]* -> Str*
+            // join :: Str -> [Str+]+ -> Str+
             // uuhh :<
-            // this is still not enough, both * in [Str*]*
+            // this is still not enough, both + in [Str+]+
             // should be &&'d when applying the 2nd arg
             let inf = types.infinite();
             let strinf = types.bytes(inf);
@@ -86,7 +86,7 @@ pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
         }
 
         "repeat" => {
-            // repeat :: a -> [a]*
+            // repeat :: a -> [a]+
             let a = types.named("a");
             let inf = types.infinite();
             let lstinf = types.list(inf, a);
