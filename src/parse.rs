@@ -6,6 +6,7 @@ use crate::error::{Error, ErrorContext, ErrorKind, ErrorList};
 use crate::types::{self, FrozenType, Type, TypeList, TypeRef};
 
 pub const COMPOSE_OP_FUNC_NAME: &str = "(,)";
+pub const TYPEHOLE_OBJECT_NAME: &str = "_";
 const UNKNOWN_NAME: &str = "{unknown}";
 
 #[derive(PartialEq, Debug, Clone)]
@@ -66,10 +67,10 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
             return Some(Token(Location(last), End));
         };
 
-        Some(match byte {
-            b':' => Token(
-                Location(loc),
-                Bytes({
+        Some(Token(
+            Location(loc),
+            match byte {
+                b':' => Bytes({
                     iter::from_fn(|| match (self.stream.next(), self.stream.peek()) {
                         (Some((_, b':')), Some((_, b':'))) => {
                             self.stream.next();
@@ -80,22 +81,20 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
                     })
                     .collect()
                 }),
-            ),
 
-            b',' => Token(Location(loc), Comma),
-            b'[' => Token(Location(loc), OpenBracket),
-            b']' => Token(Location(loc), CloseBracket),
-            b'{' => Token(Location(loc), OpenBrace),
-            b'}' => Token(Location(loc), CloseBrace),
+                b',' => Comma,
+                b'[' => OpenBracket,
+                b']' => CloseBracket,
+                b'{' => OpenBrace,
+                b'}' => CloseBrace,
 
-            b'#' => {
-                self.stream.find(|c| b'\n' == c.1)?;
-                return self.next();
-            }
+                b'#' => {
+                    self.stream.find(|c| b'\n' == c.1)?;
+                    return self.next();
+                }
+                b'_' => Word(TYPEHOLE_OBJECT_NAME.into()),
 
-            c if c.is_ascii_lowercase() => Token(
-                Location(loc),
-                Word(
+                c if c.is_ascii_lowercase() => Word(
                     String::from_utf8(
                         iter::once(c)
                             .chain(iter::from_fn(|| {
@@ -107,11 +106,8 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
                     )
                     .unwrap(),
                 ),
-            ),
 
-            c if c.is_ascii_digit() => Token(
-                Location(loc),
-                Number({
+                c if c.is_ascii_digit() => Number({
                     let mut r = 0usize;
                     let (shift, digits) = match (c, self.stream.peek()) {
                         (b'0', Some((_, b'B' | b'b'))) => {
@@ -162,11 +158,8 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
                         r as f64
                     }
                 }),
-            ),
 
-            c => Token(
-                Location(loc),
-                Unknown(
+                c => Unknown(
                     String::from_utf8_lossy(
                         &iter::once(c)
                             .chain(
@@ -179,8 +172,8 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
                     )
                     .into_owned(),
                 ),
-            ),
-        })
+            },
+        ))
     }
 }
 // }}}
@@ -190,6 +183,7 @@ struct Parser<I: Iterator<Item = u8>> {
     peekable: iter::Peekable<Lexer<I>>,
     types: TypeList,
     errors: ErrorList,
+    holes: Vec<(Location, TypeRef)>,
 }
 
 impl<I: Iterator<Item = u8>> Parser<I> {
@@ -198,6 +192,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             peekable: Lexer::new(iter.into_iter()).peekable(),
             types: TypeList::default(),
             errors: ErrorList::new(),
+            holes: Vec::new(),
         }
     }
 
@@ -240,13 +235,21 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         Tree(
             first_loc.clone(),
             match first_kind {
-                Word(w) => match lookup_type(&w, &mut self.types) {
-                    Some(ty) => TreeKind::Apply(ty, w, Vec::new()),
-                    None => {
-                        self.report(Error(first_loc, ErrorKind::UnknownName(w)));
-                        mkerr()
+                Word(w) => {
+                    if TYPEHOLE_OBJECT_NAME == w {
+                        let ty = self.types.named("any");
+                        self.holes.push((first_loc, ty));
+                        TreeKind::Apply(ty, w, Vec::new())
+                    } else {
+                        match lookup_type(&w, &mut self.types) {
+                            Some(ty) => TreeKind::Apply(ty, w, Vec::new()),
+                            None => {
+                                self.report(Error(first_loc, ErrorKind::UnknownName(w)));
+                                mkerr()
+                            }
+                        }
                     }
-                },
+                }
 
                 Bytes(b) => TreeKind::Bytes(b),
                 Number(n) => TreeKind::Number(n),
@@ -287,22 +290,22 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     } else {
                         loop {
                             let item = self.parse_apply();
+                            let item_ty = item.get_type();
                             // NOTE: easy way out, used to report type error,
                             // needless cloning for 90% of the time tho
                             let snapshot = self.types.clone();
-                            Type::harmonize(ty, item.get_type(), &mut self.types).unwrap_or_else(
-                                |e| {
-                                    self.report(Error(
-                                        first_loc.clone(),
-                                        ErrorKind::ContextCaused {
-                                            error: Box::new(Error(item.get_loc(), e)),
-                                            because: ErrorContext::TypeListInferredItemType(
-                                                snapshot.frozen(ty),
-                                            ),
-                                        },
-                                    ))
-                                },
-                            );
+                            Type::harmonize(ty, item_ty, &mut self.types).unwrap_or_else(|e| {
+                                self.report(Error(
+                                    first_loc.clone(),
+                                    ErrorKind::ContextCaused {
+                                        error: Box::new(Error(item.get_loc(), e)),
+                                        because: ErrorContext::TypeListInferredItemTypeButItWas(
+                                            snapshot.frozen(ty),
+                                            snapshot.frozen(item_ty),
+                                        ),
+                                    },
+                                ))
+                            });
                             items.push(item);
                             // (continues only if ',' and then not '}')
                             match self.peekable.next() {
@@ -371,12 +374,12 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                         let mut args = args.into_iter();
                         let (f, mut g) = (args.next().unwrap(), args.next().unwrap());
                         // (,)(f, g) => g(f(..))
-                        g.try_apply(apply_maybe_unfold(p, f), &mut p.types)
+                        g.try_apply(apply_maybe_unfold(p, f), &mut p.types, &mut p.holes)
                             .unwrap_or_else(|e| p.report(e));
                         g
                     }
                     _ => {
-                        func.try_apply(p.parse_value(), &mut p.types)
+                        func.try_apply(p.parse_value(), &mut p.types, &mut p.holes)
                             .unwrap_or_else(|e| p.report(e));
                         func
                     }
@@ -394,8 +397,17 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             let mut comma_loc = comma_loc.clone();
             self.peekable.next();
             let mut then = self.parse_apply();
-            // `then` not a function
-            if !matches!(self.types.get(then.get_type()), Type::Func(_, _)) {
+
+            let (is_func, is_hole) = match &then {
+                Tree(_, TreeKind::Apply(ty, name, _)) => (
+                    matches!(self.types.get(*ty), Type::Func(_, _)),
+                    TYPEHOLE_OBJECT_NAME == name,
+                ),
+                _ => (false, false),
+            };
+
+            // `then` not a function nor a type hole
+            if !is_func && !is_hole {
                 if types::ERROR_TYPEREF != then.get_type() {
                     self.report(Error(
                         then.get_loc(),
@@ -407,9 +419,9 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             // [x, f, g, h] :: d; where
             // - x :: A
             // - f, g, h :: a -> b, b -> c, c -> d
-            else if Type::applicable(then.get_type(), r.get_type(), &self.types) {
+            else if is_hole || Type::applicable(then.get_type(), r.get_type(), &self.types) {
                 while let Some(Token(_, Comma)) = {
-                    then.try_apply(r, &mut self.types)
+                    then.try_apply(r, &mut self.types, &mut self.holes)
                         .unwrap_or_else(|e| self.report(e));
                     r = then;
                     self.peekable.peek()
@@ -442,9 +454,11 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                         ),
                     );
                     // unwrap because `r` already known to be a function
-                    compose.try_apply(r, &mut self.types).unwrap();
                     compose
-                        .try_apply(then, &mut self.types)
+                        .try_apply(r, &mut self.types, &mut self.holes)
+                        .unwrap();
+                    compose
+                        .try_apply(then, &mut self.types, &mut self.holes)
                         .unwrap_or_else(|e| self.report(e));
                     r = compose;
                     self.peekable.peek()
@@ -491,53 +505,69 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
 // uuhh.. tree itself (the entry point, Tree::new) {{{
 impl Tree {
-    fn try_apply(&mut self, arg: Tree, types: &mut TypeList) -> Result<(), Error> {
+    fn try_apply(
+        &mut self,
+        arg: Tree,
+        types: &mut TypeList,
+        holes: &mut [(Location, TypeRef)],
+    ) -> Result<(), Error> {
         // NOTE: easy way out, used to report type error,
         // needless cloning for 90% of the time tho
         let snapshot = types.clone();
-        let niw = Type::applied(self.get_type(), arg.get_type(), types).map_err(|e| {
-            let Tree(base_loc, TreeKind::Apply(_, name, args)) = &self else {
-                unreachable!();
-            };
-            if COMPOSE_OP_FUNC_NAME == name {
-                let (f, g) = (&args[0], &arg);
-                // `then` (ie 'g') is known to be a function from back in `parse_script`
-                let Tree(then_loc, TreeKind::Apply(ty, name, args)) = g else {
-                    unreachable!();
-                };
-                Error(
-                    then_loc.clone(),
-                    ErrorKind::ContextCaused {
-                        error: Box::new(Error(f.get_loc(), e)),
-                        because: ErrorContext::ChainedFromAsNthArgToNamedNowTyped(
-                            base_loc.clone(), // the (,)
-                            args.len() + 1,
-                            name.clone(),
-                            snapshot.frozen(*ty),
-                        ),
-                    },
-                )
-            } else {
-                Error(
-                    base_loc.clone(),
-                    ErrorKind::ContextCaused {
-                        error: Box::new(Error(arg.get_loc(), e)),
-                        because: ErrorContext::AsNthArgToNamedNowTyped(
-                            args.len() + 1,
-                            name.clone(),
-                            snapshot.frozen(self.get_type()),
-                        ),
-                    },
-                )
-            }
-        })?;
 
-        let TreeKind::Apply(ty, _, args) = &mut self.1 else {
+        let Tree(base_loc, TreeKind::Apply(func_ty, name, args)) = self else {
             unreachable!();
         };
-        *ty = niw;
-        args.push(arg);
-        Ok(())
+
+        if TYPEHOLE_OBJECT_NAME == name {
+            let ret = types.named("ret");
+            let hole_ty = &mut holes.iter_mut().find(|t| t.1 == *func_ty).unwrap().1;
+            *func_ty = types.func(*func_ty, ret);
+            *hole_ty = *func_ty;
+        }
+
+        match Type::applied(*func_ty, arg.get_type(), types) {
+            Ok(ret_ty) => {
+                *func_ty = ret_ty;
+                args.push(arg);
+                Ok(())
+            }
+
+            Err(e) => {
+                Err(if COMPOSE_OP_FUNC_NAME == name {
+                    let (f, g) = (&args[0], &arg);
+                    // `then` (ie 'g') is known to be a function from back in `parse_script`
+                    // (because had it been a hole, it would have fallen in the '[x, f..]' case)
+                    let Tree(then_loc, TreeKind::Apply(ty, name, args)) = g else {
+                        unreachable!();
+                    };
+                    Error(
+                        then_loc.clone(),
+                        ErrorKind::ContextCaused {
+                            error: Box::new(Error(f.get_loc(), e)),
+                            because: ErrorContext::ChainedFromAsNthArgToNamedNowTyped(
+                                base_loc.clone(), // the (,)
+                                args.len() + 1,
+                                name.clone(),
+                                snapshot.frozen(*ty),
+                            ),
+                        },
+                    )
+                } else {
+                    Error(
+                        base_loc.clone(),
+                        ErrorKind::ContextCaused {
+                            error: Box::new(Error(arg.get_loc(), e)),
+                            because: ErrorContext::AsNthArgToNamedNowTyped(
+                                args.len() + 1,
+                                name.clone(),
+                                snapshot.frozen(self.get_type()),
+                            ),
+                        },
+                    )
+                })
+            }
+        }
     }
 
     fn get_type(&self) -> TypeRef {
@@ -559,6 +589,10 @@ impl Tree {
     pub fn new(iter: impl IntoIterator<Item = u8>) -> Result<Tree, ErrorList> {
         let mut p = Parser::new(iter.into_iter());
         let r = p.parse_script();
+        for (loc, ty) in p.holes {
+            p.errors
+                .push(Error(loc, ErrorKind::FoundTypeHole(p.types.frozen(ty))));
+        }
         if p.errors.is_empty() {
             Ok(r)
         } else {
@@ -570,6 +604,10 @@ impl Tree {
     pub fn new_typed(iter: impl IntoIterator<Item = u8>) -> Result<(FrozenType, Tree), ErrorList> {
         let mut p = Parser::new(iter.into_iter());
         let r = p.parse_script();
+        for (loc, ty) in p.holes {
+            p.errors
+                .push(Error(loc, ErrorKind::FoundTypeHole(p.types.frozen(ty))));
+        }
         if p.errors.is_empty() {
             Ok((p.types.frozen(r.get_type()), r))
         } else {

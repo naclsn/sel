@@ -137,7 +137,7 @@ impl Type {
         }
     }
 
-    /// Same idea but doesn't mutate anything and doesn't fail but returns true/false.
+    /// Same idea as `applied` but doesn't mutate anything and doesn't fail but returns true/false.
     pub(crate) fn applicable(func: TypeRef, give: TypeRef, types: &TypeList) -> bool {
         match types.get(func) {
             &Type::Func(want, _) => Type::compatible(want, give, types),

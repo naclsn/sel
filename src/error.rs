@@ -4,7 +4,8 @@ use crate::types::FrozenType;
 #[derive(PartialEq, Debug)]
 pub enum ErrorContext {
     Unmatched(TokenKind),
-    TypeListInferredItemType(FrozenType),
+    TypeListInferredItemTypeButItWas(FrozenType, FrozenType),
+    // XXX: (both) add 'ButItWas'?
     AsNthArgToNamedNowTyped(usize, String, FrozenType),
     ChainedFromAsNthArgToNamedNowTyped(Location, usize, String, FrozenType),
 }
@@ -23,6 +24,7 @@ pub enum ErrorKind {
     NotFunc(FrozenType),
     ExpectedButGot(FrozenType, FrozenType),
     InfWhereFinExpected,
+    FoundTypeHole(FrozenType),
 }
 
 #[derive(PartialEq, Debug)]
@@ -60,8 +62,8 @@ impl Error {
                 error.crud_report();
                 match because {
                     Unmatched(token) => eprint!("`-> because of {token:?}"),
-                    TypeListInferredItemType(i) => {
-                        eprint!("`-> because list type was inferred to be [{i}] at this point")
+                    TypeListInferredItemTypeButItWas(i, o) => {
+                        eprint!("`-> because list type was inferred to be [{i}] at this point but this item is {o}")
                     }
                     AsNthArgToNamedNowTyped(nth, name, func) => {
                         eprint!(
@@ -94,6 +96,7 @@ impl Error {
             NotFunc(o) => eprint!("Expected a function type, but got {o}"),
             ExpectedButGot(w, g) => eprint!("Expected type {w}, but got {g}"),
             InfWhereFinExpected => eprint!("Expected finite type, but got infinite type"),
+            FoundTypeHole(t) => eprint!("Found type hole, should be {t}"),
         }
 
         eprintln!(" ==> {:?}", self.0);

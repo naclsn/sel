@@ -306,7 +306,7 @@ fn reporting() {
             Location(0),
             ContextCaused {
                 error: Box::new(Error(Location(10), ExpectedButGot(Number, Bytes(true)))),
-                because: TypeListInferredItemType(Number)
+                because: TypeListInferredItemTypeButItWas(Number, Bytes(true))
             }
         )])),
         Tree::new("{1, 2, 3, :soleil:}".bytes())
@@ -338,7 +338,10 @@ fn reporting() {
             Location(0),
             ContextCaused {
                 error: Box::new(Error(Location(5), InfWhereFinExpected)),
-                because: TypeListInferredItemType(List(true, Box::new(Named("a".into()))))
+                because: TypeListInferredItemTypeButItWas(
+                    List(true, Box::new(Named("a".into()))),
+                    List(false, Box::new(Number))
+                )
             }
         )])),
         Tree::new("{{}, repeat 1}".bytes())
@@ -349,7 +352,10 @@ fn reporting() {
             Location(0),
             ContextCaused {
                 error: Box::new(Error(Location(7), InfWhereFinExpected)),
-                because: TypeListInferredItemType(List(true, Box::new(Number)))
+                because: TypeListInferredItemTypeButItWas(
+                    List(true, Box::new(Number)),
+                    List(false, Box::new(Number))
+                )
             }
         )])),
         Tree::new("{{42}, repeat 1}".bytes())
@@ -361,7 +367,7 @@ fn reporting() {
                 Location(0),
                 ContextCaused {
                     error: Box::new(Error(Location(10), ExpectedButGot(Number, Bytes(true)))),
-                    because: TypeListInferredItemType(Number)
+                    because: TypeListInferredItemTypeButItWas(Number, Bytes(true))
                 }
             ),
             Error(
@@ -461,6 +467,68 @@ fn reporting() {
             Error(Location(9), UnknownName("caca".into()))
         ])),
         Tree::new("prout 1, caca".bytes())
+    );
+
+    assert_maytree!(
+        Err(ErrorList(vec![
+            Error(Location(0), FoundTypeHole(Bytes(false))),
+            Error(Location(8), FoundTypeHole(Bytes(true))),
+            Error(
+                Location(14),
+                FoundTypeHole(Func(Box::new(Bytes(false)), Box::new(Bytes(false))))
+            ),
+            Error(Location(21), FoundTypeHole(Bytes(true)))
+        ])),
+        Tree::new("_, split_, map_, join_".bytes())
+    );
+
+    assert_maytree!(
+        Err(ErrorList(vec![Error(
+            Location(7),
+            FoundTypeHole(Func(Box::new(Bytes(false)), Box::new(Named("ret".into()))))
+        )])),
+        Tree::new("input, _".bytes())
+    );
+
+    assert_maytree!(
+        Err(ErrorList(vec![
+            Error(
+                Location(0),
+                ContextCaused {
+                    error: Box::new(Error(
+                        Location(16),
+                        ExpectedButGot(
+                            Func(Box::new(Named("a".into())), Box::new(Named("b".into()))),
+                            Number
+                        )
+                    )),
+                    because: TypeListInferredItemTypeButItWas(
+                        Func(
+                            Box::new(Number),
+                            Box::new(Func(Box::new(Number), Box::new(Number)))
+                        ),
+                        Func(
+                            Box::new(Func(
+                                Box::new(Named("a".into())),
+                                Box::new(Named("b".into()))
+                            )),
+                            Box::new(Func(
+                                Box::new(List(false, Box::new(Named("a".into())))),
+                                Box::new(List(false, Box::new(Named("b".into()))))
+                            ))
+                        )
+                    )
+                }
+            ),
+            Error(
+                Location(8),
+                FoundTypeHole(Func(
+                    Box::new(Number),
+                    Box::new(Func(Box::new(Number), Box::new(Number)))
+                ))
+            )
+        ])),
+        Tree::new("{const, _, add, map}".bytes())
     );
 }
 // }}}
