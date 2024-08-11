@@ -136,7 +136,7 @@ impl Type {
         types: &mut TypeList,
     ) -> Result<TypeRef, ErrorKind> {
         match types.get(func) {
-            &Type::Func(want, ret) => Type::concretize(want, give, types).map(|()| ret),
+            &Type::Func(want, ret) => Type::concretize(want, give, types, false).map(|()| ret),
             Type::Named(err) if ERROR_TYPE_NAME == err => Ok(func),
             _ => Err(ErrorKind::NotFunc(types.frozen(func))),
         }
@@ -151,6 +151,26 @@ impl Type {
         }
     }
 
+    /// Same as `applied` but `curr` already the destination and
+    /// handling of finiteness is different.
+    /// It's used when finding the item type of a list:
+    /// ```plaintext
+    /// a | [Num]+ | [Num] ->> [Num]+
+    /// a | Str | Num ->> never
+    /// a | Str+ | Str ->> Str+
+    /// a | Str | Str+ ->> never // xxx: disputable, same with []|[]+
+    /// a | [Str+] | [Str] ->> [Str+]
+    /// a | (Str -> c) | (Str+ -> Str+) ->> (Str -> Str+)
+    /// a | ([Str+] -> x) | ([Str] -> x) ->> ([Str] -> x)
+    /// ```
+    pub(crate) fn harmonize(
+        curr: TypeRef,
+        item: TypeRef,
+        types: &mut TypeList,
+    ) -> Result<(), ErrorKind> {
+        Type::concretize(curr, item, types, true)
+    }
+
     /// Concretizes boundedness and unknown named types:
     /// * fin <- fin is fin
     /// * inf <- inf is inf
@@ -160,30 +180,42 @@ impl Type {
     /// Both types may be modified (due to contravariance of func in parameter type).
     /// This uses the fact that inf types and unk named types are
     /// only depended on by the functions that introduced them.
-    fn concretize(want: TypeRef, give: TypeRef, types: &mut TypeList) -> Result<(), ErrorKind> {
+    ///
+    /// When called from `harmonize` (idk true), the rules are slightly different:
+    /// * inf <- fin is inf
+    fn concretize(
+        want: TypeRef,
+        give: TypeRef,
+        types: &mut TypeList,
+        keep_inf: bool,
+    ) -> Result<(), ErrorKind> {
         use Type::*;
+
+        let handle_finiteness = |fw: Boundedness, fg: Boundedness, types: &mut TypeList| match (
+            types.freeze_finite(fw),
+            types.freeze_finite(fg),
+        ) {
+            (false, false) | (true, true) => Ok(()),
+            (false, true) => {
+                if !keep_inf {
+                    *types.get_mut(fw) = Finite(true);
+                }
+                Ok(())
+            }
+            (true, false) => Err(ErrorKind::InfWhereFinExpected),
+        };
+
         match (types.get(want), types.get(give)) {
             (Named(err), _) if ERROR_TYPE_NAME == err => Ok(()),
 
             (Number, Number) => Ok(()),
 
-            (Bytes(fw), Bytes(fg)) => match (types.freeze_finite(*fw), types.freeze_finite(*fg)) {
-                (false, false) | (true, true) => Ok(()),
-                (false, true) => {
-                    *types.get_mut(*fw) = Finite(true);
-                    Ok(())
-                }
-                (true, false) => Err(ErrorKind::InfWhereFinExpected),
-            },
+            (Bytes(fw), Bytes(fg)) => handle_finiteness(*fw, *fg, types),
 
             (List(fw, l_ty), List(fg, r_ty)) => {
                 let (l_ty, r_ty) = (*l_ty, *r_ty);
-                match (types.freeze_finite(*fw), types.freeze_finite(*fg)) {
-                    (false, false) | (true, true) => (),
-                    (false, true) => *types.get_mut(*fw) = Finite(true),
-                    (true, false) => return Err(ErrorKind::InfWhereFinExpected),
-                }
-                Type::concretize(l_ty, r_ty, types)
+                handle_finiteness(*fw, *fg, types)?;
+                Type::concretize(l_ty, r_ty, types, keep_inf)
             }
 
             (&Func(l_par, l_ret), &Func(r_par, r_ret)) => {
@@ -191,8 +223,8 @@ impl Type {
                 // parameter compare contravariantly:
                 // (Str -> c) <- (Str+ -> Str+)
                 // (a -> b) <- (c -> c)
-                Type::concretize(r_par, l_par, types)?;
-                Type::concretize(l_ret, r_ret, types)
+                Type::concretize(r_par, l_par, types, keep_inf)?;
+                Type::concretize(l_ret, r_ret, types, keep_inf)
             }
 
             (Named(_), other) => {
@@ -210,79 +242,6 @@ impl Type {
                 Err(ErrorKind::ExpectedButGot(
                     types.frozen(pwant),
                     types.frozen(give),
-                ))
-            }
-        }
-    }
-
-    /// Not sure what is this operation;
-    /// it's not union because it is asymmetric..
-    /// it's used when finding the item type of a list.
-    ///
-    /// ```plaintext
-    /// a | [Num]+ | [Num] ->> [Num]+
-    /// a | Str | Num ->> never
-    /// a | Str+ | Str ->> Str+
-    /// a | Str | Str+ ->> never // xxx: disputable, same with []|[]+
-    /// a | [Str+] | [Str] ->> [Str+]
-    /// a | (Str -> c) | (Str+ -> Str+) ->> (Str -> Str+)
-    /// a | ([Str+] -> x) | ([Str] -> x) ->> ([Str] -> x)
-    /// ```
-    ///
-    /// TODO: remove and use `concretize` instead (with a flag of sort if needed)
-    /// only difference is handling of finiteness
-    pub(crate) fn harmonize(
-        curr: TypeRef,
-        item: TypeRef,
-        types: &mut TypeList,
-    ) -> Result<(), ErrorKind> {
-        use Type::*;
-        match (types.get(curr), types.get(item)) {
-            (Named(err), _) if ERROR_TYPE_NAME == err => Ok(()),
-
-            (Number, Number) => Ok(()),
-
-            (Bytes(fw), Bytes(fg)) => match (types.freeze_finite(*fw), types.freeze_finite(*fg)) {
-                (false, false) | (true, true) | (false, true) => Ok(()),
-                (true, false) => {
-                    *types.get_mut(curr) = Type::Named(ERROR_TYPE_NAME.into());
-                    Err(ErrorKind::InfWhereFinExpected)
-                }
-            },
-
-            (List(fw, l_ty), List(fg, r_ty)) => {
-                let (l_ty, r_ty) = (*l_ty, *r_ty);
-                match (types.freeze_finite(*fw), types.freeze_finite(*fg)) {
-                    (false, false) | (true, true) | (false, true) => (),
-                    (true, false) => {
-                        *types.get_mut(curr) = Type::Named(ERROR_TYPE_NAME.into());
-                        return Err(ErrorKind::InfWhereFinExpected);
-                    }
-                }
-                Type::harmonize(l_ty, r_ty, types)
-            }
-
-            (&Func(l_par, l_ret), &Func(r_par, r_ret)) => {
-                // contravariance
-                Type::harmonize(r_par, l_par, types)?;
-                Type::harmonize(l_ret, r_ret, types)
-            }
-
-            (Named(_), other) => {
-                *types.get_mut(curr) = other.clone();
-                Ok(())
-            }
-            (other, Named(_)) => {
-                *types.get_mut(item) = other.clone();
-                Ok(())
-            }
-
-            _ => {
-                let pcurr = types.push(types.get(curr).clone());
-                *types.get_mut(curr) = Type::Named(ERROR_TYPE_NAME.into());
-                Err(ErrorKind::ExpectedButGot(
-                    types.frozen(pcurr),
-                    types.frozen(item),
                 ))
             }
         }

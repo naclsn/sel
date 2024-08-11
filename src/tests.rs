@@ -290,6 +290,65 @@ fn parsing() {
         res
     );
     assert_eq!(FrozenType::Bytes(true), ty);
+
+    let (ty, res) = expect(Tree::new_typed("{repeat 1, {}}".bytes()));
+    assert_tree!(
+        Tree(
+            Location(0),
+            TreeKind::List(
+                0,
+                vec![
+                    Tree(
+                        Location(1),
+                        TreeKind::Apply(
+                            0,
+                            "repeat".into(),
+                            vec![Tree(Location(8), TreeKind::Number(1.0))]
+                        )
+                    ),
+                    Tree(Location(11), TreeKind::List(0, vec![]))
+                ]
+            )
+        ),
+        res
+    );
+    assert_eq!(
+        FrozenType::List(
+            true,
+            Box::new(FrozenType::List(false, Box::new(FrozenType::Number)))
+        ),
+        ty
+    );
+
+    let (ty, res) = expect(Tree::new_typed("add 1, tostr".bytes()));
+    assert_tree!(
+        Tree(
+            Location(5),
+            TreeKind::Apply(
+                0,
+                COMPOSE_OP_FUNC_NAME.into(),
+                vec![
+                    Tree(
+                        Location(0),
+                        TreeKind::Apply(
+                            0,
+                            "add".into(),
+                            vec![Tree(Location(4), TreeKind::Number(1.0))]
+                        )
+                    ),
+                    Tree(Location(7), TreeKind::Apply(0, "tostr".into(), vec![]))
+                ]
+            )
+        ),
+        res
+    );
+    assert_eq!(
+        FrozenType::Func(
+            Box::new(FrozenType::Number),
+            Box::new(FrozenType::Bytes(true))
+        ),
+        ty
+    );
 }
 // }}}
 
