@@ -47,6 +47,10 @@ impl Default for TypeList {
 
 // types vec with holes, also factory and such {{{
 impl TypeList {
+    pub fn clear(&mut self) {
+        self.0.truncate(4);
+    }
+
     fn push(&mut self, it: Type) -> TypeRef {
         if let Some((k, o)) = self.0.iter_mut().enumerate().find(|(_, o)| o.is_none()) {
             *o = Some(it);

@@ -257,6 +257,7 @@ pub fn interp(tree: &Tree) -> Value {
                 Rc::new(move || Box::new(vv.clone().into_iter())),
             )
         }
+
         &TreeKind::Number(n) => {
             Value::Number(Box::new(move || n), Rc::new(move || Box::new(move || n)))
         }

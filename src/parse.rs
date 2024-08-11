@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::iter;
 
-use crate::builtin::lookup_type;
+use crate::builtin::NAMES;
 use crate::error::{Error, ErrorContext, ErrorKind, ErrorList};
 use crate::types::{self, FrozenType, Type, TypeList, TypeRef};
 
@@ -241,8 +241,10 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                         self.holes.push((first_loc, ty));
                         TreeKind::Apply(ty, w, Vec::new())
                     } else {
-                        match lookup_type(&w, &mut self.types) {
-                            Some(ty) => TreeKind::Apply(ty, w, Vec::new()),
+                        match NAMES.get(&w) {
+                            Some((_, mkty)) => {
+                                TreeKind::Apply(mkty(&mut self.types), w, Vec::new())
+                            }
                             None => {
                                 self.report(Error(first_loc, ErrorKind::UnknownName(w)));
                                 mkerr()
