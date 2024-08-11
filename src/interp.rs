@@ -250,7 +250,13 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
 
 pub fn interp(tree: &Tree) -> Value {
     match &tree.1 {
-        TreeKind::Bytes(v) => Value::Bytes(Box::new(v.clone().into_iter()), Rc::new(|| todo!())),
+        TreeKind::Bytes(v) => {
+            let vv = v.clone();
+            Value::Bytes(
+                Box::new(v.clone().into_iter()),
+                Rc::new(move || Box::new(vv.clone().into_iter())),
+            )
+        }
         &TreeKind::Number(n) => {
             Value::Number(Box::new(move || n), Rc::new(move || Box::new(move || n)))
         }

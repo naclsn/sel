@@ -67,14 +67,14 @@ pub fn lookup_type(name: &str, types: &mut TypeList) -> Option<TypeRef> {
 
         "join" => {
             // join :: Str -> [Str+]+ -> Str+
-            // uuhh :<
-            // this is still not enough, both + in [Str+]+
-            // should be &&'d when applying the 2nd arg
-            let inf = types.infinite();
-            let strinf = types.bytes(inf);
-            let lststrinf = types.list(inf, strinf);
             let strfin = types.bytes(types.finite());
-            let ret = types.func(lststrinf, strinf);
+            let in_inf1 = types.infinite();
+            let in_inf2 = types.infinite();
+            let in_strinf = types.bytes(in_inf1);
+            let in_lststrinf = types.list(in_inf2, in_strinf);
+            let out_inf = types.join(in_inf1, in_inf2);
+            let out_strinf = types.bytes(out_inf);
+            let ret = types.func(in_lststrinf, out_strinf);
             types.func(strfin, ret)
         }
 

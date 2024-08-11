@@ -19,6 +19,7 @@ pub(crate) enum Type {
     Func(TypeRef, TypeRef),
     Named(String),
     Finite(bool),
+    FiniteJoin(Boundedness, Boundedness),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -81,6 +82,9 @@ impl TypeList {
     pub fn infinite(&mut self) -> Boundedness {
         self.push(Type::Finite(false))
     }
+    pub fn join(&mut self, left: Boundedness, right: Boundedness) -> Boundedness {
+        self.push(Type::FiniteJoin(left, right))
+    }
 
     pub fn get(&self, at: TypeRef) -> &Type {
         self.0[at].as_ref().unwrap()
@@ -90,25 +94,26 @@ impl TypeList {
         self.0[at].as_mut().unwrap()
     }
 
+    fn freeze_finite(&self, at: Boundedness) -> bool {
+        match *self.get(at) {
+            Type::Finite(b) => b,
+            Type::FiniteJoin(l, r) => self.freeze_finite(l) && self.freeze_finite(r),
+            _ => unreachable!(),
+        }
+    }
+
     pub fn frozen(&self, at: TypeRef) -> FrozenType {
         match self.get(at) {
             Type::Number => FrozenType::Number,
-            Type::Bytes(b) => FrozenType::Bytes(match self.get(*b) {
-                Type::Finite(b) => *b,
-                _ => unreachable!(),
-            }),
-            Type::List(b, items) => FrozenType::List(
-                match self.get(*b) {
-                    Type::Finite(b) => *b,
-                    _ => unreachable!(),
-                },
-                Box::new(self.frozen(*items)),
-            ),
+            Type::Bytes(b) => FrozenType::Bytes(self.freeze_finite(*b)),
+            Type::List(b, items) => {
+                FrozenType::List(self.freeze_finite(*b), Box::new(self.frozen(*items)))
+            }
             Type::Func(par, ret) => {
                 FrozenType::Func(Box::new(self.frozen(*par)), Box::new(self.frozen(*ret)))
             }
             Type::Named(name) => FrozenType::Named(name.clone()),
-            Type::Finite(_) => unreachable!(),
+            Type::Finite(_) | Type::FiniteJoin(_, _) => unreachable!(),
         }
     }
 
@@ -162,23 +167,21 @@ impl Type {
 
             (Number, Number) => Ok(()),
 
-            (Bytes(fw), Bytes(fg)) => match (types.get(*fw), types.get(*fg)) {
-                (Finite(fw_bool), Finite(fg_bool)) if fw_bool == fg_bool => Ok(()),
-                (Finite(false), Finite(true)) => {
+            (Bytes(fw), Bytes(fg)) => match (types.freeze_finite(*fw), types.freeze_finite(*fg)) {
+                (false, false) | (true, true) => Ok(()),
+                (false, true) => {
                     *types.get_mut(*fw) = Finite(true);
                     Ok(())
                 }
-                (Finite(true), Finite(false)) => Err(ErrorKind::InfWhereFinExpected),
-                _ => unreachable!(),
+                (true, false) => Err(ErrorKind::InfWhereFinExpected),
             },
 
             (List(fw, l_ty), List(fg, r_ty)) => {
                 let (l_ty, r_ty) = (*l_ty, *r_ty);
-                match (types.get(*fw), types.get(*fg)) {
-                    (Finite(fw_bool), Finite(fg_bool)) if fw_bool == fg_bool => (),
-                    (Finite(false), Finite(true)) => *types.get_mut(*fw) = Finite(true),
-                    (Finite(true), Finite(false)) => return Err(ErrorKind::InfWhereFinExpected),
-                    _ => unreachable!(),
+                match (types.freeze_finite(*fw), types.freeze_finite(*fg)) {
+                    (false, false) | (true, true) => (),
+                    (false, true) => *types.get_mut(*fw) = Finite(true),
+                    (true, false) => return Err(ErrorKind::InfWhereFinExpected),
                 }
                 Type::concretize(l_ty, r_ty, types)
             }
@@ -225,6 +228,9 @@ impl Type {
     /// a | (Str -> c) | (Str+ -> Str+) ->> (Str -> Str+)
     /// a | ([Str+] -> x) | ([Str] -> x) ->> ([Str] -> x)
     /// ```
+    ///
+    /// TODO: remove and use `concretize` instead (with a flag of sort if needed)
+    /// only difference is handling of finiteness
     pub(crate) fn harmonize(
         curr: TypeRef,
         item: TypeRef,
@@ -236,26 +242,22 @@ impl Type {
 
             (Number, Number) => Ok(()),
 
-            (Bytes(fw), Bytes(fg)) => match (types.get(*fw), types.get(*fg)) {
-                (Finite(fw_bool), Finite(fg_bool)) if fw_bool == fg_bool => Ok(()),
-                (Finite(false), Finite(true)) => Ok(()),
-                (Finite(true), Finite(false)) => {
+            (Bytes(fw), Bytes(fg)) => match (types.freeze_finite(*fw), types.freeze_finite(*fg)) {
+                (false, false) | (true, true) | (false, true) => Ok(()),
+                (true, false) => {
                     *types.get_mut(curr) = Type::Named(ERROR_TYPE_NAME.into());
                     Err(ErrorKind::InfWhereFinExpected)
                 }
-                _ => unreachable!(),
             },
 
             (List(fw, l_ty), List(fg, r_ty)) => {
                 let (l_ty, r_ty) = (*l_ty, *r_ty);
-                match (types.get(*fw), types.get(*fg)) {
-                    (Finite(fw_bool), Finite(fg_bool)) if fw_bool == fg_bool => (),
-                    (Finite(false), Finite(true)) => (),
-                    (Finite(true), Finite(false)) => {
+                match (types.freeze_finite(*fw), types.freeze_finite(*fg)) {
+                    (false, false) | (true, true) | (false, true) => (),
+                    (true, false) => {
                         *types.get_mut(curr) = Type::Named(ERROR_TYPE_NAME.into());
                         return Err(ErrorKind::InfWhereFinExpected);
                     }
-                    _ => unreachable!(),
                 }
                 Type::harmonize(l_ty, r_ty, types)
             }
@@ -291,17 +293,17 @@ impl Type {
         match (types.get(want), types.get(give)) {
             (Number, Number) => true,
 
-            (Bytes(fw), Bytes(fg)) => match (types.get(*fw), types.get(*fg)) {
-                (Finite(true), Finite(false)) => false,
-                (Finite(_), Finite(_)) => true,
-                _ => unreachable!(),
+            (Bytes(fw), Bytes(fg)) => match (types.freeze_finite(*fw), types.freeze_finite(*fg)) {
+                (true, false) => false,
+                (_, _) => true,
             },
 
-            (List(fw, l_ty), List(fg, r_ty)) => match (types.get(*fw), types.get(*fg)) {
-                (Finite(true), Finite(false)) => false,
-                (Finite(_), Finite(_)) => Type::compatible(*l_ty, *r_ty, types),
-                _ => unreachable!(),
-            },
+            (List(fw, l_ty), List(fg, r_ty)) => {
+                match (types.freeze_finite(*fw), types.freeze_finite(*fg)) {
+                    (true, false) => false,
+                    (_, _) => Type::compatible(*l_ty, *r_ty, types),
+                }
+            }
 
             (Func(l_par, l_ret), Func(r_par, r_ret)) => {
                 // parameter compare contravariantly: (Str -> c) <- (Str+ -> Str+)

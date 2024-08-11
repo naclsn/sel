@@ -208,8 +208,7 @@ fn parsing() {
         ),
         res
     );
-    // FIXME: this should be false, right?
-    assert_eq!(FrozenType::Bytes(true), ty);
+    assert_eq!(FrozenType::Bytes(false), ty);
 
     let (ty, res) = expect(Tree::new_typed("tonum, add234121, tostr, ln".bytes()));
     assert_tree!(
