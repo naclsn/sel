@@ -93,7 +93,7 @@ fn do_lookup(mut args: Peekable<Args>) {
             let mut types = TypeList::default();
             let mut entries: Vec<_> = NAMES.entries().collect();
             entries.sort_unstable_by_key(|p| *p.0);
-            for (name, (_, mkty)) in entries {
+            for (name, (mkty, _)) in entries {
                 types.clear();
                 let ty = mkty(&mut types);
                 println!("{name} :: {}", types.frozen(ty));
@@ -106,7 +106,7 @@ fn do_lookup(mut args: Peekable<Args>) {
             let mut types = TypeList::default();
             let not_found: Vec<_> = args
                 .filter(|name| {
-                    if let Some((desc, mkty)) = NAMES.get(name) {
+                    if let Some((mkty, desc)) = NAMES.get(name) {
                         types.clear();
                         let ty = mkty(&mut types);
                         println!("{name} :: {}\n\t{desc}", types.frozen(ty));

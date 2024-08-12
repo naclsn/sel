@@ -242,7 +242,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                         TreeKind::Apply(ty, w, Vec::new())
                     } else {
                         match NAMES.get(&w) {
-                            Some((_, mkty)) => {
+                            Some((mkty, _)) => {
                                 TreeKind::Apply(mkty(&mut self.types), w, Vec::new())
                             }
                             None => {
@@ -337,7 +337,8 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                             break;
                         }
                     }
-                    TreeKind::List(self.types.list(self.types.finite(), ty), items)
+                    let fin = self.types.finite(true);
+                    TreeKind::List(self.types.list(fin, ty), items)
                 }
 
                 _ => {

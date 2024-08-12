@@ -324,19 +324,15 @@ fn parsing() {
     assert_tree!(
         Tree(
             Location(5),
-            TreeKind::Apply(
+            Apply(
                 0,
                 COMPOSE_OP_FUNC_NAME.into(),
                 vec![
                     Tree(
                         Location(0),
-                        TreeKind::Apply(
-                            0,
-                            "add".into(),
-                            vec![Tree(Location(4), TreeKind::Number(1.0))]
-                        )
+                        Apply(0, "add".into(), vec![Tree(Location(4), Number(1.0))])
                     ),
-                    Tree(Location(7), TreeKind::Apply(0, "tostr".into(), vec![]))
+                    Tree(Location(7), Apply(0, "tostr".into(), vec![]))
                 ]
             )
         ),
@@ -346,6 +342,29 @@ fn parsing() {
         FrozenType::Func(
             Box::new(FrozenType::Number),
             Box::new(FrozenType::Bytes(true))
+        ),
+        ty
+    );
+
+    let (ty, res) = expect(Tree::new_typed("zipwith add {1}".bytes()));
+    assert_tree!(
+        Tree(
+            Location(0),
+            Apply(
+                0,
+                "zipwith".into(),
+                vec![
+                    Tree(Location(8), Apply(0, "add".into(), vec![])),
+                    Tree(Location(12), List(0, vec![Tree(Location(13), Number(1.0))]))
+                ]
+            )
+        ),
+        res
+    );
+    assert_eq!(
+        FrozenType::Func(
+            Box::new(FrozenType::List(false, Box::new(FrozenType::Number))),
+            Box::new(FrozenType::List(true, Box::new(FrozenType::Number)))
         ),
         ty
     );

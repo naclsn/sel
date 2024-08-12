@@ -19,7 +19,8 @@ pub(crate) enum Type {
     Func(TypeRef, TypeRef),
     Named(String),
     Finite(bool),
-    FiniteJoin(Boundedness, Boundedness),
+    FiniteBoth(Boundedness, Boundedness),
+    FiniteEither(Boundedness, Boundedness),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -80,14 +81,18 @@ impl TypeList {
     pub fn named(&mut self, name: &str) -> TypeRef {
         self.push(Type::Named(name.to_string()))
     }
-    pub fn finite(&self) -> Boundedness {
-        FINITE_TYPEREF
+    pub fn finite(&mut self, finite: bool) -> Boundedness {
+        if finite {
+            FINITE_TYPEREF
+        } else {
+            self.push(Type::Finite(false))
+        }
     }
-    pub fn infinite(&mut self) -> Boundedness {
-        self.push(Type::Finite(false))
+    pub fn either(&mut self, left: Boundedness, right: Boundedness) -> Boundedness {
+        self.push(Type::FiniteEither(left, right))
     }
-    pub fn join(&mut self, left: Boundedness, right: Boundedness) -> Boundedness {
-        self.push(Type::FiniteJoin(left, right))
+    pub fn both(&mut self, left: Boundedness, right: Boundedness) -> Boundedness {
+        self.push(Type::FiniteBoth(left, right))
     }
 
     pub fn get(&self, at: TypeRef) -> &Type {
@@ -101,8 +106,14 @@ impl TypeList {
     fn freeze_finite(&self, at: Boundedness) -> bool {
         match *self.get(at) {
             Type::Finite(b) => b,
-            Type::FiniteJoin(l, r) => self.freeze_finite(l) && self.freeze_finite(r),
-            _ => unreachable!(),
+            Type::FiniteBoth(l, r) => self.freeze_finite(l) && self.freeze_finite(r),
+            Type::FiniteEither(l, r) => self.freeze_finite(l) || self.freeze_finite(r),
+
+            Type::Number
+            | Type::Bytes(_)
+            | Type::List(_, _)
+            | Type::Func(_, _)
+            | Type::Named(_) => unreachable!(),
         }
     }
 
@@ -117,7 +128,7 @@ impl TypeList {
                 FrozenType::Func(Box::new(self.frozen(*par)), Box::new(self.frozen(*ret)))
             }
             Type::Named(name) => FrozenType::Named(name.clone()),
-            Type::Finite(_) | Type::FiniteJoin(_, _) => unreachable!(),
+            Type::Finite(_) | Type::FiniteBoth(_, _) | Type::FiniteEither(_, _) => unreachable!(),
         }
     }
 

@@ -1,98 +1,125 @@
 use phf::{phf_map, Map};
 
-use crate::types::{TypeList, TypeRef};
+use crate::types::{Boundedness, TypeList, TypeRef};
 
-type BuiltinDesc = (&'static str, fn(&mut TypeList) -> TypeRef);
+type BuiltinDesc = (fn(&mut TypeList) -> TypeRef, &'static str);
+
+// macro to generate the fn generating the type {{{
+macro_rules! mkmktyty {
+    ($st:ident, Num) => {
+        $st.types.number()
+    };
+
+    ($st:ident, Str+ $f:literal $(& $both:literal)? $(| $either:literal)?) => {
+        {
+            let f = mkmktyty!($st, + $f $(& $both)? $(| $either)?);
+            $st.types.bytes(f)
+        }
+    };
+    ($st:ident, Str) => {
+        mkmktyty!($st, Str+ 0)
+    };
+
+    ($st:ident, $n:ident) => {
+        $st.$n
+    };
+
+    ($st:ident, [$($i:tt)+]+ $f:literal $(& $both:literal)? $(| $either:literal)?) => {
+        {
+            let f = mkmktyty!($st, + $f $(& $both)? $(| $either)?);
+            let i = mkmktyty!($st, $($i)+);
+            $st.types.list(f, i)
+        }
+    };
+    ($st:ident, [$($i:tt)+]) => {
+        mkmktyty!($st, [$($i)+]+ 0)
+    };
+
+    ($st:ident, ($($t:tt)+)) => {
+        mkmktyty!($st, $($t)+)
+    };
+
+    ($st:ident, $p:tt -> $($r:tt)+) => {
+        {
+            let p = mkmktyty!($st, $p);
+            let r = mkmktyty!($st, $($r)+);
+            $st.types.func(p, r)
+        }
+    };
+    ($st:ident, $p:tt+ $f:literal $(& $both:literal)? $(| $either:literal)? -> $($r:tt)+) => {
+        mkmktyty!($st, ($p+ $f $(& $both)? $(| $either)?) -> $($r)+)
+    };
+
+    ($st:ident, + $n:literal) => {
+        $st._fin[$n]
+    };
+    ($st:ident, + $l:literal&$r:literal) => {
+        $st.types.both($st._fin[$l], $st._fin[$r])
+    };
+    ($st:ident, + $l:literal|$r:literal) => {
+        $st.types.either($st._fin[$l], $st._fin[$r])
+    };
+}
+
+// (nb_infinites, names; type)
+macro_rules! mkmkty {
+    ($f:tt$(, $n:ident)*; $($ty:tt)+) => {
+        |types| {
+            struct State<'a> {
+                _fin: [Boundedness; $f+1],
+                $($n: TypeRef,)*
+                types: &'a mut TypeList,
+            }
+            let state = State {
+                _fin: mkmkty!(@ types $f),
+                $($n: types.named(stringify!($n)),)*
+                types,
+            };
+            mkmktyty!(state, $($ty)+)
+        }
+    };
+
+    (@ $types:ident 0) => { [$types.finite(true)] };
+    (@ $types:ident 1) => { [$types.finite(true), $types.finite(false)] };
+    (@ $types:ident 2) => { [$types.finite(true), $types.finite(false), $types.finite(false)] };
+    (@ $types:ident 3) => { [$types.finite(true), $types.finite(false), $types.finite(false), $types.finite(false)] };
+}
+// }}}
 
 pub const NAMES: Map<&'static str, BuiltinDesc> = phf_map! {
-        "input" => ("the input", |types| {
-            // input :: Str+
-            let inf = types.infinite();
-            types.bytes(inf)
-        }),
+        "add" => (mkmkty!(0; Num -> Num -> Num),
+            "add two numbers"),
 
-        "const" => ("todo", |types| {
-            // const :: a -> b -> a
-            let a = types.named("a");
-            let b = types.named("b");
-            let ba = types.func(b, a);
-            types.func(a, ba)
-        }),
+        "const" => (mkmkty!(0, a, b; a -> b -> a),
+            "always evaluate to its first argument, ignoring its second argument"),
 
-        // xxx: maybe change back to nl because of math ln..
-        "ln" => ("todo", |types| {
-            // ln :: Str+ -> Str+
-            let inf = types.infinite();
-            let strinf = types.bytes(inf);
-            types.func(strinf, strinf)
-        }),
+        "input" => (mkmkty!(1; Str+1),
+            "the input"),
 
-        "split" => ("todo", |types| {
-            // slice :: Str -> Str+ -> [Str+]+
-            let strfin = types.bytes(types.finite());
-            let inf = types.infinite();
-            let strinf = types.bytes(inf);
-            let ret = types.list(inf, strinf);
-            let ret = types.func(strinf, ret);
-            types.func(strfin, ret)
-        }),
+        "join" => (mkmkty!(2; Str -> [Str+1]+2 -> Str+1&2),
+            "join a list of string with a separator between entries"),
 
-        "add" => ("add two numbers", |types| {
-            // add :: Num -> Num -> Num
-            let ret = types.func(types.number(), types.number());
-            types.func(types.number(), ret)
-        }),
+        "len" => (mkmkty!(0, a; [a] -> Num),
+            "compute the length of a finite list"),
 
-        "make a new list by applying an unary operation to each value from a list" => ("todo", |types| {
-            // map :: (a -> b) -> [a]+ -> [b]+
-            let inf = types.infinite();
-            let a = types.named("a");
-            let b = types.named("b");
-            let f = types.func(a, b);
-            let aa = types.list(inf, a);
-            let bb = types.list(inf, b);
-            let ff = types.func(aa, bb);
-            types.func(f, ff)
-        }),
+        "ln" => (mkmkty!(1; Str+1 -> Str+1),
+            "append a new line to a string (xxx: maybe change back to nl because of math ln..)"),
 
-        "tonum" => ("todo", |types| {
-            // tonum :: Str+ -> Num
-            let inf = types.infinite();
-            let strinf = types.bytes(inf);
-            types.func(strinf, types.number())
-        }),
+        "map" => (mkmkty!(1, a, b; (a -> b) -> [a]+1 -> [b]+1),
+            "make a new list by applying an unary operation to each value from a list"),
 
-        "tostr" => ("todo", |types| {
-            // tostr :: Num -> Str
-            let strfin = types.bytes(types.finite());
-            types.func(types.number(), strfin)
-        }),
+        "repeat" => (mkmkty!(1, a; a -> [a]+1),
+            "repeat an infinite amount of copies of the same value"),
 
-        "join" => ("todo", |types| {
-            // join :: Str -> [Str+]+ -> Str+
-            let strfin = types.bytes(types.finite());
-            let in_inf1 = types.infinite();
-            let in_inf2 = types.infinite();
-            let in_strinf = types.bytes(in_inf1);
-            let in_lststrinf = types.list(in_inf2, in_strinf);
-            let out_inf = types.join(in_inf1, in_inf2);
-            let out_strinf = types.bytes(out_inf);
-            let ret = types.func(in_lststrinf, out_strinf);
-            types.func(strfin, ret)
-        }),
+        "split" => (mkmkty!(1; Str -> Str+1 -> [Str+1]+1),
+            "break a string into pieces separated by the argument, consuming the delimiter; note that an empty delimiter does not split the input on every character, but rather is equivalent to `const [repeat ::]`, for this see `graphemes`"),
 
-        "len" => ("todo", |types| {
-            // len :: [a] -> Number
-            let a = types.named("a");
-            let lstfin = types.list(types.finite(), a);
-            types.func(lstfin, types.number())
-        }),
+        "tonum" => (mkmkty!(1; Str+1 -> Num),
+            "convert a string into number"),
 
-        "repeat" => ("todo", |types| {
-            // repeat :: a -> [a]+
-            let a = types.named("a");
-            let inf = types.infinite();
-            let lstinf = types.list(inf, a);
-            types.func(a, lstinf)
-        }),
+        "tostr" => (mkmkty!(0; Num -> Str),
+            "convert a number into string"),
+
+        "zipwith" => (mkmkty!(2, a, b, c; (a -> b -> c) -> [a]+1 -> [b]+2 -> [c]+1|2),
+            "make a new list by applying an binary operation to each corresponding value from each lists; stops when either list ends"),
 };

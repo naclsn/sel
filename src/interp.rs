@@ -91,13 +91,11 @@ impl<A, B> Bival<A, B> {
     fn map(&mut self, f: impl FnOnce(A) -> B) -> &mut B {
         match self {
             Bival::Init(a) => {
-                unsafe {
-                    let niw = Bival::Fini(f(ptr::read(a)));
-                    let Bival::Init(old) = mem::replace(self, niw) else {
-                        unreachable!()
-                    };
-                    _ = mem::MaybeUninit::new(old);
-                }
+                let niw = unsafe { Bival::Fini(f(ptr::read(a))) };
+                let Bival::Init(old) = mem::replace(self, niw) else {
+                    unreachable!()
+                };
+                _ = mem::MaybeUninit::new(old);
                 let Bival::Fini(b) = self else { unreachable!() };
                 b
             }
@@ -181,6 +179,10 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
             )
         }
 
+        "zipwith" => {
+            todo!()
+        }
+
         "tonum" => {
             let s = args.next().unwrap().bytes().0;
             Value::Number(
@@ -244,7 +246,7 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
             Value::List(Box::new(iter::repeat(val)), Rc::new(|| todo!()))
         }
 
-        _ => unreachable!(),
+        _ => unreachable!("well as long as this list is kept up to date with builtin::NAME that is..."),
     }
 }
 
