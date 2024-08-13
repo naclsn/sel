@@ -1,13 +1,10 @@
-use std::cell::RefCell;
 use std::io::{self, Read, Write};
 use std::iter;
-use std::mem;
-use std::ptr;
 use std::rc::Rc;
 
 use crate::parse::{Tree, TreeKind, COMPOSE_OP_FUNC_NAME};
 
-// runtime concrete value {{{
+// runtime concrete value and macro to make curried instances {{{
 pub type Number = Box<dyn FnOnce() -> f64>;
 pub type Bytes = Box<dyn Iterator<Item = u8>>;
 pub type List = Box<dyn Iterator<Item = Value>>;
@@ -46,207 +43,200 @@ impl Clone for Value {
 }
 
 impl Value {
-    fn number(self) -> (Number, ValueClone<Number>) {
-        if let Value::Number(r, c) = self {
-            (r, c)
+    fn number(self) -> Number {
+        if let Value::Number(r, _) = self {
+            r
         } else {
-            unreachable!()
+            unreachable!("runtime type mismatchs should not be possible")
         }
     }
-    fn bytes(self) -> (Bytes, ValueClone<Bytes>) {
-        if let Value::Bytes(r, c) = self {
-            (r, c)
+    fn bytes(self) -> Bytes {
+        if let Value::Bytes(r, _) = self {
+            r
         } else {
-            unreachable!()
+            unreachable!("runtime type mismatchs should not be possible")
         }
     }
-    fn list(self) -> (List, ValueClone<List>) {
-        if let Value::List(r, c) = self {
-            (r, c)
+    fn list(self) -> List {
+        if let Value::List(r, _) = self {
+            r
         } else {
-            unreachable!()
+            unreachable!("runtime type mismatchs should not be possible")
         }
     }
-    fn func(self) -> (Func, ValueClone<Func>) {
-        if let Value::Func(r, c) = self {
-            (r, c)
+    fn func(self) -> Func {
+        if let Value::Func(r, _) = self {
+            r
         } else {
-            unreachable!()
+            unreachable!("runtime type mismatchs should not be possible")
         }
     }
 }
-// }}}
 
-// Bival<A, B> (essentially a lazy value then its result cached) {{{
-enum Bival<A, B> {
-    Init(A),
-    Fini(B),
-}
+macro_rules! curried_value {
+    (|| -> $what:ident $inside:expr) => {
+        curried_value!(@reverse [] [], $what, $inside)
+    };
+    (|$($args:ident),*| -> $what:ident $inside:expr) => {
+        curried_value!(@reverse [$($args),*] [], $what, $inside)
+    };
 
-impl<A, B> Bival<A, B> {
-    fn new(init: A) -> Bival<A, B> {
-        Bival::Init(init)
-    }
+    (@reverse [] $args:tt, $what:ident, $inside:expr) => {
+        curried_value!(@build $args, $what, $inside)
+    };
+    (@reverse [$h:ident$(, $t:ident)*] [$($r:ident),*], $what:ident, $inside:expr) => {
+        curried_value!(@reverse [$($t),*] [$h$(, $r)*], $what, $inside)
+    };
 
-    fn map(&mut self, f: impl FnOnce(A) -> B) -> &mut B {
-        match self {
-            Bival::Init(a) => {
-                let niw = unsafe { Bival::Fini(f(ptr::read(a))) };
-                let Bival::Init(old) = mem::replace(self, niw) else {
-                    unreachable!()
+    (@build [], $what:ident, $inside:expr) => {
+        {
+            let clone = $inside;
+            Value::$what(Box::new(clone.clone()), Rc::new(move || Box::new(clone.clone())))
+        }
+    };
+    (@build [$h:ident$(, $t:ident)*], $what:ident, $inside:expr) => {
+        curried_value!(
+            @build
+            [$($t),*],
+            Func,
+            |$h: Value| {
+                let clone = move || {
+                    let $h = $h.clone();
+                    $(let $t = $t.clone();)*
+                    $inside
                 };
-                _ = mem::MaybeUninit::new(old);
-                let Bival::Fini(b) = self else { unreachable!() };
-                b
+                Value::$what(Box::new(clone()), Rc::new(move || Box::new(clone())))
             }
-            Bival::Fini(b) => b,
-        }
-    }
+        )
+    };
 }
 // }}}
 
 // lookup and make {{{
 fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
+    if COMPOSE_OP_FUNC_NAME == name {
+        let f = args.next().unwrap();
+        let g = args.next().unwrap();
+        let does = |v| g.func()(f.func()(v));
+        return Value::Func(
+            Box::new(does.clone()),
+            Rc::new(move || Box::new(does.clone())),
+        );
+    }
+
+    let apply_args = move |v: Value| args.fold(v, |acc, cur| acc.func()(cur));
+
     match name {
-        COMPOSE_OP_FUNC_NAME => {
-            let f = args.next().unwrap().func().0;
-            let g = args.next().unwrap().func().0;
-            Value::Func(Box::new(move |v| g(f(v))), Rc::new(|| todo!()))
-        }
+        "add" => apply_args(curried_value!(|a, b| -> Number || a.number()() + b.number()())),
 
-        "input" => {
-            let mut stdin = io::stdin();
-            Value::Bytes(
-                Box::new(iter::from_fn(move || {
-                    let mut r = [0u8; 1];
-                    match stdin.read(&mut r) {
-                        Ok(1) => Some(r[0]),
-                        _ => None,
+        "const" => apply_args(curried_value!(|a| -> Func |_| a)),
+
+        "input" => apply_args(curried_value!(|| -> Bytes {
+            iter::from_fn(move || {
+                // XXX: this will be incorrect very easily but whever for now
+                // (ex: `repeat input` just.. cannot be)
+                let mut stdin = io::stdin();
+                let mut r = [0u8; 1];
+                match stdin.read(&mut r) {
+                    Ok(1) => Some(r[0]),
+                    _ => None,
+                }
+            })
+        })),
+
+        "join" => apply_args(curried_value!(|sep, lst| -> Bytes {
+            let sep = sep.bytes().collect::<Vec<_>>();
+            let mut lst = lst.list().map(Value::bytes).peekable();
+            let mut now_sep = 0;
+            iter::from_fn(move || {
+                if 0 != now_sep {
+                    if now_sep < sep.len() {
+                        now_sep += 1;
+                        return Some(sep[now_sep - 1]);
+                    };
+                    now_sep = 0;
+                }
+                if let Some(bytes) = lst.peek_mut() {
+                    let b = bytes.next();
+                    if b.is_some() {
+                        return b;
                     }
-                })),
-                Rc::new(|| todo!()),
-            )
-        }
-
-        "ln" => Value::Bytes(
-            Box::new(args.next().unwrap().bytes().0.chain(iter::once(b'\n'))),
-            Rc::new(|| todo!()),
-        ),
-
-        "split" => {
-            let mut uncollected_sep = Some(args.next().unwrap().bytes().0);
-            let mut bytes_iter = args.next().unwrap().bytes().0.peekable();
-            let mut sep = Vec::<u8>::new();
-            Value::List(
-                Box::new(iter::from_fn(move || {
-                    bytes_iter.peek()?;
-                    if let Some(a) = uncollected_sep.take() {
-                        sep = a.collect();
+                    drop(lst.next());
+                    if lst.peek().is_some() {
+                        now_sep = 1;
+                        return Some(sep[0]);
                     }
-                    let v: Vec<u8> = bytes_iter.by_ref().take_while(|x| *x != sep[0]).collect();
-                    Some(Value::Bytes(Box::new(v.into_iter()), Rc::new(|| todo!())))
-                })),
-                Rc::new(|| todo!()),
-            )
-        }
+                }
+                None
+            })
+        })),
 
-        "add" => {
-            let a = args.next().unwrap().number().0;
-            if let Some(b) = args.next() {
-                let b = b.number().0;
-                Value::Number(Box::new(move || a() + b()), Rc::new(|| todo!()))
-            } else {
-                let a = Rc::new(RefCell::new(Bival::new(a)));
-                let f = move |b: Value| {
-                    let b = b.number().0;
-                    Value::Number(
-                        Box::new(move || *a.borrow_mut().map(|a| a()) + b()),
-                        Rc::new(|| todo!()),
-                    )
-                };
-                Value::Func(Box::new(f.clone()), Rc::new(move || Box::new(f.clone())))
-            }
-        }
+        "len" => apply_args(curried_value!(|list| -> Number || list.list().count() as f64)),
+
+        "ln" => apply_args(curried_value!(|s| -> Bytes s.bytes().chain(iter::once(b'\n')))),
 
         "map" => {
-            let (mut f, f_clone) = args.next().unwrap().func();
-            let mut l = args.next().unwrap().list().0;
-            Value::List(
-                Box::new(iter::from_fn(move || {
-                    l.next().map(mem::replace(&mut f, f_clone()))
-                })),
-                Rc::new(|| todo!()),
-            )
+            apply_args(curried_value!(|f, l| -> List l.list().map(move |i| f.clone().func()(i))))
         }
 
-        "zipwith" => {
-            todo!()
-        }
+        "repeat" => apply_args(curried_value!(|val| -> List iter::repeat(val))),
 
-        "tonum" => {
-            let s = args.next().unwrap().bytes().0;
-            Value::Number(
-                Box::new(move || {
-                    let mut r = 0.0;
-                    for n in s {
-                        if n.is_ascii_digit() {
-                            r = 10.0 * r + (n - b'0') as f64;
-                        } else {
-                            break;
-                        }
+        "split" => apply_args(curried_value!(|sep, s| -> List {
+            let sep = sep.bytes().collect::<Vec<_>>();
+            let mut s = s.bytes().peekable();
+            let mut updog = Vec::<u8>::new();
+            // XXX: not as lazy as could be (but I got lazy instead)
+            // FIXME: also it skips the last empty split if s exactly ends with sep
+            iter::from_fn(move || {
+                s.peek()?;
+                for b in s.by_ref() {
+                    updog.push(b);
+                    if updog.ends_with(&sep) {
+                        updog.truncate(updog.len() - sep.len());
+                        break;
                     }
-                    r
-                }),
-                Rc::new(|| todo!()),
-            )
-        }
+                }
+                let v = std::mem::take(&mut updog);
+                let vv = v.clone();
+                Some(Value::Bytes(
+                    Box::new(v.into_iter()),
+                    Rc::new(move || Box::new(vv.clone().into_iter())),
+                ))
+            })
+        })),
 
-        "tostr" => {
-            let mut n = Bival::new(args.next().unwrap().number().0);
-            Value::Bytes(
-                Box::new(iter::from_fn(move || {
-                    n.map(|n| n().to_string().into_bytes().into_iter()).next()
-                })),
-                Rc::new(|| todo!()),
-            )
-        }
-
-        "join" => {
-            let mut uncollected_sep = Some(args.next().unwrap().bytes().0);
-            let mut list_iter = args.next().unwrap().list().0.map(Value::bytes).peekable();
-            let mut sep = Vec::<u8>::new();
-            Value::Bytes(
-                Box::new(iter::from_fn(move || {
-                    if let Some((ref mut bytes, _)) = list_iter.peek_mut() {
-                        let b = bytes.next();
-                        if b.is_some() {
-                            return b;
-                        }
-                        list_iter.next();
-                        if list_iter.peek().is_some() {
-                            if let Some(a) = uncollected_sep.take() {
-                                sep = a.collect();
-                            }
-                            return Some(sep[0]);
-                        }
+        "tonum" => apply_args(curried_value!(|s| -> Number || {
+            let mut r = 0;
+            let mut s = s.bytes();
+            for n in s.by_ref() {
+                if n.is_ascii_digit() {
+                    r = 10 * r + (n - b'0') as usize;
+                } else if b'.' == n {
+                    let mut d = 0;
+                    let mut w = 0;
+                    for n in s.take_while(u8::is_ascii_digit) {
+                        d = 10 * d + (n - b'0') as usize;
+                        w *= 10;
                     }
-                    None
-                })),
-                Rc::new(|| todo!()),
-            )
-        }
+                    return r as f64 + (d as f64 / w as f64);
+                } else {
+                    break;
+                }
+            }
+            r as f64
+        })),
 
-        "len" => {
-            let list = args.next().unwrap().list().0;
-            Value::Number(Box::new(move || list.count() as f64), Rc::new(|| todo!()))
-        }
+        "tostr" => apply_args(
+            curried_value!(|n| -> Bytes n.number()().to_string().into_bytes().into_iter()),
+        ),
 
-        "repeat" => {
-            let val = args.next().unwrap();
-            Value::List(Box::new(iter::repeat(val)), Rc::new(|| todo!()))
-        }
+        "zipwith" => apply_args(
+            curried_value!(|f, la, lb| -> List la.list().zip(lb.list()).map(move |(a, b)| f.clone().func()(a).func()(b))),
+        ),
 
-        _ => unreachable!("well as long as this list is kept up to date with builtin::NAME that is..."),
+        _ => unreachable!(
+            "well as long as this list is kept up to date with builtin::NAME that is..."
+        ),
     }
 }
 
@@ -264,10 +254,14 @@ pub fn interp(tree: &Tree) -> Value {
             Value::Number(Box::new(move || n), Rc::new(move || Box::new(move || n)))
         }
 
-        TreeKind::List(_, items) => Value::List(
-            Box::new(items.iter().map(interp).collect::<Vec<_>>().into_iter()),
-            Rc::new(|| todo!()),
-        ),
+        TreeKind::List(_, items) => {
+            let v = items.iter().map(interp).collect::<Vec<_>>();
+            let vv = v.clone();
+            Value::List(
+                Box::new(v.into_iter()),
+                Rc::new(move || Box::new(vv.clone().into_iter())),
+            )
+        }
 
         TreeKind::Apply(_, name, args) => lookup_val(name, args.iter().map(interp)),
     }
