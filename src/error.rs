@@ -20,11 +20,11 @@ pub enum ErrorKind {
         token: TokenKind,
         expected: &'static str,
     },
-    UnknownName(String),
+    UnknownName(String, FrozenType),
     NotFunc(FrozenType),
     ExpectedButGot(FrozenType, FrozenType),
     InfWhereFinExpected,
-    FoundTypeHole(FrozenType),
+    //FoundTypeHole(FrozenType),
 }
 
 #[derive(PartialEq, Debug)]
@@ -92,11 +92,10 @@ impl Error {
             Unexpected { token, expected } => {
                 eprint!("Unexpected {token:?}, expected {expected}")
             }
-            UnknownName(n) => eprint!("Unknown name '{n}'"),
+            UnknownName(n, t) => eprint!("Unknown name '{n}', should be {t}"),
             NotFunc(o) => eprint!("Expected a function type, but got {o}"),
             ExpectedButGot(w, g) => eprint!("Expected type {w}, but got {g}"),
             InfWhereFinExpected => eprint!("Expected finite type, but got infinite type"),
-            FoundTypeHole(t) => eprint!("Found type hole, should be {t}"),
         }
 
         eprintln!(" ==> {:?}", self.0);

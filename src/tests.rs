@@ -1,6 +1,6 @@
 use crate::error::{Error, ErrorContext, ErrorKind, ErrorList};
 use crate::parse::{Lexer, Location, Token, TokenKind, Tree, TreeKind, COMPOSE_OP_FUNC_NAME};
-use crate::types::{FrozenType, ERROR_TYPE_NAME};
+use crate::types::FrozenType;
 
 // utils {{{
 fn expect<T>(r: Result<T, ErrorList>) -> T {
@@ -416,7 +416,7 @@ fn reporting() {
             ContextCaused {
                 error: Box::new(Error(Location(5), InfWhereFinExpected)),
                 because: TypeListInferredItemTypeButItWas(
-                    List(true, Box::new(Named("a".into()))),
+                    List(true, Box::new(Named("itemof(typeof({}))".into()))),
                     List(false, Box::new(Number))
                 )
             }
@@ -452,10 +452,7 @@ fn reporting() {
                 ContextCaused {
                     error: Box::new(Error(
                         Location(0),
-                        ExpectedButGot(
-                            Bytes(false),
-                            List(true, Box::new(Named(ERROR_TYPE_NAME.into())))
-                        )
+                        ExpectedButGot(Bytes(false), List(true, Box::new(Number)))
                     )),
                     because: ChainedFromAsNthArgToNamedNowTyped(
                         Location(19),
@@ -540,21 +537,42 @@ fn reporting() {
 
     assert_maytree!(
         Err(ErrorList(vec![
-            Error(Location(0), UnknownName("prout".into())),
-            Error(Location(9), UnknownName("caca".into()))
+            Error(
+                Location(0),
+                UnknownName(
+                    "prout".into(),
+                    Func(
+                        Box::new(Number),
+                        Box::new(Named("paramof(typeof(caca))".into()))
+                    )
+                )
+            ),
+            Error(
+                Location(9),
+                UnknownName(
+                    "caca".into(),
+                    Func(
+                        Box::new(Named("paramof(typeof(caca))".into())),
+                        Box::new(Named("returnof(typeof(caca))".into()))
+                    )
+                )
+            )
         ])),
         Tree::new("prout 1, caca".bytes())
     );
 
     assert_maytree!(
         Err(ErrorList(vec![
-            Error(Location(0), FoundTypeHole(Bytes(false))),
-            Error(Location(8), FoundTypeHole(Bytes(true))),
+            Error(Location(0), UnknownName("_".into(), Bytes(false))),
+            Error(Location(8), UnknownName("_".into(), Bytes(true))),
             Error(
                 Location(14),
-                FoundTypeHole(Func(Box::new(Bytes(false)), Box::new(Bytes(false))))
+                UnknownName(
+                    "_".into(),
+                    Func(Box::new(Bytes(false)), Box::new(Bytes(false)))
+                )
             ),
-            Error(Location(21), FoundTypeHole(Bytes(true)))
+            Error(Location(21), UnknownName("_".into(), Bytes(true)))
         ])),
         Tree::new("_, split_, map_, join_".bytes())
     );
@@ -562,13 +580,29 @@ fn reporting() {
     assert_maytree!(
         Err(ErrorList(vec![Error(
             Location(7),
-            FoundTypeHole(Func(Box::new(Bytes(false)), Box::new(Named("ret".into()))))
+            UnknownName(
+                "_".into(),
+                Func(
+                    Box::new(Bytes(false)),
+                    Box::new(Named("returnof(typeof(_))".into()))
+                )
+            )
         )])),
         Tree::new("input, _".bytes())
     );
 
     assert_maytree!(
         Err(ErrorList(vec![
+            Error(
+                Location(8),
+                UnknownName(
+                    "_".into(),
+                    Func(
+                        Box::new(Number),
+                        Box::new(Func(Box::new(Number), Box::new(Number)))
+                    )
+                )
+            ),
             Error(
                 Location(0),
                 ContextCaused {
@@ -596,13 +630,6 @@ fn reporting() {
                         )
                     )
                 }
-            ),
-            Error(
-                Location(8),
-                FoundTypeHole(Func(
-                    Box::new(Number),
-                    Box::new(Func(Box::new(Number), Box::new(Number)))
-                ))
             )
         ])),
         Tree::new("{const, _, add, map}".bytes())

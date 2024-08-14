@@ -2,11 +2,9 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 
 use crate::error::ErrorKind;
 
-pub(crate) const ERROR_TYPE_NAME: &str = "{error}";
 pub(crate) const NUMBER_TYPEREF: usize = 0;
 pub(crate) const STRFIN_TYPEREF: usize = 1;
 pub(crate) const FINITE_TYPEREF: usize = 2;
-pub(crate) const ERROR_TYPEREF: usize = 3;
 
 pub type TypeRef = usize;
 pub type Boundedness = usize;
@@ -38,10 +36,9 @@ pub struct TypeList(Vec<Option<Type>>);
 impl Default for TypeList {
     fn default() -> Self {
         TypeList(vec![
-            Some(Type::Number),                        // [NUMBER_TYPEREF]
-            Some(Type::Bytes(2)),                      // [STRFIN_TYPEREF]
-            Some(Type::Finite(true)),                  // [FINITE_TYPEREF]
-            Some(Type::Named(ERROR_TYPE_NAME.into())), // [ERROR_TYPEREF]
+            Some(Type::Number),       // [NUMBER_TYPEREF]
+            Some(Type::Bytes(2)),     // [STRFIN_TYPEREF]
+            Some(Type::Finite(true)), // [FINITE_TYPEREF]
         ])
     }
 }
@@ -99,7 +96,7 @@ impl TypeList {
         self.0[at].as_ref().unwrap()
     }
 
-    fn get_mut(&mut self, at: TypeRef) -> &mut Type {
+    pub(crate) fn get_mut(&mut self, at: TypeRef) -> &mut Type {
         self.0[at].as_mut().unwrap()
     }
 
@@ -152,7 +149,6 @@ impl Type {
     ) -> Result<TypeRef, ErrorKind> {
         match types.get(func) {
             &Type::Func(want, ret) => Type::concretize(want, give, types, false).map(|()| ret),
-            Type::Named(err) if ERROR_TYPE_NAME == err => Ok(func),
             _ => Err(ErrorKind::NotFunc(types.frozen(func))),
         }
     }
@@ -161,7 +157,6 @@ impl Type {
     pub(crate) fn applicable(func: TypeRef, give: TypeRef, types: &TypeList) -> bool {
         match types.get(func) {
             &Type::Func(want, _) => Type::compatible(want, give, types),
-            Type::Named(err) if ERROR_TYPE_NAME == err => true,
             _ => false,
         }
     }
@@ -221,8 +216,6 @@ impl Type {
         };
 
         match (types.get(want), types.get(give)) {
-            (Named(err), _) if ERROR_TYPE_NAME == err => Ok(()),
-
             (Number, Number) => Ok(()),
 
             (Bytes(fw), Bytes(fg)) => handle_finiteness(*fw, *fg, types),
@@ -242,23 +235,19 @@ impl Type {
                 Type::concretize(l_ret, r_ret, types, keep_inf)
             }
 
-            (Named(_), other) => {
-                *types.get_mut(want) = other.clone();
-                Ok(())
-            }
             (other, Named(_)) => {
                 *types.get_mut(give) = other.clone();
                 Ok(())
             }
-
-            _ => {
-                let pwant = types.push(types.get(want).clone());
-                *types.get_mut(want) = Type::Named(ERROR_TYPE_NAME.into());
-                Err(ErrorKind::ExpectedButGot(
-                    types.frozen(pwant),
-                    types.frozen(give),
-                ))
+            (Named(_), other) => {
+                *types.get_mut(want) = other.clone();
+                Ok(())
             }
+
+            _ => Err(ErrorKind::ExpectedButGot(
+                types.frozen(want),
+                types.frozen(give),
+            )),
         }
     }
 
@@ -284,8 +273,8 @@ impl Type {
                 Type::compatible(*r_par, *l_par, types) && Type::compatible(*l_ret, *r_ret, types)
             }
 
-            (Named(_), _) => true,
             (_, Named(_)) => true,
+            (Named(_), _) => true,
 
             _ => false,
         }

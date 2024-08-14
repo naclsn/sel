@@ -79,10 +79,6 @@ is parsed:
   at the first item and `repeat 1` can never 'lose' its
   unbounded charateristic safely
 
-Using the special symbol `_` at any point in a script will
-raise a report entry indicating what type is expected at
-this location.
-
 `-t` will give the type of the whole expression.
 
 ## Builtins

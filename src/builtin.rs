@@ -87,39 +87,39 @@ macro_rules! mkmkty {
 // }}}
 
 pub const NAMES: Map<&'static str, BuiltinDesc> = phf_map! {
-        "add" => (mkmkty!(0; Num -> Num -> Num),
-            "add two numbers"),
+    "add" => (mkmkty!(0; Num -> Num -> Num),
+        "add two numbers"),
 
-        "const" => (mkmkty!(0, a, b; a -> b -> a),
-            "always evaluate to its first argument, ignoring its second argument"),
+    "const" => (mkmkty!(0, a, b; a -> b -> a),
+        "always evaluate to its first argument, ignoring its second argument"),
 
-        "input" => (mkmkty!(1; Str+1),
-            "the input"),
+    "input" => (mkmkty!(1; Str+1),
+        "the input"),
 
-        "join" => (mkmkty!(2; Str -> [Str+1]+2 -> Str+1&2),
-            "join a list of string with a separator between entries"),
+    "join" => (mkmkty!(2; Str -> [Str+1]+2 -> Str+1&2),
+        "join a list of string with a separator between entries"),
 
-        "len" => (mkmkty!(0, a; [a] -> Num),
-            "compute the length of a finite list"),
+    "len" => (mkmkty!(0, a; [a] -> Num),
+        "compute the length of a finite list"),
 
-        "ln" => (mkmkty!(1; Str+1 -> Str+1),
-            "append a new line to a string (xxx: maybe change back to nl because of math ln..)"),
+    "ln" => (mkmkty!(1; Str+1 -> Str+1),
+        "append a new line to a string (xxx: maybe change back to nl because of math ln..)"),
 
-        "map" => (mkmkty!(1, a, b; (a -> b) -> [a]+1 -> [b]+1),
-            "make a new list by applying an unary operation to each value from a list"),
+    "map" => (mkmkty!(1, a, b; (a -> b) -> [a]+1 -> [b]+1),
+        "make a new list by applying an unary operation to each value from a list"),
 
-        "repeat" => (mkmkty!(1, a; a -> [a]+1),
-            "repeat an infinite amount of copies of the same value"),
+    "repeat" => (mkmkty!(1, a; a -> [a]+1),
+        "repeat an infinite amount of copies of the same value"),
 
-        "split" => (mkmkty!(1; Str -> Str+1 -> [Str+1]+1),
-            "break a string into pieces separated by the argument, consuming the delimiter; note that an empty delimiter does not split the input on every character, but rather is equivalent to `const [repeat ::]`, for this see `graphemes`"),
+    "split" => (mkmkty!(1; Str -> Str+1 -> [Str+1]+1),
+        "break a string into pieces separated by the argument, consuming the delimiter; note that an empty delimiter does not split the input on every character, but rather is equivalent to `const [repeat ::]`, for this see `graphemes`"),
 
-        "tonum" => (mkmkty!(1; Str+1 -> Num),
-            "convert a string into number"),
+    "tonum" => (mkmkty!(1; Str+1 -> Num),
+        "convert a string into number"),
 
-        "tostr" => (mkmkty!(0; Num -> Str),
-            "convert a number into string"),
+    "tostr" => (mkmkty!(0; Num -> Str),
+        "convert a number into string"),
 
-        "zipwith" => (mkmkty!(2, a, b, c; (a -> b -> c) -> [a]+1 -> [b]+2 -> [c]+1|2),
-            "make a new list by applying an binary operation to each corresponding value from each lists; stops when either list ends"),
+    "zipwith" => (mkmkty!(2, a, b, c; (a -> b -> c) -> [a]+1 -> [b]+2 -> [c]+1|2),
+        "make a new list by applying an binary operation to each corresponding value from each lists; stops when either list ends"),
 };

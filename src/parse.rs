@@ -6,8 +6,6 @@ use crate::error::{Error, ErrorContext, ErrorKind, ErrorList};
 use crate::types::{self, FrozenType, Type, TypeList, TypeRef};
 
 pub const COMPOSE_OP_FUNC_NAME: &str = "(,)";
-pub const TYPEHOLE_OBJECT_NAME: &str = "_";
-const UNKNOWN_NAME: &str = "{unknown}";
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Location(pub(crate) usize);
@@ -92,7 +90,7 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
                     self.stream.find(|c| b'\n' == c.1)?;
                     return self.next();
                 }
-                b'_' => Word(TYPEHOLE_OBJECT_NAME.into()),
+                b'_' => Word("_".into()), // ..keeping this case for those that are used to it
 
                 c if c.is_ascii_lowercase() => Word(
                     String::from_utf8(
@@ -160,16 +158,16 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
                 }),
 
                 c => Unknown(
-                    String::from_utf8_lossy(
+                    String::from_utf8_lossy({
+                        let chclass = c.is_ascii_alphanumeric();
                         &iter::once(c)
-                            .chain(
+                            .chain(iter::from_fn(|| {
                                 self.stream
-                                    .by_ref()
+                                    .next_if(|c| c.1.is_ascii_alphanumeric() == chclass)
                                     .map(|c| c.1)
-                                    .take_while(|c| !c.is_ascii_whitespace()),
-                            )
-                            .collect::<Vec<_>>(),
-                    )
+                            }))
+                            .collect::<Vec<_>>()
+                    })
                     .into_owned(),
                 ),
             },
@@ -183,7 +181,6 @@ struct Parser<I: Iterator<Item = u8>> {
     peekable: iter::Peekable<Lexer<I>>,
     types: TypeList,
     errors: ErrorList,
-    holes: Vec<(Location, TypeRef)>,
 }
 
 impl<I: Iterator<Item = u8>> Parser<I> {
@@ -192,7 +189,6 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             peekable: Lexer::new(iter.into_iter()).peekable(),
             types: TypeList::default(),
             errors: ErrorList::new(),
-            holes: Vec::new(),
         }
     }
 
@@ -200,11 +196,15 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         self.errors.push(err);
     }
 
+    fn mktypeof(&mut self, name: &str) -> (TreeKind, TypeRef) {
+        let ty = self.types.named(&format!("typeof({name})"));
+        (TreeKind::Apply(ty, name.into(), Vec::new()), ty)
+    }
+
     fn parse_value(&mut self) -> Tree {
         use TokenKind::*;
-        let mkerr = || TreeKind::Apply(types::ERROR_TYPEREF, UNKNOWN_NAME.to_string(), Vec::new());
 
-        if let Some(Token(loc, kind @ CloseBracket)) | Some(Token(loc, kind @ CloseBrace)) =
+        if let Some(Token(loc, kind @ (Comma | CloseBracket | CloseBrace | End))) =
             self.peekable.peek()
         {
             let loc = loc.clone();
@@ -216,12 +216,12 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     expected: "a value",
                 },
             ));
-            return Tree(loc, mkerr());
+            return Tree(loc, self.mktypeof("").0);
         }
 
         let Some(Token(first_loc, first_kind)) = self.peekable.next() else {
-            // NOTE: this is the only place where we can get a None out
-            // of the lexer iff the input byte stream was exactly empty
+            // NOTE: this is the only place where we can get a None out of the lexer iif the input
+            //       bytte stream was exactly empty
             self.report(Error(
                 Location(0),
                 ErrorKind::Unexpected {
@@ -229,29 +229,38 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     expected: "a value",
                 },
             ));
-            return Tree(Location(0), mkerr());
+            // anything, doesn't mater what, this is the easiest..
+            return Tree(Location(0), TreeKind::Number(0.0));
         };
 
         Tree(
             first_loc.clone(),
             match first_kind {
-                Word(w) => {
-                    if TYPEHOLE_OBJECT_NAME == w {
-                        let ty = self.types.named("any");
-                        self.holes.push((first_loc, ty));
-                        TreeKind::Apply(ty, w, Vec::new())
-                    } else {
-                        match NAMES.get(&w) {
-                            Some((mkty, _)) => {
-                                TreeKind::Apply(mkty(&mut self.types), w, Vec::new())
-                            }
-                            None => {
-                                self.report(Error(first_loc, ErrorKind::UnknownName(w)));
-                                mkerr()
-                            }
-                        }
+                Word(w) => match NAMES.get(&w) {
+                    Some((mkty, _)) => TreeKind::Apply(mkty(&mut self.types), w, Vec::new()),
+                    None => {
+                        let (r, ty) = self.mktypeof(&w);
+                        self.report(Error(
+                            first_loc,
+                            ErrorKind::UnknownName(w, unsafe {
+                                // NOTE: this is needlessly quirky, stores the usize in place of
+                                //       the FrozenType (works because usize is smaller); see at
+                                //       the receiving end (in parse) where the error list is
+                                //       iterated through once to then compute the correct
+                                //       FrozenType (it cannot be done here and now because it is
+                                //       not fully known yet..)
+                                //       also relies on the fact that (prays that) rust will not do
+                                //       anything with this invalid data, and that we'll have
+                                //       a chance to fix it up before it goes out into the user
+                                //       world
+                                let mut fake_frozen = std::mem::MaybeUninit::zeroed();
+                                *(fake_frozen.as_mut_ptr() as *mut usize) = ty;
+                                fake_frozen.assume_init()
+                            }),
+                        ));
+                        r
                     }
-                }
+                },
 
                 Bytes(b) => TreeKind::Bytes(b),
                 Number(n) => TreeKind::Number(n),
@@ -286,7 +295,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
                 open_token @ OpenBrace => {
                     let mut items = Vec::new();
-                    let ty = self.types.named("a");
+                    let ty = self.types.named("itemof(typeof({}))");
                     if let Some(Token(_, CloseBrace)) = self.peekable.peek() {
                         self.peekable.next();
                     } else {
@@ -341,7 +350,10 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     TreeKind::List(self.types.list(fin, ty), items)
                 }
 
-                _ => {
+                Comma | CloseBracket | CloseBrace | End => unreachable!(),
+
+                Unknown(ref w) => {
+                    let r = self.mktypeof(w).0;
                     self.report(Error(
                         first_loc,
                         ErrorKind::Unexpected {
@@ -349,7 +361,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                             expected: "a value",
                         },
                     ));
-                    mkerr()
+                    r
                 }
             },
         )
@@ -360,8 +372,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         let mut r = self.parse_value();
         while !matches!(
             self.peekable.peek(),
-            Some(Token(_, Comma) | Token(_, CloseBracket) | Token(_, CloseBrace) | Token(_, End))
-                | None
+            Some(Token(_, Comma | CloseBracket | CloseBrace | End)) | None
         ) {
             // "unfold" means as in this example:
             // [tonum, add 1, tostr] :42:
@@ -377,12 +388,12 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                         let mut args = args.into_iter();
                         let (f, mut g) = (args.next().unwrap(), args.next().unwrap());
                         // (,)(f, g) => g(f(..))
-                        g.try_apply(apply_maybe_unfold(p, f), &mut p.types, &mut p.holes)
+                        g.try_apply(apply_maybe_unfold(p, f), &mut p.types)
                             .unwrap_or_else(|e| p.report(e));
                         g
                     }
                     _ => {
-                        func.try_apply(p.parse_value(), &mut p.types, &mut p.holes)
+                        func.try_apply(p.parse_value(), &mut p.types)
                             .unwrap_or_else(|e| p.report(e));
                         func
                     }
@@ -393,6 +404,9 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         r
     }
 
+    // FIXME: something is wrong with this function in the error branches (the 'if' and the 'else')
+    // and the way it doesn't handle errors past the first iteration (`then` is not inspected
+    // again)
     fn parse_script(&mut self) -> Tree {
         use TokenKind::*;
         let mut r = self.parse_apply();
@@ -401,30 +415,27 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             self.peekable.next();
             let mut then = self.parse_apply();
 
-            let (is_func, is_hole) = match &then {
-                Tree(_, TreeKind::Apply(ty, name, _)) => (
-                    matches!(self.types.get(*ty), Type::Func(_, _)),
-                    TYPEHOLE_OBJECT_NAME == name,
-                ),
+            let (is_func, is_hole) = match self.types.get(then.get_type()) {
+                Type::Func(_, _) => (true, false),
+                Type::Named(_) => (false, true),
                 _ => (false, false),
             };
 
             // `then` not a function nor a type hole
             if !is_func && !is_hole {
-                if types::ERROR_TYPEREF != then.get_type() {
-                    self.report(Error(
-                        then.get_loc(),
-                        ErrorKind::NotFunc(self.types.frozen(then.get_type())),
-                    ));
-                }
-                r.1 = TreeKind::Apply(types::ERROR_TYPEREF, UNKNOWN_NAME.to_string(), Vec::new());
+                self.report(Error(
+                    then.get_loc(),
+                    // TODO: context! (ChainedFrom..)
+                    ErrorKind::NotFunc(self.types.frozen(then.get_type())),
+                ));
+                r = then;
             }
             // [x, f, g, h] :: d; where
             // - x :: A
             // - f, g, h :: a -> b, b -> c, c -> d
             else if is_hole || Type::applicable(then.get_type(), r.get_type(), &self.types) {
                 while let Some(Token(_, Comma)) = {
-                    then.try_apply(r, &mut self.types, &mut self.holes)
+                    then.try_apply(r, &mut self.types)
                         .unwrap_or_else(|e| self.report(e));
                     r = then;
                     self.peekable.peek()
@@ -457,11 +468,9 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                         ),
                     );
                     // unwrap because `r` already known to be a function
+                    compose.try_apply(r, &mut self.types).unwrap();
                     compose
-                        .try_apply(r, &mut self.types, &mut self.holes)
-                        .unwrap();
-                    compose
-                        .try_apply(then, &mut self.types, &mut self.holes)
+                        .try_apply(then, &mut self.types)
                         .unwrap_or_else(|e| self.report(e));
                     r = compose;
                     self.peekable.peek()
@@ -500,20 +509,33 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     },
                 ));
             }
-        }
+        } // if Comma
         r
+    }
+
+    fn parse(mut self) -> Result<(FrozenType, Tree), ErrorList> {
+        let r = self.parse_script();
+        if self.errors.is_empty() {
+            Ok((self.types.frozen(r.get_type()), r))
+        } else {
+            // NOTE: this is the receiving end from `parse_value` when a name was not found: this
+            //       is the point where we get the usizes again and compute the final FrozenType
+            for e in self.errors.0.iter_mut() {
+                if let ErrorKind::UnknownName(_, frty) = &mut e.1 {
+                    let really_usize = frty as *const FrozenType as *const usize;
+                    let ty = unsafe { *really_usize };
+                    std::mem::forget(std::mem::replace(frty, self.types.frozen(ty)));
+                }
+            }
+            Err(self.errors)
+        }
     }
 }
 // }}}
 
 // uuhh.. tree itself (the entry point, Tree::new) {{{
 impl Tree {
-    fn try_apply(
-        &mut self,
-        arg: Tree,
-        types: &mut TypeList,
-        holes: &mut [(Location, TypeRef)],
-    ) -> Result<(), Error> {
+    fn try_apply(&mut self, arg: Tree, types: &mut TypeList) -> Result<(), Error> {
         // NOTE: easy way out, used to report type error,
         // needless cloning for 90% of the time tho
         let snapshot = types.clone();
@@ -522,11 +544,11 @@ impl Tree {
             unreachable!();
         };
 
-        if TYPEHOLE_OBJECT_NAME == name {
-            let ret = types.named("ret");
-            let hole_ty = &mut holes.iter_mut().find(|t| t.1 == *func_ty).unwrap().1;
-            *func_ty = types.func(*func_ty, ret);
-            *hole_ty = *func_ty;
+        if let Type::Named(name) = types.get(*func_ty) {
+            let name = name.clone();
+            let par = types.named(&format!("paramof({name})"));
+            let ret = types.named(&format!("returnof({name})"));
+            *types.get_mut(*func_ty) = Type::Func(par, ret);
         }
 
         match Type::applied(*func_ty, arg.get_type(), types) {
@@ -590,46 +612,12 @@ impl Tree {
 
     #[allow(dead_code)]
     pub fn new(iter: impl IntoIterator<Item = u8>) -> Result<Tree, ErrorList> {
-        let mut p = Parser::new(iter.into_iter());
-        let r = p.parse_script();
-        for (loc, ty) in p.holes {
-            p.errors
-                .push(Error(loc, ErrorKind::FoundTypeHole(p.types.frozen(ty))));
-        }
-        if p.errors.is_empty() {
-            Ok(r)
-        } else {
-            Err(p.errors)
-        }
+        Parser::new(iter.into_iter()).parse().map(|r| r.1)
     }
 
     #[allow(dead_code)]
     pub fn new_typed(iter: impl IntoIterator<Item = u8>) -> Result<(FrozenType, Tree), ErrorList> {
-        let mut p = Parser::new(iter.into_iter());
-        let r = p.parse_script();
-        for (loc, ty) in p.holes {
-            p.errors
-                .push(Error(loc, ErrorKind::FoundTypeHole(p.types.frozen(ty))));
-        }
-        if p.errors.is_empty() {
-            Ok((p.types.frozen(r.get_type()), r))
-        } else {
-            Err(p.errors)
-        }
-    }
-
-    /// idk, will surely remove
-    #[allow(dead_code)]
-    pub fn new_fully_typed(
-        iter: impl IntoIterator<Item = u8>,
-    ) -> Result<(TypeRef, TypeList, Tree), ErrorList> {
-        let mut p = Parser::new(iter.into_iter());
-        let r = p.parse_script();
-        if p.errors.is_empty() {
-            Ok((r.get_type(), p.types, r))
-        } else {
-            Err(p.errors)
-        }
+        Parser::new(iter.into_iter()).parse()
     }
 }
 
