@@ -100,6 +100,36 @@ not yet implemented
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 ```
 
+## (wip and such)
+
+### format better error report presentation
+
+todo :)
+
+### compile to linear sequence of instructions
+
+- constant folding; because pure, identify what is not compile-time known:
+  - can fold: literal (numbers, bytestrings), a list if all items can be folded, a call if all arguments are provided and can be folded
+  - cannot fold:`input`, 'control-point' functions and/or functions with side effects if ever
+- [continuation-passing style (CPS)](https://en.wikipedia.org/wiki/Continuation-passing_style) (IR?)
+- thunks? but I'm wondering if there is a way to even more directly put the instruction at the location at c-time rather than packing them at r-time
+- lifetime tracking, or maybe 'duplication tracking'
+
+- [linear type system](https://en.wikipedia.org/wiki/Substructural_type_system)
+- [escape analysis](https://en.wikipedia.org/wiki/Escape_analysis)
+- [random lecture](https://www.cs.cornell.edu/courses/cs4110/2018fa/lectures/lecture29.pdf)
+- [random esopwheverthatmeans](https://www.cs.cornell.edu/people/fluet/research/substruct-regions/ESOP06/esop06.pdf)
+
+### insert coersion functions automatically
+
+ true type | wanted   | inserted         | behavior
+-----------|----------|------------------|----------
+ `Str+`    | `Num`    | `, tostr, `      | parse as a number, or `0`
+ `Num`     | `Str`    | `, tonum, `      | writes the number in decimal
+ `Str+`    | `[Str]+` | `, graphemes, `  | list of the Unicode graphemes
+ `Str+`    | `[Num]+` | `, codepoints, ` | list of the Unicode codepoints
+ `[Str+]+` | `Str+`   | `, join ::, `    | joined with empty separator
+
 ---
 
 > the GitHub "Need inspiration?" bit was "super-spoon"
