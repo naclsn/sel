@@ -183,6 +183,60 @@ struct Parser<I: Iterator<Item = u8>> {
     errors: ErrorList,
 }
 
+fn err_context_complete_type(types: &TypeList, err: ErrorKind, it: &Tree) -> ErrorKind {
+    // TODO: have 'better' euristic as to whether or not to wrap it in a context..?
+    let complete_type = types.frozen(it.get_type());
+    match &err {
+        ErrorKind::ExpectedButGot {
+            expected: _,
+            actual,
+        } if complete_type != *actual => ErrorKind::ContextCaused {
+            error: Box::new(Error(it.get_loc(), err)),
+            because: ErrorContext::CompleteType { complete_type },
+        },
+        _ => err,
+    }
+}
+
+fn err_context_as_nth_arg(
+    types: &TypeList,
+    arg_loc: Location,
+    err: ErrorKind,
+    comma_loc: Option<Location>, // if some, ChainedFrom..
+    func: &Tree,
+) -> ErrorKind {
+    let type_with_curr_args = types.frozen(func.get_type());
+    ErrorKind::ContextCaused {
+        error: Box::new(Error(arg_loc, err)),
+        because: {
+            // unwrap: see `context_chained_as_nth` call sites
+            let (nth_arg, func_name) = func.get_nth_arg_func_name().unwrap();
+            match comma_loc {
+                Some(comma_loc) => ErrorContext::ChainedFromAsNthArgToNamedNowTyped {
+                    comma_loc,
+                    nth_arg,
+                    func_name,
+                    type_with_curr_args,
+                },
+                None => ErrorContext::AsNthArgToNamedNowTyped {
+                    nth_arg,
+                    func_name,
+                    type_with_curr_args,
+                },
+            }
+        },
+    }
+}
+
+fn err_not_func(types: &TypeList, func: &Tree) -> ErrorKind {
+    match func.get_nth_arg_func_name() {
+        Some((nth_arg, func_name)) => ErrorKind::TooManyArgs { nth_arg, func_name },
+        None => ErrorKind::NotFunc {
+            actual_type: types.frozen(func.get_type()),
+        },
+    }
+}
+
 impl<I: Iterator<Item = u8>> Parser<I> {
     fn new(iter: I) -> Parser<I> {
         Parser {
@@ -194,51 +248,6 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
     fn report(&mut self, err: Error) {
         self.errors.push(err);
-    }
-
-    fn err_context_as_nth_arg(
-        &mut self,
-        arg_loc: Location,
-        err: ErrorKind,
-        comma_loc: Option<Location>, // if some, ChainedFrom..
-        func: &Tree,
-    ) -> Error {
-        let type_with_curr_args = self.types.frozen(func.get_type());
-        Error(
-            func.get_loc(),
-            ErrorKind::ContextCaused {
-                error: Box::new(Error(arg_loc, err)),
-                because: {
-                    // unwrap: see `context_chained_as_nth` call sites
-                    let (nth_arg, func_name) = func.get_nth_arg_func_name().unwrap();
-                    match comma_loc {
-                        Some(comma_loc) => ErrorContext::ChainedFromAsNthArgToNamedNowTyped {
-                            comma_loc,
-                            nth_arg,
-                            func_name,
-                            type_with_curr_args,
-                        },
-                        None => ErrorContext::AsNthArgToNamedNowTyped {
-                            nth_arg,
-                            func_name,
-                            type_with_curr_args,
-                        },
-                    }
-                },
-            },
-        )
-    }
-
-    fn err_not_func(&mut self, func: &Tree) -> Error {
-        Error(
-            func.get_loc(),
-            match func.get_nth_arg_func_name() {
-                Some((nth_arg, func_name)) => ErrorKind::TooManyArgs { nth_arg, func_name },
-                None => ErrorKind::NotFunc {
-                    actual_type: self.types.frozen(func.get_type()),
-                },
-            },
-        )
     }
 
     fn mktypeof(&mut self, name: &str) -> (TreeKind, TypeRef) {
@@ -332,7 +341,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                                 first_loc,
                                 ErrorKind::ContextCaused {
                                     error: Box::new(err),
-                                    because: ErrorContext::Unmatched(open_token),
+                                    because: ErrorContext::Unmatched { open_token },
                                 },
                             ))
                         }
@@ -357,10 +366,12 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                                 self.report(Error(
                                     first_loc.clone(),
                                     ErrorKind::ContextCaused {
-                                        error: Box::new(Error(item.get_loc(), e)),
-                                        because: ErrorContext::TypeListInferredItemTypeButItWas {
+                                        error: Box::new(Error(
+                                            item.get_loc(),
+                                            err_context_complete_type(&self.types, e, &item),
+                                        )),
+                                        because: ErrorContext::TypeListInferredItemType {
                                             list_item_type: snapshot.frozen(ty),
-                                            new_item_type: snapshot.frozen(item_ty),
                                         },
                                     },
                                 ))
@@ -386,7 +397,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                                                 expected: "next item or closing '}'",
                                             },
                                         )),
-                                        because: ErrorContext::Unmatched(open_token),
+                                        because: ErrorContext::Unmatched { open_token },
                                     },
                                 )),
                                 None => (),
@@ -448,8 +459,9 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                         func.try_apply(p.parse_value(), &mut p.types)
                             .unwrap_or_else(|(e, arg)| {
                                 // `func` is a function (matches ::Apply)
-                                let e = p.err_context_as_nth_arg(arg.get_loc(), e, None, &func);
-                                p.report(e)
+                                let e =
+                                    err_context_as_nth_arg(&p.types, arg.get_loc(), e, None, &func);
+                                p.report(Error(func.get_loc(), e))
                             });
                         // FIXME: in case of error from try_apply, the type of `func` might not be helpful
                         //        further analysis because it will still be its function type when we could
@@ -458,8 +470,8 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     }
                     _ => {
                         drop(p.parse_value());
-                        let e = p.err_not_func(&func);
-                        p.report(e);
+                        let e = err_not_func(&p.types, &func);
+                        p.report(Error(func.get_loc(), e));
                         func
                     }
                 }
@@ -519,8 +531,9 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 // XXX: does it need `snapshot` here?
                 then.try_apply(r, &mut self.types).unwrap_or_else(|(e, r)| {
                     // we know `then` is a function (if it was hole then `try_apply` mutates it)
-                    let e = self.err_context_as_nth_arg(r.get_loc(), e, Some(comma_loc), &then);
-                    self.report(e)
+                    let e =
+                        err_context_as_nth_arg(&self.types, r.get_loc(), e, Some(comma_loc), &then);
+                    self.report(Error(then.get_loc(), e))
                 });
                 // FIXME: in case of error from try_apply, the type of `then` might not be helpful
                 //        further analysis because it will still be its function type when we could
@@ -556,8 +569,9 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     .unwrap_or_else(|(e, then)| {
                         // `then` is either a function or a type hole ('if')
                         // and it is not a type hole ('else if')
-                        let e = self.err_context_as_nth_arg(r_loc, e, Some(comma_loc), &then);
-                        self.report(e)
+                        let e =
+                            err_context_as_nth_arg(&self.types, r_loc, e, Some(comma_loc), &then);
+                        self.report(Error(then.get_loc(), e))
                     });
                 compose
             };
@@ -592,9 +606,10 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 // uuhh.. tree itself (the entry point, Tree::new) {{{
 impl Tree {
     fn try_apply(&mut self, arg: Tree, types: &mut TypeList) -> Result<(), (ErrorKind, Tree)> {
-        let TreeKind::Apply(func_ty, _, args) = &mut self.1 else {
+        let TreeKind::Apply(func_ty, ref name, args) = &mut self.1 else {
             unreachable!();
         };
+        let is_compose = COMPOSE_OP_FUNC_NAME == name;
 
         if let Type::Named(name) = types.get(*func_ty) {
             let name = name.clone();
@@ -609,7 +624,10 @@ impl Tree {
                 args.push(arg);
                 Ok(())
             }
-            Err(e) => Err((e, arg)),
+            Err(e) => Err((
+                err_context_complete_type(types, e, if is_compose { &args[0] } else { &arg }),
+                arg,
+            )),
         }
     }
 

@@ -3,12 +3,15 @@ use crate::types::FrozenType;
 
 #[derive(PartialEq, Debug)]
 pub enum ErrorContext {
-    Unmatched(TokenKind),
-    TypeListInferredItemTypeButItWas {
-        list_item_type: FrozenType,
-        new_item_type: FrozenType,
+    Unmatched {
+        open_token: TokenKind,
     },
-    // XXX: (both) add 'ButItWas'?
+    CompleteType {
+        complete_type: FrozenType,
+    },
+    TypeListInferredItemType {
+        list_item_type: FrozenType,
+    },
     AsNthArgToNamedNowTyped {
         nth_arg: usize,
         func_name: String,
@@ -64,10 +67,6 @@ impl ErrorList {
         ErrorList(Vec::new())
     }
 
-    //pub fn len(&self) -> usize {
-    //    self.0.len()
-    //}
-
     pub fn push(&mut self, err: Error) {
         self.0.push(err);
     }
@@ -87,12 +86,10 @@ impl Error {
             ContextCaused { error, because } => {
                 error.crud_report();
                 match because {
-                    Unmatched(token) => eprint!("`-> because of {token:?}"),
-                    TypeListInferredItemTypeButItWas {
-                        list_item_type,
-                        new_item_type,
-                    } => {
-                        eprint!("`-> because list type was inferred to be [{list_item_type}] at this point but this item is {new_item_type}")
+                    Unmatched { open_token } => eprint!("`-> because of {open_token:?}"),
+                    CompleteType { complete_type } => eprint!("`-> complete type: {complete_type}"),
+                    TypeListInferredItemType { list_item_type } => {
+                        eprint!("`-> because list type was inferred to be [{list_item_type}] at this point")
                     }
                     AsNthArgToNamedNowTyped {
                         nth_arg,

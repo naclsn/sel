@@ -378,9 +378,8 @@ fn reporting() {
                         actual: Bytes(true)
                     }
                 )),
-                because: TypeListInferredItemTypeButItWas {
-                    list_item_type: Number,
-                    new_item_type: Bytes(true)
+                because: TypeListInferredItemType {
+                    list_item_type: Number
                 }
             }
         )]))
@@ -413,9 +412,8 @@ fn reporting() {
             Location(0),
             ContextCaused {
                 error: Box::new(Error(Location(5), InfWhereFinExpected)),
-                because: TypeListInferredItemTypeButItWas {
-                    list_item_type: List(true, Box::new(Named("itemof(typeof({}))".into()))),
-                    new_item_type: List(false, Box::new(Number))
+                because: TypeListInferredItemType {
+                    list_item_type: List(true, Box::new(Named("itemof(typeof({}))".into())))
                 }
             }
         )]))
@@ -427,9 +425,8 @@ fn reporting() {
             Location(0),
             ContextCaused {
                 error: Box::new(Error(Location(7), InfWhereFinExpected)),
-                because: TypeListInferredItemTypeButItWas {
-                    list_item_type: List(true, Box::new(Number)),
-                    new_item_type: List(false, Box::new(Number))
+                because: TypeListInferredItemType {
+                    list_item_type: List(true, Box::new(Number))
                 }
             }
         )]))
@@ -448,9 +445,8 @@ fn reporting() {
                             actual: Bytes(true)
                         }
                     )),
-                    because: TypeListInferredItemTypeButItWas {
-                        list_item_type: Number,
-                        new_item_type: Bytes(true)
+                    because: TypeListInferredItemType {
+                        list_item_type: Number
                     }
                 }
             ),
@@ -547,9 +543,17 @@ fn reporting() {
             ContextCaused {
                 error: Box::new(Error(
                     Location(0),
-                    ExpectedButGot {
-                        expected: Bytes(false),
-                        actual: Number
+                    ContextCaused {
+                        error: Box::new(Error(
+                            Location(0),
+                            ExpectedButGot {
+                                expected: Bytes(false),
+                                actual: Number
+                            }
+                        )),
+                        because: CompleteType {
+                            complete_type: Func(Box::new(Number), Box::new(Number))
+                        }
                     }
                 )),
                 because: ChainedFromAsNthArgToNamedNowTyped {
@@ -654,28 +658,35 @@ fn reporting() {
                 ContextCaused {
                     error: Box::new(Error(
                         Location(16),
-                        ExpectedButGot {
-                            expected: Func(
-                                Box::new(Named("a".into())),
-                                Box::new(Named("b".into()))
-                            ),
-                            actual: Number
+                        ContextCaused {
+                            error: Box::new(Error(
+                                Location(16),
+                                ExpectedButGot {
+                                    expected: Func(
+                                        Box::new(Named("a".into())),
+                                        Box::new(Named("b".into()))
+                                    ),
+                                    actual: Number
+                                }
+                            )),
+                            because: CompleteType {
+                                complete_type: Func(
+                                    Box::new(Func(
+                                        Box::new(Named("a".into())),
+                                        Box::new(Named("b".into()))
+                                    )),
+                                    Box::new(Func(
+                                        Box::new(List(false, Box::new(Named("a".into())))),
+                                        Box::new(List(false, Box::new(Named("b".into()))))
+                                    ))
+                                )
+                            }
                         }
                     )),
-                    because: TypeListInferredItemTypeButItWas {
+                    because: TypeListInferredItemType {
                         list_item_type: Func(
                             Box::new(Number),
                             Box::new(Func(Box::new(Number), Box::new(Number)))
-                        ),
-                        new_item_type: Func(
-                            Box::new(Func(
-                                Box::new(Named("a".into())),
-                                Box::new(Named("b".into()))
-                            )),
-                            Box::new(Func(
-                                Box::new(List(false, Box::new(Named("a".into())))),
-                                Box::new(List(false, Box::new(Named("b".into()))))
-                            ))
                         )
                     }
                 }

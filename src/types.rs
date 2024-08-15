@@ -193,7 +193,7 @@ impl Type {
     /// This uses the fact that inf types and unk named types are
     /// only depended on by the functions that introduced them.
     ///
-    /// When called from `harmonize` (idk true), the rules are slightly different:
+    /// When called from `harmonize` (keep_inf true):
     /// * inf <- fin is inf
     fn concretize(
         want: TypeRef,
@@ -203,28 +203,32 @@ impl Type {
     ) -> Result<(), ErrorKind> {
         use Type::*;
 
-        let handle_finiteness = |fw: Boundedness, fg: Boundedness, types: &mut TypeList| match (
-            types.freeze_finite(fw),
-            types.freeze_finite(fg),
-        ) {
-            (false, false) | (true, true) => Ok(()),
-            (false, true) => {
-                if !keep_inf {
-                    *types.get_mut(fw) = Finite(true);
+        fn handle_finiteness(
+            keep_inf: bool,
+            fw: Boundedness,
+            fg: Boundedness,
+            types: &mut TypeList,
+        ) -> Result<(), ErrorKind> {
+            match (types.freeze_finite(fw), types.freeze_finite(fg)) {
+                (false, false) | (true, true) => Ok(()),
+                (false, true) => {
+                    if !keep_inf {
+                        *types.get_mut(fw) = Finite(true);
+                    }
+                    Ok(())
                 }
-                Ok(())
+                (true, false) => Err(ErrorKind::InfWhereFinExpected),
             }
-            (true, false) => Err(ErrorKind::InfWhereFinExpected),
-        };
+        }
 
         match (types.get(want), types.get(give)) {
             (Number, Number) => Ok(()),
 
-            (Bytes(fw), Bytes(fg)) => handle_finiteness(*fw, *fg, types),
+            (Bytes(fw), Bytes(fg)) => handle_finiteness(keep_inf, *fw, *fg, types),
 
             (List(fw, l_ty), List(fg, r_ty)) => {
                 let (l_ty, r_ty) = (*l_ty, *r_ty);
-                handle_finiteness(*fw, *fg, types)?;
+                handle_finiteness(keep_inf, *fw, *fg, types)?;
                 Type::concretize(l_ty, r_ty, types, keep_inf)
             }
 
