@@ -3,10 +3,10 @@ use crate::parse::{Lexer, Location, Token, TokenKind, Tree, TreeKind, COMPOSE_OP
 use crate::types::FrozenType;
 
 // utils {{{
-fn expect<T>(r: Result<T, ErrorList>) -> T {
+fn expect<T>(r: Result<T, ErrorList>, script: &str) -> T {
     r.unwrap_or_else(|e| {
         e.crud_report();
-        panic!()
+        panic!("{}", script)
     })
 }
 
@@ -30,20 +30,21 @@ fn compare(left: &Tree, right: &Tree) -> bool {
 }
 
 macro_rules! assert_tree {
-    ($left:expr, $right:expr) => {
-        match (&$left, &$right) {
-            (l, r) if !compare(l, r) => assert_eq!(l, r),
-            _ => (),
+    ($script:literal, $type:expr, $tree:expr) => {
+        let (ty, res) = expect(Tree::new_typed($script.bytes()), $script);
+        match (&$tree, &res) {
+            (l, r) if !compare(l, r) => assert_eq!(l, r, "{}", $script),
+            _ => assert_eq!($type, ty, "{}", $script),
         }
     };
 }
 
 macro_rules! assert_maytree {
-    ($left:expr, $right:expr) => {
-        match (&$left, &$right) {
-            (Ok(l), Ok(r)) if !compare(l, r) => assert_eq!(l, r),
+    ($script:literal, $result:expr) => {
+        match (&$result, &Tree::new($script.bytes())) {
+            (Ok(l), Ok(r)) if !compare(l, r) => assert_eq!(l, r, "{}", $script),
             (Ok(_), Ok(_)) => (),
-            (l, r) => assert_eq!(l, r),
+            (l, r) => assert_eq!(l, r, "{}", $script),
         }
     };
 }
@@ -56,12 +57,14 @@ fn lexing() {
 
     assert_eq!(
         Vec::<Token>::new(),
-        Lexer::new("".bytes()).collect::<Vec<_>>()
+        Lexer::new("".bytes()).collect::<Vec<_>>(),
+        ""
     );
 
     assert_eq!(
         &[Token(Location(0), Word("coucou".into()))][..],
-        Lexer::new("coucou".bytes()).collect::<Vec<_>>()
+        Lexer::new("coucou".bytes()).collect::<Vec<_>>(),
+        "coucou"
     );
 
     assert_eq!(
@@ -84,7 +87,8 @@ fn lexing() {
             Token(Location(22), Number(0.5)),
             Token(Location(25), CloseBracket)
         ][..],
-        Lexer::new("[a 1 b, {w, x, y, z}, 0.5]".bytes()).collect::<Vec<_>>()
+        Lexer::new("[a 1 b, {w, x, y, z}, 0.5]".bytes()).collect::<Vec<_>>(),
+        "[a 1 b, {{w, x, y, z}}, 0.5]"
     );
 
     assert_eq!(
@@ -98,7 +102,8 @@ fn lexing() {
             Token(Location(25), Bytes(vec![58])),
             Token(Location(30), Word("fin".into()))
         ][..],
-        Lexer::new(":hay: :hey:: not hay: :: :::: fin".bytes()).collect::<Vec<_>>()
+        Lexer::new(":hay: :hey:: not hay: :: :::: fin".bytes()).collect::<Vec<_>>(),
+        ":hay: :hey:: not hay: :: :::: fin"
     );
 
     assert_eq!(
@@ -109,7 +114,8 @@ fn lexing() {
             Token(Location(12), Number(42.0)),
             Token(Location(21), Number(42.0)),
         ][..],
-        Lexer::new("42 :*: 0x2a 0b101010 0o52".bytes()).collect::<Vec<_>>()
+        Lexer::new("42 :*: 0x2a 0b101010 0o52".bytes()).collect::<Vec<_>>(),
+        "42 :*: 0x2a 0b101010 0o52"
     );
 }
 // }}}
@@ -134,14 +140,15 @@ fn parsing() {
         Tree::new_typed("".bytes())
     );
 
-    let (ty, res) = expect(Tree::new_typed("input".bytes()));
-    assert_tree!(Tree(Location(0), Apply(0, "input".into(), vec![])), res);
-    assert_eq!(FrozenType::Bytes(false), ty);
-
-    let (ty, res) = expect(Tree::new_typed(
-        "input, split:-:, map[tonum, add1, tostr], join:+:".bytes(),
-    ));
     assert_tree!(
+        "input",
+        FrozenType::Bytes(false),
+        Tree(Location(0), Apply(0, "input".into(), vec![]))
+    );
+
+    assert_tree!(
+        "input, split:-:, map[tonum, add1, tostr], join:+:",
+        FrozenType::Bytes(false),
         Tree(
             Location(42),
             Apply(
@@ -205,13 +212,15 @@ fn parsing() {
                     )
                 ]
             )
-        ),
-        res
+        )
     );
-    assert_eq!(FrozenType::Bytes(false), ty);
 
-    let (ty, res) = expect(Tree::new_typed("tonum, add234121, tostr, ln".bytes()));
     assert_tree!(
+        "tonum, add234121, tostr, ln",
+        FrozenType::Func(
+            Box::new(FrozenType::Bytes(false)),
+            Box::new(FrozenType::Bytes(true))
+        ),
         Tree(
             Location(23),
             Apply(
@@ -249,19 +258,12 @@ fn parsing() {
                     Tree(Location(25), Apply(0, "ln".into(), vec![]))
                 ]
             )
-        ),
-        res
-    );
-    assert_eq!(
-        FrozenType::Func(
-            Box::new(FrozenType::Bytes(false)),
-            Box::new(FrozenType::Bytes(true))
-        ),
-        ty
+        )
     );
 
-    let (ty, res) = expect(Tree::new_typed("[tonum, add234121, tostr] :13242:".bytes()));
     assert_tree!(
+        "[tonum, add234121, tostr] :13242:",
+        FrozenType::Bytes(true),
         Tree(
             Location(19),
             Apply(
@@ -286,13 +288,15 @@ fn parsing() {
                     )
                 )]
             )
-        ),
-        res
+        )
     );
-    assert_eq!(FrozenType::Bytes(true), ty);
 
-    let (ty, res) = expect(Tree::new_typed("{repeat 1, {}}".bytes()));
     assert_tree!(
+        "{repeat 1, {}}",
+        FrozenType::List(
+            true,
+            Box::new(FrozenType::List(false, Box::new(FrozenType::Number)))
+        ),
         Tree(
             Location(0),
             TreeKind::List(
@@ -309,19 +313,15 @@ fn parsing() {
                     Tree(Location(11), TreeKind::List(0, vec![]))
                 ]
             )
-        ),
-        res
-    );
-    assert_eq!(
-        FrozenType::List(
-            true,
-            Box::new(FrozenType::List(false, Box::new(FrozenType::Number)))
-        ),
-        ty
+        )
     );
 
-    let (ty, res) = expect(Tree::new_typed("add 1, tostr".bytes()));
     assert_tree!(
+        "add 1, tostr",
+        FrozenType::Func(
+            Box::new(FrozenType::Number),
+            Box::new(FrozenType::Bytes(true))
+        ),
         Tree(
             Location(5),
             Apply(
@@ -335,19 +335,15 @@ fn parsing() {
                     Tree(Location(7), Apply(0, "tostr".into(), vec![]))
                 ]
             )
-        ),
-        res
-    );
-    assert_eq!(
-        FrozenType::Func(
-            Box::new(FrozenType::Number),
-            Box::new(FrozenType::Bytes(true))
-        ),
-        ty
+        )
     );
 
-    let (ty, res) = expect(Tree::new_typed("zipwith add {1}".bytes()));
     assert_tree!(
+        "zipwith add {1}",
+        FrozenType::Func(
+            Box::new(FrozenType::List(false, Box::new(FrozenType::Number))),
+            Box::new(FrozenType::List(true, Box::new(FrozenType::Number)))
+        ),
         Tree(
             Location(0),
             Apply(
@@ -358,15 +354,7 @@ fn parsing() {
                     Tree(Location(12), List(0, vec![Tree(Location(13), Number(1.0))]))
                 ]
             )
-        ),
-        res
-    );
-    assert_eq!(
-        FrozenType::Func(
-            Box::new(FrozenType::List(false, Box::new(FrozenType::Number))),
-            Box::new(FrozenType::List(true, Box::new(FrozenType::Number)))
-        ),
-        ty
+        )
     );
 }
 // }}}
@@ -379,17 +367,27 @@ fn reporting() {
     use FrozenType::*;
 
     assert_maytree!(
+        "{1, 2, 3, :soleil:}",
         Err(ErrorList(vec![Error(
             Location(0),
             ContextCaused {
-                error: Box::new(Error(Location(10), ExpectedButGot(Number, Bytes(true)))),
-                because: TypeListInferredItemTypeButItWas(Number, Bytes(true))
+                error: Box::new(Error(
+                    Location(10),
+                    ExpectedButGot {
+                        expected: Number,
+                        actual: Bytes(true)
+                    }
+                )),
+                because: TypeListInferredItemTypeButItWas {
+                    list_item_type: Number,
+                    new_item_type: Bytes(true)
+                }
             }
-        )])),
-        Tree::new("{1, 2, 3, :soleil:}".bytes())
+        )]))
     );
 
     assert_maytree!(
+        "{repeat 1, {}}",
         Ok(Tree(
             Location(0),
             TreeKind::List(
@@ -406,45 +404,54 @@ fn reporting() {
                     Tree(Location(11), TreeKind::List(0, vec![]))
                 ]
             )
-        )),
-        Tree::new("{repeat 1, {}}".bytes())
+        ))
     );
 
     assert_maytree!(
+        "{{}, repeat 1}",
         Err(ErrorList(vec![Error(
             Location(0),
             ContextCaused {
                 error: Box::new(Error(Location(5), InfWhereFinExpected)),
-                because: TypeListInferredItemTypeButItWas(
-                    List(true, Box::new(Named("itemof(typeof({}))".into()))),
-                    List(false, Box::new(Number))
-                )
+                because: TypeListInferredItemTypeButItWas {
+                    list_item_type: List(true, Box::new(Named("itemof(typeof({}))".into()))),
+                    new_item_type: List(false, Box::new(Number))
+                }
             }
-        )])),
-        Tree::new("{{}, repeat 1}".bytes())
+        )]))
     );
 
     assert_maytree!(
+        "{{42}, repeat 1}",
         Err(ErrorList(vec![Error(
             Location(0),
             ContextCaused {
                 error: Box::new(Error(Location(7), InfWhereFinExpected)),
-                because: TypeListInferredItemTypeButItWas(
-                    List(true, Box::new(Number)),
-                    List(false, Box::new(Number))
-                )
+                because: TypeListInferredItemTypeButItWas {
+                    list_item_type: List(true, Box::new(Number)),
+                    new_item_type: List(false, Box::new(Number))
+                }
             }
-        )])),
-        Tree::new("{{42}, repeat 1}".bytes())
+        )]))
     );
 
     assert_maytree!(
+        "{1, 2, 3, :soleil:}, ln",
         Err(ErrorList(vec![
             Error(
                 Location(0),
                 ContextCaused {
-                    error: Box::new(Error(Location(10), ExpectedButGot(Number, Bytes(true)))),
-                    because: TypeListInferredItemTypeButItWas(Number, Bytes(true))
+                    error: Box::new(Error(
+                        Location(10),
+                        ExpectedButGot {
+                            expected: Number,
+                            actual: Bytes(true)
+                        }
+                    )),
+                    because: TypeListInferredItemTypeButItWas {
+                        list_item_type: Number,
+                        new_item_type: Bytes(true)
+                    }
                 }
             ),
             Error(
@@ -452,52 +459,67 @@ fn reporting() {
                 ContextCaused {
                     error: Box::new(Error(
                         Location(0),
-                        ExpectedButGot(Bytes(false), List(true, Box::new(Number)))
+                        ExpectedButGot {
+                            expected: Bytes(false),
+                            actual: List(true, Box::new(Number))
+                        }
                     )),
-                    because: ChainedFromAsNthArgToNamedNowTyped(
-                        Location(19),
-                        1,
-                        "ln".into(),
-                        Func(Box::new(Bytes(false)), Box::new(Bytes(false)))
-                    )
+                    because: ChainedFromAsNthArgToNamedNowTyped {
+                        comma_loc: Location(19),
+                        nth_arg: 1,
+                        func_name: "ln".into(),
+                        type_with_curr_args: Func(Box::new(Bytes(false)), Box::new(Bytes(false)))
+                    }
                 }
             )
-        ])),
-        Tree::new("{1, 2, 3, :soleil:}, ln".bytes())
+        ]))
     );
 
     assert_maytree!(
+        "add 1 :2:",
         Err(ErrorList(vec![Error(
             Location(0),
             ContextCaused {
-                error: Box::new(Error(Location(6), ExpectedButGot(Number, Bytes(true)))),
-                because: AsNthArgToNamedNowTyped(
-                    2,
-                    "add".into(),
-                    Func(Box::new(Number), Box::new(Number))
-                )
+                error: Box::new(Error(
+                    Location(6),
+                    ExpectedButGot {
+                        expected: Number,
+                        actual: Bytes(true)
+                    }
+                )),
+                because: AsNthArgToNamedNowTyped {
+                    nth_arg: 2,
+                    func_name: "add".into(),
+                    type_with_curr_args: Func(Box::new(Number), Box::new(Number))
+                }
             }
-        )])),
-        Tree::new("add 1 :2:".bytes())
+        )]))
     );
 
     assert_maytree!(
+        ":42:, add 1",
         Err(ErrorList(vec![Error(
             Location(6),
             ContextCaused {
-                error: Box::new(Error(Location(0), ExpectedButGot(Number, Bytes(true)))),
-                because: ChainedFromAsNthArgToNamedNowTyped(
-                    Location(4),
-                    2,
-                    "add".into(),
-                    Func(Box::new(Number), Box::new(Number))
-                )
+                error: Box::new(Error(
+                    Location(0),
+                    ExpectedButGot {
+                        expected: Number,
+                        actual: Bytes(true)
+                    }
+                )),
+                because: ChainedFromAsNthArgToNamedNowTyped {
+                    comma_loc: Location(4),
+                    nth_arg: 2,
+                    func_name: "add".into(),
+                    type_with_curr_args: Func(Box::new(Number), Box::new(Number))
+                }
             }
-        )])),
-        Tree::new(":42:, add 1".bytes())
+        )]))
     );
 
     assert_maytree!(
+        "add 1, tostr",
         Ok(Tree(
             Location(5),
             TreeKind::Apply(
@@ -515,110 +537,137 @@ fn reporting() {
                     Tree(Location(7), TreeKind::Apply(0, "tostr".into(), vec![]))
                 ]
             )
-        )),
-        Tree::new("add 1, tostr".bytes())
+        ))
     );
 
     assert_maytree!(
+        "add 1, tonum",
         Err(ErrorList(vec![Error(
             Location(7),
             ContextCaused {
-                error: Box::new(Error(Location(0), ExpectedButGot(Bytes(false), Number))),
-                because: ChainedFromAsNthArgToNamedNowTyped(
-                    Location(5),
-                    1,
-                    "tonum".into(),
-                    Func(Box::new(Bytes(false)), Box::new(Number))
-                )
+                error: Box::new(Error(
+                    Location(0),
+                    ExpectedButGot {
+                        expected: Bytes(false),
+                        actual: Number
+                    }
+                )),
+                because: ChainedFromAsNthArgToNamedNowTyped {
+                    comma_loc: Location(5),
+                    nth_arg: 1,
+                    func_name: "tonum".into(),
+                    type_with_curr_args: Func(Box::new(Bytes(false)), Box::new(Number))
+                }
             }
-        )])),
-        Tree::new("add 1, tonum".bytes())
+        )]))
     );
 
     assert_maytree!(
+        "prout 1, caca",
         Err(ErrorList(vec![
             Error(
                 Location(0),
-                UnknownName(
-                    "prout".into(),
-                    Func(
+                UnknownName {
+                    name: "prout".into(),
+                    expected_type: Func(
                         Box::new(Number),
                         Box::new(Named("paramof(typeof(caca))".into()))
                     )
-                )
+                }
             ),
             Error(
                 Location(9),
-                UnknownName(
-                    "caca".into(),
-                    Func(
+                UnknownName {
+                    name: "caca".into(),
+                    expected_type: Func(
                         Box::new(Named("paramof(typeof(caca))".into())),
                         Box::new(Named("returnof(typeof(caca))".into()))
                     )
-                )
+                }
             )
-        ])),
-        Tree::new("prout 1, caca".bytes())
+        ]))
     );
 
     assert_maytree!(
+        "_, split_, map_, join_",
         Err(ErrorList(vec![
-            Error(Location(0), UnknownName("_".into(), Bytes(false))),
-            Error(Location(8), UnknownName("_".into(), Bytes(true))),
+            Error(
+                Location(0),
+                UnknownName {
+                    name: "_".into(),
+                    expected_type: Bytes(false)
+                }
+            ),
+            Error(
+                Location(8),
+                UnknownName {
+                    name: "_".into(),
+                    expected_type: Bytes(true)
+                }
+            ),
             Error(
                 Location(14),
-                UnknownName(
-                    "_".into(),
-                    Func(Box::new(Bytes(false)), Box::new(Bytes(false)))
-                )
+                UnknownName {
+                    name: "_".into(),
+                    expected_type: Func(Box::new(Bytes(false)), Box::new(Bytes(false)))
+                }
             ),
-            Error(Location(21), UnknownName("_".into(), Bytes(true)))
-        ])),
-        Tree::new("_, split_, map_, join_".bytes())
+            Error(
+                Location(21),
+                UnknownName {
+                    name: "_".into(),
+                    expected_type: Bytes(true)
+                }
+            )
+        ]))
     );
 
     assert_maytree!(
+        "input, _",
         Err(ErrorList(vec![Error(
             Location(7),
-            UnknownName(
-                "_".into(),
-                Func(
+            UnknownName {
+                name: "_".into(),
+                expected_type: Func(
                     Box::new(Bytes(false)),
                     Box::new(Named("returnof(typeof(_))".into()))
                 )
-            )
-        )])),
-        Tree::new("input, _".bytes())
+            }
+        )]))
     );
 
     assert_maytree!(
+        "{const, _, add, map}",
         Err(ErrorList(vec![
             Error(
                 Location(8),
-                UnknownName(
-                    "_".into(),
-                    Func(
+                UnknownName {
+                    name: "_".into(),
+                    expected_type: Func(
                         Box::new(Number),
                         Box::new(Func(Box::new(Number), Box::new(Number)))
                     )
-                )
+                }
             ),
             Error(
                 Location(0),
                 ContextCaused {
                     error: Box::new(Error(
                         Location(16),
-                        ExpectedButGot(
-                            Func(Box::new(Named("a".into())), Box::new(Named("b".into()))),
-                            Number
-                        )
+                        ExpectedButGot {
+                            expected: Func(
+                                Box::new(Named("a".into())),
+                                Box::new(Named("b".into()))
+                            ),
+                            actual: Number
+                        }
                     )),
-                    because: TypeListInferredItemTypeButItWas(
-                        Func(
+                    because: TypeListInferredItemTypeButItWas {
+                        list_item_type: Func(
                             Box::new(Number),
                             Box::new(Func(Box::new(Number), Box::new(Number)))
                         ),
-                        Func(
+                        new_item_type: Func(
                             Box::new(Func(
                                 Box::new(Named("a".into())),
                                 Box::new(Named("b".into()))
@@ -628,11 +677,61 @@ fn reporting() {
                                 Box::new(List(false, Box::new(Named("b".into()))))
                             ))
                         )
-                    )
+                    }
                 }
             )
-        ])),
-        Tree::new("{const, _, add, map}".bytes())
+        ]))
+    );
+
+    assert_maytree!(
+        "2 input",
+        Err(ErrorList(vec![Error(
+            Location(0),
+            NotFunc {
+                actual_type: Number
+            }
+        )]))
+    );
+
+    assert_maytree!(
+        "input 2",
+        Err(ErrorList(vec![Error(
+            Location(0),
+            TooManyArgs {
+                nth_arg: 1,
+                func_name: "input".into()
+            }
+        )]))
+    );
+
+    assert_maytree!(
+        "add 1 2 3",
+        Err(ErrorList(vec![Error(
+            Location(0),
+            TooManyArgs {
+                nth_arg: 3,
+                func_name: "add".into()
+            }
+        )]))
+    );
+
+    assert_maytree!(
+        "3, add 1 2",
+        Err(ErrorList(vec![Error(
+            Location(0),
+            ContextCaused {
+                error: Box::new(Error(
+                    Location(3),
+                    TooManyArgs {
+                        nth_arg: 3,
+                        func_name: "add".into()
+                    }
+                )),
+                because: ChainedFromToNotFunc {
+                    comma_loc: Location(1)
+                }
+            }
+        )]))
     );
 }
 // }}}

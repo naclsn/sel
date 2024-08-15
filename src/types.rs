@@ -149,7 +149,9 @@ impl Type {
     ) -> Result<TypeRef, ErrorKind> {
         match types.get(func) {
             &Type::Func(want, ret) => Type::concretize(want, give, types, false).map(|()| ret),
-            _ => Err(ErrorKind::NotFunc(types.frozen(func))),
+            _ => Err(ErrorKind::NotFunc {
+                actual_type: types.frozen(func),
+            }),
         }
     }
 
@@ -244,10 +246,10 @@ impl Type {
                 Ok(())
             }
 
-            _ => Err(ErrorKind::ExpectedButGot(
-                types.frozen(want),
-                types.frozen(give),
-            )),
+            _ => Err(ErrorKind::ExpectedButGot {
+                expected: types.frozen(want),
+                actual: types.frozen(give),
+            }),
         }
     }
 

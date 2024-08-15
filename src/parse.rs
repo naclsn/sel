@@ -196,6 +196,51 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         self.errors.push(err);
     }
 
+    fn err_context_as_nth_arg(
+        &mut self,
+        arg_loc: Location,
+        err: ErrorKind,
+        comma_loc: Option<Location>, // if some, ChainedFrom..
+        func: &Tree,
+    ) -> Error {
+        let type_with_curr_args = self.types.frozen(func.get_type());
+        Error(
+            func.get_loc(),
+            ErrorKind::ContextCaused {
+                error: Box::new(Error(arg_loc, err)),
+                because: {
+                    // unwrap: see `context_chained_as_nth` call sites
+                    let (nth_arg, func_name) = func.get_nth_arg_func_name().unwrap();
+                    match comma_loc {
+                        Some(comma_loc) => ErrorContext::ChainedFromAsNthArgToNamedNowTyped {
+                            comma_loc,
+                            nth_arg,
+                            func_name,
+                            type_with_curr_args,
+                        },
+                        None => ErrorContext::AsNthArgToNamedNowTyped {
+                            nth_arg,
+                            func_name,
+                            type_with_curr_args,
+                        },
+                    }
+                },
+            },
+        )
+    }
+
+    fn err_not_func(&mut self, func: &Tree) -> Error {
+        Error(
+            func.get_loc(),
+            match func.get_nth_arg_func_name() {
+                Some((nth_arg, func_name)) => ErrorKind::TooManyArgs { nth_arg, func_name },
+                None => ErrorKind::NotFunc {
+                    actual_type: self.types.frozen(func.get_type()),
+                },
+            },
+        )
+    }
+
     fn mktypeof(&mut self, name: &str) -> (TreeKind, TypeRef) {
         let ty = self.types.named(&format!("typeof({name})"));
         (TreeKind::Apply(ty, name.into(), Vec::new()), ty)
@@ -242,21 +287,24 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                         let (r, ty) = self.mktypeof(&w);
                         self.report(Error(
                             first_loc,
-                            ErrorKind::UnknownName(w, unsafe {
-                                // NOTE: this is needlessly quirky, stores the usize in place of
-                                //       the FrozenType (works because usize is smaller); see at
-                                //       the receiving end (in parse) where the error list is
-                                //       iterated through once to then compute the correct
-                                //       FrozenType (it cannot be done here and now because it is
-                                //       not fully known yet..)
-                                //       also relies on the fact that (prays that) rust will not do
-                                //       anything with this invalid data, and that we'll have
-                                //       a chance to fix it up before it goes out into the user
-                                //       world
-                                let mut fake_frozen = std::mem::MaybeUninit::zeroed();
-                                *(fake_frozen.as_mut_ptr() as *mut usize) = ty;
-                                fake_frozen.assume_init()
-                            }),
+                            ErrorKind::UnknownName {
+                                name: w,
+                                expected_type: unsafe {
+                                    // NOTE: this is needlessly quirky, stores the usize in place of
+                                    //       the FrozenType (works because usize is smaller); see at
+                                    //       the receiving end (in parse) where the error list is
+                                    //       iterated through once to then compute the correct
+                                    //       FrozenType (it cannot be done here and now because it is
+                                    //       not fully known yet..)
+                                    //       also relies on the fact that (prays that) rust will not do
+                                    //       anything with this invalid data, and that we'll have
+                                    //       a chance to fix it up before it goes out into the user
+                                    //       world
+                                    let mut fake_frozen = std::mem::MaybeUninit::zeroed();
+                                    *(fake_frozen.as_mut_ptr() as *mut usize) = ty;
+                                    fake_frozen.assume_init()
+                                },
+                            },
                         ));
                         r
                     }
@@ -310,10 +358,10 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                                     first_loc.clone(),
                                     ErrorKind::ContextCaused {
                                         error: Box::new(Error(item.get_loc(), e)),
-                                        because: ErrorContext::TypeListInferredItemTypeButItWas(
-                                            snapshot.frozen(ty),
-                                            snapshot.frozen(item_ty),
-                                        ),
+                                        because: ErrorContext::TypeListInferredItemTypeButItWas {
+                                            list_item_type: snapshot.frozen(ty),
+                                            new_item_type: snapshot.frozen(item_ty),
+                                        },
                                     },
                                 ))
                             });
@@ -388,13 +436,30 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                         let mut args = args.into_iter();
                         let (f, mut g) = (args.next().unwrap(), args.next().unwrap());
                         // (,)(f, g) => g(f(..))
+                        // XXX: shouldn't it have context? ChainedFrom..
                         g.try_apply(apply_maybe_unfold(p, f), &mut p.types)
-                            .unwrap_or_else(|e| p.report(e));
+                            .unwrap_or_else(|(e, _arg)| p.report(Error(g.get_loc(), e)));
                         g
                     }
-                    _ => {
+                    TreeKind::Apply(ty, _, _)
+                        if matches!(p.types.get(ty), Type::Func(_, _) | Type::Named(_)) =>
+                    {
+                        // XXX: does it need `snapshot` here?
                         func.try_apply(p.parse_value(), &mut p.types)
-                            .unwrap_or_else(|e| p.report(e));
+                            .unwrap_or_else(|(e, arg)| {
+                                // `func` is a function (matches ::Apply)
+                                let e = p.err_context_as_nth_arg(arg.get_loc(), e, None, &func);
+                                p.report(e)
+                            });
+                        // FIXME: in case of error from try_apply, the type of `func` might not be helpful
+                        //        further analysis because it will still be its function type when we could
+                        //        be expected its return type
+                        func
+                    }
+                    _ => {
+                        drop(p.parse_value());
+                        let e = p.err_not_func(&func);
+                        p.report(e);
                         func
                     }
                 }
@@ -404,112 +469,99 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         r
     }
 
-    // FIXME: something is wrong with this function in the error branches (the 'if' and the 'else')
-    // and the way it doesn't handle errors past the first iteration (`then` is not inspected
-    // again)
     fn parse_script(&mut self) -> Tree {
-        use TokenKind::*;
         let mut r = self.parse_apply();
-        if let Some(Token(comma_loc, Comma)) = self.peekable.peek() {
-            let mut comma_loc = comma_loc.clone();
-            self.peekable.next();
+        while let Some(Token(comma_loc, _)) = self.peekable.next_if(|t| TokenKind::Comma == t.1) {
             let mut then = self.parse_apply();
 
-            let (is_func, is_hole) = match self.types.get(then.get_type()) {
+            let r_ty = r.get_type();
+            let r_tty = self.types.get(r_ty);
+            let r_loc = r.get_loc();
+
+            let then_ty = then.get_type();
+            let then_tty = self.types.get(then_ty);
+            let then_loc = then.get_loc();
+
+            let (is_func, is_hole) = match then_tty {
                 Type::Func(_, _) => (true, false),
                 Type::Named(_) => (false, true),
                 _ => (false, false),
             };
 
             // `then` not a function nor a type hole
-            if !is_func && !is_hole {
+            r = if !is_func && !is_hole {
                 self.report(Error(
-                    then.get_loc(),
-                    // TODO: context! (ChainedFrom..)
-                    ErrorKind::NotFunc(self.types.frozen(then.get_type())),
+                    r_loc,
+                    ErrorKind::ContextCaused {
+                        error: Box::new(Error(
+                            then_loc,
+                            match then.get_nth_arg_func_name() {
+                                Some((nth_arg, func_name)) => {
+                                    ErrorKind::TooManyArgs { nth_arg, func_name }
+                                }
+                                None => ErrorKind::NotFunc {
+                                    actual_type: self.types.frozen(then_ty),
+                                },
+                            },
+                        )),
+                        because: ErrorContext::ChainedFromToNotFunc { comma_loc },
+                    },
                 ));
-                r = then;
+                then
             }
             // [x, f, g, h] :: d; where
             // - x :: A
             // - f, g, h :: a -> b, b -> c, c -> d
-            else if is_hole || Type::applicable(then.get_type(), r.get_type(), &self.types) {
-                while let Some(Token(_, Comma)) = {
-                    then.try_apply(r, &mut self.types)
-                        .unwrap_or_else(|e| self.report(e));
-                    r = then;
-                    self.peekable.peek()
-                } {
-                    self.peekable.next();
-                    then = self.parse_apply();
-                }
+            else if is_hole
+                || !matches!(r_tty, Type::Func(_, _))
+                || Type::applicable(then_ty, r_ty, &self.types)
+            {
+                // XXX: does it need `snapshot` here?
+                then.try_apply(r, &mut self.types).unwrap_or_else(|(e, r)| {
+                    // we know `then` is a function (if it was hole then `try_apply` mutates it)
+                    let e = self.err_context_as_nth_arg(r.get_loc(), e, Some(comma_loc), &then);
+                    self.report(e)
+                });
+                // FIXME: in case of error from try_apply, the type of `then` might not be helpful
+                //        further analysis because it will still be its function type when we could
+                //        be expected its return type
+                then
             }
             // [f, g, h] :: a -> d; where
             // - f, g, h :: a -> b, b -> c, c -> d
-            else if matches!(self.types.get(r.get_type()), Type::Func(_, _)) {
-                // (do..while)
-                while let Some(Token(then_comma_loc, Comma)) = {
-                    let mut compose = Tree(
-                        comma_loc,
-                        TreeKind::Apply(
-                            {
-                                // (,) :: (a -> b) -> (b -> c) -> a -> c
-                                let a = self.types.named("a");
-                                let b = self.types.named("b");
-                                let c = self.types.named("c");
-                                let ab = self.types.func(a, b);
-                                let bc = self.types.func(b, c);
-                                let ac = self.types.func(a, c);
-                                let ret = self.types.func(bc, ac);
-                                self.types.func(ab, ret)
-                            },
-                            COMPOSE_OP_FUNC_NAME.into(),
-                            Vec::new(),
-                        ),
-                    );
-                    // unwrap because `r` already known to be a function
-                    compose.try_apply(r, &mut self.types).unwrap();
-                    compose
-                        .try_apply(then, &mut self.types)
-                        .unwrap_or_else(|e| self.report(e));
-                    r = compose;
-                    self.peekable.peek()
-                } {
-                    comma_loc = then_comma_loc.clone();
-                    self.peekable.next();
-                    then = self.parse_apply();
-                }
-            }
-            // `r, then` but `r` is neither the arg to `then` nor a function
-            // (but we know that `then` is a function from the first 'if')
             else {
-                let Tree(then_loc, TreeKind::Apply(ty, name, args)) = then else {
-                    unreachable!();
-                };
-                let ty = self.types.frozen(ty);
-                self.report(Error(
-                    then_loc,
-                    ErrorKind::ContextCaused {
-                        error: Box::new(Error(
-                            r.get_loc(),
-                            ErrorKind::ExpectedButGot(
-                                match &ty {
-                                    FrozenType::Func(par, _) => *par.clone(),
-                                    _ => unreachable!(),
-                                },
-                                self.types.frozen(r.get_type()),
-                            ),
-                        )),
-                        because: ErrorContext::ChainedFromAsNthArgToNamedNowTyped(
-                            comma_loc,
-                            args.len() + 1,
-                            name,
-                            ty,
-                        ),
-                    },
-                ));
-            }
-        } // if Comma
+                // XXX: does it need `snapshot` here?
+                let mut compose = Tree(
+                    comma_loc.clone(),
+                    TreeKind::Apply(
+                        {
+                            // (,) :: (a -> b) -> (b -> c) -> a -> c
+                            let a = self.types.named("a");
+                            let b = self.types.named("b");
+                            let c = self.types.named("c");
+                            let ab = self.types.func(a, b);
+                            let bc = self.types.func(b, c);
+                            let ac = self.types.func(a, c);
+                            let ret = self.types.func(bc, ac);
+                            self.types.func(ab, ret)
+                        },
+                        COMPOSE_OP_FUNC_NAME.into(),
+                        Vec::new(),
+                    ),
+                );
+                // unwrap: we know that `r` is a function (see previous 'else if')
+                compose.try_apply(r, &mut self.types).unwrap();
+                compose
+                    .try_apply(then, &mut self.types)
+                    .unwrap_or_else(|(e, then)| {
+                        // `then` is either a function or a type hole ('if')
+                        // and it is not a type hole ('else if')
+                        let e = self.err_context_as_nth_arg(r_loc, e, Some(comma_loc), &then);
+                        self.report(e)
+                    });
+                compose
+            };
+        } // while let Comma
         r
     }
 
@@ -521,7 +573,11 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             // NOTE: this is the receiving end from `parse_value` when a name was not found: this
             //       is the point where we get the usizes again and compute the final FrozenType
             for e in self.errors.0.iter_mut() {
-                if let ErrorKind::UnknownName(_, frty) = &mut e.1 {
+                if let ErrorKind::UnknownName {
+                    name: _,
+                    expected_type: frty,
+                } = &mut e.1
+                {
                     let really_usize = frty as *const FrozenType as *const usize;
                     let ty = unsafe { *really_usize };
                     std::mem::forget(std::mem::replace(frty, self.types.frozen(ty)));
@@ -535,12 +591,8 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
 // uuhh.. tree itself (the entry point, Tree::new) {{{
 impl Tree {
-    fn try_apply(&mut self, arg: Tree, types: &mut TypeList) -> Result<(), Error> {
-        // NOTE: easy way out, used to report type error,
-        // needless cloning for 90% of the time tho
-        let snapshot = types.clone();
-
-        let Tree(base_loc, TreeKind::Apply(func_ty, name, args)) = self else {
+    fn try_apply(&mut self, arg: Tree, types: &mut TypeList) -> Result<(), (ErrorKind, Tree)> {
+        let TreeKind::Apply(func_ty, _, args) = &mut self.1 else {
             unreachable!();
         };
 
@@ -557,41 +609,7 @@ impl Tree {
                 args.push(arg);
                 Ok(())
             }
-
-            Err(e) => {
-                Err(if COMPOSE_OP_FUNC_NAME == name {
-                    let (f, g) = (&args[0], &arg);
-                    // `then` (ie 'g') is known to be a function from back in `parse_script`
-                    // (because had it been a hole, it would have fallen in the '[x, f..]' case)
-                    let Tree(then_loc, TreeKind::Apply(ty, name, args)) = g else {
-                        unreachable!();
-                    };
-                    Error(
-                        then_loc.clone(),
-                        ErrorKind::ContextCaused {
-                            error: Box::new(Error(f.get_loc(), e)),
-                            because: ErrorContext::ChainedFromAsNthArgToNamedNowTyped(
-                                base_loc.clone(), // the (,)
-                                args.len() + 1,
-                                name.clone(),
-                                snapshot.frozen(*ty),
-                            ),
-                        },
-                    )
-                } else {
-                    Error(
-                        base_loc.clone(),
-                        ErrorKind::ContextCaused {
-                            error: Box::new(Error(arg.get_loc(), e)),
-                            because: ErrorContext::AsNthArgToNamedNowTyped(
-                                args.len() + 1,
-                                name.clone(),
-                                snapshot.frozen(self.get_type()),
-                            ),
-                        },
-                    )
-                })
-            }
+            Err(e) => Err((e, arg)),
         }
     }
 
@@ -608,6 +626,13 @@ impl Tree {
 
     fn get_loc(&self) -> Location {
         self.0.clone()
+    }
+
+    fn get_nth_arg_func_name(&self) -> Option<(usize, String)> {
+        match &self.1 {
+            TreeKind::Apply(_, name, args) => Some((args.len() + 1, name.clone())),
+            _ => None,
+        }
     }
 
     #[allow(dead_code)]

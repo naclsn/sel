@@ -4,10 +4,25 @@ use crate::types::FrozenType;
 #[derive(PartialEq, Debug)]
 pub enum ErrorContext {
     Unmatched(TokenKind),
-    TypeListInferredItemTypeButItWas(FrozenType, FrozenType),
+    TypeListInferredItemTypeButItWas {
+        list_item_type: FrozenType,
+        new_item_type: FrozenType,
+    },
     // XXX: (both) add 'ButItWas'?
-    AsNthArgToNamedNowTyped(usize, String, FrozenType),
-    ChainedFromAsNthArgToNamedNowTyped(Location, usize, String, FrozenType),
+    AsNthArgToNamedNowTyped {
+        nth_arg: usize,
+        func_name: String,
+        type_with_curr_args: FrozenType,
+    },
+    ChainedFromAsNthArgToNamedNowTyped {
+        comma_loc: Location,
+        nth_arg: usize,
+        func_name: String,
+        type_with_curr_args: FrozenType,
+    },
+    ChainedFromToNotFunc {
+        comma_loc: Location,
+    },
 }
 
 #[derive(PartialEq, Debug)]
@@ -20,11 +35,22 @@ pub enum ErrorKind {
         token: TokenKind,
         expected: &'static str,
     },
-    UnknownName(String, FrozenType),
-    NotFunc(FrozenType),
-    ExpectedButGot(FrozenType, FrozenType),
+    UnknownName {
+        name: String,
+        expected_type: FrozenType,
+    },
+    NotFunc {
+        actual_type: FrozenType,
+    },
+    TooManyArgs {
+        nth_arg: usize,
+        func_name: String,
+    },
+    ExpectedButGot {
+        expected: FrozenType,
+        actual: FrozenType,
+    },
     InfWhereFinExpected,
-    //FoundTypeHole(FrozenType),
 }
 
 #[derive(PartialEq, Debug)]
@@ -62,13 +88,20 @@ impl Error {
                 error.crud_report();
                 match because {
                     Unmatched(token) => eprint!("`-> because of {token:?}"),
-                    TypeListInferredItemTypeButItWas(i, o) => {
-                        eprint!("`-> because list type was inferred to be [{i}] at this point but this item is {o}")
+                    TypeListInferredItemTypeButItWas {
+                        list_item_type,
+                        new_item_type,
+                    } => {
+                        eprint!("`-> because list type was inferred to be [{list_item_type}] at this point but this item is {new_item_type}")
                     }
-                    AsNthArgToNamedNowTyped(nth, name, func) => {
+                    AsNthArgToNamedNowTyped {
+                        nth_arg,
+                        func_name,
+                        type_with_curr_args,
+                    } => {
                         eprint!(
-                            "`-> because of the parameter in {func} (overall {nth}{} argument to {name})",
-                            match nth {
+                            "`-> because of the parameter in {type_with_curr_args} (overall {nth_arg}{} argument to {func_name})",
+                            match nth_arg {
                                 1 => "st",
                                 2 => "nd",
                                 3 => "rd",
@@ -76,25 +109,44 @@ impl Error {
                             }
                         );
                     }
-                    ChainedFromAsNthArgToNamedNowTyped(from, nth, name, func) => {
+                    ChainedFromAsNthArgToNamedNowTyped {
+                        comma_loc,
+                        nth_arg,
+                        func_name,
+                        type_with_curr_args,
+                    } => {
                         eprint!(
-                            "`-> because of chaining at {from:?} as parameter in {func} (overall {nth}{} argument to {name})",
-                            match nth {
+                            "`-> because of chaining at {comma_loc:?} as parameter in {type_with_curr_args} (overall {nth_arg}{} argument to {func_name})",
+                            match nth_arg {
                                 1 => "st",
                                 2 => "nd",
                                 3 => "rd",
                                 _ => "th",
                             }
                         );
+                    }
+                    ChainedFromToNotFunc { comma_loc } => {
+                        eprint!("`-> because of chaining at {comma_loc:?}")
                     }
                 }
             }
             Unexpected { token, expected } => {
                 eprint!("Unexpected {token:?}, expected {expected}")
             }
-            UnknownName(n, t) => eprint!("Unknown name '{n}', should be {t}"),
-            NotFunc(o) => eprint!("Expected a function type, but got {o}"),
-            ExpectedButGot(w, g) => eprint!("Expected type {w}, but got {g}"),
+            UnknownName {
+                name,
+                expected_type,
+            } => eprint!("Unknown name '{name}', should be {expected_type}"),
+            NotFunc { actual_type } => eprint!("Expected a function type, but got {actual_type}"),
+            TooManyArgs { nth_arg, func_name } => {
+                eprint!(
+                    "Too many argument to {func_name}, expected only {}",
+                    nth_arg - 1
+                )
+            }
+            ExpectedButGot { expected, actual } => {
+                eprint!("Expected type {expected}, but got {actual}")
+            }
             InfWhereFinExpected => eprint!("Expected finite type, but got infinite type"),
         }
 
