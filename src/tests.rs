@@ -744,5 +744,39 @@ fn reporting() {
             }
         )]))
     );
+
+    assert_maytree!(
+        ":1:, tostr, _",
+        Err(ErrorList(vec![
+            Error(
+                Location(5),
+                ContextCaused {
+                    error: Box::new(Error(
+                        Location(0),
+                        ExpectedButGot {
+                            expected: Number,
+                            actual: Bytes(true)
+                        }
+                    )),
+                    because: ChainedFromAsNthArgToNamedNowTyped {
+                        comma_loc: Location(3),
+                        nth_arg: 1,
+                        func_name: "tostr".into(),
+                        type_with_curr_args: Func(Box::new(Number), Box::new(Bytes(true)))
+                    }
+                }
+            ),
+            Error(
+                Location(12),
+                UnknownName {
+                    name: "_".into(),
+                    expected_type: Func(
+                        Box::new(Bytes(true)),
+                        Box::new(Named("returnof(typeof(_))".into()))
+                    )
+                }
+            )
+        ]))
+    );
 }
 // }}}

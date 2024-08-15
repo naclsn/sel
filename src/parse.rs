@@ -184,7 +184,6 @@ struct Parser<I: Iterator<Item = u8>> {
 }
 
 fn err_context_complete_type(types: &TypeList, err: ErrorKind, it: &Tree) -> ErrorKind {
-    // TODO: have 'better' euristic as to whether or not to wrap it in a context..?
     let complete_type = types.frozen(it.get_type());
     match &err {
         ErrorKind::ExpectedButGot {
@@ -274,8 +273,8 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         }
 
         let Some(Token(first_loc, first_kind)) = self.peekable.next() else {
-            // NOTE: this is the only place where we can get a None out of the lexer iif the input
-            //       bytte stream was exactly empty
+            // this is the only place where we can get a None out of the lexer
+            // iif the input byte stream was exactly empty
             self.report(Error(
                 Location(0),
                 ErrorKind::Unexpected {
@@ -343,7 +342,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                                     error: Box::new(err),
                                     because: ErrorContext::Unmatched { open_token },
                                 },
-                            ))
+                            ));
                         }
                         None => (),
                     }
@@ -447,9 +446,10 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                         let mut args = args.into_iter();
                         let (f, mut g) = (args.next().unwrap(), args.next().unwrap());
                         // (,)(f, g) => g(f(..))
-                        // XXX: shouldn't it have context? ChainedFrom..
-                        g.try_apply(apply_maybe_unfold(p, f), &mut p.types)
-                            .unwrap_or_else(|(e, _arg)| p.report(Error(g.get_loc(), e)));
+                        // unwrap because cannot fail:
+                        //     with f :: a -> b and g :: b -> c
+                        //     apply_maybe_unfold(p, f) :: b
+                        g.try_apply(apply_maybe_unfold(p, f), &mut p.types).unwrap();
                         g
                     }
                     TreeKind::Apply(ty, _, _)
@@ -461,11 +461,9 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                                 // `func` is a function (matches ::Apply)
                                 let e =
                                     err_context_as_nth_arg(&p.types, arg.get_loc(), e, None, &func);
-                                p.report(Error(func.get_loc(), e))
+                                p.report(Error(func.get_loc(), e));
+                                func.force_apply(&mut p.types);
                             });
-                        // FIXME: in case of error from try_apply, the type of `func` might not be helpful
-                        //        further analysis because it will still be its function type when we could
-                        //        be expected its return type
                         func
                     }
                     _ => {
@@ -533,11 +531,9 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     // we know `then` is a function (if it was hole then `try_apply` mutates it)
                     let e =
                         err_context_as_nth_arg(&self.types, r.get_loc(), e, Some(comma_loc), &then);
-                    self.report(Error(then.get_loc(), e))
+                    self.report(Error(then.get_loc(), e));
+                    then.force_apply(&mut self.types);
                 });
-                // FIXME: in case of error from try_apply, the type of `then` might not be helpful
-                //        further analysis because it will still be its function type when we could
-                //        be expected its return type
                 then
             }
             // [f, g, h] :: a -> d; where
@@ -568,10 +564,15 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     .try_apply(then, &mut self.types)
                     .unwrap_or_else(|(e, then)| {
                         // `then` is either a function or a type hole ('if')
-                        // and it is not a type hole ('else if')
+                        // and it is not a type hole ('else if'), so it is a function
                         let e =
                             err_context_as_nth_arg(&self.types, r_loc, e, Some(comma_loc), &then);
-                        self.report(Error(then.get_loc(), e))
+                        self.report(Error(then.get_loc(), e));
+                        // TODO: eg. `tostr, add1, _`
+                        //       this generates unhelpful typing when `try_apply` failed, even
+                        //       after a `force_apply` the type is still (x -> y) where y is the
+                        //       one we would want to show
+                        compose.force_apply(&mut self.types);
                     });
                 compose
             };
@@ -629,6 +630,20 @@ impl Tree {
                 arg,
             )),
         }
+    }
+
+    fn force_apply(&mut self, types: &mut TypeList) {
+        let TreeKind::Apply(func_ty, _, args) = &mut self.1 else {
+            unreachable!();
+        };
+        let ret_ty = match types.get(*func_ty) {
+            &Type::Func(_, ret) => ret,
+            _ => unreachable!(),
+        };
+
+        *func_ty = ret_ty;
+        // anything, doesn't mater what, this is the easiest..
+        args.push(Tree(Location(0), TreeKind::Number(0.0)));
     }
 
     fn get_type(&self) -> TypeRef {
