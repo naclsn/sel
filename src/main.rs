@@ -1,6 +1,8 @@
 use std::env::{self, Args};
 use std::iter::Peekable;
 
+use ariadne::Source;
+
 mod builtin;
 mod error;
 mod interp;
@@ -32,8 +34,10 @@ fn main() {
         return;
     }
 
+    let mut source = String::new();
     let (ty, tree) = match Tree::new_typed(args.flat_map(|mut a| {
         a.push(' ');
+        source += &a;
         a.into_bytes()
     })) {
         Ok(app) => app,
@@ -43,7 +47,12 @@ fn main() {
                 err.json(&mut json).unwrap();
                 println!("{json}");
             } else {
-                err.crud_report();
+                let mut n = 0;
+                for e in err {
+                    e.pretty().eprint(Source::from(&source)).unwrap();
+                    n += 1;
+                }
+                eprintln!("({n} error{})", if 1 == n { "" } else { "s" });
             }
             return;
         }
@@ -84,7 +93,7 @@ impl Options {
                     eprintln!("Unexpected '{dash}', see usage with -h");
                     return None;
                 }
-                _ => (),
+                _ => return Some(r),
             }
             args.next();
         } else {

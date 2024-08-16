@@ -1,4 +1,7 @@
 use std::fmt::{Result as FmtResult, Write};
+use std::ops::Range;
+
+use ariadne::{ColorGenerator, Label, Report, ReportBuilder, ReportKind};
 
 use crate::parse::{Location, TokenKind};
 use crate::types::FrozenType;
@@ -89,6 +92,7 @@ impl ErrorList {
 
 // crud report eprints {{{
 impl Error {
+    #[allow(dead_code)]
     fn crud_report(&self) {
         use ErrorContext::*;
         use ErrorKind::*;
@@ -163,6 +167,7 @@ impl Error {
 }
 
 impl ErrorList {
+    #[allow(dead_code)]
     pub fn crud_report(&self) {
         let ErrorList(errors) = self;
         eprintln!(
@@ -348,3 +353,106 @@ impl ErrorList {
     }
 }
 // }}}
+
+impl Error {
+    fn get_builder(&self, colors: &mut ColorGenerator) -> ReportBuilder<Range<usize>> {
+        use ErrorContext::*;
+        use ErrorKind::*;
+        use TokenKind::*;
+
+        let r = if let ContextCaused { error, because: _ } = &self.1 {
+            error.get_builder(colors)
+        } else {
+            Report::build(ReportKind::Error, (), self.0 .0)
+        };
+        let l = Label::new(self.0 .0..self.0 .0 + 1).with_color(colors.next());
+
+        match &self.1 {
+            ContextCaused { error: _, because } => match because {
+                Unmatched { open_token } => r.with_label(l.with_message(format!(
+                    "open {} here",
+                    match open_token {
+                        OpenBracket => '[',
+                        OpenBrace => '{',
+                        Unknown(_) | Word(_) | Bytes(_) | Number(_) | Comma | CloseBracket
+                        | CloseBrace | End => unreachable!(),
+                    }
+                ))),
+                CompleteType { complete_type } => {
+                    r.with_label(l.with_message(format!("complete type: {complete_type}")))
+                }
+                TypeListInferredItemType { list_item_type } => r.with_label(
+                    l.with_message(format!("list type was inferred to be [{list_item_type}]")),
+                ),
+                AsNthArgToNamedNowTyped {
+                    nth_arg,
+                    func_name,
+                    type_with_curr_args,
+                } => r.with_label(l.with_message(format!(
+                    "see parameter in {type_with_curr_args} (overall {nth_arg}{} argument to {func_name})",
+                    match nth_arg {
+                        1 => "st",
+                        2 => "nd",
+                        3 => "rd",
+                        _ => "th",
+                    }
+                ))),
+                ChainedFromAsNthArgToNamedNowTyped {
+                    comma_loc,
+                    nth_arg,
+                    func_name,
+                    type_with_curr_args,
+                } => {
+                    r.with_label(l.with_message(format!(
+                        "see parameter in {type_with_curr_args} (overall {nth_arg}{} argument to {func_name})",
+                        match nth_arg {
+                            1 => "st",
+                            2 => "nd",
+                            3 => "rd",
+                            _ => "th",
+                        }
+                    ))).with_label(
+                        Label::new(comma_loc.0..comma_loc.0+1)
+                            .with_color(colors.next())
+                            .with_message("chained through here")
+                    )
+                }
+                ChainedFromToNotFunc { comma_loc } => {
+                        r.with_label(l.with_message("Not a function")).with_label(Label::new(comma_loc.0..comma_loc.0+1).with_color(colors.next()).with_message("chained through here"))
+                }
+            }
+            Unexpected { token, expected } => {
+                r.with_message("Unexpected token").with_label(l.with_message(format!("Unexpected {}, expected {expected}", match token {
+                    Unknown(t) => t,
+                    Comma => ",",
+                    CloseBracket => "]",
+                    CloseBrace => "}",
+                    End => "end of script",
+                    Word(_) | Bytes(_) | Number(_) | OpenBracket | OpenBrace => unreachable!(),
+
+                })))
+            }
+            UnknownName {
+                name,
+                expected_type,
+            } => r.with_message("Unknown name").with_label(l.with_message(format!("Unknown name '{name}', should be {expected_type}"))),
+            NotFunc { actual_type } => {
+                r.with_message("Not a function").with_label(l.with_message(format!("Expected a function type, but got {actual_type}")))
+            }
+            TooManyArgs { nth_arg, func_name } => r.with_message("Too many argument").with_label(l.with_message(format!(
+                "Too many argument to {func_name}, expected only {}",
+                nth_arg - 1
+            ))),
+            ExpectedButGot { expected, actual } => {
+                r.with_message("Wrong type").with_label(l.with_message(format!("Expected type {expected}, but got {actual}")))
+            }
+            InfWhereFinExpected => {
+                r.with_message("Wrong type").with_label(l.with_message("Expected finite type, but got infinite type"))
+            }
+        }
+    }
+
+    pub fn pretty(&self) -> Report {
+        self.get_builder(&mut ColorGenerator::new()).finish()
+    }
+}
