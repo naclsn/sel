@@ -1,3 +1,5 @@
+use std::fmt::{Result as FmtResult, Write};
+
 use crate::parse::{Location, TokenKind};
 use crate::types::FrozenType;
 
@@ -61,6 +63,15 @@ pub struct Error(pub Location, pub ErrorKind);
 
 #[derive(PartialEq, Debug)]
 pub struct ErrorList(pub(crate) Vec<Error>);
+
+impl IntoIterator for ErrorList {
+    type Item = Error;
+    type IntoIter = <Vec<Error> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
 
 impl ErrorList {
     pub fn new() -> ErrorList {
@@ -151,15 +162,6 @@ impl Error {
     }
 }
 
-impl IntoIterator for ErrorList {
-    type Item = Error;
-    type IntoIter = <Vec<Error> as IntoIterator>::IntoIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
 impl ErrorList {
     pub fn crud_report(&self) {
         let ErrorList(errors) = self;
@@ -172,6 +174,177 @@ impl ErrorList {
             e.crud_report();
         }
         eprintln!("===");
+    }
+}
+// }}}
+
+// json report {{{
+struct JsonQuotingWriter<'a, W: Write>(&'a mut W);
+impl<W: Write> Write for JsonQuotingWriter<'_, W> {
+    fn write_str(&mut self, mut s: &str) -> FmtResult {
+        while let Some(k) = s.find(|c| matches!(c, '"' | '\\' | '/' | 'b' | 'f' | 'n' | 'r' | 't'))
+        {
+            self.0.write_str(&s[..k])?;
+            self.0.write_char('\\')?;
+            self.0.write_str(&s[k..k + 1])?;
+            s = &s[k + 1..];
+        }
+        self.0.write_str(s)
+    }
+}
+
+impl Error {
+    pub fn json(&self, w: &mut impl Write) -> FmtResult {
+        use ErrorContext::*;
+        use ErrorKind::*;
+        use TokenKind::*;
+
+        write!(w, "[{},", self.0 .0)?;
+        match &self.1 {
+            ContextCaused { error, because } => {
+                write!(w, "\"ContextCaused\",{{")?;
+                write!(w, "\"error\":")?;
+                error.json(w)?;
+                write!(w, ",")?;
+                write!(w, "\"because\":[")?;
+                match because {
+                    Unmatched { open_token } => {
+                        write!(w, "\"Unmatched\",{{")?;
+                        write!(
+                            w,
+                            "\"open_token\":\"{}\"",
+                            match open_token {
+                                OpenBracket => '[',
+                                OpenBrace => '{',
+                                Unknown(_) | Word(_) | Bytes(_) | Number(_) | Comma
+                                | CloseBracket | CloseBrace | End => unreachable!(),
+                            }
+                        )?;
+                        write!(w, "}}")?;
+                    }
+                    CompleteType { complete_type } => {
+                        write!(w, "\"CompleteType\",{{")?;
+                        write!(w, "\"complete_type\":\"")?;
+                        write!(JsonQuotingWriter(w), "{complete_type}")?;
+                        write!(w, "\"")?;
+                        write!(w, "}}")?;
+                    }
+                    TypeListInferredItemType { list_item_type } => {
+                        write!(w, "\"TypeListInferredItemType\",{{")?;
+                        write!(w, "\"list_item_type\":\"")?;
+                        write!(JsonQuotingWriter(w), "{list_item_type}")?;
+                        write!(w, "\"")?;
+                        write!(w, "}}")?;
+                    }
+                    AsNthArgToNamedNowTyped {
+                        nth_arg,
+                        func_name,
+                        type_with_curr_args,
+                    } => {
+                        write!(w, "\"AsNthArgToNamedNowTyped\",{{")?;
+                        write!(w, "\"nth_arg\":{nth_arg},")?;
+                        write!(w, "\"func_name\":\"")?;
+                        write!(JsonQuotingWriter(w), "{func_name}")?;
+                        write!(w, "\",")?;
+                        write!(w, "\"type_with_curr_args\":\"")?;
+                        write!(JsonQuotingWriter(w), "{type_with_curr_args}")?;
+                        write!(w, "\"")?;
+                        write!(w, "}}")?;
+                    }
+                    ChainedFromAsNthArgToNamedNowTyped {
+                        comma_loc,
+                        nth_arg,
+                        func_name,
+                        type_with_curr_args,
+                    } => {
+                        write!(w, "\"ChainedFromAsNthArgToNamedNowTyped\",{{")?;
+                        write!(w, "\"comma_loc\":{},", comma_loc.0)?;
+                        write!(w, "\"nth_arg\":{nth_arg},")?;
+                        write!(w, "\"func_name\":\"")?;
+                        write!(JsonQuotingWriter(w), "{func_name}")?;
+                        write!(w, "\",")?;
+                        write!(w, "\"type_with_curr_args\":\"")?;
+                        write!(JsonQuotingWriter(w), "{type_with_curr_args}")?;
+                        write!(w, "\"")?;
+                        write!(w, "}}")?;
+                    }
+                    ChainedFromToNotFunc { comma_loc } => {
+                        write!(w, "\"ChainedFromToNotFunc\",{{")?;
+                        write!(w, "\"comma_loc\":{}", comma_loc.0)?;
+                        write!(w, "}}")?;
+                    }
+                }
+                write!(w, "]}}")?;
+            }
+            Unexpected { token, expected } => {
+                write!(w, "\"Unexpected\",{{")?;
+                write!(w, "\"token\":\"")?;
+                match token {
+                    Unknown(t) => write!(JsonQuotingWriter(w), "{t}")?,
+                    Comma => write!(w, ",")?,
+                    CloseBracket => write!(w, "]")?,
+                    CloseBrace => write!(w, "}}")?,
+                    End => (),
+                    Word(_) | Bytes(_) | Number(_) | OpenBracket | OpenBrace => unreachable!(),
+                }
+                write!(w, "\",")?;
+                write!(w, "\"expected\":\"{expected}\"")?;
+                write!(w, "}}")?;
+            }
+            UnknownName {
+                name,
+                expected_type,
+            } => {
+                write!(w, "\"UnknownName\",{{")?;
+                write!(w, "\"name\":\"")?;
+                write!(JsonQuotingWriter(w), "{name}")?;
+                write!(w, "\",")?;
+                write!(w, "\"expected_type\":\"")?;
+                write!(JsonQuotingWriter(w), "{expected_type}")?;
+                write!(w, "\"")?;
+                write!(w, "}}")?;
+            }
+            NotFunc { actual_type } => {
+                write!(w, "\"NotFunc\",{{")?;
+                write!(w, "\"actual_type\":\"")?;
+                write!(JsonQuotingWriter(w), "{actual_type}")?;
+                write!(w, "\"")?;
+                write!(w, "}}")?;
+            }
+            TooManyArgs { nth_arg, func_name } => {
+                write!(w, "\"TooManyArgs\",{{")?;
+                write!(w, "\"nth_arg\":{nth_arg},")?;
+                write!(w, "\"func_name\":\"")?;
+                write!(JsonQuotingWriter(w), "{func_name}")?;
+                write!(w, "\"")?;
+                write!(w, "}}")?;
+            }
+            ExpectedButGot { expected, actual } => {
+                write!(w, "\"ExpectedButGot\",{{")?;
+                write!(w, "\"expected\":\"")?;
+                write!(JsonQuotingWriter(w), "{expected}")?;
+                write!(w, "\",")?;
+                write!(w, "\"actual\":\"")?;
+                write!(JsonQuotingWriter(w), "{actual}")?;
+                write!(w, "\"")?;
+                write!(w, "}}")?;
+            }
+            InfWhereFinExpected => write!(w, "\"InfWhereFinExpected\",{{}}")?,
+        }
+        write!(w, "]")
+    }
+}
+
+impl ErrorList {
+    pub fn json(&self, w: &mut impl Write) -> FmtResult {
+        write!(w, "[")?;
+        let mut sep = "";
+        for e in &self.0 {
+            write!(w, "{sep}")?;
+            sep = ",";
+            e.json(w)?;
+        }
+        write!(w, "]")
     }
 }
 // }}}

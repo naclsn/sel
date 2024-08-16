@@ -17,6 +17,7 @@ use crate::types::TypeList;
 struct Options {
     do_lookup: bool,
     do_typeof: bool,
+    err_json: bool,
 }
 
 fn main() {
@@ -37,7 +38,13 @@ fn main() {
     })) {
         Ok(app) => app,
         Err(err) => {
-            err.crud_report();
+            if opts.err_json {
+                let mut json = String::new();
+                err.json(&mut json).unwrap();
+                println!("{json}");
+            } else {
+                err.crud_report();
+            }
             return;
         }
     };
@@ -56,6 +63,7 @@ impl Options {
         let mut r = Options {
             do_lookup: false,
             do_typeof: false,
+            err_json: false,
         };
 
         if let Some(arg) = args.peek() {
@@ -64,20 +72,21 @@ impl Options {
                     eprintln!("Usage: {prog} -h | [-t] <script...> | [-l [<name>...]]");
                     return None;
                 }
-                "-t" => {
-                    args.next();
+
+                "-t" => r.do_typeof = true,
+                "-l" => r.do_lookup = true,
+                "--error-json" => {
                     r.do_typeof = true;
+                    r.err_json = true;
                 }
-                "-l" => {
-                    args.next();
-                    r.do_lookup = true;
-                }
+
                 dash if dash.starts_with('-') => {
                     eprintln!("Unexpected '{dash}', see usage with -h");
                     return None;
                 }
                 _ => (),
             }
+            args.next();
         } else {
             eprintln!("No argument, see usage with -h");
             return None;

@@ -163,7 +163,10 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
                         &iter::once(c)
                             .chain(iter::from_fn(|| {
                                 self.stream
-                                    .next_if(|c| c.1.is_ascii_alphanumeric() == chclass)
+                                    .next_if(|c| {
+                                        c.1.is_ascii_alphanumeric() == chclass
+                                            && !c.1.is_ascii_whitespace()
+                                    })
                                     .map(|c| c.1)
                             }))
                             .collect::<Vec<_>>()

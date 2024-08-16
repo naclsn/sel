@@ -110,7 +110,7 @@ todo :)
 
 - constant folding; because pure, identify what is not compile-time known:
   - can fold: literal (numbers, bytestrings), a list if all items can be folded, a call if all arguments are provided and can be folded
-  - cannot fold:`input`, 'control-point' functions and/or functions with side effects if ever
+  - cannot fold: `input`, infinite sources cannot be turned into a finite structure but can still be expressed statically, 'control-point' functions and/or functions with side effects if ever
 - [continuation-passing style (CPS)](https://en.wikipedia.org/wiki/Continuation-passing_style) (IR?)
 - thunks? but I'm wondering if there is a way to even more directly put the instruction at the location at c-time rather than packing them at r-time
 - lifetime tracking, or maybe 'duplication tracking'
