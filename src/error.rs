@@ -222,7 +222,7 @@ impl Error {
                                 OpenBracket => '[',
                                 OpenBrace => '{',
                                 Unknown(_) | Word(_) | Bytes(_) | Number(_) | Comma
-                                | CloseBracket | CloseBrace | End => unreachable!(),
+                                | CloseBracket | CloseBrace | Equal | End => unreachable!(),
                             }
                         )?;
                         write!(w, "}}")?;
@@ -289,6 +289,7 @@ impl Error {
                     Comma => write!(w, ",")?,
                     CloseBracket => write!(w, "]")?,
                     CloseBrace => write!(w, "}}")?,
+                    Equal => write!(w, "=")?,
                     End => (),
                     Word(_) | Bytes(_) | Number(_) | OpenBracket | OpenBrace => unreachable!(),
                 }
@@ -375,7 +376,7 @@ impl Error {
                         OpenBracket => '[',
                         OpenBrace => '{',
                         Unknown(_) | Word(_) | Bytes(_) | Number(_) | Comma | CloseBracket
-                        | CloseBrace | End => unreachable!(),
+                        | CloseBrace | Equal | End => unreachable!(),
                     }
                 ))),
                 CompleteType { complete_type } => {
@@ -427,6 +428,7 @@ impl Error {
                     Comma => ",",
                     CloseBracket => "]",
                     CloseBrace => "}",
+                    Equal => "=",
                     End => "end of script",
                     Word(_) | Bytes(_) | Number(_) | OpenBracket | OpenBrace => unreachable!(),
 

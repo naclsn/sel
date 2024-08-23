@@ -35,6 +35,20 @@ macro_rules! mkmktyty {
         mkmktyty!($st, [$($i)+]+ 0)
     };
 
+    ($st:ident, (($($a:tt)+), $($b:tt)+)) => {
+        {
+            let f = mkmktyty!($st, ($($a)+));
+            let s = mkmktyty!($st, $($b)+);
+            $st.types.pair(f, s)
+        }
+    };
+    ($st:ident, ($a:tt, $($b:tt)+)) => {
+        mkmktyty!($st, (($a), $($b)+))
+    };
+    ($st:ident, ($a:tt+ $f:literal $(& $both:literal)? $(| $either:literal)?, $($b:tt)+)) => {
+        mkmktyty!($st, (($a+ $f $(& $both)? $(| $either)?), $($b)+))
+    };
+
     ($st:ident, ($($t:tt)+)) => {
         mkmktyty!($st, $($t)+)
     };
@@ -122,4 +136,16 @@ pub const NAMES: Map<&'static str, BuiltinDesc> = phf_map! {
 
     "zipwith" => (mkmkty!(2, a, b, c; (a -> b -> c) -> [a]+1 -> [b]+2 -> [c]+1|2),
         "make a new list by applying an binary operation to each corresponding value from each lists; stops when either list ends"),
+
+    "pair" => (mkmkty!(0, a, b; a -> b -> (a, b)),
+        "make a pair"),
+
+    "unpair" => (mkmkty!(0, a, b, c; (a, b) -> (a -> b -> c) -> c),
+        "unmake a pair"),
+
+    "curry" => (mkmkty!(0, a, b, c; ((a, b) -> c) -> a -> b -> c),
+        "curry"),
+
+    "uncurry" => (mkmkty!(0, a, b, c; (a -> b -> c) -> (a, b) -> c),
+        "uncurry"),
 };

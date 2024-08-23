@@ -21,6 +21,7 @@ pub enum TokenKind {
     CloseBracket,
     OpenBrace,
     CloseBrace,
+    Equal,
     End,
 }
 
@@ -33,6 +34,7 @@ pub enum TreeKind {
     Number(f64),
     List(TypeRef, Vec<Tree>),
     Apply(TypeRef, String, Vec<Tree>),
+    Pair(TypeRef, Box<Tree>, Box<Tree>),
 }
 
 #[derive(PartialEq, Debug)]
@@ -85,6 +87,7 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
                 b']' => CloseBracket,
                 b'{' => OpenBrace,
                 b'}' => CloseBrace,
+                b'=' => Equal,
 
                 b'#' => {
                     self.stream.find(|c| b'\n' == c.1)?;
@@ -289,7 +292,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             return Tree(Location(0), TreeKind::Number(0.0));
         };
 
-        Tree(
+        let fst = Tree(
             first_loc.clone(),
             match first_kind {
                 Word(w) => match NAMES.get(&w) {
@@ -413,6 +416,17 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
                 Comma | CloseBracket | CloseBrace | End => unreachable!(),
 
+                Equal => {
+                    self.report(Error(
+                        first_loc,
+                        ErrorKind::Unexpected {
+                            token: first_kind,
+                            expected: "a value",
+                        },
+                    ));
+                    self.mktypeof("=").0
+                }
+
                 Unknown(ref w) => {
                     let r = self.mktypeof(w).0;
                     self.report(Error(
@@ -425,7 +439,17 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     r
                 }
             },
-        )
+        );
+
+        if let Some(Token(equal_loc, Equal)) = self.peekable.peek() {
+            let equal_loc = equal_loc.clone();
+            self.peekable.next();
+            let snd = self.parse_value();
+            let ty = self.types.pair(fst.get_type(), snd.get_type());
+            Tree(equal_loc, TreeKind::Pair(ty, Box::new(fst), Box::new(snd)))
+        } else {
+            fst
+        }
     }
 
     fn parse_apply(&mut self) -> Tree {
@@ -650,13 +674,13 @@ impl Tree {
     }
 
     fn get_type(&self) -> TypeRef {
+        use TreeKind::*;
         match self.1 {
-            TreeKind::Bytes(_) => types::STRFIN_TYPEREF,
-            TreeKind::Number(_) => types::NUMBER_TYPEREF,
-
-            TreeKind::List(ty, _) => ty,
-
-            TreeKind::Apply(ty, _, _) => ty,
+            Bytes(_) => types::STRFIN_TYPEREF,
+            Number(_) => types::NUMBER_TYPEREF,
+            List(ty, _) => ty,
+            Apply(ty, _, _) => ty,
+            Pair(ty, _, _) => ty,
         }
     }
 
@@ -684,11 +708,12 @@ impl Tree {
 
 impl Display for Tree {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        use TreeKind::*;
         match &self.1 {
-            TreeKind::Bytes(v) => write!(f, ":{v:?}:"),
-            TreeKind::Number(n) => write!(f, "{n}"),
+            Bytes(v) => write!(f, ":{v:?}:"),
+            Number(n) => write!(f, "{n}"),
 
-            TreeKind::List(_, items) => {
+            List(_, items) => {
                 write!(f, "{{")?;
                 let mut sep = "";
                 for it in items {
@@ -698,8 +723,8 @@ impl Display for Tree {
                 write!(f, "}}")
             }
 
-            TreeKind::Apply(_, w, empty) if empty.is_empty() => write!(f, "{w}"),
-            TreeKind::Apply(_, name, args) => {
+            Apply(_, w, empty) if empty.is_empty() => write!(f, "{w}"),
+            Apply(_, name, args) => {
                 write!(f, "{name}(")?;
                 let mut sep = "";
                 for it in args {
@@ -708,6 +733,8 @@ impl Display for Tree {
                 }
                 write!(f, ")")
             }
+
+            Pair(_, fst, snd) => write!(f, "({fst}, {snd})"),
         }
     }
 }

@@ -30,11 +30,12 @@ for usual number/comment/identifier/bytestring):
 script ::= <apply> {',' <apply>}
 
 apply ::= <value> {<value>}
-value ::= <atom> | <subscr> | <list>
+value ::= <atom> | <subscr> | <list> | <pair>
 
 atom ::= <word> | <bytes> | <number>
 subscr ::= '[' <script> ']'
 list ::= '{' [<apply> {',' <apply>} [',']] '}'
+pair ::= <atom> '=' <atom>
 
 word ::= /[a-z]+/ | '_'
 bytes ::= /:([^:]|::)*:/
@@ -64,6 +65,7 @@ Type notations are inspired from Haskell.
 - function: `a -> b`, when `b` is itself a function it
   will be `a -> x -> y`, but when `a` is a function then
   it is `(x -> y) -> b`
+- pair: `(a, b)`
 
 Lists and bytestring can take a `+` suffix (eg. `Str+`
 and `[Num]+`) which represent a potentially unbounded
@@ -79,7 +81,7 @@ is parsed:
   at the first item and `repeat 1` can never 'lose' its
   unbounded charateristic safely
 
-`-t` will give the type of the whole expression.
+The CLI `-t` option will give the type of the whole expression.
 
 ## Builtins
 

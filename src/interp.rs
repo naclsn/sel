@@ -241,8 +241,9 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
 }
 
 pub fn interp(tree: &Tree) -> Value {
+    use TreeKind::*;
     match &tree.1 {
-        TreeKind::Bytes(v) => {
+        Bytes(v) => {
             let vv = v.clone();
             Value::Bytes(
                 Box::new(v.clone().into_iter()),
@@ -250,11 +251,9 @@ pub fn interp(tree: &Tree) -> Value {
             )
         }
 
-        &TreeKind::Number(n) => {
-            Value::Number(Box::new(move || n), Rc::new(move || Box::new(move || n)))
-        }
+        &Number(n) => Value::Number(Box::new(move || n), Rc::new(move || Box::new(move || n))),
 
-        TreeKind::List(_, items) => {
+        List(_, items) => {
             let v = items.iter().map(interp).collect::<Vec<_>>();
             let vv = v.clone();
             Value::List(
@@ -263,7 +262,9 @@ pub fn interp(tree: &Tree) -> Value {
             )
         }
 
-        TreeKind::Apply(_, name, args) => lookup_val(name, args.iter().map(interp)),
+        Apply(_, name, args) => lookup_val(name, args.iter().map(interp)),
+
+        Pair(_, _fst, _lst) => todo!("TODO: pair in interp"),
     }
 }
 // }}}

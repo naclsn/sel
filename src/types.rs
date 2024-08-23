@@ -15,6 +15,7 @@ pub(crate) enum Type {
     Bytes(Boundedness),
     List(Boundedness, TypeRef),
     Func(TypeRef, TypeRef),
+    Pair(TypeRef, TypeRef),
     Named(String),
     Finite(bool),
     FiniteBoth(Boundedness, Boundedness),
@@ -27,6 +28,7 @@ pub enum FrozenType {
     Bytes(bool),
     List(bool, Box<FrozenType>),
     Func(Box<FrozenType>, Box<FrozenType>),
+    Pair(Box<FrozenType>, Box<FrozenType>),
     Named(String),
 }
 
@@ -75,6 +77,9 @@ impl TypeList {
     pub fn func(&mut self, par: TypeRef, ret: TypeRef) -> TypeRef {
         self.push(Type::Func(par, ret))
     }
+    pub fn pair(&mut self, fst: TypeRef, snd: TypeRef) -> TypeRef {
+        self.push(Type::Pair(fst, snd))
+    }
     pub fn named(&mut self, name: &str) -> TypeRef {
         self.push(Type::Named(name.to_string()))
     }
@@ -110,6 +115,7 @@ impl TypeList {
             | Type::Bytes(_)
             | Type::List(_, _)
             | Type::Func(_, _)
+            | Type::Pair(_, _)
             | Type::Named(_) => unreachable!(),
         }
     }
@@ -123,6 +129,9 @@ impl TypeList {
             }
             Type::Func(par, ret) => {
                 FrozenType::Func(Box::new(self.frozen(*par)), Box::new(self.frozen(*ret)))
+            }
+            Type::Pair(fst, snd) => {
+                FrozenType::Pair(Box::new(self.frozen(*fst)), Box::new(self.frozen(*snd)))
             }
             Type::Named(name) => FrozenType::Named(name.clone()),
             Type::Finite(_) | Type::FiniteBoth(_, _) | Type::FiniteEither(_, _) => unreachable!(),
@@ -241,6 +250,11 @@ impl Type {
                 Type::concretize(l_ret, r_ret, types, keep_inf)
             }
 
+            (&Pair(l_fst, l_snd), &Pair(r_fst, r_snd)) => {
+                Type::concretize(l_fst, r_fst, types, keep_inf)?;
+                Type::concretize(l_snd, r_snd, types, keep_inf)
+            }
+
             (other, Named(_)) => {
                 *types.get_mut(give) = other.clone();
                 Ok(())
@@ -279,6 +293,10 @@ impl Type {
                 Type::compatible(*r_par, *l_par, types) && Type::compatible(*l_ret, *r_ret, types)
             }
 
+            (Pair(l_fst, l_snd), Pair(r_fst, r_snd)) => {
+                Type::compatible(*l_fst, *r_fst, types) && Type::compatible(*l_snd, *r_snd, types)
+            }
+
             (_, Named(_)) => true,
             (Named(_), _) => true,
 
@@ -311,6 +329,8 @@ impl Display for FrozenType {
                 write!(f, " -> ")?;
                 write!(f, "{ret}")
             }
+
+            FrozenType::Pair(fst, snd) => write!(f, "({fst}, {snd})"),
 
             FrozenType::Named(name) => write!(f, "{name}"),
         }
