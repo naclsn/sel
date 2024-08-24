@@ -14,7 +14,7 @@ mod tests;
 
 use crate::builtin::NAMES;
 use crate::parse::Tree;
-use crate::types::TypeList;
+use crate::types::{FrozenType, TypeList};
 
 struct Options {
     do_lookup: bool,
@@ -64,6 +64,11 @@ fn main() {
     }
 
     interp::run_print(interp::interp(&tree));
+    match ty {
+        FrozenType::Number | FrozenType::Pair(_, _) => println!(),
+        FrozenType::Bytes(_) | FrozenType::List(_, _) => (),
+        FrozenType::Func(_, _) | FrozenType::Named(_) => unreachable!(),
+    }
 }
 
 impl Options {

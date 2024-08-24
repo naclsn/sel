@@ -17,6 +17,7 @@ pub enum Value {
     Bytes(Bytes, ValueClone<Bytes>),
     List(List, ValueClone<List>),
     Func(Func, ValueClone<Func>),
+    Pair(Box<Value>, Box<Value>),
 }
 
 impl Clone for Value {
@@ -38,6 +39,7 @@ impl Clone for Value {
                 let niw = clone();
                 Value::Func(niw, clone.clone())
             }
+            Value::Pair(fst, snd) => Value::Pair(fst.clone(), snd.clone()),
         }
     }
 }
@@ -131,6 +133,34 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
 
         "const" => apply_args(curried_value!(|a| -> Func |_| a)),
 
+        "div" => apply_args(curried_value!(|a, b| -> Number || a.number()() / b.number()())),
+
+        "enumerate" => apply_args(curried_value!(|l| -> List l.list().enumerate().map(|(k, v)|
+        Value::Pair(
+            Box::new(Value::Number(Box::new(move || k as f64), Rc::new(move || Box::new(move || k as f64)))),
+            Box::new(v),
+        )
+        ))),
+
+        "flip" => apply_args(curried_value!(|f, b| -> Func |a| f.func()(a).func()(b))),
+
+        "fold" => apply_args(
+            curried_value!(|f_ba, b| -> Func move |l_a: Value| l_a.list().fold(b, |b, a| f_ba.clone().func()(b).func()(a))),
+        ),
+
+        "head" => apply_args(
+            curried_value!(|| -> Func |l: Value| l.list().next().unwrap_or_else(|| panic!("NIY: runtime panics"))),
+        ),
+
+        "init" => apply_args(curried_value!(|l| -> List {
+            let mut p = l.list().peekable();
+            let mut c = p.next();
+            iter::from_fn(move || {
+                p.peek()?;
+                std::mem::replace(&mut c, p.next())
+            })
+        })),
+
         "input" => apply_args(curried_value!(|| -> Bytes {
             iter::from_fn(move || {
                 // XXX: this will be incorrect very easily but whever for now
@@ -141,6 +171,14 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
                     Ok(1) => Some(r[0]),
                     _ => None,
                 }
+            })
+        })),
+
+        "iterate" => apply_args(curried_value!(|f, ini| -> List {
+            let mut curr = ini;
+            iter::from_fn(move || {
+                let next = f.clone().func()(curr.clone());
+                Some(std::mem::replace(&mut curr, next))
             })
         })),
 
@@ -170,6 +208,10 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
                 None
             })
         })),
+
+        "last" => apply_args(
+            curried_value!(|| -> Func |l: Value| l.list().last().unwrap_or_else(|| panic!("NIY runtime panics"))),
+        ),
 
         "len" => apply_args(curried_value!(|list| -> Number || list.list().count() as f64)),
 
@@ -204,6 +246,10 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
                 ))
             })
         })),
+
+        "tail" => apply_args(curried_value!(|l| -> List l.list().skip(1))),
+
+        "take" => apply_args(curried_value!(|n, l| -> List l.list().take(n.number()() as usize))),
 
         "tonum" => apply_args(curried_value!(|s| -> Number || {
             let mut r = 0;
@@ -264,14 +310,14 @@ pub fn interp(tree: &Tree) -> Value {
 
         Apply(_, name, args) => lookup_val(name, args.iter().map(interp)),
 
-        Pair(_, _fst, _lst) => todo!("TODO: pair in interp"),
+        Pair(_, fst, lst) => Value::Pair(Box::new(interp(fst)), Box::new(interp(lst))),
     }
 }
 // }}}
 
 pub fn run_print(val: Value) {
     match val {
-        Value::Number(n, _) => println!("{}", n()),
+        Value::Number(n, _) => print!("{}", n()),
         Value::Bytes(b, _) => {
             let mut stdout = io::stdout();
             for ch in b {
@@ -281,8 +327,14 @@ pub fn run_print(val: Value) {
         Value::List(l, _) => {
             for it in l {
                 run_print(it);
+                println!();
             }
         }
         Value::Func(_f, _) => panic!("run_print on a function value"),
+        Value::Pair(f, s) => {
+            run_print(*f);
+            print!("\t");
+            run_print(*s);
+        }
     }
 }

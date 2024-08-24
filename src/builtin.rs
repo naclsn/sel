@@ -107,11 +107,35 @@ pub const NAMES: Map<&'static str, BuiltinDesc> = phf_map! {
     "const" => (mkmkty!(0, a, b; a -> b -> a),
         "always evaluate to its first argument, ignoring its second argument"),
 
+    "div" => (mkmkty!(0; Num -> Num -> Num),
+        "divide by the second numbers"),
+
+    "enumerate" => (mkmkty!(1, a; [a]+1 -> [(Num, a)]+1),
+        "enumerate a list into a list of (index, value)"),
+
+    "flip" => (mkmkty!(0, a, b, c; (a -> b -> c) -> b -> a -> c),
+        "flip the order in which the parameter are needed"),
+
+    "fold" => (mkmkty!(1, a, b; (b -> a -> b) -> b -> [a]+1 -> b),
+        ""),
+
+    "head" => (mkmkty!(1, a; [a]+1 -> a),
+        "extract the head (the first item)"),
+
+    "init" => (mkmkty!(0, a; [a] -> [a]),
+        "extract the initial part (until the last item)"),
+
     "input" => (mkmkty!(1; Str+1),
         "the input"),
 
+    "iterate" => (mkmkty!(1, a; (a -> a) -> a -> [a]+1),
+        "create an infinite list where the first item is calculated by applying the function on the second argument, the second item by applying the function on the previous result and so on"),
+
     "join" => (mkmkty!(2; Str -> [Str+1]+2 -> Str+1&2),
         "join a list of string with a separator between entries"),
+
+    "last" => (mkmkty!(0, a; [a] -> a),
+        "extract the last item"),
 
     "len" => (mkmkty!(0, a; [a] -> Num),
         "compute the length of a finite list"),
@@ -127,6 +151,12 @@ pub const NAMES: Map<&'static str, BuiltinDesc> = phf_map! {
 
     "split" => (mkmkty!(1; Str -> Str+1 -> [Str+1]+1),
         "break a string into pieces separated by the argument, consuming the delimiter; note that an empty delimiter does not split the input on every character, but rather is equivalent to `const [repeat ::]`, for this see `graphemes`"),
+
+    "tail" => (mkmkty!(1, a; [a]+1 -> [a]+1),
+        "extract the tail (past the first item)"),
+
+    "take" => (mkmkty!(1, a; Num -> [a]+1 -> [a]),
+        "take only the first items of a list, or fewer"),
 
     "tonum" => (mkmkty!(1; Str+1 -> Num),
         "convert a string into number"),
