@@ -110,6 +110,9 @@ pub const NAMES: Map<&'static str, BuiltinDesc> = phf_map! {
     "div" => (mkmkty!(0; Num -> Num -> Num),
         "divide by the second numbers"),
 
+    "duple" => (mkmkty!(0, a; a -> (a, a)),
+        "fundamentally THE operation that makes the types system non-linear!"),
+
     "enumerate" => (mkmkty!(1, a; [a]+1 -> [(Num, a)]+1),
         "enumerate a list into a list of (index, value)"),
 

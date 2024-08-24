@@ -1,6 +1,7 @@
-use std::io::{self, Read, Write};
+use std::io::{self, Read, Stdin, Write};
 use std::iter;
 use std::rc::Rc;
+use std::sync::{OnceLock, RwLock};
 
 use crate::parse::{Tree, TreeKind, COMPOSE_OP_FUNC_NAME};
 
@@ -9,6 +10,7 @@ pub type Number = Box<dyn FnOnce() -> f64>;
 pub type Bytes = Box<dyn Iterator<Item = u8>>;
 pub type List = Box<dyn Iterator<Item = Value>>;
 pub type Func = Box<dyn FnOnce(Value) -> Value>;
+pub type Pair = Box<(Value, Value)>;
 
 type ValueClone<T> = Rc<dyn Fn() -> T>;
 
@@ -17,7 +19,7 @@ pub enum Value {
     Bytes(Bytes, ValueClone<Bytes>),
     List(List, ValueClone<List>),
     Func(Func, ValueClone<Func>),
-    Pair(Box<Value>, Box<Value>),
+    Pair(Pair, ValueClone<Pair>),
 }
 
 impl Clone for Value {
@@ -39,7 +41,10 @@ impl Clone for Value {
                 let niw = clone();
                 Value::Func(niw, clone.clone())
             }
-            Value::Pair(fst, snd) => Value::Pair(fst.clone(), snd.clone()),
+            Value::Pair(_, clone) => {
+                let niw = clone();
+                Value::Pair(niw, clone.clone())
+            }
         }
     }
 }
@@ -68,6 +73,13 @@ impl Value {
     }
     fn func(self) -> Func {
         if let Value::Func(r, _) = self {
+            r
+        } else {
+            unreachable!("runtime type mismatchs should not be possible")
+        }
+    }
+    fn pair(self) -> Pair {
+        if let Value::Pair(r, _) = self {
             r
         } else {
             unreachable!("runtime type mismatchs should not be possible")
@@ -135,12 +147,16 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
 
         "div" => apply_args(curried_value!(|a, b| -> Number || a.number()() / b.number()())),
 
-        "enumerate" => apply_args(curried_value!(|l| -> List l.list().enumerate().map(|(k, v)|
-        Value::Pair(
-            Box::new(Value::Number(Box::new(move || k as f64), Rc::new(move || Box::new(move || k as f64)))),
-            Box::new(v),
-        )
-        ))),
+        "duple" => apply_args(curried_value!(|a| -> Pair (a.clone(), a.clone()))),
+
+        "enumerate" => apply_args(
+            curried_value!(|l| -> List l.list().enumerate().map(|(k, v)| {
+                let fst = Value::Number(Box::new(move || k as f64), Rc::new(move || Box::new(move || k as f64)));
+                let snd = v;
+                let w = move || Box::new((fst.clone(), snd.clone()));
+                Value::Pair(w(), Rc::new(w))
+            })),
+        ),
 
         "flip" => apply_args(curried_value!(|f, b| -> Func |a| f.func()(a).func()(b))),
 
@@ -162,14 +178,28 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
         })),
 
         "input" => apply_args(curried_value!(|| -> Bytes {
+            static SHARED: OnceLock<RwLock<(Stdin, Vec<u8>)>> = OnceLock::new();
+            let mut at = 0;
             iter::from_fn(move || {
-                // XXX: this will be incorrect very easily but whever for now
-                // (ex: `repeat input` just.. cannot be)
-                let mut stdin = io::stdin();
-                let mut r = [0u8; 1];
-                match stdin.read(&mut r) {
-                    Ok(1) => Some(r[0]),
-                    _ => None,
+                let iv = SHARED
+                    .get_or_init(|| RwLock::new((io::stdin(), Vec::new())))
+                    .try_read()
+                    .unwrap();
+                if at < iv.1.len() {
+                    at += 1;
+                    Some(iv.1[at - 1])
+                } else {
+                    drop(iv);
+                    let mut iv = SHARED.get().unwrap().try_write().unwrap();
+                    let mut r = [0u8; 1];
+                    match iv.0.read(&mut r) {
+                        Ok(1) => {
+                            iv.1.push(r[0]);
+                            at += 1;
+                            Some(r[0])
+                        }
+                        _ => None,
+                    }
                 }
             })
         })),
@@ -310,7 +340,12 @@ pub fn interp(tree: &Tree) -> Value {
 
         Apply(_, name, args) => lookup_val(name, args.iter().map(interp)),
 
-        Pair(_, fst, lst) => Value::Pair(Box::new(interp(fst)), Box::new(interp(lst))),
+        Pair(_, fst, snd) => {
+            let fst = interp(fst);
+            let snd = interp(snd);
+            let w = move || Box::new((fst.clone(), snd.clone()));
+            Value::Pair(w(), Rc::new(w))
+        }
     }
 }
 // }}}
@@ -331,10 +366,10 @@ pub fn run_print(val: Value) {
             }
         }
         Value::Func(_f, _) => panic!("run_print on a function value"),
-        Value::Pair(f, s) => {
-            run_print(*f);
+        Value::Pair(p, _) => {
+            run_print(p.0);
             print!("\t");
-            run_print(*s);
+            run_print(p.1);
         }
     }
 }
