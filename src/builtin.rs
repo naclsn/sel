@@ -122,6 +122,7 @@ pub const NAMES: Map<&'static str, BuiltinDesc> = phf_map! {
     "fold" => (mkmkty!(1, a, b; (b -> a -> b) -> b -> [a]+1 -> b),
         ""),
 
+    // TODO: "unwrap" |
     "head" => (mkmkty!(1, a; [a]+1 -> a),
         "extract the head (the first item)"),
 
@@ -140,17 +141,31 @@ pub const NAMES: Map<&'static str, BuiltinDesc> = phf_map! {
     "last" => (mkmkty!(0, a; [a] -> a),
         "extract the last item"),
 
+    // "is-some" |
     "len" => (mkmkty!(0, a; [a] -> Num),
         "compute the length of a finite list"),
 
     "ln" => (mkmkty!(1; Str+1 -> Str+1),
         "append a new line to a string (xxx: maybe change back to nl because of math ln..)"),
 
+    "lookup" => (mkmkty!(0, a; [(Str, a)] -> Str -> [a]),
+        "lookup in the list of key/value pairs the value associated with the given key; the return is an option (ie a singleton or an empty list)"),
+
     "map" => (mkmkty!(1, a, b; (a -> b) -> [a]+1 -> [b]+1),
         "make a new list by applying an unary operation to each value from a list"),
 
     "repeat" => (mkmkty!(1, a; a -> [a]+1),
         "repeat an infinite amount of copies of the same value"),
+
+    // "singleton" |
+    // "once" |
+    // "just" |
+    //"some" => (mkmkty!(0, a; a -> [a]),
+    //    "equivalent to {a}"),
+
+    // "empty" |
+    //"none" => (mkmkty!(0, a; [a]),
+    //    "equivalent to {}"),
 
     "split" => (mkmkty!(1; Str -> Str+1 -> [Str+1]+1),
         "break a string into pieces separated by the argument, consuming the delimiter; note that an empty delimiter does not split the input on every character, but rather is equivalent to `const [repeat ::]`, for this see `graphemes`"),

@@ -247,6 +247,21 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
 
         "ln" => apply_args(curried_value!(|s| -> Bytes s.bytes().chain(iter::once(b'\n')))),
 
+        "lookup" => apply_args(curried_value!(|l| -> Func move |k: Value| {
+            let k: Vec<_> = k.bytes().collect();
+            match l.list().find_map(|p| {
+                let p = p.pair();
+                if p.0.bytes().collect::<Vec<_>>() == k {
+                    Some(p.1)
+                } else {
+                    None
+                }
+            }) {
+                Some(v) => Value::List(Box::new(iter::once(v.clone())), Rc::new(move || Box::new(iter::once(v.clone())))),
+                None => Value::List(Box::new(iter::empty()), Rc::new(|| Box::new(iter::empty()))),
+            }
+        })),
+
         "map" => {
             apply_args(curried_value!(|f, l| -> List l.list().map(move |i| f.clone().func()(i))))
         }
