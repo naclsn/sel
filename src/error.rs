@@ -31,6 +31,10 @@ pub enum ErrorContext {
     ChainedFromToNotFunc {
         comma_loc: Location,
     },
+    AutoCoercedVia {
+        func_name: String,
+        func_type: FrozenType,
+    },
 }
 
 #[derive(PartialEq, Debug)]
@@ -140,6 +144,10 @@ impl Error {
                     ChainedFromToNotFunc { comma_loc } => {
                         eprint!("`-> because of chaining at {comma_loc:?}")
                     }
+                    AutoCoercedVia {
+                        func_name,
+                        func_type,
+                    } => eprint!("`-> with auto coercion via {func_name} :: {func_type}"),
                 }
             }
             Unexpected { token, expected } => {
@@ -278,6 +286,10 @@ impl Error {
                         write!(w, "\"comma_loc\":{}", comma_loc.0)?;
                         write!(w, "}}")?;
                     }
+                    AutoCoercedVia {
+                        func_name,
+                        func_type: _,
+                    } => write!(w, "\"AutoCoercedVia\",{{\"func_name\":\"{func_name}\"}}")?,
                 }
                 write!(w, "]}}")?;
             }
@@ -419,7 +431,14 @@ impl Error {
                     )
                 }
                 ChainedFromToNotFunc { comma_loc } => {
-                        r.with_label(l.with_message("Not a function")).with_label(Label::new(comma_loc.0..comma_loc.0+1).with_color(colors.next()).with_message("chained through here"))
+                    r.with_label(l.with_message("Not a function")).with_label(
+                        Label::new(comma_loc.0..comma_loc.0+1)
+                            .with_color(colors.next())
+                            .with_message("chained through here")
+                    )
+                }
+                AutoCoercedVia { func_name, func_type } => {
+                    r.with_label(l.with_message(format!("coerced via '{func_name}' (which has type {func_type})")))
                 }
             }
             Unexpected { token, expected } => {

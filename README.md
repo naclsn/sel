@@ -81,7 +81,28 @@ is parsed:
   at the first item and `repeat 1` can never 'lose' its
   unbounded charateristic safely
 
-The CLI `-t` option will give the type of the whole expression.
+The CLI `-t` option will give the type of the expression.
+
+## "Auto Coercion"
+
+When a direct function argument doesn't match the parameter,
+one of these function is automatically inserted:
+
+ wanted   | true type | inserted
+----------|-----------|--------------------
+ `Num`    | `Str+`    | `, tonum, `
+ `Str`    | `Num`     | `, tostr, `
+ `[Num]+` | `Str+`    | `, codepoints, `
+ `[Str]+` | `Str+`    | `, graphemes, `
+ `Str+`   | `[Str+]+` | `, ungraphemes, `
+ `Str+`   | `[Num]+`  | `, uncodepoints, `
+
+There is also a for now temporary behavior on the output
+depending on the type:
+- `Num`: printed with a newline
+- `(a, b)`: printed with a tabulation between the two and a newline
+- `Str`: printed as is
+- `[a]`: printed with a newline after each entries
 
 ## Builtins
 
@@ -104,10 +125,6 @@ note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 
 ## (wip and such)
 
-### format better error report presentation
-
-todo :)
-
 ### compile to linear sequence of instructions
 
 - constant folding; because pure, identify what is not compile-time known:
@@ -121,16 +138,6 @@ todo :)
 - [escape analysis](https://en.wikipedia.org/wiki/Escape_analysis)
 - [random lecture](https://www.cs.cornell.edu/courses/cs4110/2018fa/lectures/lecture29.pdf)
 - [random esopwheverthatmeans](https://www.cs.cornell.edu/people/fluet/research/substruct-regions/ESOP06/esop06.pdf)
-
-### insert coersion functions automatically
-
- true type | wanted   | inserted         | behavior
------------|----------|------------------|----------
- `Str+`    | `Num`    | `, tostr, `      | parse as a number, or `0`
- `Num`     | `Str`    | `, tonum, `      | writes the number in decimal
- `Str+`    | `[Str]+` | `, graphemes, `  | list of the Unicode graphemes
- `Str+`    | `[Num]+` | `, codepoints, ` | list of the Unicode codepoints
- `[Str+]+` | `Str+`   | `, join ::, `    | joined with empty separator
 
 ---
 

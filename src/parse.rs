@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::iter;
 
-use crate::builtin::NAMES;
+use crate::builtin;
 use crate::error::{Error, ErrorContext, ErrorKind, ErrorList};
 use crate::types::{self, FrozenType, Type, TypeList, TypeRef};
 
@@ -203,6 +203,21 @@ fn err_context_complete_type(types: &TypeList, err: ErrorKind, it: &Tree) -> Err
     }
 }
 
+fn err_context_auto_coerced(
+    arg_loc: Location,
+    err: ErrorKind,
+    func_name: String,
+    func_type: FrozenType,
+) -> ErrorKind {
+    ErrorKind::ContextCaused {
+        error: Box::new(Error(arg_loc, err)),
+        because: ErrorContext::AutoCoercedVia {
+            func_name,
+            func_type,
+        },
+    }
+}
+
 fn err_context_as_nth_arg(
     types: &TypeList,
     arg_loc: Location,
@@ -295,7 +310,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         let fst = Tree(
             first_loc.clone(),
             match first_kind {
-                Word(w) => match NAMES.get(&w) {
+                Word(w) => match builtin::NAMES.get(&w) {
                     Some((mkty, _)) => TreeKind::Apply(mkty(&mut self.types), w, Vec::new()),
                     None => {
                         let (r, ty) = self.mktypeof(&w);
@@ -550,7 +565,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             // - x :: A
             // - f, g, h :: a -> b, b -> c, c -> d
             else if is_hole
-                || !matches!(r_tty, Type::Func(_, _))
+                || !matches!(r_tty, Type::Func(_, _)) // NOTE: catches coersion cases
                 || Type::applicable(then_ty, r_ty, &self.types)
             {
                 // XXX: does it need `snapshot` here?
@@ -633,18 +648,48 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
 // uuhh.. tree itself (the entry point, Tree::new) {{{
 impl Tree {
-    fn try_apply(&mut self, arg: Tree, types: &mut TypeList) -> Result<(), (ErrorKind, Tree)> {
+    fn try_apply(&mut self, mut arg: Tree, types: &mut TypeList) -> Result<(), (ErrorKind, Tree)> {
+        use Type::*;
+
         let TreeKind::Apply(func_ty, ref name, args) = &mut self.1 else {
             unreachable!();
         };
         let is_compose = COMPOSE_OP_FUNC_NAME == name;
 
-        if let Type::Named(name) = types.get(*func_ty) {
+        if let Named(name) = types.get(*func_ty) {
             let name = name.clone();
             let par = types.named(&format!("paramof({name})"));
             let ret = types.named(&format!("returnof({name})"));
-            *types.get_mut(*func_ty) = Type::Func(par, ret);
+            *types.get_mut(*func_ty) = Func(par, ret);
         }
+
+        // coerce if needed
+        let Func(par_ty, _) = types.get(*func_ty) else {
+            unreachable!();
+        };
+        let coerce = if let Some(w) = match (types.get(*par_ty), types.get(arg.get_type())) {
+            (Number, Bytes(_)) => Some("tonum"),
+            (Bytes(_), Number) => Some("tostr"),
+            (List(_, num), Bytes(_)) if matches!(types.get(*num), Number) => Some("codepoints"),
+            (List(_, any), Bytes(_)) if matches!(types.get(*any), Bytes(_) | Named(_)) => {
+                Some("graphemes")
+            }
+            (Bytes(_), List(_, num)) if matches!(types.get(*num), Number) => Some("uncodepoints"),
+            (Bytes(_), List(_, bst)) if matches!(types.get(*bst), Bytes(_)) => Some("ungraphemes"),
+            _ => None,
+        } {
+            let (mkty, _) = builtin::NAMES.get(w).unwrap();
+            let mut func = Tree(
+                arg.0.clone(),
+                TreeKind::Apply(mkty(types), w.into(), Vec::new()),
+            );
+            let fty = types.frozen(func.get_type());
+            func.try_apply(arg, types).unwrap();
+            arg = func;
+            Some((arg.0.clone(), w, fty))
+        } else {
+            None
+        };
 
         match Type::applied(*func_ty, arg.get_type(), types) {
             Ok(ret_ty) => {
@@ -653,7 +698,17 @@ impl Tree {
                 Ok(())
             }
             Err(e) => Err((
-                err_context_complete_type(types, e, if is_compose { &args[0] } else { &arg }),
+                {
+                    let mut e = err_context_complete_type(
+                        types,
+                        e,
+                        if is_compose { &args[0] } else { &arg },
+                    );
+                    if let Some((loc, name, fty)) = coerce {
+                        e = err_context_auto_coerced(loc, e, name.into(), fty);
+                    }
+                    e
+                },
                 arg,
             )),
         }
