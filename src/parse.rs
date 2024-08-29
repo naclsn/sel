@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::iter;
 
@@ -22,10 +23,19 @@ pub enum TokenKind {
     OpenBrace,
     CloseBrace,
     Equal,
+    Def,
+    Let,
+    Semicolon,
     End,
 }
 
-#[derive(PartialEq, Debug)]
+macro_rules! TermToken {
+    () => {
+        Comma | CloseBracket | CloseBrace | Equal | Semicolon | End
+    };
+}
+
+#[derive(PartialEq, Debug, Clone)]
 pub struct Token(pub Location, pub TokenKind);
 
 #[derive(PartialEq, Debug)]
@@ -35,20 +45,39 @@ pub enum TreeKind {
     List(TypeRef, Vec<Tree>),
     Apply(TypeRef, String, Vec<Tree>),
     Pair(TypeRef, Box<Tree>, Box<Tree>),
+    Bind(TypeRef, Pattern, Box<Tree>, Option<Box<Tree>>),
 }
 
 #[derive(PartialEq, Debug)]
 pub struct Tree(pub Location, pub TreeKind);
 
+#[derive(PartialEq, Debug)]
+pub enum Pattern {
+    Bytes(Vec<u8>),
+    Number(f64),
+    List(Vec<Pattern>, /* strict */ bool),
+    Name(Location, String),
+    Pair(Box<Pattern>, Box<Pattern>),
+}
+
+#[derive(Default)]
+struct Scope {
+    parent: Option<Box<Scope>>,
+    names: HashMap<String, (Location, TypeRef)>,
+}
+
 // lexing into tokens {{{
+/// note: this is an infinite iterator (`next()` is never `None`)
 pub(crate) struct Lexer<I: Iterator<Item = u8>> {
     stream: iter::Peekable<iter::Enumerate<I>>,
+    last_loc: Option<Location>,
 }
 
 impl<I: Iterator<Item = u8>> Lexer<I> {
     pub(crate) fn new(iter: I) -> Self {
         Self {
             stream: iter.enumerate().peekable(),
+            last_loc: None,
         }
     }
 }
@@ -59,11 +88,17 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
     fn next(&mut self) -> Option<Self::Item> {
         use TokenKind::*;
 
-        let mut last = self.stream.peek()?.0;
-        let Some((loc, byte)) = self.stream.find(|c| {
-            last = c.0;
-            !c.1.is_ascii_whitespace()
-        }) else {
+        if let Some(last) = &self.last_loc {
+            return Some(Token(last.clone(), End));
+        }
+        let Some(&(last, _)) = self.stream.peek() else {
+            if let None = self.last_loc {
+                self.last_loc = Some(Location(0));
+            }
+            return self.next();
+        };
+        let Some((loc, byte)) = self.stream.find(|c| !c.1.is_ascii_whitespace()) else {
+            self.last_loc = Some(Location(last));
             return Some(Token(Location(last), End));
         };
 
@@ -88,6 +123,7 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
                 b'{' => OpenBrace,
                 b'}' => CloseBrace,
                 b'=' => Equal,
+                b';' => Semicolon,
 
                 b'#' => {
                     self.stream.find(|c| b'\n' == c.1)?;
@@ -95,18 +131,23 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
                 }
                 b'_' => Word("_".into()), // ..keeping this case for those that are used to it
 
-                c if c.is_ascii_lowercase() => Word(
-                    String::from_utf8(
+                c if c.is_ascii_lowercase() => {
+                    let w = String::from_utf8(
                         iter::once(c)
                             .chain(iter::from_fn(|| {
                                 self.stream
-                                    .next_if(|c| c.1.is_ascii_lowercase())
+                                    .next_if(|c| c.1.is_ascii_lowercase() || b'-' == c.1)
                                     .map(|c| c.1)
                             }))
                             .collect(),
                     )
-                    .unwrap(),
-                ),
+                    .unwrap();
+                    match w.as_str() {
+                        "def" => Def,
+                        "let" => Let,
+                        _ => Word(w),
+                    }
+                }
 
                 c if c.is_ascii_digit() => Number({
                     let mut r = 0usize;
@@ -187,8 +228,10 @@ struct Parser<I: Iterator<Item = u8>> {
     peekable: iter::Peekable<Lexer<I>>,
     types: TypeList,
     errors: ErrorList,
+    scope: Scope,
 }
 
+// error reportig helpers {{{
 fn err_context_complete_type(types: &TypeList, err: ErrorKind, it: &Tree) -> ErrorKind {
     let complete_type = types.frozen(it.get_type());
     match &err {
@@ -196,7 +239,7 @@ fn err_context_complete_type(types: &TypeList, err: ErrorKind, it: &Tree) -> Err
             expected: _,
             actual,
         } if complete_type != *actual => ErrorKind::ContextCaused {
-            error: Box::new(Error(it.get_loc(), err)),
+            error: Box::new(Error(it.0.clone(), err)),
             because: ErrorContext::CompleteType { complete_type },
         },
         _ => err,
@@ -229,7 +272,7 @@ fn err_context_as_nth_arg(
     ErrorKind::ContextCaused {
         error: Box::new(Error(arg_loc, err)),
         because: {
-            // unwrap: see `context_chained_as_nth` call sites
+            // unwrap: func is a function, see `err_context_as_nth_arg` call sites
             let (nth_arg, func_name) = func.get_nth_arg_func_name().unwrap();
             match comma_loc {
                 Some(comma_loc) => ErrorContext::ChainedFromAsNthArgToNamedNowTyped {
@@ -257,13 +300,80 @@ fn err_not_func(types: &TypeList, func: &Tree) -> ErrorKind {
     }
 }
 
+fn err_unexpected(token: &Token, expected: &'static str, unmatched: Option<&Token>) -> Error {
+    let Token(here, token) = token.clone();
+    let mut err = Error(here, ErrorKind::Unexpected { token, expected });
+    if let Some(unmatched) = unmatched {
+        let Token(from, open_token) = unmatched.clone();
+        err = Error(
+            from,
+            ErrorKind::ContextCaused {
+                error: Box::new(err),
+                because: ErrorContext::Unmatched { open_token },
+            },
+        );
+    }
+    err
+}
+// }}}
+
+impl Scope {
+    fn new(parent: Option<Scope>) -> Scope {
+        Scope {
+            parent: parent.map(Box::new),
+            names: HashMap::new(),
+        }
+    }
+
+    fn declare(
+        &mut self,
+        name: String,
+        loc: Location,
+        ty: TypeRef,
+        types: &TypeList,
+    ) -> Result<(), Error> {
+        if let Some((ploc, pty)) = self.names.get(&name) {
+            Err(Error(
+                ploc.clone(),
+                ErrorKind::ContextCaused {
+                    error: Box::new(Error(loc, ErrorKind::NameAlreadyDeclared { name })),
+                    because: ErrorContext::DeclaredHereWithType {
+                        with_type: types.frozen(*pty),
+                    },
+                },
+            ))
+        } else {
+            self.names.insert(name, (loc, ty));
+            Ok(())
+        }
+    }
+
+    fn lookup(&self, name: &str) -> Option<(Location, TypeRef)> {
+        self.names
+            .get(name)
+            .map(|pair| pair.clone())
+            .or_else(|| self.parent.as_ref()?.lookup(name))
+    }
+}
+
 impl<I: Iterator<Item = u8>> Parser<I> {
     fn new(iter: I) -> Parser<I> {
         Parser {
             peekable: Lexer::new(iter.into_iter()).peekable(),
             types: TypeList::default(),
             errors: ErrorList::new(),
+            scope: Scope::new(None),
         }
+    }
+
+    fn peek_tok(&mut self) -> &Token {
+        self.peekable.peek().unwrap()
+    }
+    fn next_tok(&mut self) -> Token {
+        self.peekable.next().unwrap()
+    }
+    fn skip_tok(&mut self) {
+        self.peekable.next();
     }
 
     fn report(&mut self, err: Error) {
@@ -275,47 +385,145 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         (TreeKind::Apply(ty, name.into(), Vec::new()), ty)
     }
 
+    fn parse_pattern(&mut self) -> (Pattern, TypeRef) {
+        use TokenKind::*;
+
+        if let term @ Token(loc, OpenBracket | TermToken!()) = self.peek_tok() {
+            let loc = loc.clone();
+            let err = err_unexpected(term, "a pattern", None);
+            self.report(err);
+            return (
+                Pattern::Name(loc.clone(), "let".into()),
+                self.types.named("paramof(typeof(let))"),
+            );
+        }
+
+        let first_token = self.next_tok();
+
+        let (fst, fst_ty) = match first_token.1 {
+            Word(w) => {
+                let ty = self.types.named(&w);
+                self.scope
+                    .declare(w.clone(), first_token.0.clone(), ty, &self.types)
+                    .unwrap_or_else(|e| self.report(e));
+                (Pattern::Name(first_token.0, w), ty)
+            }
+            Bytes(v) => (Pattern::Bytes(v), {
+                let fin = self.types.finite(true);
+                self.types.bytes(fin)
+            }),
+            Number(n) => (Pattern::Number(n), self.types.number()),
+
+            OpenBrace => {
+                let mut items = Vec::new();
+                let ty = self.types.named("itemof(typeof({}))");
+                let mut strict = true;
+
+                while match self.peek_tok() {
+                    Token(_, CloseBrace) => false,
+
+                    Token(_, Comma) if !items.is_empty() => {
+                        // { ... ,,
+                        strict = false;
+                        self.skip_tok();
+                        match self.peek_tok() {
+                            Token(_, CloseBrace) => false,
+                            other => {
+                                let err = err_unexpected(
+                                    other,
+                                    "closing '}' after ',,' (list rest pattern)",
+                                    Some(&first_token),
+                                );
+                                self.report(err);
+                                false
+                            }
+                        }
+                    }
+
+                    #[allow(unreachable_patterns)] // because of 'CloseBrace'
+                    term @ Token(_, TermToken!()) => {
+                        let err = err_unexpected(
+                            term,
+                            "next item or closing '}' in pattern",
+                            Some(&first_token),
+                        );
+                        self.report(err);
+                        false
+                    }
+
+                    _ => true,
+                } {
+                    let (item, item_ty) = self.parse_pattern();
+
+                    Type::harmonize(ty, item_ty, &mut self.types)
+                        .unwrap_or_else(|_| todo!("code dupe here"));
+                    items.push(item);
+
+                    if matches!(self.peek_tok(), Token(_, Comma)) {
+                        self.skip_tok();
+                    }
+                }
+                self.skip_tok();
+
+                (Pattern::List(items, strict), {
+                    let fin = self.types.finite(strict);
+                    self.types.list(fin, ty)
+                })
+            }
+
+            Def | Let | Unknown(_) => {
+                let loc = first_token.0.clone();
+                let err = err_unexpected(&first_token, "a pattern", None);
+                let t = match &first_token.1 {
+                    Def => "def",
+                    Let => "let",
+                    Unknown(t) => t,
+                    _ => unreachable!(),
+                };
+                self.report(err);
+                (Pattern::Name(loc, t.into()), self.types.named(t))
+            }
+
+            OpenBracket | TermToken!() => unreachable!(),
+        };
+
+        if let Token(_, Equal) = self.peek_tok() {
+            self.skip_tok();
+            let (snd, snd_ty) = self.parse_pattern();
+            (
+                Pattern::Pair(Box::new(fst), Box::new(snd)),
+                self.types.pair(fst_ty, snd_ty),
+            )
+        } else {
+            (fst, fst_ty)
+        }
+    }
+
     fn parse_value(&mut self) -> Tree {
         use TokenKind::*;
 
-        if let Some(Token(loc, kind @ (Comma | CloseBracket | CloseBrace | End))) =
-            self.peekable.peek()
-        {
+        if let term @ Token(loc, TermToken!()) = self.peek_tok() {
             let loc = loc.clone();
-            let kind = kind.clone();
-            self.report(Error(
-                loc.clone(),
-                ErrorKind::Unexpected {
-                    token: kind,
-                    expected: "a value",
-                },
-            ));
+            let err = err_unexpected(term, "a value", None);
+            self.report(err);
             return Tree(loc, self.mktypeof("").0);
         }
 
-        let Some(Token(first_loc, first_kind)) = self.peekable.next() else {
-            // this is the only place where we can get a None out of the lexer
-            // iif the input byte stream was exactly empty
-            self.report(Error(
-                Location(0),
-                ErrorKind::Unexpected {
-                    token: TokenKind::End,
-                    expected: "a value",
-                },
-            ));
-            // anything, doesn't mater what, this is the easiest..
-            return Tree(Location(0), TreeKind::Number(0.0));
-        };
+        let first_token = self.next_tok();
 
         let fst = Tree(
-            first_loc.clone(),
-            match first_kind {
-                Word(w) => match builtin::NAMES.get(&w) {
-                    Some((mkty, _)) => TreeKind::Apply(mkty(&mut self.types), w, Vec::new()),
+            first_token.0.clone(),
+            match first_token.1 {
+                Word(w) => match self.scope.lookup(&w).map(|d| d.1).or_else(|| {
+                    builtin::NAMES
+                        .get(&w)
+                        .map(|(mkty, _)| mkty(&mut self.types))
+                }) {
+                    Some(ty) => TreeKind::Apply(ty, w, Vec::new()),
                     None => {
                         let (r, ty) = self.mktypeof(&w);
                         self.report(Error(
-                            first_loc,
+                            first_token.0,
                             ErrorKind::UnknownName {
                                 name: w,
                                 expected_type: unsafe {
@@ -342,123 +550,115 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 Bytes(b) => TreeKind::Bytes(b),
                 Number(n) => TreeKind::Number(n),
 
-                open_token @ OpenBracket => {
+                OpenBracket => {
                     let Tree(_, r) = self.parse_script();
-                    match self.peekable.peek() {
-                        Some(Token(_, CloseBracket)) => _ = self.peekable.next(),
-                        Some(Token(here, kind)) => {
-                            let err = Error(
-                                here.clone(),
-                                ErrorKind::Unexpected {
-                                    token: kind.clone(),
-                                    expected: "next argument or closing ']'",
-                                },
+                    match self.peek_tok() {
+                        Token(_, CloseBracket) => _ = self.skip_tok(),
+                        other @ Token(_, kind) => {
+                            let skip = Comma == *kind;
+                            let err = err_unexpected(
+                                other,
+                                "next argument or closing ']'",
+                                Some(&first_token),
                             );
-                            if let Comma = kind {
-                                self.peekable.next();
+                            self.report(err);
+                            if skip {
+                                self.skip_tok();
                             }
-                            self.report(Error(
-                                first_loc,
-                                ErrorKind::ContextCaused {
-                                    error: Box::new(err),
-                                    because: ErrorContext::Unmatched { open_token },
-                                },
-                            ));
                         }
-                        None => (),
                     }
                     r
                 }
 
-                open_token @ OpenBrace => {
+                OpenBrace => {
                     let mut items = Vec::new();
                     let ty = self.types.named("itemof(typeof({}))");
-                    if let Some(Token(_, CloseBrace)) = self.peekable.peek() {
-                        self.peekable.next();
-                    } else {
-                        loop {
-                            let item = self.parse_apply();
-                            let item_ty = item.get_type();
-                            // NOTE: easy way out, used to report type error,
-                            // needless cloning for 90% of the time tho
-                            let snapshot = self.types.clone();
-                            Type::harmonize(ty, item_ty, &mut self.types).unwrap_or_else(|e| {
-                                self.report(Error(
-                                    first_loc.clone(),
-                                    ErrorKind::ContextCaused {
-                                        error: Box::new(Error(
-                                            item.get_loc(),
-                                            err_context_complete_type(&self.types, e, &item),
-                                        )),
-                                        because: ErrorContext::TypeListInferredItemType {
-                                            list_item_type: snapshot.frozen(ty),
-                                        },
+
+                    while match self.peek_tok() {
+                        Token(_, CloseBrace) => false,
+
+                        #[allow(unreachable_patterns)] // because of 'CloseBrace'
+                        term @ Token(_, TermToken!()) => {
+                            let err = err_unexpected(
+                                term,
+                                "next item or closing '}'",
+                                Some(&first_token),
+                            );
+                            self.report(err);
+                            false
+                        }
+
+                        _ => true,
+                    } {
+                        let item = self.parse_apply();
+                        let item_ty = item.get_type();
+
+                        // NOTE: easy way out, used to report type error,
+                        // needless cloning for 90% of the time tho
+                        let snapshot = self.types.clone();
+                        Type::harmonize(ty, item_ty, &mut self.types).unwrap_or_else(|e| {
+                            self.report(Error(
+                                first_token.0.clone(),
+                                ErrorKind::ContextCaused {
+                                    error: Box::new(Error(
+                                        item.0.clone(),
+                                        err_context_complete_type(&self.types, e, &item),
+                                    )),
+                                    because: ErrorContext::TypeListInferredItemType {
+                                        list_item_type: snapshot.frozen(ty),
                                     },
-                                ))
-                            });
-                            items.push(item);
-                            // (continues only if ',' and then not '}')
-                            match self.peekable.next() {
-                                Some(Token(_, CloseBrace)) => (),
-                                Some(Token(_, Comma)) => {
-                                    if let Some(Token(_, CloseBrace)) = self.peekable.peek() {
-                                        self.peekable.next();
-                                    } else {
-                                        continue;
-                                    }
-                                }
-                                Some(Token(here, kind)) => self.report(Error(
-                                    first_loc,
-                                    ErrorKind::ContextCaused {
-                                        error: Box::new(Error(
-                                            here,
-                                            ErrorKind::Unexpected {
-                                                token: kind.clone(),
-                                                expected: "next item or closing '}'",
-                                            },
-                                        )),
-                                        because: ErrorContext::Unmatched { open_token },
-                                    },
-                                )),
-                                None => (),
-                            }
-                            break;
+                                },
+                            ))
+                        });
+                        items.push(item);
+
+                        if matches!(self.peek_tok(), Token(_, Comma)) {
+                            self.skip_tok();
                         }
                     }
+                    self.skip_tok();
+
                     let fin = self.types.finite(true);
                     TreeKind::List(self.types.list(fin, ty), items)
                 }
 
-                Comma | CloseBracket | CloseBrace | End => unreachable!(),
+                Let => {
+                    self.scope = Scope::new(Some(std::mem::take(&mut self.scope)));
+                    let (pattern, pat_ty) = self.parse_pattern();
 
-                Equal => {
-                    self.report(Error(
-                        first_loc,
-                        ErrorKind::Unexpected {
-                            token: first_kind,
-                            expected: "a value",
-                        },
-                    ));
-                    self.mktypeof("=").0
+                    let then = self.parse_value();
+                    let ret_ty = then.get_type();
+
+                    let fallback = if let Token(_, TermToken!()) = self.peek_tok() {
+                        None
+                    } else {
+                        todo!("TODO: in let fallback, use Type::harmonize?");
+                        Some(Box::new(self.parse_value()))
+                    };
+
+                    let ty = self.types.func(pat_ty, ret_ty);
+                    self.scope = *self.scope.parent.take().unwrap();
+                    TreeKind::Bind(ty, pattern, Box::new(then), fallback)
+                }
+
+                Def => {
+                    self.report(Error(first_token.0, ErrorKind::UnexpectedDefInScript));
+                    self.mktypeof("def").0
                 }
 
                 Unknown(ref w) => {
-                    let r = self.mktypeof(w).0;
-                    self.report(Error(
-                        first_loc,
-                        ErrorKind::Unexpected {
-                            token: first_kind,
-                            expected: "a value",
-                        },
-                    ));
-                    r
+                    let err = err_unexpected(&first_token, "a value", None);
+                    self.report(err);
+                    self.mktypeof(w).0
                 }
+
+                TermToken!() => unreachable!(),
             },
         );
 
-        if let Some(Token(equal_loc, Equal)) = self.peekable.peek() {
+        if let Token(equal_loc, Equal) = self.peek_tok() {
             let equal_loc = equal_loc.clone();
-            self.peekable.next();
+            self.skip_tok();
             let snd = self.parse_value();
             let ty = self.types.pair(fst.get_type(), snd.get_type());
             Tree(equal_loc, TreeKind::Pair(ty, Box::new(fst), Box::new(snd)))
@@ -470,10 +670,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
     fn parse_apply(&mut self) -> Tree {
         use TokenKind::*;
         let mut r = self.parse_value();
-        while !matches!(
-            self.peekable.peek(),
-            Some(Token(_, Comma | CloseBracket | CloseBrace | End)) | None
-        ) {
+        while !matches!(self.peek_tok(), Token(_, TermToken!())) {
             // "unfold" means as in this example:
             // [tonum, add 1, tostr] :42:
             //  `-> (,)((,)(tonum, add(1)), tostr)
@@ -491,27 +688,23 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                         // unwrap because cannot fail:
                         //     with f :: a -> b and g :: b -> c
                         //     apply_maybe_unfold(p, f) :: b
-                        g.try_apply(apply_maybe_unfold(p, f), &mut p.types).unwrap();
+                        g.try_apply(apply_maybe_unfold(p, f), &mut p.types, None)
+                            .unwrap();
                         g
                     }
                     TreeKind::Apply(ty, _, _)
                         if matches!(p.types.get(ty), Type::Func(_, _) | Type::Named(_)) =>
                     {
                         // XXX: does it need `snapshot` here?
-                        func.try_apply(p.parse_value(), &mut p.types)
-                            .unwrap_or_else(|(e, arg)| {
-                                // `func` is a function (matches ::Apply)
-                                let e =
-                                    err_context_as_nth_arg(&p.types, arg.get_loc(), e, None, &func);
-                                p.report(Error(func.get_loc(), e));
-                                func.force_apply(&mut p.types);
-                            });
+                        // err_context_as_nth_arg: `func` is a function (matches ::Apply)
+                        func.try_apply(p.parse_value(), &mut p.types, None)
+                            .unwrap_or_else(|e| p.report(e));
                         func
                     }
                     _ => {
                         drop(p.parse_value());
                         let e = err_not_func(&p.types, &func);
-                        p.report(Error(func.get_loc(), e));
+                        p.report(Error(func.0.clone(), e));
                         func
                     }
                 }
@@ -523,16 +716,17 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
     fn parse_script(&mut self) -> Tree {
         let mut r = self.parse_apply();
-        while let Some(Token(comma_loc, _)) = self.peekable.next_if(|t| TokenKind::Comma == t.1) {
+        while let Token(_, TokenKind::Comma) = self.peek_tok() {
+            let Token(comma_loc, _) = self.next_tok();
             let mut then = self.parse_apply();
 
             let r_ty = r.get_type();
             let r_tty = self.types.get(r_ty);
-            let r_loc = r.get_loc();
+            let r_loc = r.0.clone();
 
             let then_ty = then.get_type();
             let then_tty = self.types.get(then_ty);
-            let then_loc = then.get_loc();
+            let then_loc = then.0.clone();
 
             let (is_func, is_hole) = match then_tty {
                 Type::Func(_, _) => (true, false),
@@ -569,13 +763,10 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 || Type::applicable(then_ty, r_ty, &self.types)
             {
                 // XXX: does it need `snapshot` here?
-                then.try_apply(r, &mut self.types).unwrap_or_else(|(e, r)| {
-                    // we know `then` is a function (if it was hole then `try_apply` mutates it)
-                    let e =
-                        err_context_as_nth_arg(&self.types, r.get_loc(), e, Some(comma_loc), &then);
-                    self.report(Error(then.get_loc(), e));
-                    then.force_apply(&mut self.types);
-                });
+                // err_context_as_nth_arg: we know `then` is a function
+                // (if it was hole then `try_apply` mutates it)
+                then.try_apply(r, &mut self.types, Some(comma_loc))
+                    .unwrap_or_else(|e| self.report(e));
                 then
             }
             // [f, g, h] :: a -> d; where
@@ -601,21 +792,12 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     ),
                 );
                 // unwrap: we know that `r` is a function (see previous 'else if')
-                compose.try_apply(r, &mut self.types).unwrap();
+                compose.try_apply(r, &mut self.types, None).unwrap();
+                // err_context_as_nth_arg: `then` is either a function or a type hole
+                // ('if') and it is not a type hole ('else if'), so it is a function
                 compose
-                    .try_apply(then, &mut self.types)
-                    .unwrap_or_else(|(e, then)| {
-                        // `then` is either a function or a type hole ('if')
-                        // and it is not a type hole ('else if'), so it is a function
-                        let e =
-                            err_context_as_nth_arg(&self.types, r_loc, e, Some(comma_loc), &then);
-                        self.report(Error(then.get_loc(), e));
-                        // TODO: eg. `tostr, add1, _`
-                        //       this generates unhelpful typing when `try_apply` failed, even
-                        //       after a `force_apply` the type is still (x -> y) where y is the
-                        //       one we would want to show
-                        compose.force_apply(&mut self.types);
-                    });
+                    .try_apply(then, &mut self.types, Some(comma_loc))
+                    .unwrap_or_else(|e| self.report(e));
                 compose
             };
         } // while let Comma
@@ -648,7 +830,15 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
 // uuhh.. tree itself (the entry point, Tree::new) {{{
 impl Tree {
-    fn try_apply(&mut self, mut arg: Tree, types: &mut TypeList) -> Result<(), (ErrorKind, Tree)> {
+    /// - named to func conversion
+    /// - any needed coercion
+    /// - if couldn't then still `force_apply`s and err appropriately
+    fn try_apply(
+        &mut self,
+        mut arg: Tree,
+        types: &mut TypeList,
+        comma_loc: Option<Location>,
+    ) -> Result<(), Error> {
         use Type::*;
 
         let TreeKind::Apply(func_ty, ref name, args) = &mut self.1 else {
@@ -679,13 +869,13 @@ impl Tree {
             _ => None,
         } {
             let (mkty, _) = builtin::NAMES.get(w).unwrap();
-            let mut func = Tree(
+            let mut coerce = Tree(
                 arg.0.clone(),
                 TreeKind::Apply(mkty(types), w.into(), Vec::new()),
             );
-            let fty = types.frozen(func.get_type());
-            func.try_apply(arg, types).unwrap();
-            arg = func;
+            let fty = types.frozen(coerce.get_type());
+            coerce.try_apply(arg, types, None).unwrap();
+            arg = coerce;
             Some((arg.0.clone(), w, fty))
         } else {
             None
@@ -697,35 +887,37 @@ impl Tree {
                 args.push(arg);
                 Ok(())
             }
-            Err(e) => Err((
-                {
-                    let mut e = err_context_complete_type(
-                        types,
-                        e,
-                        if is_compose { &args[0] } else { &arg },
-                    );
-                    if let Some((loc, name, fty)) = coerce {
-                        e = err_context_auto_coerced(loc, e, name.into(), fty);
-                    }
-                    e
-                },
-                arg,
-            )),
+            Err(e) => {
+                // XXX: does doing it here mess with the error report?
+                *func_ty = match types.get(*func_ty) {
+                    &Type::Func(_, ret) => ret,
+                    _ => unreachable!(),
+                };
+                // anything, doesn't mater what, this is the easiest..
+                args.push(Tree(Location(0), TreeKind::Number(0.0)));
+
+                let (actual_func, actual_arg) = if is_compose {
+                    (&arg, &args[0])
+                } else {
+                    (&*self, &arg)
+                };
+
+                let mut err_kind = err_context_complete_type(types, e, actual_arg);
+                if let Some((loc, name, fty)) = coerce {
+                    err_kind = err_context_auto_coerced(loc, err_kind, name.into(), fty);
+                }
+                // actual_func is a function:
+                // see `try_apply` call sites that have a `unwrap_or_else`
+                err_kind = err_context_as_nth_arg(
+                    types,
+                    actual_arg.0.clone(),
+                    err_kind,
+                    comma_loc,
+                    actual_func,
+                );
+                Err(Error(actual_func.0.clone(), err_kind))
+            }
         }
-    }
-
-    fn force_apply(&mut self, types: &mut TypeList) {
-        let TreeKind::Apply(func_ty, _, args) = &mut self.1 else {
-            unreachable!();
-        };
-        let ret_ty = match types.get(*func_ty) {
-            &Type::Func(_, ret) => ret,
-            _ => unreachable!(),
-        };
-
-        *func_ty = ret_ty;
-        // anything, doesn't mater what, this is the easiest..
-        args.push(Tree(Location(0), TreeKind::Number(0.0)));
     }
 
     fn get_type(&self) -> TypeRef {
@@ -736,11 +928,8 @@ impl Tree {
             List(ty, _) => ty,
             Apply(ty, _, _) => ty,
             Pair(ty, _, _) => ty,
+            Bind(ty, _, _, _) => ty,
         }
-    }
-
-    fn get_loc(&self) -> Location {
-        self.0.clone()
     }
 
     fn get_nth_arg_func_name(&self) -> Option<(usize, String)> {
@@ -790,6 +979,14 @@ impl Display for Tree {
             }
 
             Pair(_, fst, snd) => write!(f, "({fst}, {snd})"),
+
+            Bind(_, pat, then, fallback) => {
+                write!(f, "let {pat:?} in {then}")?;
+                if let Some(fallback) = fallback {
+                    write!(f, " else {fallback}")?;
+                }
+                Ok(())
+            }
         }
     }
 }

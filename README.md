@@ -27,22 +27,32 @@ $ printf abc | sel codepoints, map ln
 Yes, this is the complete syntax (with help of some regex
 for usual number/comment/identifier/bytestring):
 ```bnf
+top ::= <script> | <define> {<define>} [<script>]
+define ::= 'def' <word> <bytes> <script> ';'
 script ::= <apply> {',' <apply>}
 
-apply ::= <value> {<value>}
+apply ::= <binding> | <value> {<value>}
 value ::= <atom> | <subscr> | <list> | <pair>
+
+binding ::= 'let' <pattern> <value> [<value>]
+pattern ::= <atom> | <patlist> | <patpair>
+list ::= '{' [<pattern> {',' <pattern>} [',' [',']]] '}'
+pair ::= (<atom> | <patlist>) '=' <pattern>
 
 atom ::= <word> | <bytes> | <number>
 subscr ::= '[' <script> ']'
 list ::= '{' [<apply> {',' <apply>} [',']] '}'
-pair ::= <atom> '=' <atom>
+pair ::= (<atom> | <subscr> | <list>) '=' <value>
 
-word ::= /[a-z]+/ | '_'
+word ::= /[-a-z]+/ | '_'
 bytes ::= /:([^:]|::)*:/
 number ::= /0b[01]+/ | /0o[0-7]+/ | /0x[0-9A-Fa-f]+/ | /[0-9]+(\.[0-9]+)/
 
 comment ::= '#' /.*/ '\n'
 ```
+
+Special characters and keywords:
+`,` `:` `;` `=` `[` `]` `def` `let` `{` `}`
 
 The objective with it was to make it possible to type the
 script plainly in any (most?) shell without worrying about
@@ -51,6 +61,8 @@ quoting much if at all:
   naturally with a single space
 - the single and double quotes are not used, so to feel
   safer the whole script can be quoted
+- the `;` is only used with `def`, which is generally not
+  used in short CLI scripts
 
 The one case which can cause problem is lists (`{ .. }`)
 which can be interpreted as glob _if they do not contain
@@ -122,6 +134,14 @@ thread 'main' panicked at src/main.rs:103:43:
 not yet implemented
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 ```
+
+## Runtime Panics
+
+Scripts are statically typed, so there are only a few
+runtime situation that will panic and abort:
+
+- `let` without a fallback will panic if it's pattern doesn't match
+- out of range list access (eg. `head` (ie. `unwrap`), `last`...) will panic
 
 ## (wip and such)
 

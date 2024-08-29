@@ -19,7 +19,6 @@ use crate::types::{FrozenType, TypeList};
 struct Options {
     do_lookup: bool,
     do_typeof: bool,
-    err_json: bool,
 }
 
 fn main() {
@@ -42,18 +41,12 @@ fn main() {
     })) {
         Ok(app) => app,
         Err(err) => {
-            if opts.err_json {
-                let mut json = String::new();
-                err.json(&mut json).unwrap();
-                println!("{json}");
-            } else {
-                let mut n = 0;
-                for e in err {
-                    e.pretty().eprint(Source::from(&source)).unwrap();
-                    n += 1;
-                }
-                eprintln!("({n} error{})", if 1 == n { "" } else { "s" });
+            let mut n = 0;
+            for e in err {
+                e.pretty().eprint(Source::from(&source)).unwrap();
+                n += 1;
             }
+            eprintln!("({n} error{})", if 1 == n { "" } else { "s" });
             return;
         }
     };
@@ -77,7 +70,6 @@ impl Options {
         let mut r = Options {
             do_lookup: false,
             do_typeof: false,
-            err_json: false,
         };
 
         if let Some(arg) = args.peek() {
@@ -89,10 +81,6 @@ impl Options {
 
                 "-t" => r.do_typeof = true,
                 "-l" => r.do_lookup = true,
-                "--error-json" => {
-                    r.do_typeof = true;
-                    r.err_json = true;
-                }
 
                 dash if dash.starts_with('-') => {
                     eprintln!("Unexpected '{dash}', see usage with -h");

@@ -361,6 +361,8 @@ pub fn interp(tree: &Tree) -> Value {
             let w = move || Box::new((fst.clone(), snd.clone()));
             Value::Pair(w(), Rc::new(w))
         }
+
+        Bind(_, _, _, _) => todo!("let bind in interp"),
     }
 }
 // }}}
