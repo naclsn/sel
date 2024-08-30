@@ -232,14 +232,19 @@ struct Parser<I: Iterator<Item = u8>> {
 }
 
 // error reportig helpers {{{
-fn err_context_complete_type(types: &TypeList, err: ErrorKind, it: &Tree) -> ErrorKind {
-    let complete_type = types.frozen(it.get_type());
+fn err_context_complete_type(
+    types: &TypeList,
+    loc: Location,
+    err: ErrorKind,
+    ty: TypeRef,
+) -> ErrorKind {
+    let complete_type = types.frozen(ty);
     match &err {
         ErrorKind::ExpectedButGot {
             expected: _,
             actual,
         } if complete_type != *actual => ErrorKind::ContextCaused {
-            error: Box::new(Error(it.0.clone(), err)),
+            error: Box::new(Error(loc, err)),
             because: ErrorContext::CompleteType { complete_type },
         },
         _ => err,
@@ -314,6 +319,28 @@ fn err_unexpected(token: &Token, expected: &'static str, unmatched: Option<&Toke
         );
     }
     err
+}
+
+fn err_list_type_mismatch(
+    types: &TypeList,
+    item_loc: Location,
+    err: ErrorKind,
+    item_type: TypeRef,
+    open_loc: Location,
+    list_item_type: TypeRef,
+) -> Error {
+    Error(
+        open_loc,
+        ErrorKind::ContextCaused {
+            error: Box::new(Error(
+                item_loc.clone(),
+                err_context_complete_type(&types, item_loc, err, item_type),
+            )),
+            because: ErrorContext::TypeListInferredItemType {
+                list_item_type: types.frozen(list_item_type),
+            },
+        },
+    )
 }
 // }}}
 
@@ -453,10 +480,23 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
                     _ => true,
                 } {
+                    // pattern items do not all store their location...
+                    let Token(cheaty_loc, _) = self.peek_tok();
+                    let cheaty_loc = cheaty_loc.clone();
                     let (item, item_ty) = self.parse_pattern();
 
-                    Type::harmonize(ty, item_ty, &mut self.types)
-                        .unwrap_or_else(|_| todo!("code dupe here"));
+                    // snapshot to have previous type in reported error
+                    let snapshot = self.types.clone();
+                    Type::harmonize(ty, item_ty, &mut self.types).unwrap_or_else(|e| {
+                        self.report(err_list_type_mismatch(
+                            &snapshot,
+                            cheaty_loc,
+                            e,
+                            item_ty,
+                            first_token.0.clone(),
+                            ty,
+                        ));
+                    });
                     items.push(item);
 
                     if matches!(self.peek_tok(), Token(_, Comma)) {
@@ -593,22 +633,17 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                         let item = self.parse_apply();
                         let item_ty = item.get_type();
 
-                        // NOTE: easy way out, used to report type error,
-                        // needless cloning for 90% of the time tho
+                        // snapshot to have previous type in reported error
                         let snapshot = self.types.clone();
                         Type::harmonize(ty, item_ty, &mut self.types).unwrap_or_else(|e| {
-                            self.report(Error(
+                            self.report(err_list_type_mismatch(
+                                &snapshot,
+                                item.0.clone(),
+                                e,
+                                item.get_type(),
                                 first_token.0.clone(),
-                                ErrorKind::ContextCaused {
-                                    error: Box::new(Error(
-                                        item.0.clone(),
-                                        err_context_complete_type(&self.types, e, &item),
-                                    )),
-                                    because: ErrorContext::TypeListInferredItemType {
-                                        list_item_type: snapshot.frozen(ty),
-                                    },
-                                },
-                            ))
+                                ty,
+                            ));
                         });
                         items.push(item);
 
@@ -626,19 +661,37 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     self.scope = Scope::new(Some(std::mem::take(&mut self.scope)));
                     let (pattern, pat_ty) = self.parse_pattern();
 
-                    let then = self.parse_value();
-                    let ret_ty = then.get_type();
+                    let result = self.parse_value();
+                    let res_ty = result.get_type();
 
                     let fallback = if let Token(_, TermToken!()) = self.peek_tok() {
                         None
                     } else {
-                        todo!("TODO: in let fallback, use Type::harmonize?");
-                        Some(Box::new(self.parse_value()))
+                        let then = self.parse_value();
+
+                        // snapshot to have previous type in reported error
+                        let snapshot = self.types.clone();
+                        Type::harmonize(res_ty, then.get_type(), &mut self.types).unwrap_or_else(
+                            |e| {
+                                self.report(Error(
+                                    then.0.clone(),
+                                    ErrorKind::ContextCaused {
+                                        error: Box::new(Error(result.0.clone(), e)),
+                                        because: ErrorContext::LetFallbackTypeMismatch {
+                                            result_type: snapshot.frozen(res_ty),
+                                            fallback_type: snapshot.frozen(then.get_type()),
+                                        },
+                                    },
+                                ))
+                            },
+                        );
+
+                        Some(Box::new(then))
                     };
 
-                    let ty = self.types.func(pat_ty, ret_ty);
+                    let ty = self.types.func(pat_ty, res_ty);
                     self.scope = *self.scope.parent.take().unwrap();
-                    TreeKind::Bind(ty, pattern, Box::new(then), fallback)
+                    TreeKind::Bind(ty, pattern, Box::new(result), fallback)
                 }
 
                 Def => {
@@ -902,7 +955,12 @@ impl Tree {
                     (&*self, &arg)
                 };
 
-                let mut err_kind = err_context_complete_type(types, e, actual_arg);
+                let mut err_kind = err_context_complete_type(
+                    types,
+                    actual_arg.0.clone(),
+                    e,
+                    actual_arg.get_type(),
+                );
                 if let Some((loc, name, fty)) = coerce {
                     err_kind = err_context_auto_coerced(loc, err_kind, name.into(), fty);
                 }

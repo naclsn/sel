@@ -1,5 +1,13 @@
 A versatile command line tool to deal with streams, with a
-("point-free") functional approach.
+(mostly point-free) functional approach.
+
+---
+
+#### State of Development
+
+State: working and usable _but_ I want to 'compile', that
+is, down to a linear sequence of instructions. Current way
+of interpreting is very wasteful.
 
 ---
 
@@ -24,8 +32,26 @@ $ printf abc | sel codepoints, map ln
 
 ## Syntax
 
-Yes, this is the complete syntax (with help of some regex
-for usual number/comment/identifier/bytestring):
+TLDR:
+- `# comment`
+- `func arg1 arg2 ...`
+- list: `{0b1, 0o2, 0x3, 4.2}`
+- strings: `:hi how you:`
+- `f, g` is `g(f(..))`
+
+Special characters and keywords:
+`,` `:` `;` `=` `[` `]` `def` `let` `{` `}`
+
+2 special forms:
+- `def name :description: value` will define a new name
+  that essentially replaces by value where it is used;
+- `let pattern result fallback` will make a function of one
+  argument that computes result if pattern matches, pattern
+  can introduces names (eg `let {a, b,,} [add a b]`, the
+  `,,` matches the rest of the list), fallback is optional
+  (default is to panic).
+
+Here is the complete syntax:
 ```bnf
 top ::= <script> | <define> {<define>} [<script>]
 define ::= 'def' <word> <bytes> <script> ';'
@@ -50,9 +76,6 @@ number ::= /0b[01]+/ | /0o[0-7]+/ | /0x[0-9A-Fa-f]+/ | /[0-9]+(\.[0-9]+)/
 
 comment ::= '#' /.*/ '\n'
 ```
-
-Special characters and keywords:
-`,` `:` `;` `=` `[` `]` `def` `let` `{` `}`
 
 The objective with it was to make it possible to type the
 script plainly in any (most?) shell without worrying about
@@ -143,7 +166,46 @@ runtime situation that will panic and abort:
 - `let` without a fallback will panic if it's pattern doesn't match
 - out of range list access (eg. `head` (ie. `unwrap`), `last`...) will panic
 
+## Ack & Unrelated
+
+Python,
+Haskell,
+Rust,
+[jq](https://github.com/jqlang/jq),
+[tree-sitter](https://github.com/tree-sitter/tree-sitter),
+[dt](https://github.com/so-dang-cool/dt),
+[Helix](https://github.com/helix-editor/helix)
+
+---
+
 ## (wip and such)
+
+### cli
+
+shebang
+
+it could go like:
+- if first argument that would be script is a path (or simple word)
+  - if it's an existing file (or local file) starting with a `#!`
+    - parse it into result
+    - additional arguments if any are passed to result as function
+- else proceed as usual
+
+this makes it possible to:
+- use `#!/usr/bin/env sel`
+- have local tools like `$ sel my-tool 1 2 3` or whatever
+  - or simply have arguments passed to `./my-tool` like appended
+
+### `def` section
+
+prelude, that would limit builtin definitions
+(but then what should be b-in? only what needs to? "hand-compiled for efficiency"?...)
+
+something like `$PYTHONSTARTUP`, between prelude and user script
+
+is doable for both but it will require type inference to identify infinite loops, mutual recursions and such
+- enable self-referential?
+- enable out-of-order?
 
 ### compile to linear sequence of instructions
 

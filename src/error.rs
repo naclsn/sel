@@ -37,6 +37,10 @@ pub enum ErrorContext {
     DeclaredHereWithType {
         with_type: FrozenType,
     },
+    LetFallbackTypeMismatch {
+        result_type: FrozenType,
+        fallback_type: FrozenType,
+    },
 }
 
 #[derive(PartialEq, Debug)]
@@ -159,6 +163,12 @@ impl Error {
                     DeclaredHereWithType { with_type } => {
                         eprint!("`-> declared here as {with_type}")
                     }
+                    LetFallbackTypeMismatch {
+                        result_type,
+                        fallback_type,
+                    } => eprint!(
+                        "`-> fallback type {fallback_type} doesn't match result type {result_type}"
+                    ),
                 }
             }
             Unexpected { token, expected } => {
@@ -285,6 +295,12 @@ impl Error {
                 DeclaredHereWithType { with_type } => {
                     r.with_label(l.with_message(format!("here with type {with_type}")))
                 }
+                LetFallbackTypeMismatch {
+                    result_type,
+                    fallback_type,
+                } => r.with_label(l.with_message(format!(
+                    "fallback of type {fallback_type} doesn't match result type {result_type}"
+                ))),
             },
             Unexpected { token, expected } => {
                 r.with_message("Unexpected token")
@@ -331,10 +347,10 @@ impl Error {
                     )))
             }
             ExpectedButGot { expected, actual } => r
-                .with_message("Wrong type")
+                .with_message("Type mismatch")
                 .with_label(l.with_message(format!("Expected type {expected}, but got {actual}"))),
             InfWhereFinExpected => r
-                .with_message("Wrong type")
+                .with_message("Wrong boundedness")
                 .with_label(l.with_message("Expected finite type, but got infinite type")),
             NameAlreadyDeclared { name } => r
                 .with_message("Name used twice")
