@@ -52,7 +52,7 @@ fn main() {
     };
 
     if opts.do_typeof {
-        println!("{ty} ## {tree}");
+        println!("{ty}");
         return;
     }
 

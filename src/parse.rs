@@ -1,10 +1,9 @@
 use std::collections::HashMap;
-use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::iter;
 
 use crate::builtin;
 use crate::error::{Error, ErrorContext, ErrorKind, ErrorList};
-use crate::types::{self, FrozenType, Type, TypeList, TypeRef};
+use crate::types::{FrozenType, Type, TypeList, TypeRef};
 
 pub const COMPOSE_OP_FUNC_NAME: &str = "(,)";
 
@@ -38,20 +37,29 @@ macro_rules! TermToken {
 #[derive(PartialEq, Debug, Clone)]
 pub struct Token(pub Location, pub TokenKind);
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
+pub enum Applicable {
+    Name(String),
+    Bind(Pattern, Box<Tree>, Option<Box<Tree>>),
+}
+
+#[derive(PartialEq, Debug, Clone)]
 pub enum TreeKind {
     Bytes(Vec<u8>),
     Number(f64),
-    List(TypeRef, Vec<Tree>),
-    Apply(TypeRef, String, Vec<Tree>),
-    Pair(TypeRef, Box<Tree>, Box<Tree>),
-    Bind(TypeRef, Pattern, Box<Tree>, Option<Box<Tree>>),
+    List(Vec<Tree>),
+    Apply(Applicable, Vec<Tree>),
+    Pair(Box<Tree>, Box<Tree>),
 }
 
-#[derive(PartialEq, Debug)]
-pub struct Tree(pub Location, pub TreeKind);
+#[derive(PartialEq, Debug, Clone)]
+pub struct Tree {
+    pub loc: Location,
+    pub ty: TypeRef,
+    pub value: TreeKind,
+}
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Pattern {
     Bytes(Vec<u8>),
     Number(f64),
@@ -60,7 +68,6 @@ pub enum Pattern {
     Pair(Box<Pattern>, Box<Pattern>),
 }
 
-#[derive(Default)]
 struct Scope {
     parent: Option<Box<Scope>>,
     names: HashMap<String, (Location, TypeRef)>,
@@ -92,7 +99,7 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
             return Some(Token(last.clone(), End));
         }
         let Some(&(last, _)) = self.stream.peek() else {
-            if let None = self.last_loc {
+            if self.last_loc.is_none() {
                 self.last_loc = Some(Location(0));
             }
             return self.next();
@@ -273,22 +280,25 @@ fn err_context_as_nth_arg(
     comma_loc: Option<Location>, // if some, ChainedFrom..
     func: &Tree,
 ) -> ErrorKind {
-    let type_with_curr_args = types.frozen(func.get_type());
+    let type_with_curr_args = types.frozen(func.ty);
     ErrorKind::ContextCaused {
         error: Box::new(Error(arg_loc, err)),
         because: {
-            // unwrap: func is a function, see `err_context_as_nth_arg` call sites
-            let (nth_arg, func_name) = func.get_nth_arg_func_name().unwrap();
+            // unreachable: func is a function, see `err_context_as_nth_arg` call sites
+            let (nth_arg, func) = match &func.value {
+                TreeKind::Apply(app, args) => (args.len() + 1, app.clone()),
+                _ => unreachable!(),
+            };
             match comma_loc {
-                Some(comma_loc) => ErrorContext::ChainedFromAsNthArgToNamedNowTyped {
+                Some(comma_loc) => ErrorContext::ChainedFromAsNthArgToNowTyped {
                     comma_loc,
                     nth_arg,
-                    func_name,
+                    func,
                     type_with_curr_args,
                 },
-                None => ErrorContext::AsNthArgToNamedNowTyped {
+                None => ErrorContext::AsNthArgToNowTyped {
                     nth_arg,
-                    func_name,
+                    func,
                     type_with_curr_args,
                 },
             }
@@ -297,10 +307,13 @@ fn err_context_as_nth_arg(
 }
 
 fn err_not_func(types: &TypeList, func: &Tree) -> ErrorKind {
-    match func.get_nth_arg_func_name() {
-        Some((nth_arg, func_name)) => ErrorKind::TooManyArgs { nth_arg, func_name },
-        None => ErrorKind::NotFunc {
-            actual_type: types.frozen(func.get_type()),
+    match &func.value {
+        TreeKind::Apply(name, args) => ErrorKind::TooManyArgs {
+            nth_arg: args.len() + 1,
+            func: name.clone(),
+        },
+        _ => ErrorKind::NotFunc {
+            actual_type: types.frozen(func.ty),
         },
     }
 }
@@ -334,7 +347,7 @@ fn err_list_type_mismatch(
         ErrorKind::ContextCaused {
             error: Box::new(Error(
                 item_loc.clone(),
-                err_context_complete_type(&types, item_loc, err, item_type),
+                err_context_complete_type(types, item_loc, err, item_type),
             )),
             because: ErrorContext::TypeListInferredItemType {
                 list_item_type: types.frozen(list_item_type),
@@ -378,7 +391,7 @@ impl Scope {
     fn lookup(&self, name: &str) -> Option<(Location, TypeRef)> {
         self.names
             .get(name)
-            .map(|pair| pair.clone())
+            .cloned()
             .or_else(|| self.parent.as_ref()?.lookup(name))
     }
 }
@@ -407,9 +420,112 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         self.errors.push(err);
     }
 
-    fn mktypeof(&mut self, name: &str) -> (TreeKind, TypeRef) {
+    fn mktypeof(&mut self, name: &str) -> (TypeRef, TreeKind) {
         let ty = self.types.named(&format!("typeof({name})"));
-        (TreeKind::Apply(ty, name.into(), Vec::new()), ty)
+        (
+            ty,
+            TreeKind::Apply(Applicable::Name(name.into()), Vec::new()),
+        )
+    }
+
+    /// - named to func conversion
+    /// - any needed coercion
+    /// - if couldn't then still `force_apply`s and err appropriately
+    fn try_apply(&mut self, mut func: Tree, mut arg: Tree, comma_loc: Option<Location>) -> Tree {
+        use Type::*;
+
+        let TreeKind::Apply(ref base, args) = &mut func.value else {
+            unreachable!();
+        };
+        let is_compose = matches!(base, Applicable::Name(name) if COMPOSE_OP_FUNC_NAME == name);
+
+        if let Named(name) = self.types.get(func.ty) {
+            let name = name.clone();
+            let par = self.types.named(&format!("paramof({name})"));
+            let ret = self.types.named(&format!("returnof({name})"));
+            *self.types.get_mut(func.ty) = Func(par, ret);
+        }
+
+        // coerce if needed
+        let Func(par_ty, _) = self.types.get(func.ty) else {
+            unreachable!();
+        };
+        let coerce = if let Some(w) = match (self.types.get(*par_ty), self.types.get(arg.ty)) {
+            (Number, Bytes(_)) => Some("tonum"),
+            (Bytes(_), Number) => Some("tostr"),
+            (List(_, num), Bytes(_)) if matches!(self.types.get(*num), Number) => {
+                Some("codepoints")
+            }
+            (List(_, any), Bytes(_)) if matches!(self.types.get(*any), Bytes(_) | Named(_)) => {
+                Some("graphemes")
+            }
+            (Bytes(_), List(_, num)) if matches!(self.types.get(*num), Number) => {
+                Some("uncodepoints")
+            }
+            (Bytes(_), List(_, bst)) if matches!(self.types.get(*bst), Bytes(_)) => {
+                Some("ungraphemes")
+            }
+            _ => None,
+        } {
+            let (mkty, _) = builtin::NAMES.get(w).unwrap();
+            let coerce = Tree {
+                loc: arg.loc.clone(),
+                ty: mkty(&mut self.types),
+                value: TreeKind::Apply(Applicable::Name(w.into()), Vec::new()),
+            };
+            let fty = self.types.frozen(coerce.ty);
+            arg = self.try_apply(coerce, arg, None);
+            Some((arg.loc.clone(), w, fty))
+        } else {
+            None
+        };
+
+        match Type::applied(func.ty, arg.ty, &mut self.types) {
+            Ok(ret_ty) => {
+                func.ty = ret_ty;
+                args.push(arg);
+            }
+            Err(e) => {
+                // XXX: does doing it here mess with the error report?
+                func.ty = match self.types.get(func.ty) {
+                    &Type::Func(_, ret) => ret,
+                    _ => unreachable!(),
+                };
+                // anything, doesn't mater what, this is the easiest..
+                args.push(Tree {
+                    loc: Location(0),
+                    ty: self.types.number(),
+                    value: TreeKind::Number(0.0),
+                });
+
+                let (actual_func, actual_arg) = if is_compose {
+                    (&arg, &args[0])
+                } else {
+                    (&func, &arg)
+                };
+
+                let mut err_kind = err_context_complete_type(
+                    &self.types,
+                    actual_arg.loc.clone(),
+                    e,
+                    actual_arg.ty,
+                );
+                if let Some((loc, name, fty)) = coerce {
+                    err_kind = err_context_auto_coerced(loc, err_kind, name.into(), fty);
+                }
+                // actual_func is a function:
+                // see `try_apply` call sites that have a `unwrap_or_else`
+                err_kind = err_context_as_nth_arg(
+                    &self.types,
+                    actual_arg.loc.clone(),
+                    err_kind,
+                    comma_loc,
+                    actual_func,
+                );
+                self.report(Error(actual_func.loc.clone(), err_kind));
+            }
+        }
+        func
     }
 
     fn parse_pattern(&mut self) -> (Pattern, TypeRef) {
@@ -546,175 +662,178 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             let loc = loc.clone();
             let err = err_unexpected(term, "a value", None);
             self.report(err);
-            return Tree(loc, self.mktypeof("").0);
+            let (ty, value) = self.mktypeof("");
+            return Tree { loc, ty, value };
         }
 
         let first_token = self.next_tok();
 
-        let fst = Tree(
-            first_token.0.clone(),
-            match first_token.1 {
-                Word(w) => match self.scope.lookup(&w).map(|d| d.1).or_else(|| {
-                    builtin::NAMES
-                        .get(&w)
-                        .map(|(mkty, _)| mkty(&mut self.types))
-                }) {
-                    Some(ty) => TreeKind::Apply(ty, w, Vec::new()),
-                    None => {
-                        let (r, ty) = self.mktypeof(&w);
-                        self.report(Error(
-                            first_token.0,
-                            ErrorKind::UnknownName {
-                                name: w,
-                                expected_type: unsafe {
-                                    // NOTE: this is needlessly quirky, stores the usize in place of
-                                    //       the FrozenType (works because usize is smaller); see at
-                                    //       the receiving end (in parse) where the error list is
-                                    //       iterated through once to then compute the correct
-                                    //       FrozenType (it cannot be done here and now because it is
-                                    //       not fully known yet..)
-                                    //       also relies on the fact that (prays that) rust will not do
-                                    //       anything with this invalid data, and that we'll have
-                                    //       a chance to fix it up before it goes out into the user
-                                    //       world
-                                    let mut fake_frozen = std::mem::MaybeUninit::zeroed();
-                                    *(fake_frozen.as_mut_ptr() as *mut usize) = ty;
-                                    fake_frozen.assume_init()
-                                },
+        let loc = first_token.0.clone();
+        let (ty, value) = match first_token.1 {
+            Word(w) => match self.scope.lookup(&w).map(|d| d.1).or_else(|| {
+                builtin::NAMES
+                    .get(&w)
+                    .map(|(mkty, _)| mkty(&mut self.types))
+            }) {
+                Some(ty) => (ty, TreeKind::Apply(Applicable::Name(w), Vec::new())),
+                None => {
+                    let r = self.mktypeof(&w);
+                    self.report(Error(
+                        first_token.0,
+                        ErrorKind::UnknownName {
+                            name: w,
+                            expected_type: unsafe {
+                                // NOTE: this is needlessly quirky, stores the usize in place of
+                                //       the FrozenType (works because usize is smaller); see at
+                                //       the receiving end (in parse) where the error list is
+                                //       iterated through once to then compute the correct
+                                //       FrozenType (it cannot be done here and now because it is
+                                //       not fully known yet..)
+                                //       also relies on the fact that (prays that) rust will not do
+                                //       anything with this invalid data, and that we'll have
+                                //       a chance to fix it up before it goes out into the user
+                                //       world
+                                let mut fake_frozen = std::mem::MaybeUninit::zeroed();
+                                *(fake_frozen.as_mut_ptr() as *mut usize) = r.0;
+                                fake_frozen.assume_init()
                             },
-                        ));
-                        r
-                    }
-                },
-
-                Bytes(b) => TreeKind::Bytes(b),
-                Number(n) => TreeKind::Number(n),
-
-                OpenBracket => {
-                    let Tree(_, r) = self.parse_script();
-                    match self.peek_tok() {
-                        Token(_, CloseBracket) => _ = self.skip_tok(),
-                        other @ Token(_, kind) => {
-                            let skip = Comma == *kind;
-                            let err = err_unexpected(
-                                other,
-                                "next argument or closing ']'",
-                                Some(&first_token),
-                            );
-                            self.report(err);
-                            if skip {
-                                self.skip_tok();
-                            }
-                        }
-                    }
+                        },
+                    ));
                     r
                 }
+            },
 
-                OpenBrace => {
-                    let mut items = Vec::new();
-                    let ty = self.types.named("itemof(typeof({}))");
+            Bytes(b) => (
+                {
+                    let fin = self.types.finite(true);
+                    self.types.bytes(fin)
+                },
+                TreeKind::Bytes(b),
+            ),
+            Number(n) => (self.types.number(), TreeKind::Number(n)),
 
-                    while match self.peek_tok() {
-                        Token(_, CloseBrace) => false,
-
-                        #[allow(unreachable_patterns)] // because of 'CloseBrace'
-                        term @ Token(_, TermToken!()) => {
-                            let err = err_unexpected(
-                                term,
-                                "next item or closing '}'",
-                                Some(&first_token),
-                            );
-                            self.report(err);
-                            false
-                        }
-
-                        _ => true,
-                    } {
-                        let item = self.parse_apply();
-                        let item_ty = item.get_type();
-
-                        // snapshot to have previous type in reported error
-                        let snapshot = self.types.clone();
-                        Type::harmonize(ty, item_ty, &mut self.types).unwrap_or_else(|e| {
-                            self.report(err_list_type_mismatch(
-                                &snapshot,
-                                item.0.clone(),
-                                e,
-                                item.get_type(),
-                                first_token.0.clone(),
-                                ty,
-                            ));
-                        });
-                        items.push(item);
-
-                        if matches!(self.peek_tok(), Token(_, Comma)) {
+            OpenBracket => {
+                let Tree { loc: _, ty, value } = self.parse_script();
+                match self.peek_tok() {
+                    Token(_, CloseBracket) => self.skip_tok(),
+                    other @ Token(_, kind) => {
+                        let skip = Comma == *kind;
+                        let err = err_unexpected(
+                            other,
+                            "next argument or closing ']'",
+                            Some(&first_token),
+                        );
+                        self.report(err);
+                        if skip {
                             self.skip_tok();
                         }
                     }
-                    self.skip_tok();
-
-                    let fin = self.types.finite(true);
-                    TreeKind::List(self.types.list(fin, ty), items)
                 }
+                (ty, value)
+            }
 
-                Let => {
-                    self.scope = Scope::new(Some(std::mem::take(&mut self.scope)));
-                    let (pattern, pat_ty) = self.parse_pattern();
+            OpenBrace => {
+                let mut items = Vec::new();
+                let ty = self.types.named("itemof(typeof({}))");
 
-                    let result = self.parse_value();
-                    let res_ty = result.get_type();
+                while match self.peek_tok() {
+                    Token(_, CloseBrace) => false,
 
-                    let fallback = if let Token(_, TermToken!()) = self.peek_tok() {
-                        None
-                    } else {
-                        let then = self.parse_value();
+                    #[allow(unreachable_patterns)] // because of 'CloseBrace'
+                    term @ Token(_, TermToken!()) => {
+                        let err =
+                            err_unexpected(term, "next item or closing '}'", Some(&first_token));
+                        self.report(err);
+                        false
+                    }
 
-                        // snapshot to have previous type in reported error
-                        let snapshot = self.types.clone();
-                        Type::harmonize(res_ty, then.get_type(), &mut self.types).unwrap_or_else(
-                            |e| {
-                                self.report(Error(
-                                    then.0.clone(),
-                                    ErrorKind::ContextCaused {
-                                        error: Box::new(Error(result.0.clone(), e)),
-                                        because: ErrorContext::LetFallbackTypeMismatch {
-                                            result_type: snapshot.frozen(res_ty),
-                                            fallback_type: snapshot.frozen(then.get_type()),
-                                        },
-                                    },
-                                ))
+                    _ => true,
+                } {
+                    let item = self.parse_apply();
+                    let item_ty = item.ty;
+
+                    // snapshot to have previous type in reported error
+                    let snapshot = self.types.clone();
+                    Type::harmonize(ty, item_ty, &mut self.types).unwrap_or_else(|e| {
+                        self.report(err_list_type_mismatch(
+                            &snapshot,
+                            item.loc.clone(),
+                            e,
+                            item.ty,
+                            first_token.0.clone(),
+                            ty,
+                        ));
+                    });
+                    items.push(item);
+
+                    if matches!(self.peek_tok(), Token(_, Comma)) {
+                        self.skip_tok();
+                    }
+                }
+                self.skip_tok();
+
+                let fin = self.types.finite(true);
+                (self.types.list(fin, ty), TreeKind::List(items))
+            }
+
+            Let => {
+                self.scope = Scope::new(Some(std::mem::replace(&mut self.scope, Scope::new(None))));
+                let (pattern, pat_ty) = self.parse_pattern();
+
+                let result = self.parse_value();
+                let res_ty = result.ty;
+
+                let fallback = if let Token(_, TermToken!()) = self.peek_tok() {
+                    None
+                } else {
+                    let then = self.parse_value();
+
+                    // snapshot to have previous type in reported error
+                    let snapshot = self.types.clone();
+                    Type::harmonize(res_ty, then.ty, &mut self.types).unwrap_or_else(|e| {
+                        self.report(Error(
+                            then.loc.clone(),
+                            ErrorKind::ContextCaused {
+                                error: Box::new(Error(result.loc.clone(), e)),
+                                because: ErrorContext::LetFallbackTypeMismatch {
+                                    result_type: snapshot.frozen(res_ty),
+                                    fallback_type: snapshot.frozen(then.ty),
+                                },
                             },
-                        );
+                        ))
+                    });
 
-                        Some(Box::new(then))
-                    };
+                    Some(Box::new(then))
+                };
+                self.scope = *self.scope.parent.take().unwrap();
 
-                    let ty = self.types.func(pat_ty, res_ty);
-                    self.scope = *self.scope.parent.take().unwrap();
-                    TreeKind::Bind(ty, pattern, Box::new(result), fallback)
-                }
+                let ty = self.types.func(pat_ty, res_ty);
+                let app = Applicable::Bind(pattern, Box::new(result), fallback);
+                (ty, TreeKind::Apply(app, Vec::new()))
+            }
 
-                Def => {
-                    self.report(Error(first_token.0, ErrorKind::UnexpectedDefInScript));
-                    self.mktypeof("def").0
-                }
+            Def => {
+                self.report(Error(first_token.0, ErrorKind::UnexpectedDefInScript));
+                self.mktypeof("def")
+            }
 
-                Unknown(ref w) => {
-                    let err = err_unexpected(&first_token, "a value", None);
-                    self.report(err);
-                    self.mktypeof(w).0
-                }
+            Unknown(ref w) => {
+                let err = err_unexpected(&first_token, "a value", None);
+                self.report(err);
+                self.mktypeof(w)
+            }
 
-                TermToken!() => unreachable!(),
-            },
-        );
+            TermToken!() => unreachable!(),
+        };
+        let fst = Tree { loc, ty, value };
 
         if let Token(equal_loc, Equal) = self.peek_tok() {
-            let equal_loc = equal_loc.clone();
+            let loc = equal_loc.clone();
             self.skip_tok();
             let snd = self.parse_value();
-            let ty = self.types.pair(fst.get_type(), snd.get_type());
-            Tree(equal_loc, TreeKind::Pair(ty, Box::new(fst), Box::new(snd)))
+            let ty = self.types.pair(fst.ty, snd.ty);
+            let value = TreeKind::Pair(Box::new(fst), Box::new(snd));
+            Tree { loc, ty, value }
         } else {
             fst
         }
@@ -729,35 +848,32 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             //  `-> (,)((,)(tonum, add(1)), tostr)
             // `-> (,)((,)(tonum(:[52, 50]:), add(1)), tostr)
             // => tostr(add(1, tonum(:[52, 50]:)))
-            fn apply_maybe_unfold(
-                p: &mut Parser<impl Iterator<Item = u8>>,
-                mut func: Tree,
-            ) -> Tree {
-                match func.1 {
-                    TreeKind::Apply(_, ref name, args) if COMPOSE_OP_FUNC_NAME == name => {
+            fn apply_maybe_unfold(p: &mut Parser<impl Iterator<Item = u8>>, func: Tree) -> Tree {
+                match func.value {
+                    TreeKind::Apply(Applicable::Name(name), args)
+                        if COMPOSE_OP_FUNC_NAME == name =>
+                    {
                         let mut args = args.into_iter();
-                        let (f, mut g) = (args.next().unwrap(), args.next().unwrap());
+                        let (f, g) = (args.next().unwrap(), args.next().unwrap());
                         // (,)(f, g) => g(f(..))
-                        // unwrap because cannot fail:
+                        let fx = apply_maybe_unfold(p, f);
+                        // ucannot fail:
                         //     with f :: a -> b and g :: b -> c
                         //     apply_maybe_unfold(p, f) :: b
-                        g.try_apply(apply_maybe_unfold(p, f), &mut p.types, None)
-                            .unwrap();
-                        g
+                        p.try_apply(g, fx, None)
                     }
-                    TreeKind::Apply(ty, _, _)
-                        if matches!(p.types.get(ty), Type::Func(_, _) | Type::Named(_)) =>
+                    TreeKind::Apply(_, _)
+                        if matches!(p.types.get(func.ty), Type::Func(_, _) | Type::Named(_)) =>
                     {
                         // XXX: does it need `snapshot` here?
+                        let x = p.parse_value();
                         // err_context_as_nth_arg: `func` is a function (matches ::Apply)
-                        func.try_apply(p.parse_value(), &mut p.types, None)
-                            .unwrap_or_else(|e| p.report(e));
-                        func
+                        p.try_apply(func, x, None)
                     }
                     _ => {
                         drop(p.parse_value());
                         let e = err_not_func(&p.types, &func);
-                        p.report(Error(func.0.clone(), e));
+                        p.report(Error(func.loc.clone(), e));
                         func
                     }
                 }
@@ -771,17 +887,15 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         let mut r = self.parse_apply();
         while let Token(_, TokenKind::Comma) = self.peek_tok() {
             let Token(comma_loc, _) = self.next_tok();
-            let mut then = self.parse_apply();
+            let then = self.parse_apply();
 
-            let r_ty = r.get_type();
-            let r_tty = self.types.get(r_ty);
-            let r_loc = r.0.clone();
+            let r_ty = r.ty;
+            let r_loc = r.loc.clone();
 
-            let then_ty = then.get_type();
-            let then_tty = self.types.get(then_ty);
-            let then_loc = then.0.clone();
+            let then_ty = then.ty;
+            let then_loc = then.loc.clone();
 
-            let (is_func, is_hole) = match then_tty {
+            let (is_func, is_hole) = match self.types.get(then_ty) {
                 Type::Func(_, _) => (true, false),
                 Type::Named(_) => (false, true),
                 _ => (false, false),
@@ -792,17 +906,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 self.report(Error(
                     r_loc,
                     ErrorKind::ContextCaused {
-                        error: Box::new(Error(
-                            then_loc,
-                            match then.get_nth_arg_func_name() {
-                                Some((nth_arg, func_name)) => {
-                                    ErrorKind::TooManyArgs { nth_arg, func_name }
-                                }
-                                None => ErrorKind::NotFunc {
-                                    actual_type: self.types.frozen(then_ty),
-                                },
-                            },
-                        )),
+                        error: Box::new(Error(then_loc, err_not_func(&self.types, &then))),
                         because: ErrorContext::ChainedFromToNotFunc { comma_loc },
                     },
                 ));
@@ -812,46 +916,41 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             // - x :: A
             // - f, g, h :: a -> b, b -> c, c -> d
             else if is_hole
-                || !matches!(r_tty, Type::Func(_, _)) // NOTE: catches coersion cases
+                || !matches!(self.types.get(r_ty), Type::Func(_, _)) // NOTE: catches coersion cases
                 || Type::applicable(then_ty, r_ty, &self.types)
             {
                 // XXX: does it need `snapshot` here?
                 // err_context_as_nth_arg: we know `then` is a function
                 // (if it was hole then `try_apply` mutates it)
-                then.try_apply(r, &mut self.types, Some(comma_loc))
-                    .unwrap_or_else(|e| self.report(e));
-                then
+                self.try_apply(then, r, Some(comma_loc))
             }
             // [f, g, h] :: a -> d; where
             // - f, g, h :: a -> b, b -> c, c -> d
             else {
                 // XXX: does it need `snapshot` here?
-                let mut compose = Tree(
-                    comma_loc.clone(),
-                    TreeKind::Apply(
-                        {
-                            // (,) :: (a -> b) -> (b -> c) -> a -> c
-                            let a = self.types.named("a");
-                            let b = self.types.named("b");
-                            let c = self.types.named("c");
-                            let ab = self.types.func(a, b);
-                            let bc = self.types.func(b, c);
-                            let ac = self.types.func(a, c);
-                            let ret = self.types.func(bc, ac);
-                            self.types.func(ab, ret)
-                        },
-                        COMPOSE_OP_FUNC_NAME.into(),
+                let mut compose = Tree {
+                    loc: comma_loc.clone(),
+                    ty: {
+                        // (,) :: (a -> b) -> (b -> c) -> a -> c
+                        let a = self.types.named("a");
+                        let b = self.types.named("b");
+                        let c = self.types.named("c");
+                        let ab = self.types.func(a, b);
+                        let bc = self.types.func(b, c);
+                        let ac = self.types.func(a, c);
+                        let ret = self.types.func(bc, ac);
+                        self.types.func(ab, ret)
+                    },
+                    value: TreeKind::Apply(
+                        Applicable::Name(COMPOSE_OP_FUNC_NAME.into()),
                         Vec::new(),
                     ),
-                );
-                // unwrap: we know that `r` is a function (see previous 'else if')
-                compose.try_apply(r, &mut self.types, None).unwrap();
+                };
+                // we know that `r` is a function (see previous 'else if')
+                compose = self.try_apply(compose, r, None);
                 // err_context_as_nth_arg: `then` is either a function or a type hole
                 // ('if') and it is not a type hole ('else if'), so it is a function
-                compose
-                    .try_apply(then, &mut self.types, Some(comma_loc))
-                    .unwrap_or_else(|e| self.report(e));
-                compose
+                self.try_apply(compose, then, Some(comma_loc))
             };
         } // while let Comma
         r
@@ -860,7 +959,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
     fn parse(mut self) -> Result<(FrozenType, Tree), ErrorList> {
         let r = self.parse_script();
         if self.errors.is_empty() {
-            Ok((self.types.frozen(r.get_type()), r))
+            Ok((self.types.frozen(r.ty), r))
         } else {
             // NOTE: this is the receiving end from `parse_value` when a name was not found: this
             //       is the point where we get the usizes again and compute the final FrozenType
@@ -881,122 +980,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 }
 // }}}
 
-// uuhh.. tree itself (the entry point, Tree::new) {{{
 impl Tree {
-    /// - named to func conversion
-    /// - any needed coercion
-    /// - if couldn't then still `force_apply`s and err appropriately
-    fn try_apply(
-        &mut self,
-        mut arg: Tree,
-        types: &mut TypeList,
-        comma_loc: Option<Location>,
-    ) -> Result<(), Error> {
-        use Type::*;
-
-        let TreeKind::Apply(func_ty, ref name, args) = &mut self.1 else {
-            unreachable!();
-        };
-        let is_compose = COMPOSE_OP_FUNC_NAME == name;
-
-        if let Named(name) = types.get(*func_ty) {
-            let name = name.clone();
-            let par = types.named(&format!("paramof({name})"));
-            let ret = types.named(&format!("returnof({name})"));
-            *types.get_mut(*func_ty) = Func(par, ret);
-        }
-
-        // coerce if needed
-        let Func(par_ty, _) = types.get(*func_ty) else {
-            unreachable!();
-        };
-        let coerce = if let Some(w) = match (types.get(*par_ty), types.get(arg.get_type())) {
-            (Number, Bytes(_)) => Some("tonum"),
-            (Bytes(_), Number) => Some("tostr"),
-            (List(_, num), Bytes(_)) if matches!(types.get(*num), Number) => Some("codepoints"),
-            (List(_, any), Bytes(_)) if matches!(types.get(*any), Bytes(_) | Named(_)) => {
-                Some("graphemes")
-            }
-            (Bytes(_), List(_, num)) if matches!(types.get(*num), Number) => Some("uncodepoints"),
-            (Bytes(_), List(_, bst)) if matches!(types.get(*bst), Bytes(_)) => Some("ungraphemes"),
-            _ => None,
-        } {
-            let (mkty, _) = builtin::NAMES.get(w).unwrap();
-            let mut coerce = Tree(
-                arg.0.clone(),
-                TreeKind::Apply(mkty(types), w.into(), Vec::new()),
-            );
-            let fty = types.frozen(coerce.get_type());
-            coerce.try_apply(arg, types, None).unwrap();
-            arg = coerce;
-            Some((arg.0.clone(), w, fty))
-        } else {
-            None
-        };
-
-        match Type::applied(*func_ty, arg.get_type(), types) {
-            Ok(ret_ty) => {
-                *func_ty = ret_ty;
-                args.push(arg);
-                Ok(())
-            }
-            Err(e) => {
-                // XXX: does doing it here mess with the error report?
-                *func_ty = match types.get(*func_ty) {
-                    &Type::Func(_, ret) => ret,
-                    _ => unreachable!(),
-                };
-                // anything, doesn't mater what, this is the easiest..
-                args.push(Tree(Location(0), TreeKind::Number(0.0)));
-
-                let (actual_func, actual_arg) = if is_compose {
-                    (&arg, &args[0])
-                } else {
-                    (&*self, &arg)
-                };
-
-                let mut err_kind = err_context_complete_type(
-                    types,
-                    actual_arg.0.clone(),
-                    e,
-                    actual_arg.get_type(),
-                );
-                if let Some((loc, name, fty)) = coerce {
-                    err_kind = err_context_auto_coerced(loc, err_kind, name.into(), fty);
-                }
-                // actual_func is a function:
-                // see `try_apply` call sites that have a `unwrap_or_else`
-                err_kind = err_context_as_nth_arg(
-                    types,
-                    actual_arg.0.clone(),
-                    err_kind,
-                    comma_loc,
-                    actual_func,
-                );
-                Err(Error(actual_func.0.clone(), err_kind))
-            }
-        }
-    }
-
-    fn get_type(&self) -> TypeRef {
-        use TreeKind::*;
-        match self.1 {
-            Bytes(_) => types::STRFIN_TYPEREF,
-            Number(_) => types::NUMBER_TYPEREF,
-            List(ty, _) => ty,
-            Apply(ty, _, _) => ty,
-            Pair(ty, _, _) => ty,
-            Bind(ty, _, _, _) => ty,
-        }
-    }
-
-    fn get_nth_arg_func_name(&self) -> Option<(usize, String)> {
-        match &self.1 {
-            TreeKind::Apply(_, name, args) => Some((args.len() + 1, name.clone())),
-            _ => None,
-        }
-    }
-
     #[allow(dead_code)]
     pub fn new(iter: impl IntoIterator<Item = u8>) -> Result<Tree, ErrorList> {
         Parser::new(iter.into_iter()).parse().map(|r| r.1)
@@ -1007,45 +991,3 @@ impl Tree {
         Parser::new(iter.into_iter()).parse()
     }
 }
-
-impl Display for Tree {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        use TreeKind::*;
-        match &self.1 {
-            Bytes(v) => write!(f, ":{v:?}:"),
-            Number(n) => write!(f, "{n}"),
-
-            List(_, items) => {
-                write!(f, "{{")?;
-                let mut sep = "";
-                for it in items {
-                    write!(f, "{sep}{it}")?;
-                    sep = ", ";
-                }
-                write!(f, "}}")
-            }
-
-            Apply(_, w, empty) if empty.is_empty() => write!(f, "{w}"),
-            Apply(_, name, args) => {
-                write!(f, "{name}(")?;
-                let mut sep = "";
-                for it in args {
-                    write!(f, "{sep}{it}")?;
-                    sep = ", ";
-                }
-                write!(f, ")")
-            }
-
-            Pair(_, fst, snd) => write!(f, "({fst}, {snd})"),
-
-            Bind(_, pat, then, fallback) => {
-                write!(f, "let {pat:?} in {then}")?;
-                if let Some(fallback) = fallback {
-                    write!(f, " else {fallback}")?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
-// }}}

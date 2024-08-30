@@ -2,9 +2,9 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 
 use crate::error::ErrorKind;
 
-pub(crate) const NUMBER_TYPEREF: usize = 0;
-pub(crate) const STRFIN_TYPEREF: usize = 1;
-pub(crate) const FINITE_TYPEREF: usize = 2;
+const NUMBER_TYPEREF: usize = 0;
+const STRFIN_TYPEREF: usize = 1;
+const FINITE_TYPEREF: usize = 2;
 
 pub type TypeRef = usize;
 pub type Boundedness = usize;

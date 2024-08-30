@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use ariadne::{ColorGenerator, Label, Report, ReportBuilder, ReportKind};
 
-use crate::parse::{Location, TokenKind};
+use crate::parse::{Applicable, Location, TokenKind};
 use crate::types::FrozenType;
 
 #[derive(PartialEq, Debug)]
@@ -16,15 +16,15 @@ pub enum ErrorContext {
     TypeListInferredItemType {
         list_item_type: FrozenType,
     },
-    AsNthArgToNamedNowTyped {
+    AsNthArgToNowTyped {
         nth_arg: usize,
-        func_name: String,
+        func: Applicable,
         type_with_curr_args: FrozenType,
     },
-    ChainedFromAsNthArgToNamedNowTyped {
+    ChainedFromAsNthArgToNowTyped {
         comma_loc: Location,
         nth_arg: usize,
-        func_name: String,
+        func: Applicable,
         type_with_curr_args: FrozenType,
     },
     ChainedFromToNotFunc {
@@ -63,7 +63,7 @@ pub enum ErrorKind {
     },
     TooManyArgs {
         nth_arg: usize,
-        func_name: String,
+        func: Applicable,
     },
     ExpectedButGot {
         expected: FrozenType,
@@ -104,116 +104,6 @@ impl ErrorList {
     }
 }
 
-// crud report eprints {{{
-impl Error {
-    #[allow(dead_code)]
-    fn crud_report(&self) {
-        use ErrorContext::*;
-        use ErrorKind::*;
-
-        match &self.1 {
-            ContextCaused { error, because } => {
-                error.crud_report();
-                match because {
-                    Unmatched { open_token } => eprint!("`-> because of {open_token:?}"),
-                    CompleteType { complete_type } => eprint!("`-> complete type: {complete_type}"),
-                    TypeListInferredItemType { list_item_type } => {
-                        eprint!("`-> because list type was inferred to be [{list_item_type}]");
-                    }
-                    AsNthArgToNamedNowTyped {
-                        nth_arg,
-                        func_name,
-                        type_with_curr_args,
-                    } => {
-                        eprint!("`-> because of the parameter in ");
-                        eprint!(
-                            "{type_with_curr_args} (overall {nth_arg}{} argument to {func_name})",
-                            match nth_arg {
-                                1 => "st",
-                                2 => "nd",
-                                3 => "rd",
-                                _ => "th",
-                            }
-                        );
-                    }
-                    ChainedFromAsNthArgToNamedNowTyped {
-                        comma_loc,
-                        nth_arg,
-                        func_name,
-                        type_with_curr_args,
-                    } => {
-                        eprint!("`-> because of chaining at {comma_loc:?} as parameter in ");
-                        eprint!(
-                            "{type_with_curr_args} (overall {nth_arg}{} argument to {func_name})",
-                            match nth_arg {
-                                1 => "st",
-                                2 => "nd",
-                                3 => "rd",
-                                _ => "th",
-                            }
-                        );
-                    }
-                    ChainedFromToNotFunc { comma_loc } => {
-                        eprint!("`-> because of chaining at {comma_loc:?}")
-                    }
-                    AutoCoercedVia {
-                        func_name,
-                        func_type,
-                    } => eprint!("`-> with auto coercion via {func_name} :: {func_type}"),
-                    DeclaredHereWithType { with_type } => {
-                        eprint!("`-> declared here as {with_type}")
-                    }
-                    LetFallbackTypeMismatch {
-                        result_type,
-                        fallback_type,
-                    } => eprint!(
-                        "`-> fallback type {fallback_type} doesn't match result type {result_type}"
-                    ),
-                }
-            }
-            Unexpected { token, expected } => {
-                eprint!("Unexpected {token:?}, expected {expected}")
-            }
-            UnexpectedDefInScript => eprint!("Unexpected definition within script"),
-            UnknownName {
-                name,
-                expected_type,
-            } => eprint!("Unknown name '{name}', should be {expected_type}"),
-            NotFunc { actual_type } => eprint!("Expected a function type, but got {actual_type}"),
-            TooManyArgs { nth_arg, func_name } => {
-                eprint!(
-                    "Too many argument to {func_name}, expected only {}",
-                    nth_arg - 1
-                )
-            }
-            ExpectedButGot { expected, actual } => {
-                eprint!("Expected type {expected}, but got {actual}")
-            }
-            InfWhereFinExpected => eprint!("Expected finite type, but got infinite type"),
-            NameAlreadyDeclared { name } => eprint!("Name {name} was already declared"),
-        }
-
-        eprintln!(" ==> {:?}", self.0);
-    }
-}
-
-impl ErrorList {
-    #[allow(dead_code)]
-    pub fn crud_report(&self) {
-        let ErrorList(errors) = self;
-        eprintln!(
-            "=== Generated {} error{}",
-            errors.len(),
-            if 1 == errors.len() { "" } else { "s" }
-        );
-        for e in errors {
-            e.crud_report();
-        }
-        eprintln!("===");
-    }
-}
-// }}}
-
 impl Error {
     fn get_builder(&self, colors: &mut ColorGenerator) -> ReportBuilder<Range<usize>> {
         use ErrorContext::*;
@@ -244,35 +134,41 @@ impl Error {
                 TypeListInferredItemType { list_item_type } => r.with_label(
                     l.with_message(format!("list type was inferred to be [{list_item_type}]")),
                 ),
-                AsNthArgToNamedNowTyped {
+                AsNthArgToNowTyped {
                     nth_arg,
-                    func_name,
+                    func,
                     type_with_curr_args,
                 } => r.with_label(l.with_message(format!(
-                    "see parameter in {type_with_curr_args} (overall {nth_arg}{} argument to \
-                     {func_name})",
+                    "see parameter in {type_with_curr_args} (overall {nth_arg}{} argument to {})",
                     match nth_arg {
                         1 => "st",
                         2 => "nd",
                         3 => "rd",
                         _ => "th",
-                    }
+                    },
+                    match func {
+                        Applicable::Name(name) => name,
+                        Applicable::Bind(_, _, _) => "let binding",
+                    },
                 ))),
-                ChainedFromAsNthArgToNamedNowTyped {
+                ChainedFromAsNthArgToNowTyped {
                     comma_loc,
                     nth_arg,
-                    func_name,
+                    func,
                     type_with_curr_args,
                 } => r
                     .with_label(l.with_message(format!(
-                        "see parameter in {type_with_curr_args} (overall {nth_arg}{} argument to \
-                         {func_name})",
+                        "see parameter in {type_with_curr_args} (overall {nth_arg}{} argument to {})",
                         match nth_arg {
                             1 => "st",
                             2 => "nd",
                             3 => "rd",
                             _ => "th",
-                        }
+                        },
+                        match func {
+                            Applicable::Name(name) => name,
+                            Applicable::Bind(_, _, _) => "let binding",
+                        },
                     )))
                     .with_label(
                         Label::new(comma_loc.0..comma_loc.0 + 1)
@@ -339,10 +235,14 @@ impl Error {
             NotFunc { actual_type } => r.with_message("Not a function").with_label(
                 l.with_message(format!("Expected a function type, but got {actual_type}")),
             ),
-            TooManyArgs { nth_arg, func_name } => {
+            TooManyArgs { nth_arg, func } => {
                 r.with_message("Too many argument")
                     .with_label(l.with_message(format!(
-                        "Too many argument to {func_name}, expected only {}",
+                        "Too many argument to {}, expected only {}",
+                        match func {
+                            Applicable::Name(name) => name,
+                            Applicable::Bind(_, _, _) => "let binding",
+                        },
                         nth_arg - 1
                     )))
             }

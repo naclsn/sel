@@ -3,7 +3,7 @@ use std::iter;
 use std::rc::Rc;
 use std::sync::{OnceLock, RwLock};
 
-use crate::parse::{Tree, TreeKind, COMPOSE_OP_FUNC_NAME};
+use crate::parse::{Applicable, Tree, TreeKind, COMPOSE_OP_FUNC_NAME};
 
 // runtime concrete value and macro to make curried instances {{{
 pub type Number = Box<dyn FnOnce() -> f64>;
@@ -333,7 +333,7 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
 
 pub fn interp(tree: &Tree) -> Value {
     use TreeKind::*;
-    match &tree.1 {
+    match &tree.value {
         Bytes(v) => {
             let vv = v.clone();
             Value::Bytes(
@@ -344,7 +344,7 @@ pub fn interp(tree: &Tree) -> Value {
 
         &Number(n) => Value::Number(Box::new(move || n), Rc::new(move || Box::new(move || n))),
 
-        List(_, items) => {
+        List(items) => {
             let v = items.iter().map(interp).collect::<Vec<_>>();
             let vv = v.clone();
             Value::List(
@@ -353,16 +353,17 @@ pub fn interp(tree: &Tree) -> Value {
             )
         }
 
-        Apply(_, name, args) => lookup_val(name, args.iter().map(interp)),
+        Apply(app, args) => match app {
+            Applicable::Name(name) => lookup_val(name, args.iter().map(interp)),
+            Applicable::Bind(_, _, _) => todo!("let bind in interp"),
+        },
 
-        Pair(_, fst, snd) => {
+        Pair(fst, snd) => {
             let fst = interp(fst);
             let snd = interp(snd);
             let w = move || Box::new((fst.clone(), snd.clone()));
             Value::Pair(w(), Rc::new(w))
         }
-
-        Bind(_, _, _, _) => todo!("let bind in interp"),
     }
 }
 // }}}
