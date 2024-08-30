@@ -180,6 +180,10 @@ Rust,
 
 ## (wip and such)
 
+### `let` in interp
+
+`let` in interp
+
 ### cli
 
 shebang
@@ -206,6 +210,16 @@ something like `$PYTHONSTARTUP`, between prelude and user script
 is doable for both but it will require type inference to identify infinite loops, mutual recursions and such
 - enable self-referential?
 - enable out-of-order?
+
+### `def` in interp
+
+`def` in interp
+
+### regarding coercion:
+
+`{1, 2, 3}, map ln` could tostr in map
+`split :-:, map [add1]` could tonum in map
+`add 1, tonum` could tostr in between
 
 ### compile to linear sequence of instructions
 

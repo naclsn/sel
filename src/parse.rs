@@ -5,8 +5,6 @@ use crate::builtin;
 use crate::error::{Error, ErrorContext, ErrorKind, ErrorList};
 use crate::types::{FrozenType, Type, TypeList, TypeRef};
 
-pub const COMPOSE_OP_FUNC_NAME: &str = "(,)";
-
 #[derive(PartialEq, Debug, Clone)]
 pub struct Location(pub(crate) usize);
 
@@ -437,7 +435,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         let TreeKind::Apply(ref base, args) = &mut func.value else {
             unreachable!();
         };
-        let is_compose = matches!(base, Applicable::Name(name) if COMPOSE_OP_FUNC_NAME == name);
+        let is_compose = matches!(base, Applicable::Name(name) if "compose" == name);
 
         if let Named(name) = self.types.get(func.ty) {
             let name = name.clone();
@@ -850,9 +848,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             // => tostr(add(1, tonum(:[52, 50]:)))
             fn apply_maybe_unfold(p: &mut Parser<impl Iterator<Item = u8>>, func: Tree) -> Tree {
                 match func.value {
-                    TreeKind::Apply(Applicable::Name(name), args)
-                        if COMPOSE_OP_FUNC_NAME == name =>
-                    {
+                    TreeKind::Apply(Applicable::Name(name), args) if "compose" == name => {
                         let mut args = args.into_iter();
                         let (f, g) = (args.next().unwrap(), args.next().unwrap());
                         // (,)(f, g) => g(f(..))
@@ -927,25 +923,15 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             // [f, g, h] :: a -> d; where
             // - f, g, h :: a -> b, b -> c, c -> d
             else {
-                // XXX: does it need `snapshot` here?
+                // NOTE: I've settle on compose being `f -> g -> g(f(..))` for now
+                // but if the mathematical circle operator turns out better in enough
+                // places I'll change this over the whole codebase on a whim
                 let mut compose = Tree {
                     loc: comma_loc.clone(),
-                    ty: {
-                        // (,) :: (a -> b) -> (b -> c) -> a -> c
-                        let a = self.types.named("a");
-                        let b = self.types.named("b");
-                        let c = self.types.named("c");
-                        let ab = self.types.func(a, b);
-                        let bc = self.types.func(b, c);
-                        let ac = self.types.func(a, c);
-                        let ret = self.types.func(bc, ac);
-                        self.types.func(ab, ret)
-                    },
-                    value: TreeKind::Apply(
-                        Applicable::Name(COMPOSE_OP_FUNC_NAME.into()),
-                        Vec::new(),
-                    ),
+                    ty: builtin::NAMES.get("compose").unwrap().0(&mut self.types),
+                    value: TreeKind::Apply(Applicable::Name("compose".into()), Vec::new()),
                 };
+                // XXX: does it need `snapshot` here?
                 // we know that `r` is a function (see previous 'else if')
                 compose = self.try_apply(compose, r, None);
                 // err_context_as_nth_arg: `then` is either a function or a type hole

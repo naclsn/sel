@@ -104,6 +104,7 @@ pub const NAMES: Map<&'static str, BuiltinDesc> = phf_map! {
     "add"          => (mkmkty!(0          ; Num -> Num -> Num                          ), "add two numbers"),
     "bytes"        => (mkmkty!(1          ; Str+1 -> [Num]+1                           ), "make a list of numbers with the 8 bits bytes that makes the bytestream"),
     "codepoints"   => (mkmkty!(1          ; Str+1 -> [Num]+1                           ), "make a list of numbers with the 32 bits codepoints"),
+    "compose"      => (mkmkty!(0, a, b, c ; (a -> b) -> (b -> c) -> a -> c             ), "compose two function; 'compose one two' is equivalent to the syntax 'one, two'"),
     "const"        => (mkmkty!(0, a, b    ; a -> b -> a                                ), "always evaluate to its first argument, ignoring its second argument"),
     "curry"        => (mkmkty!(0, a, b, c ; ((a, b) -> c) -> a -> b -> c               ), "curry"),
     "div"          => (mkmkty!(0          ; Num -> Num -> Num                          ), "divide by the second numbers"),

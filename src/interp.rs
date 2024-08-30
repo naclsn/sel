@@ -3,7 +3,7 @@ use std::iter;
 use std::rc::Rc;
 use std::sync::{OnceLock, RwLock};
 
-use crate::parse::{Applicable, Tree, TreeKind, COMPOSE_OP_FUNC_NAME};
+use crate::parse::{Applicable, Tree, TreeKind};
 
 // runtime concrete value and macro to make curried instances {{{
 pub type Number = Box<dyn FnOnce() -> f64>;
@@ -127,20 +127,12 @@ macro_rules! curried_value {
 // }}}
 
 // lookup and make {{{
-fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
-    if COMPOSE_OP_FUNC_NAME == name {
-        let f = args.next().unwrap();
-        let g = args.next().unwrap();
-        let does = |v| g.func()(f.func()(v));
-        return Value::Func(
-            Box::new(does.clone()),
-            Rc::new(move || Box::new(does.clone())),
-        );
-    }
-
+fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
     let apply_args = move |v: Value| args.fold(v, |acc, cur| acc.func()(cur));
 
     match name {
+        "compose" => apply_args(curried_value!(|f, g| -> Func |v| g.func()(f.func()(v)))),
+
         "add" => apply_args(curried_value!(|a, b| -> Number || a.number()() + b.number()())),
 
         "const" => apply_args(curried_value!(|a| -> Func |_| a)),
@@ -325,9 +317,10 @@ fn lookup_val(name: &str, mut args: impl Iterator<Item = Value>) -> Value {
             curried_value!(|f, la, lb| -> List la.list().zip(lb.list()).map(move |(a, b)| f.clone().func()(a).func()(b))),
         ),
 
-        _ => unreachable!(
-            "well as long as this list is kept up to date with builtin::NAME that is..."
-        ),
+        // XXX: completely incorrect but just for messing around for now
+        "uncodepoints" => apply_args(curried_value!(|l| -> Bytes l.list().map(|n| n.number()() as u8))),
+
+        _ => unreachable!("'{name}' was not added to interp"),
     }
 }
 
