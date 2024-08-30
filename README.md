@@ -153,7 +153,7 @@ map :: (a -> b) -> [a]+ -> [b]+
 add :: Num -> Num -> Num
 	add two numbers
 $ sel -l :: 'a -> Num'
-thread 'main' panicked at src/main.rs:103:43:
+thread 'main' panicked at src/main.rs:114:43:
 not yet implemented
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 ```
@@ -163,7 +163,7 @@ note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 Scripts are statically typed, so there are only a few
 runtime situation that will panic and abort:
 
-- `let` without a fallback will panic if it's pattern doesn't match
+- `let` without a fallback will panic if its pattern doesn't match
 - out of range list access (eg. `head` (ie. `unwrap`), `last`...) will panic
 
 ## Ack & Unrelated
@@ -217,9 +217,9 @@ is doable for both but it will require type inference to identify infinite loops
 
 ### regarding coercion:
 
-`{1, 2, 3}, map ln` could tostr in map
-`split :-:, map [add1]` could tonum in map
-`add 1, tonum` could tostr in between
+- `{1, 2, 3}, map ln` could tostr in map
+- `split :-:, map [add1]` could tonum in map
+- `add 1, tonum` could tostr in between
 
 ### compile to linear sequence of instructions
 
