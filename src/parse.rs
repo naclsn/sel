@@ -61,7 +61,7 @@ pub struct Tree {
 pub enum Pattern {
     Bytes(Vec<u8>),
     Number(f64),
-    List(Vec<Pattern>, /* strict */ bool),
+    List(Vec<Pattern>, Option<(Location, String)>),
     Name(Location, String),
     Pair(Box<Pattern>, Box<Pattern>),
 }
@@ -558,21 +558,23 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             OpenBrace => {
                 let mut items = Vec::new();
                 let ty = self.types.named("itemof(typeof({}))");
-                let mut strict = true;
+                let mut rest = None;
 
                 while match self.peek_tok() {
                     Token(_, CloseBrace) => false,
 
                     Token(_, Comma) if !items.is_empty() => {
                         // { ... ,,
-                        strict = false;
                         self.skip_tok();
-                        match self.peek_tok() {
-                            Token(_, CloseBrace) => false,
-                            other => {
+                        match (self.next_tok(), self.peek_tok()) {
+                            (Token(loc, Word(w)), Token(_, CloseBrace)) => {
+                                rest = Some((loc, w));
+                                false
+                            }
+                            (other, _) => {
                                 let err = err_unexpected(
-                                    other,
-                                    "closing '}' after ',,' (list rest pattern)",
+                                    &other,
+                                    "a name then closing '}' after ',,'",
                                     Some(&first_token),
                                 );
                                 self.report(err);
@@ -619,10 +621,16 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 }
                 self.skip_tok();
 
-                (Pattern::List(items, strict), {
-                    let fin = self.types.finite(strict);
-                    self.types.list(fin, ty)
-                })
+                let fin = self.types.finite(rest.is_none());
+                let ty = self.types.list(fin, ty);
+
+                if let Some((loc, w)) = &rest {
+                    self.scope
+                        .declare(w.clone(), loc.clone(), ty, &self.types)
+                        .unwrap_or_else(|e| self.report(e));
+                }
+
+                (Pattern::List(items, rest), ty)
             }
 
             Def | Let | Unknown(_) => {

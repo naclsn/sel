@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::env::{self, Args};
 use std::iter::Peekable;
 
@@ -56,7 +57,7 @@ fn main() {
         return;
     }
 
-    interp::run_print(interp::interp(&tree));
+    interp::run_print(interp::interp(&tree, &HashMap::new()));
     match ty {
         FrozenType::Number | FrozenType::Pair(_, _) => println!(),
         FrozenType::Bytes(_) | FrozenType::List(_, _) => (),

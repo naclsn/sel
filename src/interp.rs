@@ -1,9 +1,11 @@
+use std::collections::HashMap;
 use std::io::{self, Read, Stdin, Write};
 use std::iter;
+use std::mem;
 use std::rc::Rc;
 use std::sync::{OnceLock, RwLock};
 
-use crate::parse::{Applicable, Tree, TreeKind};
+use crate::parse::{Applicable, Pattern, Tree, TreeKind};
 
 // runtime concrete value and macro to make curried instances {{{
 pub type Number = Box<dyn FnOnce() -> f64>;
@@ -20,71 +22,71 @@ pub enum Value {
     List(List, ValueClone<List>),
     Func(Func, ValueClone<Func>),
     Pair(Pair, ValueClone<Pair>),
+    Name(String),
 }
 
 impl Clone for Value {
     fn clone(&self) -> Self {
+        use Value::*;
         match self {
-            Value::Number(_, clone) => {
+            Number(_, clone) => {
                 let niw = clone();
-                Value::Number(niw, clone.clone())
+                Number(niw, clone.clone())
             }
-            Value::Bytes(_, clone) => {
+            Bytes(_, clone) => {
                 let niw = clone();
-                Value::Bytes(niw, clone.clone())
+                Bytes(niw, clone.clone())
             }
-            Value::List(_, clone) => {
+            List(_, clone) => {
                 let niw = clone();
-                Value::List(niw, clone.clone())
+                List(niw, clone.clone())
             }
-            Value::Func(_, clone) => {
+            Func(_, clone) => {
                 let niw = clone();
-                Value::Func(niw, clone.clone())
+                Func(niw, clone.clone())
             }
-            Value::Pair(_, clone) => {
+            Pair(_, clone) => {
                 let niw = clone();
-                Value::Pair(niw, clone.clone())
+                Pair(niw, clone.clone())
             }
+            Name(n) => Name(n.clone()),
         }
     }
 }
 
+macro_rules! make_value_unwrap {
+    ($fname:ident -> $tname:ident) => {
+        fn $fname(self) -> $tname {
+            match self {
+                Value::$tname(r, _) => r,
+                _ => unreachable!(
+                    "runtime type mismatchs should not be possible ({} where {} expected)",
+                    self.kind_to_str(),
+                    stringify!($tname)
+                ),
+            }
+        }
+    };
+}
+
 impl Value {
-    fn number(self) -> Number {
-        if let Value::Number(r, _) = self {
-            r
-        } else {
-            unreachable!("runtime type mismatchs should not be possible")
+    fn kind_to_str(&self) -> &'static str {
+        use Value::*;
+        match self {
+            Number(_, _) => "Number",
+            Bytes(_, _) => "Bytes",
+            List(_, _) => "List",
+            Func(_, _) => "Func",
+            Pair(_, _) => "Pair",
+            Name(_) => "Name",
         }
     }
-    fn bytes(self) -> Bytes {
-        if let Value::Bytes(r, _) = self {
-            r
-        } else {
-            unreachable!("runtime type mismatchs should not be possible")
-        }
-    }
-    fn list(self) -> List {
-        if let Value::List(r, _) = self {
-            r
-        } else {
-            unreachable!("runtime type mismatchs should not be possible")
-        }
-    }
-    fn func(self) -> Func {
-        if let Value::Func(r, _) = self {
-            r
-        } else {
-            unreachable!("runtime type mismatchs should not be possible")
-        }
-    }
-    fn pair(self) -> Pair {
-        if let Value::Pair(r, _) = self {
-            r
-        } else {
-            unreachable!("runtime type mismatchs should not be possible")
-        }
-    }
+
+    make_value_unwrap!(number -> Number);
+    make_value_unwrap!(bytes -> Bytes);
+    make_value_unwrap!(list -> List);
+    make_value_unwrap!(func -> Func);
+    make_value_unwrap!(pair -> Pair);
 }
 
 macro_rules! curried_value {
@@ -126,6 +128,64 @@ macro_rules! curried_value {
 }
 // }}}
 
+// let pattern matching {{{
+#[derive(Clone)]
+enum Matcher {
+    Bytes(Vec<u8>),
+    Number(f64),
+    List(Vec<Matcher>, Option<String>),
+    Name(String),
+    Pair(Box<Matcher>, Box<Matcher>),
+}
+
+impl Matcher {
+    fn new(pat: &Pattern) -> Matcher {
+        use Matcher::*;
+        match pat {
+            Pattern::Bytes(b) => Bytes(b.clone()),
+            Pattern::Number(n) => Number(*n),
+            Pattern::List(l, r) => List(
+                l.iter().map(Matcher::new).collect(),
+                r.as_ref().map(|r| r.1.clone()),
+            ),
+            Pattern::Name(_, n) => Name(n.clone()),
+            Pattern::Pair(f, s) => Pair(Box::new(Matcher::new(f)), Box::new(Matcher::new(s))),
+        }
+    }
+
+    fn matches_and_bind(self, v: Value, names: &mut HashMap<String, Value>) -> bool {
+        match (self, v) {
+            (Matcher::Bytes(b), Value::Bytes(it, _)) => it.take(b.len()).collect::<Vec<_>>() == b,
+            (Matcher::Number(n), Value::Number(it, _)) => it() == n,
+            (Matcher::List(l, r), Value::List(mut it, clone)) => {
+                let len = l.len();
+                for m in l {
+                    let Some(true) = it.next().map(|it| m.matches_and_bind(it, names)) else {
+                        return false;
+                    };
+                }
+                match r {
+                    Some(n) => {
+                        let l = Value::List(it, Rc::new(move || Box::new(clone().skip(len))));
+                        names.insert(n, l);
+                        true
+                    }
+                    None => it.next().is_none(),
+                }
+            }
+            (Matcher::Pair(f, s), Value::Pair(it, _)) => {
+                f.matches_and_bind(it.0, names) && s.matches_and_bind(it.1, names)
+            }
+            (Matcher::Name(n), v) => {
+                names.insert(n, v);
+                true
+            }
+            _ => false,
+        }
+    }
+}
+// }}}
+
 // lookup and make {{{
 fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
     let apply_args = move |v: Value| args.fold(v, |acc, cur| acc.func()(cur));
@@ -157,7 +217,7 @@ fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
         ),
 
         "head" => apply_args(
-            curried_value!(|| -> Func |l: Value| l.list().next().unwrap_or_else(|| panic!("NIY: runtime panics"))),
+            curried_value!(|| -> Func |l: Value| l.list().next().unwrap_or_else(|| panic!("runtime panic (list access)"))),
         ),
 
         "init" => apply_args(curried_value!(|l| -> List {
@@ -165,7 +225,7 @@ fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
             let mut c = p.next();
             iter::from_fn(move || {
                 p.peek()?;
-                std::mem::replace(&mut c, p.next())
+                mem::replace(&mut c, p.next())
             })
         })),
 
@@ -200,7 +260,7 @@ fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
             let mut curr = ini;
             iter::from_fn(move || {
                 let next = f.clone().func()(curr.clone());
-                Some(std::mem::replace(&mut curr, next))
+                Some(mem::replace(&mut curr, next))
             })
         })),
 
@@ -232,7 +292,7 @@ fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
         })),
 
         "last" => apply_args(
-            curried_value!(|| -> Func |l: Value| l.list().last().unwrap_or_else(|| panic!("NIY runtime panics"))),
+            curried_value!(|| -> Func |l: Value| l.list().last().unwrap_or_else(|| panic!("runtime panic (list access)"))),
         ),
 
         "len" => apply_args(curried_value!(|list| -> Number || list.list().count() as f64)),
@@ -275,7 +335,7 @@ fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
                         break;
                     }
                 }
-                let v = std::mem::take(&mut updog);
+                let v = mem::take(&mut updog);
                 let vv = v.clone();
                 Some(Value::Bytes(
                     Box::new(v.into_iter()),
@@ -318,13 +378,15 @@ fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
         ),
 
         // XXX: completely incorrect but just for messing around for now
-        "uncodepoints" => apply_args(curried_value!(|l| -> Bytes l.list().map(|n| n.number()() as u8))),
+        "uncodepoints" => {
+            apply_args(curried_value!(|l| -> Bytes l.list().map(|n| n.number()() as u8)))
+        }
 
-        _ => unreachable!("'{name}' was not added to interp"),
+        _ => Value::Name(name.into()),
     }
 }
 
-pub fn interp(tree: &Tree) -> Value {
+pub fn interp(tree: &Tree, names: &HashMap<String, Value>) -> Value {
     use TreeKind::*;
     match &tree.value {
         Bytes(v) => {
@@ -338,7 +400,7 @@ pub fn interp(tree: &Tree) -> Value {
         &Number(n) => Value::Number(Box::new(move || n), Rc::new(move || Box::new(move || n))),
 
         List(items) => {
-            let v = items.iter().map(interp).collect::<Vec<_>>();
+            let v = items.iter().map(|u| interp(u, names)).collect::<Vec<_>>();
             let vv = v.clone();
             Value::List(
                 Box::new(v.into_iter()),
@@ -347,13 +409,42 @@ pub fn interp(tree: &Tree) -> Value {
         }
 
         Apply(app, args) => match app {
-            Applicable::Name(name) => lookup_val(name, args.iter().map(interp)),
-            Applicable::Bind(_, _, _) => todo!("let bind in interp"),
+            Applicable::Name(name) => names
+                .get(name)
+                .cloned()
+                .unwrap_or_else(|| lookup_val(name, args.iter().map(|u| interp(u, names)))),
+
+            Applicable::Bind(pat, res, fbk) => {
+                let pat = Matcher::new(pat);
+                let res = *res.clone();
+                let fbk = fbk.as_deref().map(|u| interp(u, names));
+                let names_at_point = names.clone();
+                let w = move || {
+                    let pat = pat.clone();
+                    let res = res.clone();
+                    let fbk = fbk.clone();
+                    let mut names = names_at_point.clone();
+                    Box::new({
+                        move |v| {
+                            if pat.matches_and_bind(v, &mut names) {
+                                interp(&res, &names)
+                            } else {
+                                fbk.unwrap_or_else(|| panic!("runtime panic (partial let)"))
+                            }
+                        }
+                    })
+                };
+                args.iter()
+                    .map(|u| interp(u, names))
+                    .fold(Value::Func(w(), Rc::new(move || w())), |acc, cur| {
+                        acc.func()(cur)
+                    })
+            }
         },
 
         Pair(fst, snd) => {
-            let fst = interp(fst);
-            let snd = interp(snd);
+            let fst = interp(fst, names);
+            let snd = interp(snd, names);
             let w = move || Box::new((fst.clone(), snd.clone()));
             Value::Pair(w(), Rc::new(w))
         }
@@ -382,5 +473,6 @@ pub fn run_print(val: Value) {
             print!("\t");
             run_print(p.1);
         }
+        Value::Name(name) => panic!("'{name}' was not added to interp"),
     }
 }

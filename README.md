@@ -47,9 +47,9 @@ Special characters and keywords:
   that essentially replaces by value where it is used;
 - `let pattern result fallback` will make a function of one
   argument that computes result if pattern matches, pattern
-  can introduces names (eg `let {a, b,,} [add a b]`, the
-  `,,` matches the rest of the list), fallback is optional
-  (default is to panic).
+  can introduces names (eg `let {a, b,, rest} [add a b]`,
+  the `,, rest` matches the rest of the list), fallback is
+  optional (default is to panic).
 
 Here is the complete syntax:
 ```bnf
@@ -62,7 +62,7 @@ value ::= <atom> | <subscr> | <list> | <pair>
 
 binding ::= 'let' <pattern> <value> [<value>]
 pattern ::= <atom> | <patlist> | <patpair>
-list ::= '{' [<pattern> {',' <pattern>} [',' [',']]] '}'
+list ::= '{' [<pattern> {',' <pattern>} [',' [',' <word>]]] '}'
 pair ::= (<atom> | <patlist>) '=' <pattern>
 
 atom ::= <word> | <bytes> | <number>
@@ -179,6 +179,12 @@ Rust,
 ---
 
 ## (wip and such)
+
+### broken:
+
+- `let {a, b} [add a b]` type broken
+- `let {repeat 1, a, 3} [const a] [add a]` parse broken
+- `{1, 2, 3}, let {h,, t} h` type broken
 
 ### `let` in interp
 
