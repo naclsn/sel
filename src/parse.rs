@@ -136,7 +136,7 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
                 }
                 b'_' => Word("_".into()), // ..keeping this case for those that are used to it
 
-                c if c.is_ascii_lowercase() => {
+                c if c.is_ascii_lowercase() || b'-' == c => {
                     let w = String::from_utf8(
                         iter::once(c)
                             .chain(iter::from_fn(|| {
@@ -435,7 +435,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         let TreeKind::Apply(ref base, args) = &mut func.value else {
             unreachable!();
         };
-        let is_compose = matches!(base, Applicable::Name(name) if "compose" == name);
+        let is_compose = matches!(base, Applicable::Name(name) if "pipe" == name);
 
         if let Named(name) = self.types.get(func.ty) {
             let name = name.clone();
@@ -856,7 +856,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             // => tostr(add(1, tonum(:[52, 50]:)))
             fn apply_maybe_unfold(p: &mut Parser<impl Iterator<Item = u8>>, func: Tree) -> Tree {
                 match func.value {
-                    TreeKind::Apply(Applicable::Name(name), args) if "compose" == name => {
+                    TreeKind::Apply(Applicable::Name(name), args) if "pipe" == name => {
                         let mut args = args.into_iter();
                         let (f, g) = (args.next().unwrap(), args.next().unwrap());
                         // (,)(f, g) => g(f(..))
@@ -936,8 +936,8 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 // places I'll change this over the whole codebase on a whim
                 let mut compose = Tree {
                     loc: comma_loc.clone(),
-                    ty: builtin::NAMES.get("compose").unwrap().0(&mut self.types),
-                    value: TreeKind::Apply(Applicable::Name("compose".into()), Vec::new()),
+                    ty: builtin::NAMES.get("pipe").unwrap().0(&mut self.types),
+                    value: TreeKind::Apply(Applicable::Name("pipe".into()), Vec::new()),
                 };
                 // XXX: does it need `snapshot` here?
                 // we know that `r` is a function (see previous 'else if')

@@ -142,49 +142,49 @@ fn parsing() {
     );
 
     assert_tree!(
-        "input",
+        "-",
         FrozenType::Bytes(false),
         Tree {
             loc: Location(0),
             ty: 4,
-            value: Apply(Name("input".into()), vec![])
+            value: Apply(Name("-".into()), vec![])
         }
     );
 
     assert_tree!(
-        "input, split:-:, map[tonum, add1, tostr], join:+:",
+        "-, split:-:, map[tonum, add1, tostr], join:+:",
         FrozenType::Bytes(false),
         Tree {
-            loc: Location(42),
+            loc: Location(38),
             ty: 46,
             value: Apply(
                 Name("join".into()),
                 vec![
                     Tree {
-                        loc: Location(46),
+                        loc: Location(42),
                         ty: 1,
                         value: Bytes(vec![43])
                     },
                     Tree {
-                        loc: Location(17),
+                        loc: Location(13),
                         ty: 16,
                         value: Apply(
                             Name("map".into()),
                             vec![
                                 Tree {
-                                    loc: Location(20),
+                                    loc: Location(16),
                                     ty: 38,
                                     value: Apply(
-                                        Name("compose".into()),
+                                        Name("pipe".into()),
                                         vec![
                                             Tree {
-                                                loc: Location(26),
+                                                loc: Location(22),
                                                 ty: 29,
                                                 value: Apply(
-                                                    Name("compose".into()),
+                                                    Name("pipe".into()),
                                                     vec![
                                                         Tree {
-                                                            loc: Location(21),
+                                                            loc: Location(17),
                                                             ty: 21,
                                                             value: Apply(
                                                                 Name("tonum".into()),
@@ -192,12 +192,12 @@ fn parsing() {
                                                             )
                                                         },
                                                         Tree {
-                                                            loc: Location(28),
+                                                            loc: Location(24),
                                                             ty: 22,
                                                             value: Apply(
                                                                 Name("add".into()),
                                                                 vec![Tree {
-                                                                    loc: Location(31),
+                                                                    loc: Location(27),
                                                                     ty: 0,
                                                                     value: Number(1.0)
                                                                 }]
@@ -207,7 +207,7 @@ fn parsing() {
                                                 )
                                             },
                                             Tree {
-                                                loc: Location(34),
+                                                loc: Location(30),
                                                 ty: 32,
                                                 value: Apply(Name("tostr".into()), vec![])
                                             }
@@ -215,20 +215,20 @@ fn parsing() {
                                     )
                                 },
                                 Tree {
-                                    loc: Location(7),
+                                    loc: Location(3),
                                     ty: 8,
                                     value: Apply(
                                         Name("split".into()),
                                         vec![
                                             Tree {
-                                                loc: Location(12),
+                                                loc: Location(8),
                                                 ty: 1,
                                                 value: Bytes(vec![45])
                                             },
                                             Tree {
                                                 loc: Location(0),
                                                 ty: 4,
-                                                value: Apply(Name("input".into()), vec![])
+                                                value: Apply(Name("-".into()), vec![])
                                             }
                                         ]
                                     )
@@ -251,19 +251,19 @@ fn parsing() {
             loc: Location(23),
             ty: 34,
             value: Apply(
-                Name("compose".into()),
+                Name("pipe".into()),
                 vec![
                     Tree {
                         loc: Location(16),
                         ty: 22,
                         value: Apply(
-                            Name("compose".into()),
+                            Name("pipe".into()),
                             vec![
                                 Tree {
                                     loc: Location(5),
                                     ty: 13,
                                     value: Apply(
-                                        Name("compose".into()),
+                                        Name("pipe".into()),
                                         vec![
                                             Tree {
                                                 loc: Location(0),
@@ -382,7 +382,7 @@ fn parsing() {
             loc: Location(5),
             ty: 11,
             value: Apply(
-                Name("compose".into()),
+                Name("pipe".into()),
                 vec![
                     Tree {
                         loc: Location(0),
@@ -765,7 +765,7 @@ fn reporting() {
     );
 
     assert_maytree!(
-        "2 input",
+        "2 -",
         Err(ErrorList(vec![Error(
             Location(0),
             NotFunc {
@@ -775,12 +775,12 @@ fn reporting() {
     );
 
     assert_maytree!(
-        "input 2",
+        "- 2",
         Err(ErrorList(vec![Error(
             Location(0),
             TooManyArgs {
                 nth_arg: 1,
-                func: Applicable::Name("input".into())
+                func: Applicable::Name("-".into())
             }
         )]))
     );

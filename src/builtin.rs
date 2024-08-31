@@ -101,10 +101,12 @@ macro_rules! mkmkty {
 // }}}
 
 pub const NAMES: Map<&'static str, BuiltinDesc> = phf_map! {
+    "-"            => (mkmkty!(1          ; Str+1                                      ), "the input"),
     "add"          => (mkmkty!(0          ; Num -> Num -> Num                          ), "add two numbers"),
+    "apply"        => (mkmkty!(0, a, b    ; (a -> b) -> a -> b                         ), "apply argument to function; 'apply f x' is equivalent to 'f x'"),
     "bytes"        => (mkmkty!(1          ; Str+1 -> [Num]+1                           ), "make a list of numbers with the 8 bits bytes that makes the bytestream"),
     "codepoints"   => (mkmkty!(1          ; Str+1 -> [Num]+1                           ), "make a list of numbers with the 32 bits codepoints"),
-    "compose"      => (mkmkty!(0, a, b, c ; (a -> b) -> (b -> c) -> a -> c             ), "compose two function; 'compose one two' is equivalent to the syntax 'one, two'"),
+    "compose"      => (mkmkty!(0, a, b, c ; (b -> c) -> (a -> b) -> a -> c             ), "compose two function; 'compose one two' is equivalent to the syntax 'two, one' ie 'one(two(..))' (see also 'pipe')"),
     "const"        => (mkmkty!(0, a, b    ; a -> b -> a                                ), "always evaluate to its first argument, ignoring its second argument"),
     "curry"        => (mkmkty!(0, a, b, c ; ((a, b) -> c) -> a -> b -> c               ), "curry"),
     "div"          => (mkmkty!(0          ; Num -> Num -> Num                          ), "divide by the second numbers"),
@@ -117,7 +119,6 @@ pub const NAMES: Map<&'static str, BuiltinDesc> = phf_map! {
     "graphemes"    => (mkmkty!(1          ; Str+1 -> [Str]+1                           ), "make a list of strings with the potentially multi-codepoints graphemes"),
     "head"         => (mkmkty!(1, a       ; [a]+1 -> a                                 ), "extract the head (the first item)"), // | "unwrap"
     "init"         => (mkmkty!(0, a       ; [a] -> [a]                                 ), "extract the initial part (until the last item)"),
-    "input"        => (mkmkty!(1          ; Str+1                                      ), "the input"),
     "iterate"      => (mkmkty!(1, a       ; (a -> a) -> a -> [a]+1                     ), "create an infinite list where the first item is calculated by applying the function on the second argument, the second item by applying the function on the previous result and so on"),
     "join"         => (mkmkty!(2          ; Str -> [Str+1]+2 -> Str+1&2                ), "join a list of string with a separator between entries"),
     "last"         => (mkmkty!(0, a       ; [a] -> a                                   ), "extract the last item"),
@@ -126,6 +127,7 @@ pub const NAMES: Map<&'static str, BuiltinDesc> = phf_map! {
     "lookup"       => (mkmkty!(0, a       ; [(Str, a)] -> Str -> [a]                   ), "lookup in the list of key/value pairs the value associated with the given key; the return is an option (ie a singleton or an empty list)"),
     "map"          => (mkmkty!(1, a, b    ; (a -> b) -> [a]+1 -> [b]+1                 ), "make a new list by applying an unary operation to each value from a list"),
     "pair"         => (mkmkty!(0, a, b    ; a -> b -> (a, b)                           ), "make a pair"),
+    "pipe"         => (mkmkty!(0, a, b, c ; (a -> b) -> (b -> c) -> a -> c             ), "pipe two function; 'pipe one two' is equivalent to the syntax 'one, two' ie 'two(one(..))' (see also 'compose')"),
     "repeat"       => (mkmkty!(1, a       ; a -> [a]+1                                 ), "repeat an infinite amount of copies of the same value"),
     "singleton"    => (mkmkty!(0, a       ; a -> [a]                                   ), "equivalent to {a}"), // | "once" | "just" | "some"
     "snd"          => (mkmkty!(0, a, b    ; (a, b) -> b                                ), "second"), // | "second" | "cdr"

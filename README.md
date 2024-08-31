@@ -9,6 +9,8 @@ State: working and usable _but_ I want to 'compile', that
 is, down to a linear sequence of instructions. Current way
 of interpreting is very wasteful.
 
+Also see the 'wip and such' below.
+
 ---
 
 ## Overview
@@ -20,27 +22,37 @@ standard output.
 In its most basic form, the script given to `sel` is
 a series of functions separated by `,` (comma). See the
 complete syntax bellow. In this way, each function
-transforms its input and passes its output to the next one:
+transforms its input and passes its output to the next one
+(`-` is the function that returns the input stream):
 ```console
-$ printf 12-42-27 | sel split :-:, map [add 1], join :-:, ln
+$ printf 12-42-27 | sel -, split :-:, map [add 1], join :-:
 13-43-28
-$ printf abc | sel codepoints, map ln
+$ printf abc | sel -, codepoints # same as 'sel codepoint -'
 97
 98
 99
 ```
 
+When the first argument matches a file starting with `#!`
+the file is read and parsed first. Any additional arguments
+are also parsed in continuation of the script.
+```console
+$ cat pred.sel
+#!/usr/bin/env sel
+sub 1
+$ sel pred.sel 5
+4
+```
+
 ## Syntax
 
 TLDR:
-- `# comment`
-- `func arg1 arg2 ...`
-- list: `{0b1, 0o2, 0x3, 4.2}`
-- strings: `:hi how you:`
-- `f, g` is `g(f(..))`
+- lists, strings: `{0b1, 0o2, 0x3, 4.2}`, `:hi how you:`
+- `my-func first-arg [add 1 2] third-arg`
+- `f, g` is `g(f(..))` (or `pipe f g` or `[flip compose] g f`)
 
 Special characters and keywords:
-`,` `:` `;` `=` `[` `]` `def` `let` `{` `}`
+`,` `:` `;` `=` `[` `]` `_` `def` `let` `{` `}`
 
 2 special forms:
 - `def name :description: value` will define a new name
@@ -104,7 +116,7 @@ Type notations are inspired from Haskell.
 
 Lists and bytestring can take a `+` suffix (eg. `Str+`
 and `[Num]+`) which represent a potentially unbounded
-object (simplest example is `repeat 1 :: [Num]+` is an
+object (simplest example is `repeat 1 :: [Num]+`, an
 infinite list of 1s).
 
 The item type of a literal list is inferred as the list
@@ -185,26 +197,7 @@ Rust,
 - `let {a, b} [add a b]` type broken
 - `let {repeat 1, a, 3} [const a] [add a]` parse broken
 - `{1, 2, 3}, let {h,, t} h` type broken
-
-### `let` in interp
-
-`let` in interp
-
-### cli
-
-shebang
-
-it could go like:
-- if first argument that would be script is a path (or simple word)
-  - if it's an existing file (or local file) starting with a `#!`
-    - parse it into result
-    - additional arguments if any are passed to result as function
-- else proceed as usual
-
-this makes it possible to:
-- use `#!/usr/bin/env sel`
-- have local tools like `$ sel my-tool 1 2 3` or whatever
-  - or simply have arguments passed to `./my-tool` like appended
+- `add 1, map, flip apply {1, 2, 3}` type and run broken
 
 ### `def` section
 

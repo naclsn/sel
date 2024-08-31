@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::env::{self, Args};
+use std::fs::File;
+use std::io::{self, Read, Write};
 use std::iter::Peekable;
 
 use ariadne::Source;
@@ -17,9 +19,11 @@ use crate::builtin::NAMES;
 use crate::parse::Tree;
 use crate::types::{FrozenType, TypeList};
 
+#[derive(Default)]
 struct Options {
     do_lookup: bool,
     do_typeof: bool,
+    do_repl: bool,
 }
 
 fn main() {
@@ -34,22 +38,13 @@ fn main() {
         return;
     }
 
-    let mut source = String::new();
-    let (ty, tree) = match Tree::new_typed(args.flat_map(|mut a| {
-        a.push(' ');
-        source += &a;
-        a.into_bytes()
-    })) {
-        Ok(app) => app,
-        Err(err) => {
-            let mut n = 0;
-            for e in err {
-                e.pretty().eprint(Source::from(&source)).unwrap();
-                n += 1;
-            }
-            eprintln!("({n} error{})", if 1 == n { "" } else { "s" });
-            return;
-        }
+    if opts.do_repl {
+        do_repl();
+        return;
+    }
+
+    let Some((ty, tree)) = parse_from_args(args) else {
+        return;
     };
 
     if opts.do_typeof {
@@ -57,46 +52,93 @@ fn main() {
         return;
     }
 
-    interp::run_print(interp::interp(&tree, &HashMap::new()));
-    match ty {
-        FrozenType::Number | FrozenType::Pair(_, _) => println!(),
-        FrozenType::Bytes(_) | FrozenType::List(_, _) => (),
-        FrozenType::Func(_, _) | FrozenType::Named(_) => unreachable!(),
-    }
+    do_the_thing(&ty, &tree);
 }
 
 impl Options {
     fn parse_args(args: &mut Peekable<Args>) -> Option<Options> {
         let prog = args.next().unwrap();
-        let mut r = Options {
-            do_lookup: false,
-            do_typeof: false,
-        };
+        let mut r = Options::default();
 
-        if let Some(arg) = args.peek() {
-            match arg.as_str() {
-                "-h" => {
-                    eprintln!("Usage: {prog} -h | [-t] <script...> | [-l [<name>...]]");
-                    return None;
-                }
-
-                "-t" => r.do_typeof = true,
-                "-l" => r.do_lookup = true,
-
-                dash if dash.starts_with('-') => {
-                    eprintln!("Unexpected '{dash}', see usage with -h");
-                    return None;
-                }
-                _ => return Some(r),
+        let mut skip = true;
+        match args.peek().map(String::as_str) {
+            Some("-h") => {
+                eprintln!(
+                    "Usage: {prog} -h
+           [-t] <file> <args...> | <script...>
+           -l [<name>...]"
+                );
+                return None;
             }
+
+            Some("-t") => r.do_typeof = true,
+            Some("-l") => r.do_lookup = true,
+            None => r.do_repl = true,
+
+            _ => skip = false,
+        }
+        if skip {
             args.next();
-        } else {
-            eprintln!("No argument, see usage with -h");
-            return None;
-        };
+        }
 
         Some(r)
     }
+}
+
+fn parse_from_args(mut args: Peekable<Args>) -> Option<(FrozenType, Tree)> {
+    let mut was_file = None;
+    let mut used_file = false;
+
+    let mut source = vec![0, 0]; // for testing '#!'
+
+    fn join_args(args: Peekable<Args>, source: &mut Vec<u8>) -> impl Iterator<Item = u8> + '_ {
+        args.flat_map(|a| {
+            let mut a = a.into_bytes();
+            a.push(b' ');
+            source.extend_from_slice(&a);
+            a
+        })
+    }
+
+    if args
+        .peek()
+        .and_then(|name| {
+            File::open(name)
+                .ok()
+                .inspect(|_| was_file = Some(name.clone()))
+        })
+        .and_then(|mut file| file.read_exact(&mut source).ok().and(Some(file)))
+        .filter(|_| *b"#!" == *source)
+        .and_then(|mut file| file.read_to_end(&mut source).ok())
+        .is_some()
+    {
+        used_file = true;
+        args.next();
+        join_args(args, &mut source).for_each(drop);
+        Tree::new_typed(source.iter().cloned())
+    } else {
+        source.clear(); // the [0, 0] from def
+        Tree::new_typed(join_args(args, &mut source))
+    }
+    .map_err(|err| {
+        // NOTE: err reporting will surely be misleading
+        // for some inputs (eg. misplaced indicators)
+        let cache = Source::from(String::from_utf8_lossy(&source));
+        let mut n = 0;
+        for e in err {
+            e.pretty().eprint(cache.clone()).unwrap();
+            n += 1;
+        }
+        eprintln!("({n} error{})", if 1 == n { "" } else { "s" });
+        if let Some(name) = was_file {
+            if used_file {
+                eprintln!("Note: {name} was interpreted as file name");
+            } else {
+                eprintln!("Note: {name} is also a file, but it did not start with '#!'");
+            }
+        }
+    })
+    .ok()
 }
 
 fn do_lookup(mut args: Peekable<Args>) {
@@ -132,5 +174,54 @@ fn do_lookup(mut args: Peekable<Args>) {
                 println!("Not found: {}", not_found.join(", "));
             }
         }
+    }
+}
+
+fn do_repl() {
+    let stdin = io::stdin();
+    let mut stdout = io::stdout();
+
+    let mut line = String::new();
+    while let Ok(n) = {
+        stdout
+            .write_all(if line.is_empty() { b">> " } else { b".. " })
+            .unwrap();
+        stdout.flush().unwrap();
+        stdin.read_line(&mut line)
+    } {
+        match n {
+            0 => break,
+            1 => {
+                line.pop();
+                continue;
+            }
+            _ if b'\\' == line.as_bytes()[n - 2] => {
+                line.pop();
+                line.pop();
+                line.push('\n');
+                continue;
+            }
+            _ => {
+                eprintln!("[[{line}]]");
+                match Tree::new_typed(line.bytes()) {
+                    Ok((ty, tree)) => do_the_thing(&ty, &tree),
+                    Err(err) => err
+                        .into_iter()
+                        .try_for_each(|e| e.pretty().eprint(Source::from(&line)))
+                        .unwrap(),
+                }
+                line.clear();
+            }
+        }
+    }
+}
+
+fn do_the_thing(ty: &FrozenType, tree: &Tree) {
+    use FrozenType::*;
+    interp::run_print(interp::interp(tree, &HashMap::new()));
+    match ty {
+        Number | Pair(_, _) => println!(),
+        Bytes(_) | List(_, _) => (),
+        Func(_, _) | Named(_) => unreachable!(),
     }
 }

@@ -59,6 +59,7 @@ macro_rules! make_value_unwrap {
         fn $fname(self) -> $tname {
             match self {
                 Value::$tname(r, _) => r,
+                Value::Name(name) => panic!("'{name}' was not added to interp"),
                 _ => unreachable!(
                     "runtime type mismatchs should not be possible ({} where {} expected)",
                     self.kind_to_str(),
@@ -191,7 +192,9 @@ fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
     let apply_args = move |v: Value| args.fold(v, |acc, cur| acc.func()(cur));
 
     match name {
-        "compose" => apply_args(curried_value!(|f, g| -> Func |v| g.func()(f.func()(v)))),
+        "pipe" => apply_args(curried_value!(|f, g| -> Func |v| g.func()(f.func()(v)))),
+
+        "apply" => apply_args(curried_value!(|f| -> Func |v| f.func()(v))),
 
         "add" => apply_args(curried_value!(|a, b| -> Number || a.number()() + b.number()())),
 
@@ -229,7 +232,7 @@ fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
             })
         })),
 
-        "input" => apply_args(curried_value!(|| -> Bytes {
+        "-" => apply_args(curried_value!(|| -> Bytes {
             static SHARED: OnceLock<RwLock<(Stdin, Vec<u8>)>> = OnceLock::new();
             let mut at = 0;
             iter::from_fn(move || {
@@ -244,14 +247,11 @@ fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
                     drop(iv);
                     let mut iv = SHARED.get().unwrap().try_write().unwrap();
                     let mut r = [0u8; 1];
-                    match iv.0.read(&mut r) {
-                        Ok(1) => {
-                            iv.1.push(r[0]);
-                            at += 1;
-                            Some(r[0])
-                        }
-                        _ => None,
-                    }
+                    iv.0.read_exact(&mut r).ok().map(|()| {
+                        iv.1.push(r[0]);
+                        at += 1;
+                        r[0]
+                    })
                 }
             })
         })),
@@ -381,6 +381,12 @@ fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
         "uncodepoints" => {
             apply_args(curried_value!(|l| -> Bytes l.list().map(|n| n.number()() as u8)))
         }
+
+        // XXX: completely incorrect but just for messing around for now
+        "codepoints" => apply_args(curried_value!(|s| -> List s.bytes().map(|b| {
+            let n = b as f64;
+            Value::Number(Box::new(move || n), Rc::new(move || Box::new(move || n)))
+        }))),
 
         _ => Value::Name(name.into()),
     }
