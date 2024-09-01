@@ -33,6 +33,8 @@ fn main() {
         return;
     };
 
+    let prelude = include_bytes!("prelude.sel");
+
     if opts.do_lookup {
         do_lookup(args);
         return;

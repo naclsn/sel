@@ -1,0 +1,4 @@
+#!/usr/bin/env sel
+# computes an approximation of the golden ration
+# (until you or your computer gets bored)
+iterate [div 1, add 1] 1

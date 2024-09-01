@@ -84,7 +84,7 @@ pair ::= (<atom> | <subscr> | <list>) '=' <value>
 
 word ::= /[-a-z]+/ | '_'
 bytes ::= /:([^:]|::)*:/
-number ::= /0b[01]+/ | /0o[0-7]+/ | /0x[0-9A-Fa-f]+/ | /[0-9]+(\.[0-9]+)/
+number ::= /0b[01]+/ | /0o[0-7]+/ | /0x[0-9A-Fa-f]+/ | /[0-9]+(\.[0-9]+)?/
 
 comment ::= '#' /.*/ '\n'
 ```
@@ -198,6 +198,11 @@ Rust,
 - `let {repeat 1, a, 3} [const a] [add a]` parse broken
 - `{1, 2, 3}, let {h,, t} h` type broken
 - `add 1, map, flip apply {1, 2, 3}` type and run broken
+- `let 0 fst snd` type broken
+
+### need to move to multi-file support
+
+.. before `def` section with prelude and such ideally
 
 ### `def` section
 

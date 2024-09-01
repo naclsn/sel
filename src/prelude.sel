@@ -1,0 +1,60 @@
+# (wip placeholder prelude)
+
+def true:
+    returns always true:
+    const 1;
+
+def false:
+    returns always false:
+    const 0;
+
+def not:
+    negates a boolean value:
+    let 0 1 0;
+
+# TODO: I *think*? I'm not sure tho
+#def if:
+#    if condition consequence alternative:
+#    let 0 fst snd, flip apply pair;
+
+def head:
+    returns the first item of the list:
+    let {h,, t} h;
+
+def tail:
+    returns all after the first item:
+    let {h,, t} t;
+
+# XXX: not fixated on recursion yet
+#def len:
+#    computes the length of the list, or string by coercion:
+#    let {h,, t}
+#        [len t, add 1]
+#        0;
+
+def unwrap:
+    returns the contained value if any, panics otherwise
+    (see is-none/is-some):
+    head;
+
+def is-none:
+    true if there is no contained value:
+    len, not;
+
+def is-some:
+    true if there is a contained value:
+    is-none, not;
+
+def fst: first: let a=b a;
+def snd: second: let a=b b;
+
+def duple:: let a a=a;
+
+def zip:: zipwith pair;
+
+def uints:: iterate [add1] 0;
+def enumerate:: zip uints;
+
+def sum:
+    sum the elements:
+    fold add 0;
