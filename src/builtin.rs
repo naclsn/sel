@@ -100,6 +100,7 @@ macro_rules! mkmkty {
 }
 // }}}
 
+// TODO: (maybe) push them in the first scope or smth idk (like right before parsing prelude)
 pub const NAMES: Map<&'static str, BuiltinDesc> = phf_map! {
     "-"            => (mkmkty!(1          ; Str+1                                      ), "the input"),
     "add"          => (mkmkty!(0          ; Num -> Num -> Num                          ), "add two numbers"),

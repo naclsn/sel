@@ -16,7 +16,8 @@ mod types;
 mod tests;
 
 use crate::builtin::NAMES;
-use crate::parse::Tree;
+use crate::error::SourceRegistry;
+use crate::parse::{Scope, Tree};
 use crate::types::{FrozenType, TypeList};
 
 #[derive(Default)]
@@ -26,6 +27,11 @@ struct Options {
     do_repl: bool,
 }
 
+struct Global {
+    registry: SourceRegistry,
+    scope: Scope<(Tree, String)>,
+}
+
 fn main() {
     let mut args = env::args().peekable();
 
@@ -33,19 +39,26 @@ fn main() {
         return;
     };
 
-    let prelude = include_bytes!("prelude.sel");
+    let mut global = {
+        let mut registry = SourceRegistry::new();
+
+        let source = registry.add_bytes("<prelude>", include_bytes!("prelude.sel").into());
+        let scope = parse::process(source, &mut registry).scope;
+
+        Global { registry, scope }
+    };
 
     if opts.do_lookup {
-        do_lookup(args);
+        do_lookup(args, global);
         return;
     }
 
     if opts.do_repl {
-        do_repl();
+        do_repl(global);
         return;
     }
 
-    let Some((ty, tree)) = parse_from_args(args) else {
+    let Some((ty, tree)) = parse_from_args(args, &mut global) else {
         return;
     };
 
@@ -54,7 +67,7 @@ fn main() {
         return;
     }
 
-    do_the_thing(&ty, &tree);
+    do_the_thing(&ty, &tree, &global);
 }
 
 impl Options {
@@ -87,47 +100,45 @@ impl Options {
     }
 }
 
-fn parse_from_args(mut args: Peekable<Args>) -> Option<(FrozenType, Tree)> {
+fn parse_from_args(mut args: Peekable<Args>, global: &mut Global) -> Option<(FrozenType, Tree)> {
     let mut was_file = None;
     let mut used_file = false;
 
-    let mut source = vec![0, 0]; // for testing '#!'
+    let mut bytes = vec![0, 0]; // for testing '#!'
 
-    fn join_args(args: Peekable<Args>, source: &mut Vec<u8>) -> impl Iterator<Item = u8> + '_ {
-        args.flat_map(|a| {
-            let mut a = a.into_bytes();
-            a.push(b' ');
-            source.extend_from_slice(&a);
-            a
-        })
-    }
-
-    if args
+    let name = if args
         .peek()
         .and_then(|name| {
             File::open(name)
                 .ok()
                 .inspect(|_| was_file = Some(name.clone()))
         })
-        .and_then(|mut file| file.read_exact(&mut source).ok().and(Some(file)))
-        .filter(|_| *b"#!" == *source)
-        .and_then(|mut file| file.read_to_end(&mut source).ok())
+        .and_then(|mut file| file.read_exact(&mut bytes).ok().and(Some(file)))
+        .filter(|_| *b"#!" == *bytes)
+        .and_then(|mut file| file.read_to_end(&mut bytes).ok())
         .is_some()
     {
         used_file = true;
-        args.next();
-        join_args(args, &mut source).for_each(drop);
-        Tree::new_typed(source.iter().cloned())
+        args.next().unwrap()
     } else {
-        source.clear(); // the [0, 0] from def
-        Tree::new_typed(join_args(args, &mut source))
-    }
-    .map_err(|err| {
+        bytes.clear(); // the [0, 0] from definition above
+        "<args>".into()
+    };
+
+    bytes.extend(args.flat_map(|a| {
+        let mut a = a.into_bytes();
+        a.push(b' ');
+        a
+    }));
+
+    let result = parse::process(global.registry.add_bytes(name, bytes), &mut global.registry);
+
+    if !result.errors.is_empty() {
         // NOTE: err reporting will surely be misleading
         // for some inputs (eg. misplaced indicators)
-        let cache = Source::from(String::from_utf8_lossy(&source));
+        let cache = Source::from("TODO");
         let mut n = 0;
-        for e in err {
+        for e in result.errors {
             e.pretty().eprint(cache.clone()).unwrap();
             n += 1;
         }
@@ -139,11 +150,12 @@ fn parse_from_args(mut args: Peekable<Args>) -> Option<(FrozenType, Tree)> {
                 eprintln!("Note: {name} is also a file, but it did not start with '#!'");
             }
         }
-    })
-    .ok()
+    }
+
+    result.tree
 }
 
-fn do_lookup(mut args: Peekable<Args>) {
+fn do_lookup(mut args: Peekable<Args>, global: Global) {
     match args.peek() {
         None => {
             let mut types = TypeList::default();
@@ -179,7 +191,7 @@ fn do_lookup(mut args: Peekable<Args>) {
     }
 }
 
-fn do_repl() {
+fn do_repl(global: Global) {
     let stdin = io::stdin();
     let mut stdout = io::stdout();
 
@@ -204,12 +216,16 @@ fn do_repl() {
                 continue;
             }
             _ => {
-                match Tree::new_typed(line.bytes()) {
-                    Ok((ty, tree)) => do_the_thing(&ty, &tree),
-                    Err(err) => err
+                let mut reg = SourceRegistry::new();
+                let src = reg.add_bytes("<input>", line.clone().into_bytes());
+                let res = parse::process(src, &mut reg);
+                if !res.errors.is_empty() {
+                    res.errors
                         .into_iter()
                         .try_for_each(|e| e.pretty().eprint(Source::from(&line)))
-                        .unwrap(),
+                        .unwrap();
+                } else if let Some((ty, tree)) = res.tree {
+                    do_the_thing(&ty, &tree, &global);
                 }
                 line.clear();
             }
@@ -217,7 +233,7 @@ fn do_repl() {
     }
 }
 
-fn do_the_thing(ty: &FrozenType, tree: &Tree) {
+fn do_the_thing(ty: &FrozenType, tree: &Tree, global: &Global) {
     use FrozenType::*;
     interp::run_print(interp::interp(tree, &HashMap::new()));
     match ty {

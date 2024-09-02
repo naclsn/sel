@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::{Read, Result as IoResult};
 use std::ops::Range;
+use std::path::{Path, PathBuf};
 
 use ariadne::{ColorGenerator, Label, Report, ReportBuilder, ReportKind};
 
@@ -12,24 +13,39 @@ pub type SourceRef = usize;
 #[derive(PartialEq, Debug, Clone)]
 pub struct Location(/*pub SourceRef,*/ pub usize);
 
-pub struct SourceRegistry(Vec<String>);
+pub struct SourceRegistry(Vec<(PathBuf, Option<Vec<u8>>)>);
 
 impl SourceRegistry {
     pub fn new() -> SourceRegistry {
         SourceRegistry(Vec::new())
     }
 
-    pub fn push(&mut self, name: String) -> SourceRef {
-        self.0.push(name);
+    /// Note: the given path is taken as is (ie not canonicalize)!
+    pub fn add_bytes(&mut self, name: impl AsRef<Path>, bytes: Vec<u8>) -> SourceRef {
+        self.0.push((name.as_ref().to_owned(), Some(bytes)));
         self.0.len() - 1
     }
 
-    pub fn get(&self, at: SourceRef) -> &String {
-        &self.0[at]
+    pub fn add(&mut self, name: impl AsRef<Path>) -> IoResult<SourceRef> {
+        let name = name.as_ref().canonicalize()?;
+        if let Some(found) = self.0.iter().position(|c| c.0 == name) {
+            return Ok(found);
+        }
+        let mut bytes = Vec::new();
+        File::open(&name)?.read_to_end(&mut bytes)?;
+        Ok(self.add_bytes(name, bytes))
     }
 
-    pub fn bytes(&self, at: SourceRef) -> IoResult<impl Iterator<Item = u8>> {
-        File::open(&self.0[at]).map(|file| file.bytes().flat_map(Result::ok))
+    pub fn get_name(&self, at: SourceRef) -> &Path {
+        &self.0[at].0
+    }
+
+    pub fn take_bytes(&mut self, at: SourceRef) -> Vec<u8> {
+        self.0[at].1.take().unwrap()
+    }
+
+    pub fn put_back_bytes(&mut self, at: SourceRef, bytes: Vec<u8>) {
+        self.0[at].1 = Some(bytes);
     }
 }
 

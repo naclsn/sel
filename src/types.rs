@@ -112,7 +112,6 @@ impl TypeList {
         at: TypeRef,
         already_done: &mut HashMap<usize, usize>,
     ) -> TypeRef {
-        println!("{at}, {:?}", self.0);
         if let Some(done) = already_done.get(&at) {
             return *done;
         }
@@ -182,7 +181,7 @@ impl TypeList {
         }
     }
 
-    pub fn frozen(&self, at: TypeRef) -> FrozenType {
+    pub(crate) fn frozen(&self, at: TypeRef) -> FrozenType {
         match self.get(at) {
             Type::Number => FrozenType::Number,
             Type::Bytes(b) => FrozenType::Bytes(self.freeze_finite(*b)),
