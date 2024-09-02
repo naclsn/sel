@@ -134,9 +134,8 @@ fn parse_from_args(mut args: Peekable<Args>, global: &mut Global) -> Option<(Fro
     let result = parse::process(global.registry.add_bytes(name, bytes), &mut global.registry);
 
     if !result.errors.is_empty() {
-        // NOTE: err reporting will surely be misleading
-        // for some inputs (eg. misplaced indicators)
-        let cache = Source::from("TODO");
+        // NOTE: err reporting will surely be misleading for some inputs (eg. misplaced indicators)
+        let cache = Source::from(String::from_utf8_lossy(global.registry.get_bytes(1)));
         let mut n = 0;
         for e in result.errors {
             e.pretty().eprint(cache.clone()).unwrap();

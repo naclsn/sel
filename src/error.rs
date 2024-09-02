@@ -8,10 +8,11 @@ use ariadne::{ColorGenerator, Label, Report, ReportBuilder, ReportKind};
 use crate::parse::{Applicable, TokenKind};
 use crate::types::FrozenType;
 
+// source registry {{{
 pub type SourceRef = usize;
 
 #[derive(PartialEq, Debug, Clone)]
-pub struct Location(/*pub SourceRef,*/ pub usize);
+pub struct Location(pub SourceRef, pub Range<usize>);
 
 pub struct SourceRegistry(Vec<(PathBuf, Option<Vec<u8>>)>);
 
@@ -40,6 +41,10 @@ impl SourceRegistry {
         &self.0[at].0
     }
 
+    pub fn get_bytes(&self, at: SourceRef) -> &[u8] {
+        self.0[at].1.as_ref().unwrap()
+    }
+
     pub fn take_bytes(&mut self, at: SourceRef) -> Vec<u8> {
         self.0[at].1.take().unwrap()
     }
@@ -48,7 +53,9 @@ impl SourceRegistry {
         self.0[at].1 = Some(bytes);
     }
 }
+// }}}
 
+// error types {{{
 #[derive(PartialEq, Debug)]
 pub enum ErrorContext {
     Unmatched {
@@ -138,11 +145,11 @@ impl IntoIterator for ErrorList {
 }
 
 impl ErrorList {
-    pub fn new() -> ErrorList {
+    pub(crate) fn new() -> ErrorList {
         ErrorList(Vec::new())
     }
 
-    pub fn push(&mut self, err: Error) {
+    pub(crate) fn push(&mut self, err: Error) {
         self.0.push(err);
     }
 
@@ -150,6 +157,7 @@ impl ErrorList {
         self.0.is_empty()
     }
 }
+// }}}
 
 impl Error {
     fn get_builder(&self, colors: &mut ColorGenerator) -> ReportBuilder<Range<usize>> {
@@ -160,9 +168,9 @@ impl Error {
         let r = if let ContextCaused { error, because: _ } = &self.1 {
             error.get_builder(colors)
         } else {
-            Report::build(ReportKind::Error, (), self.0 .0)
+            Report::build(ReportKind::Error, (), self.0 .1.start)
         };
-        let l = Label::new(self.0 .0..self.0 .0 + 1).with_color(colors.next());
+        let l = Label::new(self.0 .1.clone()).with_color(colors.next());
 
         match &self.1 {
             ContextCaused { error: _, because } => match because {
@@ -218,13 +226,13 @@ impl Error {
                         },
                     )))
                     .with_label(
-                        Label::new(comma_loc.0..comma_loc.0 + 1)
+                        Label::new(comma_loc.1.clone())
                             .with_color(colors.next())
                             .with_message("chained through here"),
                     ),
                 ChainedFromToNotFunc { comma_loc } => {
                     r.with_label(l.with_message("Not a function")).with_label(
-                        Label::new(comma_loc.0..comma_loc.0 + 1)
+                        Label::new(comma_loc.1.clone())
                             .with_color(colors.next())
                             .with_message("chained through here"),
                     )

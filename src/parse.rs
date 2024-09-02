@@ -8,6 +8,20 @@ use crate::error::{
 };
 use crate::types::{FrozenType, Type, TypeList, TypeRef};
 
+pub struct Processed {
+    pub errors: ErrorList,
+    pub scope: Scope<(Tree, String)>,
+    pub tree: Option<(FrozenType, Tree)>,
+}
+
+pub fn process(source: SourceRef, registry: &mut SourceRegistry) -> Processed {
+    let bytes = registry.take_bytes(source);
+    let r = Parser::new(source, registry, bytes.iter().copied()).parse();
+    registry.put_back_bytes(source, bytes);
+    r
+}
+
+// other types {{{
 #[derive(PartialEq, Debug, Clone)]
 pub enum TokenKind {
     Unknown(String),
@@ -72,19 +86,22 @@ pub struct Scope<T> {
     parent: Option<Box<Scope<T>>>,
     names: HashMap<String, T>,
 }
+// }}}
 
 // lexing into tokens {{{
 /// note: this is an infinite iterator (`next()` is never `None`)
 pub(crate) struct Lexer<I: Iterator<Item = u8>> {
     stream: Peekable<Enumerate<I>>,
-    last_loc: Option<Location>,
+    source: SourceRef,
+    last_at: usize,
 }
 
 impl<I: Iterator<Item = u8>> Lexer<I> {
-    pub(crate) fn new(iter: I) -> Self {
+    pub(crate) fn new(source: SourceRef, iter: I) -> Self {
         Self {
             stream: iter.enumerate().peekable(),
-            last_loc: None,
+            source,
+            last_at: 0,
         }
     }
 }
@@ -95,147 +112,140 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
     fn next(&mut self) -> Option<Self::Item> {
         use TokenKind::*;
 
-        if let Some(last) = &self.last_loc {
-            return Some(Token(last.clone(), End));
-        }
-        let Some(&(last, _)) = self.stream.peek() else {
-            if self.last_loc.is_none() {
-                self.last_loc = Some(Location(0));
-            }
-            return self.next();
-        };
-        let Some((loc, byte)) = self.stream.find(|c| !c.1.is_ascii_whitespace()) else {
-            self.last_loc = Some(Location(last));
-            return Some(Token(Location(last), End));
+        let Some((at, byte)) = self.stream.find(|c| !c.1.is_ascii_whitespace()) else {
+            let range = self.last_at..self.last_at;
+            return Some(Token(Location(self.source, range), End));
         };
 
-        Some(Token(
-            Location(loc),
-            match byte {
-                b':' => Bytes({
-                    iter::from_fn(|| match (self.stream.next(), self.stream.peek()) {
-                        (Some((_, b':')), Some((_, b':'))) => {
-                            self.stream.next();
-                            Some(b':')
-                        }
-                        (Some((_, b':')), _) => None,
-                        (pair, _) => pair.map(|c| c.1),
-                    })
-                    .collect()
-                }),
-
-                b',' => Comma,
-                b'[' => OpenBracket,
-                b']' => CloseBracket,
-                b'{' => OpenBrace,
-                b'}' => CloseBrace,
-                b'=' => Equal,
-                b';' => Semicolon,
-
-                b'#' => {
-                    self.stream.find(|c| b'\n' == c.1)?;
-                    return self.next();
-                }
-                b'_' => Word("_".into()), // ..keeping this case for those that are used to it
-
-                c if c.is_ascii_lowercase() || b'-' == c => {
-                    let w = String::from_utf8(
-                        iter::once(c)
-                            .chain(iter::from_fn(|| {
-                                self.stream
-                                    .next_if(|c| c.1.is_ascii_lowercase() || b'-' == c.1)
-                                    .map(|c| c.1)
-                            }))
-                            .collect(),
-                    )
-                    .unwrap();
-                    match w.as_str() {
-                        "def" => Def,
-                        "let" => Let,
-                        "use" => Use,
-                        _ => Word(w),
+        let (len, tok) = match byte {
+            b':' => {
+                let mut doubles = 2;
+                let b: Vec<u8> = iter::from_fn(|| match (self.stream.next(), self.stream.peek()) {
+                    (Some((_, b':')), Some((_, b':'))) => {
+                        doubles += 1;
+                        self.stream.next();
+                        Some(b':')
                     }
+                    (Some((_, b':')), _) => None,
+                    (pair, _) => pair.map(|c| c.1),
+                })
+                .collect();
+                (b.len() + doubles, Bytes(b))
+            }
+
+            b',' => (1, Comma),
+            b'[' => (1, OpenBracket),
+            b']' => (1, CloseBracket),
+            b'{' => (1, OpenBrace),
+            b'}' => (1, CloseBrace),
+            b'=' => (1, Equal),
+            b';' => (1, Semicolon),
+
+            b'#' => {
+                self.stream.find(|c| {
+                    self.last_at = c.0;
+                    b'\n' == c.1
+                })?;
+                return self.next();
+            }
+            b'_' => (1, Word("_".into())),
+
+            c if c.is_ascii_lowercase() || b'-' == c => {
+                let b: Vec<u8> = iter::once(c)
+                    .chain(iter::from_fn(|| {
+                        self.stream
+                            .next_if(|c| c.1.is_ascii_lowercase() || b'-' == c.1)
+                            .map(|c| c.1)
+                    }))
+                    .collect();
+                (
+                    b.len(),
+                    match &b[..] {
+                        b"def" => Def,
+                        b"let" => Let,
+                        b"use" => Use,
+                        _ => Word(String::from_utf8(b).unwrap()),
+                    },
+                )
+            }
+
+            c if c.is_ascii_digit() => {
+                let mut r = 0;
+                let mut l = 1;
+
+                let (shift, digits) = match (c, self.stream.peek()) {
+                    (b'0', Some((_, b'B' | b'b'))) => (1, b"01".as_slice()),
+                    (b'0', Some((_, b'O' | b'o'))) => (3, b"01234567".as_slice()),
+                    (b'0', Some((_, b'X' | b'x'))) => (4, b"0123456789abcdef".as_slice()),
+                    _ => (0, b"0123456789".as_slice()),
+                };
+                if 0 == shift {
+                    r = c as usize - 48;
+                } else {
+                    l += 1;
+                    self.stream.next();
                 }
 
-                c if c.is_ascii_digit() => Number({
-                    let mut r = 0usize;
-                    let (shift, digits) = match (c, self.stream.peek()) {
-                        (b'0', Some((_, b'B' | b'b'))) => {
-                            self.stream.next();
-                            (1, b"01".as_slice())
-                        }
-                        (b'0', Some((_, b'O' | b'o'))) => {
-                            self.stream.next();
-                            (3, b"01234567".as_slice())
-                        }
-                        (b'0', Some((_, b'X' | b'x'))) => {
-                            self.stream.next();
-                            (4, b"0123456789abcdef".as_slice())
-                        }
+                while let Some(k) = self
+                    .stream
+                    .peek()
+                    .and_then(|c| digits.iter().position(|&k| k == c.1 | 32))
+                {
+                    l += 1;
+                    self.stream.next();
+                    r = if 0 == shift {
+                        r * 10 + k
+                    } else {
+                        r << shift | k
+                    };
+                }
+
+                let r = if 0 == shift && self.stream.peek().is_some_and(|c| b'.' == c.1) {
+                    l += 2;
+                    self.stream.next();
+                    let mut d = match self.stream.next() {
+                        Some(c) if c.1.is_ascii_digit() => (c.1 - b'0') as usize,
                         _ => {
-                            r = c as usize - 48;
-                            (0, b"0123456789".as_slice())
+                            self.last_at = at + l;
+                            let t = r.to_string() + ".";
+                            return Some(Token(Location(self.source, at..at + l), Unknown(t)));
                         }
                     };
-                    while let Some(k) = self
-                        .stream
-                        .peek()
-                        .and_then(|c| digits.iter().position(|&k| k == c.1 | 32))
-                    {
+                    let mut w = 10;
+                    while let Some(c) = self.stream.peek().map(|c| c.1).filter(u8::is_ascii_digit) {
+                        l += 1;
                         self.stream.next();
-                        r = if 0 == shift {
-                            r * 10 + k
-                        } else {
-                            r << shift | k
-                        };
+                        d = d * 10 + (c - b'0') as usize;
+                        w *= 10;
                     }
-                    if 0 == shift && self.stream.peek().is_some_and(|c| b'.' == c.1) {
-                        self.stream.next();
-                        let mut d = match self.stream.next() {
-                            Some(c) if c.1.is_ascii_digit() => (c.1 - b'0') as usize,
-                            _ => return Some(Token(Location(loc), Unknown(r.to_string() + "."))),
-                        };
-                        let mut w = 10usize;
-                        while let Some(c) =
-                            self.stream.peek().map(|c| c.1).filter(u8::is_ascii_digit)
-                        {
-                            self.stream.next();
-                            d = d * 10 + (c - b'0') as usize;
-                            w *= 10;
-                        }
-                        r as f64 + (d as f64 / w as f64)
-                    } else {
-                        r as f64
-                    }
-                }),
+                    r as f64 + (d as f64 / w as f64)
+                } else {
+                    r as f64
+                };
 
-                c => Unknown(
-                    String::from_utf8_lossy({
-                        let chclass = c.is_ascii_alphanumeric();
-                        &iter::once(c)
-                            .chain(iter::from_fn(|| {
-                                self.stream
-                                    .next_if(|c| {
-                                        c.1.is_ascii_alphanumeric() == chclass
-                                            && !c.1.is_ascii_whitespace()
-                                    })
-                                    .map(|c| c.1)
-                            }))
-                            .collect::<Vec<_>>()
-                    })
-                    .into_owned(),
-                ),
-            },
-        ))
+                (l, Number(r))
+            }
+
+            c => {
+                let chclass = c.is_ascii_alphanumeric();
+                let b: Vec<u8> = iter::once(c)
+                    .chain(iter::from_fn(|| {
+                        self.stream
+                            .next_if(|c| {
+                                c.1.is_ascii_alphanumeric() == chclass && !c.1.is_ascii_whitespace()
+                            })
+                            .map(|c| c.1)
+                    }))
+                    .collect();
+                (b.len(), Unknown(String::from_utf8_lossy(&b).into_owned()))
+            }
+        };
+
+        self.last_at = at + len;
+        Some(Token(Location(self.source, at..at + len), tok))
     }
 }
 // }}}
-
-pub struct Processed {
-    pub errors: ErrorList,
-    pub scope: Scope<(Tree, String)>,
-    pub tree: Option<(FrozenType, Tree)>,
-}
 
 // parsing into tree {{{
 pub struct Parser<'a, I: Iterator<Item = u8>> {
@@ -415,7 +425,7 @@ impl<T> Scope<T> {
 impl<I: Iterator<Item = u8>> Parser<'_, I> {
     pub fn new(source: SourceRef, registry: &mut SourceRegistry, bytes: I) -> Parser<I> {
         Parser {
-            peekable: Lexer::new(bytes.into_iter()).peekable(),
+            peekable: Lexer::new(source, bytes.into_iter()).peekable(),
             types: TypeList::default(),
             source,
             registry,
@@ -514,7 +524,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 };
                 // anything, doesn't mater what, this is the easiest..
                 args.push(Tree {
-                    loc: Location(0),
+                    loc: Location(self.source, 0..0),
                     ty: self.types.number(),
                     value: TreeKind::Number(0.0),
                 });
@@ -715,7 +725,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
 
         let first_token = self.next_tok();
 
-        let loc = first_token.0.clone();
+        let mut loc = first_token.0.clone();
         let (ty, value) = match first_token.1 {
             Word(w) => match self
                 .result
@@ -767,7 +777,10 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             OpenBracket => {
                 let Tree { loc: _, ty, value } = self.parse_script();
                 match self.peek_tok() {
-                    Token(_, CloseBracket) => self.skip_tok(),
+                    Token(close_loc, CloseBracket) => {
+                        loc.1.end = close_loc.1.end;
+                        self.skip_tok()
+                    }
                     other @ Token(_, kind) => {
                         let skip = Comma == *kind;
                         let err = err_unexpected(
@@ -789,7 +802,10 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 let ty = self.types.named("itemof(typeof({}))");
 
                 while match self.peek_tok() {
-                    Token(_, CloseBrace) => false,
+                    Token(close_loc, CloseBrace) => {
+                        loc.1.end = close_loc.1.end;
+                        false
+                    }
 
                     #[allow(unreachable_patterns)] // because of 'CloseBrace'
                     term @ Token(_, TermToken!()) => {
@@ -837,6 +853,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 let res_ty = result.ty;
 
                 let fallback = if let Token(_, TermToken!()) = self.peek_tok() {
+                    loc.1.end = result.loc.1.end;
                     None
                 } else {
                     let then = self.parse_value();
@@ -856,6 +873,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                         ))
                     });
 
+                    loc.1.end = then.loc.1.end;
                     Some(Box::new(then))
                 };
                 self.result.scope = *self.result.scope.parent.take().unwrap();
@@ -885,10 +903,11 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
         };
         let fst = Tree { loc, ty, value };
 
-        if let Token(equal_loc, Equal) = self.peek_tok() {
-            let loc = equal_loc.clone();
+        if let Token(_, Equal) = self.peek_tok() {
             self.skip_tok();
             let snd = self.parse_value();
+            let mut loc = fst.loc.clone();
+            loc.1.end = snd.loc.1.end;
             let ty = self.types.pair(fst.ty, snd.ty);
             let value = TreeKind::Pair(Box::new(fst), Box::new(snd));
             Tree { loc, ty, value }
@@ -897,6 +916,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
         }
     }
 
+    // xxx: should it be updating the location ranges as it find more arguments?
     fn parse_apply(&mut self) -> Tree {
         use TokenKind::*;
         let mut r = self.parse_value();
@@ -906,14 +926,18 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             //  `-> (,)((,)(tonum, add(1)), tostr)
             // `-> (,)((,)(tonum(:[52, 50]:), add(1)), tostr)
             // => tostr(add(1, tonum(:[52, 50]:)))
-            fn apply_maybe_unfold(p: &mut Parser<impl Iterator<Item = u8>>, func: Tree) -> Tree {
+            fn apply_maybe_unfold(
+                p: &mut Parser<impl Iterator<Item = u8>>,
+                func: Tree,
+                new_end: &mut usize,
+            ) -> Tree {
                 match func.value {
                     TreeKind::Apply(Applicable::Name(name), args) if "pipe" == name => {
                         let mut args = args.into_iter();
                         let (f, g) = (args.next().unwrap(), args.next().unwrap());
                         // (,)(f, g) => g(f(..))
-                        let fx = apply_maybe_unfold(p, f);
-                        // ucannot fail:
+                        let fx = apply_maybe_unfold(p, f, new_end);
+                        // cannot fail:
                         //     with f :: a -> b and g :: b -> c
                         //     apply_maybe_unfold(p, f) :: b
                         p.try_apply(g, fx, None)
@@ -921,20 +945,24 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     TreeKind::Apply(_, _)
                         if matches!(p.types.get(func.ty), Type::Func(_, _) | Type::Named(_)) =>
                     {
-                        // XXX: does it need `snapshot` here?
+                        // xxx: does it need `snapshot` here?
                         let x = p.parse_value();
+                        *new_end = x.loc.1.end;
                         // err_context_as_nth_arg: `func` is a function (matches ::Apply)
                         p.try_apply(func, x, None)
                     }
                     _ => {
-                        drop(p.parse_value());
+                        let x = p.parse_value();
+                        *new_end = x.loc.1.end;
                         let e = err_not_func(&p.types, &func);
                         p.report(Error(func.loc.clone(), e));
                         func
                     }
                 }
             }
-            r = apply_maybe_unfold(self, r);
+            let mut new_end = r.loc.1.end;
+            r = apply_maybe_unfold(self, r, &mut new_end);
+            r.loc.1.end = new_end;
         }
         r
     }
@@ -1003,23 +1031,25 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
     }
 
     pub fn parse(mut self) -> Processed {
+        use TokenKind::*;
+
         // use section
-        while let Token(_, TokenKind::Use) = self.peek_tok() {
-            let Token(loc, _) = self.next_tok();
-            let (file, asname) = match (self.next_tok().1, self.next_tok().1) {
-                (TokenKind::Bytes(source), TokenKind::Word(mut asname)) => {
-                    if "_" == asname {
-                        asname.clear();
+        while let Token(_, Use) = self.peek_tok() {
+            self.skip_tok();
+            let ((file_loc, file), (name_loc, name)) = match (self.next_tok(), self.next_tok()) {
+                (Token(file_loc, Bytes(file)), Token(name_loc, Word(mut name))) => {
+                    if "_" == name {
+                        name.clear();
                     } else {
-                        asname.push('-');
+                        name.push('-');
                     }
-                    (source, asname)
+                    ((file_loc, file), (name_loc, name))
                 }
-                (TokenKind::Bytes(_), other) | (other, _) => {
+                (Token(_, Bytes(_)), other) | (other, _) => {
                     self.report(Error(
-                        loc,
+                        other.0,
                         ErrorKind::Unexpected {
-                            token: other,
+                            token: other.1,
                             expected: "file path and identifier after 'use' keyword",
                         },
                     ));
@@ -1032,7 +1062,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    self.report(Error(loc, ErrorKind::CouldNotReadFile { error }));
+                    self.report(Error(file_loc, ErrorKind::CouldNotReadFile { error }));
                     continue;
                 }
             };
@@ -1043,23 +1073,21 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 .scope
                 .names
                 .extend(res.scope.names.into_iter().map(|mut a| {
-                    a.0.insert_str(0, &asname);
+                    a.0.insert_str(0, &name);
                     a
                 }));
         }
 
         // def section
-        while let Token(_, TokenKind::Def) = self.peek_tok() {
-            let Token(loc, _) = self.next_tok();
-            let (name, desc) = match (self.next_tok().1, self.next_tok().1) {
-                (TokenKind::Word(name), TokenKind::Bytes(desc)) => {
-                    (name, String::from_utf8_lossy(&desc).into_owned())
-                }
-                (TokenKind::Word(_), other) | (other, _) => {
+        while let Token(_, Def) = self.peek_tok() {
+            self.skip_tok();
+            let (loc, name, desc) = match (self.next_tok(), self.next_tok()) {
+                (Token(loc, Word(name)), Token(_, Bytes(desc))) => (loc, name, desc),
+                (Token(_, Word(_)), other) | (other, _) => {
                     self.report(Error(
-                        loc,
+                        other.0,
                         ErrorKind::Unexpected {
-                            token: other,
+                            token: other.1,
                             expected: "name and description after 'def' keyword",
                         },
                     ));
@@ -1068,6 +1096,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             };
 
             let val = self.parse_script();
+            let desc = String::from_utf8_lossy(&desc).into_owned();
             if let Some(e) = self
                 .result
                 .scope
@@ -1078,7 +1107,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             }
 
             match self.peek_tok() {
-                Token(_, TokenKind::Semicolon) => self.skip_tok(),
+                Token(_, Semicolon) => self.skip_tok(),
                 other @ Token(_, _) => {
                     let err = err_unexpected(other, "';' after definition", None);
                     self.report(err);
@@ -1087,7 +1116,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
         }
 
         // script section
-        let mut r = if let Token(_, TokenKind::End) = self.peek_tok() {
+        let mut r = if let Token(_, End) = self.peek_tok() {
             None
         } else {
             Some(self.parse_script())
@@ -1114,13 +1143,6 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
     }
 }
 // }}}
-
-pub fn process(source: SourceRef, registry: &mut SourceRegistry) -> Processed {
-    let bytes = registry.take_bytes(source);
-    let r = Parser::new(source, registry, bytes.iter().copied()).parse();
-    registry.put_back_bytes(source, bytes);
-    r
-}
 
 #[cfg(test)]
 impl Tree {
