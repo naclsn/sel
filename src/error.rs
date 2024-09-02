@@ -1,9 +1,37 @@
+use std::fs::File;
+use std::io::{Read, Result as IoResult};
 use std::ops::Range;
 
 use ariadne::{ColorGenerator, Label, Report, ReportBuilder, ReportKind};
 
-use crate::parse::{Applicable, Location, TokenKind};
+use crate::parse::{Applicable, TokenKind};
 use crate::types::FrozenType;
+
+pub type SourceRef = usize;
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Location(/*pub SourceRef,*/ pub usize);
+
+pub struct SourceRegistry(Vec<String>);
+
+impl SourceRegistry {
+    pub fn new() -> SourceRegistry {
+        SourceRegistry(Vec::new())
+    }
+
+    pub fn push(&mut self, name: String) -> SourceRef {
+        self.0.push(name);
+        self.0.len() - 1
+    }
+
+    pub fn get(&self, at: SourceRef) -> &String {
+        &self.0[at]
+    }
+
+    pub fn bytes(&self, at: SourceRef) -> IoResult<impl Iterator<Item = u8>> {
+        File::open(&self.0[at]).map(|file| file.bytes().flat_map(Result::ok))
+    }
+}
 
 #[derive(PartialEq, Debug)]
 pub enum ErrorContext {
@@ -73,6 +101,9 @@ pub enum ErrorKind {
     NameAlreadyDeclared {
         name: String,
     },
+    CouldNotReadFile {
+        error: String,
+    },
 }
 
 #[derive(PartialEq, Debug)]
@@ -125,7 +156,7 @@ impl Error {
                         OpenBracket => '[',
                         OpenBrace => '{',
                         Unknown(_) | Word(_) | Bytes(_) | Number(_) | Comma | CloseBracket
-                        | CloseBrace | Equal | Def | Let | Semicolon | End => unreachable!(),
+                        | CloseBrace | Equal | Def | Let | Use | Semicolon | End => unreachable!(),
                     }
                 ))),
                 CompleteType { complete_type } => {
@@ -215,6 +246,7 @@ impl Error {
                             Equal => "=",
                             Def => "def",
                             Let => "let",
+                            Use => "use",
                             Semicolon => ";",
                             End => "end of script",
                         }
@@ -255,6 +287,9 @@ impl Error {
             NameAlreadyDeclared { name } => r
                 .with_message("Name used twice")
                 .with_label(l.with_message(format!("Name {name} was already declared"))),
+            CouldNotReadFile { error } => r
+                .with_message("Could not read file")
+                .with_label(l.with_message(format!("<< {error} >>"))),
         }
     }
 

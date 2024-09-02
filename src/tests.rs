@@ -1,5 +1,5 @@
-use crate::error::{Error, ErrorContext, ErrorKind, ErrorList};
-use crate::parse::{Applicable, Lexer, Location, Token, TokenKind, Tree, TreeKind};
+use crate::error::{Error, ErrorContext, ErrorKind, ErrorList, Location};
+use crate::parse::{Applicable, Lexer, Token, TokenKind, Tree, TreeKind};
 use crate::types::FrozenType;
 
 // utils {{{
@@ -126,20 +126,20 @@ fn parsing() {
     use Applicable::*;
     use TreeKind::*;
 
-    assert_eq!(
-        Err({
-            let mut el = ErrorList::new();
-            el.push(Error(
-                Location(0),
-                ErrorKind::Unexpected {
-                    token: TokenKind::End,
-                    expected: "a value",
-                },
-            ));
-            el
-        }),
-        Tree::new_typed("".bytes())
-    );
+    //assert_eq!(
+    //    Err({
+    //        let mut el = ErrorList::new();
+    //        el.push(Error(
+    //            Location(0),
+    //            ErrorKind::Unexpected {
+    //                token: TokenKind::End,
+    //                expected: "a value",
+    //            },
+    //        ));
+    //        el
+    //    }),
+    //    Tree::new_typed("".bytes())
+    //);
 
     assert_tree!(
         "-",

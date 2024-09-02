@@ -52,11 +52,13 @@ TLDR:
 - `f, g` is `g(f(..))` (or `pipe f g` or `[flip compose] g f`)
 
 Special characters and keywords:
-`,` `:` `;` `=` `[` `]` `_` `def` `let` `{` `}`
+`,` `:` `;` `=` `[` `]` `_` `def` `let` `use` `{` `}`
 
-2 special forms:
+3 special forms:
 - `def name :description: value` will define a new name
   that essentially replaces by value where it is used;
+- `use :some/file: f` will 'import' all the defined names
+  from the file as `f-<name>` (or as is if using `_`);
 - `let pattern result fallback` will make a function of one
   argument that computes result if pattern matches, pattern
   can introduces names (eg `let {a, b,, rest} [add a b]`,
@@ -65,8 +67,7 @@ Special characters and keywords:
 
 Here is the complete syntax:
 ```bnf
-top ::= <script> | <define> {<define>} [<script>]
-define ::= 'def' <word> <bytes> <script> ';'
+top ::= {'use' <bytes> <word>} {'def' <word> <bytes> <script> ';'} [<script>]
 script ::= <apply> {',' <apply>}
 
 apply ::= <binding> | <value> {<value>}
@@ -199,6 +200,7 @@ Rust,
 - `{1, 2, 3}, let {h,, t} h` type broken
 - `add 1, map, flip apply {1, 2, 3}` type and run broken
 - `let 0 fst snd` type broken
+- `add 1, let a [a 1]` run broken
 
 ### need to move to multi-file support
 

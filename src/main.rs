@@ -204,7 +204,6 @@ fn do_repl() {
                 continue;
             }
             _ => {
-                eprintln!("[[{line}]]");
                 match Tree::new_typed(line.bytes()) {
                     Ok((ty, tree)) => do_the_thing(&ty, &tree),
                     Err(err) => err

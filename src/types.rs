@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
 use crate::error::ErrorKind;
@@ -9,7 +10,7 @@ const FINITE_TYPEREF: usize = 2;
 pub type TypeRef = usize;
 pub type Boundedness = usize;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub(crate) enum Type {
     Number,
     Bytes(Boundedness),
@@ -80,6 +81,7 @@ impl TypeList {
     pub fn pair(&mut self, fst: TypeRef, snd: TypeRef) -> TypeRef {
         self.push(Type::Pair(fst, snd))
     }
+    // TODO: maybe change for String
     pub fn named(&mut self, name: &str) -> TypeRef {
         self.push(Type::Named(name.to_string()))
     }
@@ -103,6 +105,66 @@ impl TypeList {
 
     pub(crate) fn get_mut(&mut self, at: TypeRef) -> &mut Type {
         self.0[at].as_mut().unwrap()
+    }
+
+    pub(crate) fn duplicate(
+        &mut self,
+        at: TypeRef,
+        already_done: &mut HashMap<usize, usize>,
+    ) -> TypeRef {
+        println!("{at}, {:?}", self.0);
+        if let Some(done) = already_done.get(&at) {
+            return *done;
+        }
+        let r = match *self.get(at) {
+            Type::Number => self.number(),
+            Type::Bytes(f) => {
+                let f = self.duplicate(f, already_done);
+                self.bytes(f)
+            }
+            Type::List(f, i) => {
+                let (f, i) = (
+                    self.duplicate(f, already_done),
+                    self.duplicate(i, already_done),
+                );
+                self.list(f, i)
+            }
+            Type::Func(p, r) => {
+                let (p, r) = (
+                    self.duplicate(p, already_done),
+                    self.duplicate(r, already_done),
+                );
+                self.func(p, r)
+            }
+            Type::Pair(f, s) => {
+                let (f, s) = (
+                    self.duplicate(f, already_done),
+                    self.duplicate(s, already_done),
+                );
+                self.pair(f, s)
+            }
+            Type::Named(ref n) => {
+                let n = n.clone();
+                self.named(&n)
+            }
+            Type::Finite(i) => self.finite(i),
+            Type::FiniteBoth(l, r) => {
+                let (l, r) = (
+                    self.duplicate(l, already_done),
+                    self.duplicate(r, already_done),
+                );
+                self.both(l, r)
+            }
+            Type::FiniteEither(l, r) => {
+                let (l, r) = (
+                    self.duplicate(l, already_done),
+                    self.duplicate(r, already_done),
+                );
+                self.either(l, r)
+            }
+        };
+        already_done.insert(at, r);
+        r
     }
 
     fn freeze_finite(&self, at: Boundedness) -> bool {

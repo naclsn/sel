@@ -19,6 +19,8 @@ fu s:sel_ft()
   sy region  selDefBegin start=/\zs/ matchgroup=selDefEnd end=/;/ contains=selDefMiss,@selPlain,selLet fold contained
   sy match   selDefMiss  /\<def\>/
 
+  sy keyword selUse      use
+
   hi def link selComment  Comment
   hi def link selTodo     Todo
   hi def link selNumber   Number
@@ -33,6 +35,8 @@ fu s:sel_ft()
   hi def link selDefDesc  SpecialComment
   hi def link selDefEnd   Keyword
   hi def link selDefMiss  Error
+
+  hi def link selUse      Keyword
 endf
 
 aug filetypedetect

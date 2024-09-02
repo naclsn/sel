@@ -1,12 +1,12 @@
 use std::collections::HashMap;
-use std::iter;
+use std::iter::{self, Enumerate, Peekable};
+use std::mem::{self, MaybeUninit};
 
 use crate::builtin;
-use crate::error::{Error, ErrorContext, ErrorKind, ErrorList};
+use crate::error::{
+    Error, ErrorContext, ErrorKind, ErrorList, Location, SourceRef, SourceRegistry,
+};
 use crate::types::{FrozenType, Type, TypeList, TypeRef};
-
-#[derive(PartialEq, Debug, Clone)]
-pub struct Location(pub(crate) usize);
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum TokenKind {
@@ -22,6 +22,7 @@ pub enum TokenKind {
     Equal,
     Def,
     Let,
+    Use,
     Semicolon,
     End,
 }
@@ -66,15 +67,16 @@ pub enum Pattern {
     Pair(Box<Pattern>, Box<Pattern>),
 }
 
-struct Scope {
-    parent: Option<Box<Scope>>,
-    names: HashMap<String, (Location, TypeRef)>,
+#[derive(Debug)]
+struct Scope<T> {
+    parent: Option<Box<Scope<T>>>,
+    names: HashMap<String, T>,
 }
 
 // lexing into tokens {{{
 /// note: this is an infinite iterator (`next()` is never `None`)
 pub(crate) struct Lexer<I: Iterator<Item = u8>> {
-    stream: iter::Peekable<iter::Enumerate<I>>,
+    stream: Peekable<Enumerate<I>>,
     last_loc: Option<Location>,
 }
 
@@ -150,6 +152,7 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
                     match w.as_str() {
                         "def" => Def,
                         "let" => Let,
+                        "use" => Use,
                         _ => Word(w),
                     }
                 }
@@ -229,11 +232,13 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
 // }}}
 
 // parsing into tree {{{
-struct Parser<I: Iterator<Item = u8>> {
-    peekable: iter::Peekable<Lexer<I>>,
+struct Parser<'a, I: Iterator<Item = u8>> {
+    peekable: Peekable<Lexer<I>>,
     types: TypeList,
     errors: ErrorList,
-    scope: Scope,
+    scope: Scope<(Tree, String)>,
+    source: SourceRef,
+    registry: &'a mut SourceRegistry,
 }
 
 // error reportig helpers {{{
@@ -353,54 +358,64 @@ fn err_list_type_mismatch(
         },
     )
 }
+
+fn err_already_declared(
+    types: &TypeList,
+    name: String,
+    new_loc: Location,
+    previous: &(Tree, String),
+) -> Error {
+    let previous = &previous.0;
+    Error(
+        previous.loc.clone(),
+        ErrorKind::ContextCaused {
+            error: Box::new(Error(new_loc, ErrorKind::NameAlreadyDeclared { name })),
+            because: ErrorContext::DeclaredHereWithType {
+                with_type: types.frozen(previous.ty),
+            },
+        },
+    )
+}
 // }}}
 
-impl Scope {
-    fn new(parent: Option<Scope>) -> Scope {
+impl<T> Scope<T> {
+    fn new(parent: Option<Scope<T>>) -> Scope<T> {
         Scope {
             parent: parent.map(Box::new),
             names: HashMap::new(),
         }
     }
 
-    fn declare(
-        &mut self,
-        name: String,
-        loc: Location,
-        ty: TypeRef,
-        types: &TypeList,
-    ) -> Result<(), Error> {
-        if let Some((ploc, pty)) = self.names.get(&name) {
-            Err(Error(
-                ploc.clone(),
-                ErrorKind::ContextCaused {
-                    error: Box::new(Error(loc, ErrorKind::NameAlreadyDeclared { name })),
-                    because: ErrorContext::DeclaredHereWithType {
-                        with_type: types.frozen(*pty),
-                    },
-                },
-            ))
+    fn declare(&mut self, name: String, value: T) -> Option<&T> {
+        let mut already = false;
+        let r = self
+            .names
+            .entry(name)
+            .and_modify(|_| already = true)
+            .or_insert_with(|| value);
+        if already {
+            Some(r)
         } else {
-            self.names.insert(name, (loc, ty));
-            Ok(())
+            None
         }
     }
 
-    fn lookup(&self, name: &str) -> Option<(Location, TypeRef)> {
+    fn lookup(&self, name: &str) -> Option<&T> {
         self.names
             .get(name)
-            .cloned()
             .or_else(|| self.parent.as_ref()?.lookup(name))
     }
 }
 
-impl<I: Iterator<Item = u8>> Parser<I> {
-    fn new(iter: I) -> Parser<I> {
+impl<I: Iterator<Item = u8>> Parser<'_, I> {
+    pub fn new(registry: &'_ mut SourceRegistry, source: SourceRef, bytes: I) -> Parser<I> {
         Parser {
-            peekable: Lexer::new(iter.into_iter()).peekable(),
+            peekable: Lexer::new(bytes.into_iter()).peekable(),
             types: TypeList::default(),
             errors: ErrorList::new(),
             scope: Scope::new(None),
+            source,
+            registry,
         }
     }
 
@@ -539,14 +554,32 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             );
         }
 
-        let first_token = self.next_tok();
+        fn symbolic_declare(
+            p: &mut Parser<impl Iterator<Item = u8>>,
+            name: &str,
+            loc: Location,
+            ty: TypeRef,
+        ) {
+            let val = Tree {
+                loc: loc.clone(),
+                ty,
+                // anything, doesn't mater what, this is the easiest..
+                value: TreeKind::Number(0.0),
+            };
+            if let Some(e) = p
+                .scope
+                .declare(name.into(), (val, String::new()))
+                .map(|prev| err_already_declared(&p.types, name.into(), loc, prev))
+            {
+                p.report(e);
+            }
+        }
 
+        let first_token = self.next_tok();
         let (fst, fst_ty) = match first_token.1 {
             Word(w) => {
                 let ty = self.types.named(&w);
-                self.scope
-                    .declare(w.clone(), first_token.0.clone(), ty, &self.types)
-                    .unwrap_or_else(|e| self.report(e));
+                symbolic_declare(self, &w, first_token.0.clone(), ty);
                 (Pattern::Name(first_token.0, w), ty)
             }
             Bytes(v) => (Pattern::Bytes(v), {
@@ -625,20 +658,19 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 let ty = self.types.list(fin, ty);
 
                 if let Some((loc, w)) = &rest {
-                    self.scope
-                        .declare(w.clone(), loc.clone(), ty, &self.types)
-                        .unwrap_or_else(|e| self.report(e));
+                    symbolic_declare(self, w, loc.clone(), ty);
                 }
 
                 (Pattern::List(items, rest), ty)
             }
 
-            Def | Let | Unknown(_) => {
+            Def | Let | Use | Unknown(_) => {
                 let loc = first_token.0.clone();
                 let err = err_unexpected(&first_token, "a pattern", None);
                 let t = match &first_token.1 {
                     Def => "def",
                     Let => "let",
+                    Use => "use",
                     Unknown(t) => t,
                     _ => unreachable!(),
                 };
@@ -676,11 +708,15 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
         let loc = first_token.0.clone();
         let (ty, value) = match first_token.1 {
-            Word(w) => match self.scope.lookup(&w).map(|d| d.1).or_else(|| {
-                builtin::NAMES
-                    .get(&w)
-                    .map(|(mkty, _)| mkty(&mut self.types))
-            }) {
+            Word(w) => match self
+                .scope
+                .lookup(&w)
+                .map(|d| self.types.duplicate(d.0.ty, &mut HashMap::new()))
+                .or_else(|| {
+                    builtin::NAMES
+                        .get(&w)
+                        .map(|(mkty, _)| mkty(&mut self.types))
+                }) {
                 Some(ty) => (ty, TreeKind::Apply(Applicable::Name(w), Vec::new())),
                 None => {
                     let r = self.mktypeof(&w);
@@ -699,7 +735,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                                 //       anything with this invalid data, and that we'll have
                                 //       a chance to fix it up before it goes out into the user
                                 //       world
-                                let mut fake_frozen = std::mem::MaybeUninit::zeroed();
+                                let mut fake_frozen = MaybeUninit::zeroed();
                                 *(fake_frozen.as_mut_ptr() as *mut usize) = r.0;
                                 fake_frozen.assume_init()
                             },
@@ -783,7 +819,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             }
 
             Let => {
-                self.scope = Scope::new(Some(std::mem::replace(&mut self.scope, Scope::new(None))));
+                self.scope = Scope::new(Some(mem::replace(&mut self.scope, Scope::new(None))));
                 let (pattern, pat_ty) = self.parse_pattern();
 
                 let result = self.parse_value();
@@ -821,6 +857,11 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             Def => {
                 self.report(Error(first_token.0, ErrorKind::UnexpectedDefInScript));
                 self.mktypeof("def")
+            }
+
+            Use => {
+                self.report(Error(first_token.0, ErrorKind::UnexpectedDefInScript));
+                self.mktypeof("use")
             }
 
             Unknown(ref w) => {
@@ -950,11 +991,105 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         r
     }
 
-    fn parse(mut self) -> Result<(FrozenType, Tree), ErrorList> {
-        let r = self.parse_script();
-        if self.errors.is_empty() {
-            Ok((self.types.frozen(r.ty), r))
+    fn parse(&mut self) -> Option<Tree> {
+        // use section
+        while let Token(_, TokenKind::Use) = self.peek_tok() {
+            let Token(loc, _) = self.next_tok();
+            let (source, asname) = match (self.next_tok().1, self.next_tok().1) {
+                (TokenKind::Bytes(source), TokenKind::Word(mut asname)) => {
+                    if "_" == asname {
+                        asname.clear();
+                    } else {
+                        asname.push('-');
+                    }
+                    (source, asname)
+                }
+                (TokenKind::Bytes(_), other) | (other, _) => {
+                    self.report(Error(
+                        loc,
+                        ErrorKind::Unexpected {
+                            token: other,
+                            expected: "file path and identifier after 'use' keyword",
+                        },
+                    ));
+                    continue;
+                }
+            };
+            let bytes = String::from_utf8(source)
+                .map_err(|e| e.to_string())
+                .and_then(|s| {
+                    let s = self.registry.push(s);
+                    Ok((s, self.registry.bytes(s).map_err(|e| e.to_string())?))
+                });
+            let (source, bytes) = match bytes {
+                Ok(bytes) => bytes,
+                Err(e) => {
+                    self.report(Error(
+                        loc,
+                        ErrorKind::CouldNotReadFile {
+                            error: e.to_string(),
+                        },
+                    ));
+                    continue;
+                }
+            };
+
+            let mut sub = Parser::new(self.registry, source, bytes);
+            sub.parse();
+            self.errors.0.extend(sub.errors);
+            self.scope
+                .names
+                .extend(sub.scope.names.into_iter().map(|mut a| {
+                    a.0.insert_str(0, &asname);
+                    a
+                }));
+        }
+
+        // def section
+        while let Token(_, TokenKind::Def) = self.peek_tok() {
+            let Token(loc, _) = self.next_tok();
+            let (name, desc) = match (self.next_tok().1, self.next_tok().1) {
+                (TokenKind::Word(name), TokenKind::Bytes(desc)) => {
+                    (name, String::from_utf8_lossy(&desc).into_owned())
+                }
+                (TokenKind::Word(_), other) | (other, _) => {
+                    self.report(Error(
+                        loc,
+                        ErrorKind::Unexpected {
+                            token: other,
+                            expected: "name and description after 'def' keyword",
+                        },
+                    ));
+                    continue;
+                }
+            };
+
+            let val = self.parse_script();
+            if let Some(e) = self
+                .scope
+                .declare(name.clone(), (val, desc))
+                .map(|prev| err_already_declared(&self.types, name, loc, prev))
+            {
+                self.report(e);
+            }
+
+            match self.peek_tok() {
+                Token(_, TokenKind::Semicolon) => self.skip_tok(),
+                other @ Token(_, _) => {
+                    let err = err_unexpected(other, "';' after definition", None);
+                    self.report(err);
+                }
+            }
+        }
+
+        // script section
+        let mut r = if let Token(_, TokenKind::End) = self.peek_tok() {
+            None
         } else {
+            Some(self.parse_script())
+        };
+        if !self.errors.is_empty() {
+            r = None;
             // NOTE: this is the receiving end from `parse_value` when a name was not found: this
             //       is the point where we get the usizes again and compute the final FrozenType
             for e in self.errors.0.iter_mut() {
@@ -965,23 +1100,32 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 {
                     let really_usize = frty as *const FrozenType as *const usize;
                     let ty = unsafe { *really_usize };
-                    std::mem::forget(std::mem::replace(frty, self.types.frozen(ty)));
+                    mem::forget(mem::replace(frty, self.types.frozen(ty)));
                 }
             }
-            Err(self.errors)
         }
+        r
     }
 }
 // }}}
 
 impl Tree {
-    #[allow(dead_code)]
-    pub fn new(iter: impl IntoIterator<Item = u8>) -> Result<Tree, ErrorList> {
-        Parser::new(iter.into_iter()).parse().map(|r| r.1)
+    #[deprecated]
+    pub fn new(bytes: impl IntoIterator<Item = u8>) -> Result<Tree, ErrorList> {
+        Tree::new_typed(bytes).map(|r| r.1)
     }
 
-    #[allow(dead_code)]
-    pub fn new_typed(iter: impl IntoIterator<Item = u8>) -> Result<(FrozenType, Tree), ErrorList> {
-        Parser::new(iter.into_iter()).parse()
+    #[deprecated]
+    pub fn new_typed(bytes: impl IntoIterator<Item = u8>) -> Result<(FrozenType, Tree), ErrorList> {
+        let mut reg = SourceRegistry::new();
+        reg.push("".into());
+        let mut p = Parser::new(&mut reg, 0, bytes.into_iter());
+        let r = p.parse();
+        if p.errors.is_empty() && r.is_some() {
+            let r = r.unwrap();
+            Ok((p.types.frozen(r.ty), r))
+        } else {
+            Err(p.errors)
+        }
     }
 }
