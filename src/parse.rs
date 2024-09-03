@@ -1,11 +1,10 @@
-use std::collections::HashMap;
 use std::iter::{self, Enumerate, Peekable};
 use std::mem::{self, MaybeUninit};
 
-use crate::builtin;
 use crate::error::{
     Error, ErrorContext, ErrorKind, ErrorList, Location, SourceRef, SourceRegistry,
 };
+use crate::scope::{Bidoof, Scope};
 use crate::types::{FrozenType, Type, TypeList, TypeRef};
 
 pub struct Processed {
@@ -85,12 +84,6 @@ pub enum Pattern {
     List(Vec<Pattern>, Option<(Location, String)>),
     Name(Location, String),
     Pair(Box<Pattern>, Box<Pattern>),
-}
-
-#[derive(Debug)]
-pub struct Scope {
-    parent: *const Scope,
-    names: HashMap<String, (Tree, String)>,
 }
 // }}}
 
@@ -384,57 +377,30 @@ fn err_already_declared(
     types: &TypeList,
     name: String,
     new_loc: Location,
-    previous: &(Tree, String),
+    previous: &Bidoof,
 ) -> Error {
-    let previous = &previous.0;
     Error(
-        previous.loc.clone(),
+        previous
+            .get_loc()
+            .cloned()
+            .unwrap_or_else(|| new_loc.clone()),
         ErrorKind::ContextCaused {
             error: Box::new(Error(new_loc, ErrorKind::NameAlreadyDeclared { name })),
             because: ErrorContext::DeclaredHereWithType {
-                with_type: types.frozen(previous.ty),
+                with_type: match previous {
+                    Bidoof::Builtin(mkty, _) => {
+                        let mut types = TypeList::default();
+                        let ty = mkty(&mut types);
+                        types.frozen(ty)
+                    }
+                    Bidoof::Defined(val, _) => types.frozen(val.ty),
+                    Bidoof::Binding(_, ty) => types.frozen(*ty),
+                },
             },
         },
     )
 }
 // }}}
-
-impl Scope {
-    fn new(parent: Option<&Scope>) -> Scope {
-        Scope {
-            parent: parent
-                .map(|p| p as *const Scope)
-                .unwrap_or(std::ptr::null()),
-            names: HashMap::new(),
-        }
-    }
-
-    // parent-most englobing scope
-    pub fn global(&self) -> &Scope {
-        unsafe { self.parent.as_ref() }.unwrap_or(self)
-    }
-
-    /// does not insert if the name already existed, returns a reference to the previous value
-    fn declare(&mut self, name: String, value: (Tree, String)) -> Option<&(Tree, String)> {
-        let mut already = false;
-        let r = self
-            .names
-            .entry(name)
-            .and_modify(|_| already = true)
-            .or_insert_with(|| value);
-        if already {
-            Some(r)
-        } else {
-            None
-        }
-    }
-
-    pub fn lookup(&self, name: &str) -> Option<&(Tree, String)> {
-        self.names
-            .get(name)
-            .or_else(|| unsafe { self.parent.as_ref() }?.lookup(name))
-    }
-}
 
 impl<I: Iterator<Item = u8>> Parser<'_, I> {
     pub fn new(
@@ -478,6 +444,27 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
         )
     }
 
+    /// the following names can be looked up when parsing:
+    /// - `pipe`
+    /// - `tonum`
+    /// - `tostr`
+    /// - `codepoints`
+    /// - `graphemes`
+    /// - `uncodepoints`
+    /// - `ungraphemes`
+    fn sure_lookup(&mut self, loc: Location, name: &str) -> Tree {
+        Tree {
+            loc,
+            ty: self
+                .result
+                .scope
+                .lookup(name)
+                .unwrap()
+                .make_type(&mut self.types),
+            value: TreeKind::Apply(Applicable::Name(name.into()), Vec::new()),
+        }
+    }
+
     /// - named to func conversion
     /// - any needed coercion
     /// - if couldn't then still `force_apply`s and err appropriately
@@ -517,12 +504,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             }
             _ => None,
         } {
-            let (mkty, _) = builtin::NAMES.get(w).unwrap();
-            let coerce = Tree {
-                loc: arg.loc.clone(),
-                ty: mkty(&mut self.types),
-                value: TreeKind::Apply(Applicable::Name(w.into()), Vec::new()),
-            };
+            let coerce = self.sure_lookup(arg.loc.clone(), w);
             let fty = self.types.frozen(coerce.ty);
             arg = self.try_apply(coerce, arg, None);
             Some((arg.loc.clone(), w, fty))
@@ -597,16 +579,10 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             loc: Location,
             ty: TypeRef,
         ) {
-            let val = Tree {
-                loc: loc.clone(),
-                ty,
-                // anything, doesn't mater what, this is the easiest..
-                value: TreeKind::Number(0.0),
-            };
             if let Some(e) = p
                 .result
                 .scope
-                .declare(name.into(), (val, String::new()))
+                .declare(name.into(), Bidoof::Binding(loc.clone(), ty))
                 .map(|prev| err_already_declared(&p.types, name.into(), loc, prev))
             {
                 p.report(e);
@@ -746,17 +722,11 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
 
         let mut loc = first_token.0.clone();
         let (ty, value) = match first_token.1 {
-            Word(w) => match self
-                .result
-                .scope
-                .lookup(&w)
-                .map(|d| self.types.duplicate(d.0.ty, &mut HashMap::new()))
-                .or_else(|| {
-                    builtin::NAMES
-                        .get(&w)
-                        .map(|(mkty, _)| mkty(&mut self.types))
-                }) {
-                Some(ty) => (ty, TreeKind::Apply(Applicable::Name(w), Vec::new())),
+            Word(w) => match self.result.scope.lookup(&w) {
+                Some(d) => (
+                    d.make_type(&mut self.types),
+                    TreeKind::Apply(Applicable::Name(w), Vec::new()),
+                ),
                 None => {
                     let r = self.mktypeof(&w);
                     self.report(Error(
@@ -1035,17 +1005,13 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 // NOTE: I've settle on compose being `f -> g -> g(f(..))` for now
                 // but if the mathematical circle operator turns out better in enough
                 // places I'll change this over the whole codebase on a whim
-                let mut compose = Tree {
-                    loc: comma_loc.clone(),
-                    ty: builtin::NAMES.get("pipe").unwrap().0(&mut self.types),
-                    value: TreeKind::Apply(Applicable::Name("pipe".into()), Vec::new()),
-                };
+                let mut pipe = self.sure_lookup(comma_loc.clone(), "pipe");
                 // XXX: does it need `snapshot` here?
                 // we know that `r` is a function (see previous 'else if')
-                compose = self.try_apply(compose, r, None);
+                pipe = self.try_apply(pipe, r, None);
                 // err_context_as_nth_arg: `then` is either a function or a type hole
                 // ('if') and it is not a type hole ('else if'), so it is a function
-                self.try_apply(compose, then, Some(comma_loc))
+                self.try_apply(pipe, then, Some(comma_loc))
             };
         } // while let Comma
         r
@@ -1088,15 +1054,12 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 }
             };
 
-            let res = process(source, self.registry, None);
+            let res = process(source, self.registry, Some(self.result.scope.global()));
             self.result.errors.0.extend(res.errors);
-            self.result
-                .scope
-                .names
-                .extend(res.scope.names.into_iter().map(|mut a| {
-                    a.0.insert_str(0, &name);
-                    a
-                }));
+            for (mut k, v) in res.scope {
+                k.insert_str(0, &name);
+                self.result.scope.declare(k, v);
+            }
         }
 
         // def section
@@ -1121,7 +1084,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             if let Some(e) = self
                 .result
                 .scope
-                .declare(name.clone(), (val, desc))
+                .declare(name.clone(), Bidoof::Defined(val, desc))
                 .map(|prev| err_already_declared(&self.types, name, loc, prev))
             {
                 self.report(e);
@@ -1175,7 +1138,11 @@ impl Tree {
     #[deprecated]
     pub fn new_typed(bytes: impl IntoIterator<Item = u8>) -> Result<(FrozenType, Tree), ErrorList> {
         let mut reg = SourceRegistry::new();
-        let r = process(reg.add_bytes("", bytes.into_iter().collect()), &mut reg, None);
+        let r = process(
+            reg.add_bytes("", bytes.into_iter().collect()),
+            &mut reg,
+            None,
+        );
         if r.errors.is_empty() && r.tree.is_some() {
             r.tree.ok_or(r.errors)
         } else {

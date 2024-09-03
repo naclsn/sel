@@ -10,6 +10,7 @@ mod builtin;
 mod error;
 mod interp;
 mod parse;
+mod scope;
 mod types;
 
 #[cfg(test)]
@@ -17,7 +18,8 @@ mod tests;
 
 use crate::builtin::NAMES;
 use crate::error::SourceRegistry;
-use crate::parse::{Scope, Tree};
+use crate::parse::Tree;
+use crate::scope::Scope;
 use crate::types::{FrozenType, TypeList};
 
 #[derive(Default)]
@@ -162,11 +164,11 @@ fn do_lookup(mut args: Peekable<Args>, global: Global) {
     match args.peek() {
         None => {
             let mut types = TypeList::default();
-            let mut entries: Vec<_> = NAMES.entries().collect();
-            entries.sort_unstable_by_key(|p| *p.0);
-            for (name, (mkty, _)) in entries {
+            let mut entries: Vec<_> = global.scope.iter_rec().collect();
+            entries.sort_unstable_by_key(|p| p.0);
+            for (name, val) in entries {
                 types.clear();
-                let ty = mkty(&mut types);
+                let ty = val.make_type(&mut types);
                 println!("{name} :: {}", types.frozen(ty));
             }
         }
@@ -177,9 +179,10 @@ fn do_lookup(mut args: Peekable<Args>, global: Global) {
             let mut types = TypeList::default();
             let not_found: Vec<_> = args
                 .filter(|name| {
-                    if let Some((mkty, desc)) = NAMES.get(name) {
+                    if let Some(val) = global.scope.lookup(name) {
                         types.clear();
-                        let ty = mkty(&mut types);
+                        let ty = val.make_type(&mut types);
+                        let desc = val.get_desc().unwrap();
                         println!("{name} :: {}\n\t{desc}", types.frozen(ty));
                         false
                     } else {

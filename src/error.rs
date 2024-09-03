@@ -286,7 +286,7 @@ impl Error {
                 name,
                 expected_type,
             } => r.with_message("Unknown name").with_label(
-                l.with_message(format!("Unknown name '{name}', should be {expected_type}")),
+                l.with_message(format!("Unknown name '{name}', should be of type {expected_type}")),
             ),
             NotFunc { actual_type } => r.with_message("Not a function").with_label(
                 l.with_message(format!("Expected a function type, but got {actual_type}")),
