@@ -10,13 +10,19 @@ use crate::types::{FrozenType, Type, TypeList, TypeRef};
 
 pub struct Processed {
     pub errors: ErrorList,
-    pub scope: Scope<(Tree, String)>,
+    pub scope: Scope,
     pub tree: Option<(FrozenType, Tree)>,
 }
 
-pub fn process(source: SourceRef, registry: &mut SourceRegistry) -> Processed {
+pub fn process(
+    source: SourceRef,
+    registry: &mut SourceRegistry,
+    parent_scope: Option<&Scope>,
+) -> Processed {
     let bytes = registry.take_bytes(source);
-    let r = Parser::new(source, registry, bytes.iter().copied()).parse();
+    let scope = Scope::new(parent_scope);
+    let p = Parser::new(source, registry, scope, bytes.iter().copied());
+    let r = p.parse();
     registry.put_back_bytes(source, bytes);
     r
 }
@@ -82,9 +88,9 @@ pub enum Pattern {
 }
 
 #[derive(Debug)]
-pub struct Scope<T> {
-    parent: Option<Box<Scope<T>>>,
-    names: HashMap<String, T>,
+pub struct Scope {
+    parent: *const Scope,
+    names: HashMap<String, (Tree, String)>,
 }
 // }}}
 
@@ -393,15 +399,23 @@ fn err_already_declared(
 }
 // }}}
 
-impl<T> Scope<T> {
-    fn new(parent: Option<Scope<T>>) -> Scope<T> {
+impl Scope {
+    fn new(parent: Option<&Scope>) -> Scope {
         Scope {
-            parent: parent.map(Box::new),
+            parent: parent
+                .map(|p| p as *const Scope)
+                .unwrap_or(std::ptr::null()),
             names: HashMap::new(),
         }
     }
 
-    fn declare(&mut self, name: String, value: T) -> Option<&T> {
+    // parent-most englobing scope
+    pub fn global(&self) -> &Scope {
+        unsafe { self.parent.as_ref() }.unwrap_or(self)
+    }
+
+    /// does not insert if the name already existed, returns a reference to the previous value
+    fn declare(&mut self, name: String, value: (Tree, String)) -> Option<&(Tree, String)> {
         let mut already = false;
         let r = self
             .names
@@ -415,15 +429,20 @@ impl<T> Scope<T> {
         }
     }
 
-    fn lookup(&self, name: &str) -> Option<&T> {
+    pub fn lookup(&self, name: &str) -> Option<&(Tree, String)> {
         self.names
             .get(name)
-            .or_else(|| self.parent.as_ref()?.lookup(name))
+            .or_else(|| unsafe { self.parent.as_ref() }?.lookup(name))
     }
 }
 
 impl<I: Iterator<Item = u8>> Parser<'_, I> {
-    pub fn new(source: SourceRef, registry: &mut SourceRegistry, bytes: I) -> Parser<I> {
+    pub fn new(
+        source: SourceRef,
+        registry: &mut SourceRegistry,
+        scope: Scope,
+        bytes: I,
+    ) -> Parser<I> {
         Parser {
             peekable: Lexer::new(source, bytes.into_iter()).peekable(),
             types: TypeList::default(),
@@ -431,7 +450,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             registry,
             result: Processed {
                 errors: ErrorList::new(),
-                scope: Scope::new(None),
+                scope,
                 tree: None,
             },
         }
@@ -845,8 +864,9 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             }
 
             Let => {
-                self.result.scope =
-                    Scope::new(Some(mem::replace(&mut self.result.scope, Scope::new(None))));
+                let parent = mem::replace(&mut self.result.scope, Scope::new(None));
+                self.result.scope.parent = &parent as *const Scope;
+
                 let (pattern, pat_ty) = self.parse_pattern();
 
                 let result = self.parse_value();
@@ -876,7 +896,8 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     loc.1.end = then.loc.1.end;
                     Some(Box::new(then))
                 };
-                self.result.scope = *self.result.scope.parent.take().unwrap();
+
+                self.result.scope = parent;
 
                 let ty = self.types.func(pat_ty, res_ty);
                 let app = Applicable::Bind(pattern, Box::new(result), fallback);
@@ -1036,14 +1057,14 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
         // use section
         while let Token(_, Use) = self.peek_tok() {
             self.skip_tok();
-            let ((file_loc, file), (name_loc, name)) = match (self.next_tok(), self.next_tok()) {
-                (Token(file_loc, Bytes(file)), Token(name_loc, Word(mut name))) => {
+            let (loc, file, name) = match (self.next_tok(), self.next_tok()) {
+                (Token(loc, Bytes(file)), Token(_, Word(mut name))) => {
                     if "_" == name {
                         name.clear();
                     } else {
                         name.push('-');
                     }
-                    ((file_loc, file), (name_loc, name))
+                    (loc, file, name)
                 }
                 (Token(_, Bytes(_)), other) | (other, _) => {
                     self.report(Error(
@@ -1062,12 +1083,12 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    self.report(Error(file_loc, ErrorKind::CouldNotReadFile { error }));
+                    self.report(Error(loc, ErrorKind::CouldNotReadFile { error }));
                     continue;
                 }
             };
 
-            let res = process(source, self.registry);
+            let res = process(source, self.registry, None);
             self.result.errors.0.extend(res.errors);
             self.result
                 .scope
@@ -1154,7 +1175,7 @@ impl Tree {
     #[deprecated]
     pub fn new_typed(bytes: impl IntoIterator<Item = u8>) -> Result<(FrozenType, Tree), ErrorList> {
         let mut reg = SourceRegistry::new();
-        let r = process(reg.add_bytes("", bytes.into_iter().collect()), &mut reg);
+        let r = process(reg.add_bytes("", bytes.into_iter().collect()), &mut reg, None);
         if r.errors.is_empty() && r.tree.is_some() {
             r.tree.ok_or(r.errors)
         } else {

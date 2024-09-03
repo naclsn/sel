@@ -29,7 +29,7 @@ struct Options {
 
 struct Global {
     registry: SourceRegistry,
-    scope: Scope<(Tree, String)>,
+    scope: Scope,
 }
 
 fn main() {
@@ -43,7 +43,7 @@ fn main() {
         let mut registry = SourceRegistry::new();
 
         let source = registry.add_bytes("<prelude>", include_bytes!("prelude.sel").into());
-        let scope = parse::process(source, &mut registry).scope;
+        let scope = parse::process(source, &mut registry, None).scope;
 
         Global { registry, scope }
     };
@@ -131,7 +131,11 @@ fn parse_from_args(mut args: Peekable<Args>, global: &mut Global) -> Option<(Fro
         a
     }));
 
-    let result = parse::process(global.registry.add_bytes(name, bytes), &mut global.registry);
+    let result = parse::process(
+        global.registry.add_bytes(name, bytes),
+        &mut global.registry,
+        Some(&global.scope),
+    );
 
     if !result.errors.is_empty() {
         // NOTE: err reporting will surely be misleading for some inputs (eg. misplaced indicators)
@@ -217,7 +221,7 @@ fn do_repl(global: Global) {
             _ => {
                 let mut reg = SourceRegistry::new();
                 let src = reg.add_bytes("<input>", line.clone().into_bytes());
-                let res = parse::process(src, &mut reg);
+                let res = parse::process(src, &mut reg, Some(&global.scope));
                 if !res.errors.is_empty() {
                     res.errors
                         .into_iter()
