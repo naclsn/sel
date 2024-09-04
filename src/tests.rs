@@ -1,5 +1,6 @@
-use crate::error::{Error, ErrorContext, ErrorKind, ErrorList, Location};
+use crate::error::{Error, ErrorContext, ErrorKind, ErrorList};
 use crate::parse::{Applicable, Lexer, Token, TokenKind, Tree, TreeKind};
+use crate::scope::Location;
 use crate::types::FrozenType;
 
 // utils {{{

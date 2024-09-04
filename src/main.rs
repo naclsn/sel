@@ -4,8 +4,6 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 use std::iter::Peekable;
 
-use ariadne::Source;
-
 mod builtin;
 mod error;
 mod interp;
@@ -34,7 +32,7 @@ fn main() {
         return;
     };
 
-    let mut global = Global::new();
+    let mut global = Global::with_builtin();
 
     let prelude = include_bytes!("prelude.sel");
     let source = global.registry.add_bytes("<prelude>", prelude.into());
@@ -128,10 +126,9 @@ fn parse_from_args(mut args: Peekable<Args>, global: &mut Global) -> Option<(Fro
     let result = parse::process(global.registry.add_bytes(name, bytes), global);
 
     if !result.errors.is_empty() {
-        let cache = Source::from(String::from_utf8_lossy(global.registry.get_bytes(1)));
         let mut n = 0;
         for e in result.errors {
-            e.pretty().eprint(cache.clone()).unwrap();
+            eprintln!("{}", e.report(&global.registry));
             n += 1;
         }
         eprintln!("({n} error{})", if 1 == n { "" } else { "s" });
@@ -221,10 +218,9 @@ fn do_repl(mut global: Global) {
                     .add_bytes("<input>", line.clone().into_bytes());
                 let res = parse::process(src, &mut global);
                 if !res.errors.is_empty() {
-                    res.errors
-                        .into_iter()
-                        .try_for_each(|e| e.pretty().eprint(Source::from(&line)))
-                        .unwrap();
+                    for e in res.errors {
+                        eprintln!("{}", e.report(&global.registry));
+                    }
                 } else if let Some(tree) = res.tree {
                     do_the_thing(&global.types.frozen(tree.ty), &tree, &global);
                 }

@@ -1,24 +1,20 @@
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::{Read, Result as IoResult};
+use std::mem;
+use std::ops::Range;
+use std::path::{Path, PathBuf};
+use std::ptr;
 
 use crate::builtin;
-use crate::error::{Location, SourceRegistry};
 use crate::parse::Tree;
 use crate::types::{TypeList, TypeRef};
 
+#[derive(Default)]
 pub struct Global {
     pub registry: SourceRegistry,
     pub types: TypeList,
     pub scope: Scope,
-}
-
-impl Global {
-    pub fn new() -> Global {
-        Global {
-            registry: SourceRegistry::new(),
-            types: TypeList::default(),
-            scope: builtin::scope(),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -34,6 +30,61 @@ pub struct Scope {
     names: HashMap<String, ScopeItem>,
 }
 
+// source registry {{{
+pub type SourceRef = usize;
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Location(pub SourceRef, pub Range<usize>);
+
+#[derive(Default)]
+pub struct SourceRegistry(Vec<(PathBuf, Option<Vec<u8>>)>);
+
+impl SourceRegistry {
+    /// Note: the given path is taken as is (ie not canonicalize) and not checked for duplication
+    pub fn add_bytes(&mut self, name: impl AsRef<Path>, bytes: Vec<u8>) -> SourceRef {
+        self.0.push((name.as_ref().to_owned(), Some(bytes)));
+        self.0.len() - 1
+    }
+
+    pub fn add(&mut self, name: impl AsRef<Path>) -> IoResult<SourceRef> {
+        let name = name.as_ref().canonicalize()?;
+        if let Some(found) = self.0.iter().position(|c| c.0 == name) {
+            return Ok(found);
+        }
+        let mut bytes = Vec::new();
+        File::open(&name)?.read_to_end(&mut bytes)?;
+        Ok(self.add_bytes(name, bytes))
+    }
+
+    pub fn get_path(&self, at: SourceRef) -> &Path {
+        &self.0[at].0
+    }
+
+    pub fn get_bytes(&self, at: SourceRef) -> &[u8] {
+        self.0[at].1.as_ref().unwrap()
+    }
+
+    pub fn take_bytes(&mut self, at: SourceRef) -> Vec<u8> {
+        self.0[at].1.take().unwrap()
+    }
+
+    pub fn put_back_bytes(&mut self, at: SourceRef, bytes: Vec<u8>) {
+        self.0[at].1 = Some(bytes);
+    }
+}
+// }}}
+
+impl Global {
+    pub fn with_builtin() -> Global {
+        Global {
+            registry: SourceRegistry::default(),
+            types: TypeList::default(),
+            scope: builtin::scope(),
+        }
+    }
+}
+
+// scope {{{
 impl ScopeItem {
     pub fn make_type(&self, types: &mut TypeList) -> TypeRef {
         match self {
@@ -63,12 +114,19 @@ impl ScopeItem {
 // YYY: weird pattern, surely there is better :/
 pub(crate) struct MustRestore(Scope);
 
-impl Scope {
-    pub(crate) fn new(parent: Option<&Scope>) -> Scope {
+impl Default for Scope {
+    fn default() -> Scope {
         Scope {
-            parent: parent
-                .map(|p| p as *const Scope)
-                .unwrap_or(std::ptr::null()),
+            parent: ptr::null(),
+            names: HashMap::default(),
+        }
+    }
+}
+
+impl Scope {
+    pub(crate) fn new(parent: &Scope) -> Scope {
+        Scope {
+            parent: parent as *const Scope,
             names: HashMap::new(),
         }
     }
@@ -76,7 +134,7 @@ impl Scope {
     /// returns the parent scope (previously `self`)
     /// which is expected to be restored with `restore_from_parent`
     pub(crate) fn make_into_child(&mut self) -> MustRestore {
-        let parent = std::mem::replace(self, Scope::new(None));
+        let parent = mem::take(self);
         self.parent = &parent as *const Scope;
         MustRestore(parent)
     }
@@ -157,4 +215,5 @@ impl<'a> IntoIterator for &'a Scope {
         self.names.iter()
     }
 }
+// }}}
 // }}}

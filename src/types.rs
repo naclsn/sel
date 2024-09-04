@@ -48,10 +48,6 @@ impl Default for TypeList {
 
 // types vec with holes, also factory and such {{{
 impl TypeList {
-    pub fn clear(&mut self) {
-        self.0.truncate(4);
-    }
-
     fn push(&mut self, it: Type) -> TypeRef {
         if let Some((k, o)) = self.0.iter_mut().enumerate().find(|(_, o)| o.is_none()) {
             *o = Some(it);
@@ -104,6 +100,14 @@ impl TypeList {
 
     pub(crate) fn get_mut(&mut self, at: TypeRef) -> &mut Type {
         self.0[at].as_mut().unwrap()
+    }
+
+    pub(crate) fn pop(&mut self, at: TypeRef) -> Type {
+        let r = self.0[at].take().unwrap();
+        while let Some(None) = self.0.last() {
+            self.0.pop();
+        }
+        r
     }
 
     pub(crate) fn duplicate(
@@ -197,14 +201,6 @@ impl TypeList {
             Type::Finite(_) | Type::FiniteBoth(_, _) | Type::FiniteEither(_, _) => unreachable!(),
         }
     }
-
-    //pub fn pop(&mut self, at: TypeRef) -> Type {
-    //    let r = self.0[at].take().unwrap();
-    //    while let Some(None) = self.0.last() {
-    //        self.0.pop();
-    //    }
-    //    r
-    //}
 }
 // }}}
 

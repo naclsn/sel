@@ -104,7 +104,7 @@ macro_rules! mkbin {
 // }}}
 
 pub fn scope() -> Scope {
-    let mut r = Scope::new(None);
+    let mut r = Scope::default();
     for (k, v) in NAMES {
         r.declare(k.into(), v);
     }

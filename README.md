@@ -75,8 +75,8 @@ value ::= <atom> | <subscr> | <list> | <pair>
 
 binding ::= 'let' <pattern> <value> [<value>]
 pattern ::= <atom> | <patlist> | <patpair>
-list ::= '{' [<pattern> {',' <pattern>} [',' [',' <word>]]] '}'
-pair ::= (<atom> | <patlist>) '=' <pattern>
+patlist ::= '{' [<pattern> {',' <pattern>} [',' [',' <word>]]] '}'
+patpair ::= (<atom> | <patlist>) '=' <pattern>
 
 atom ::= <word> | <bytes> | <number>
 subscr ::= '[' <script> ']'
@@ -97,23 +97,23 @@ quoting much if at all:
   naturally with a single space
 - the single and double quotes are not used, so to feel
   safer the whole script can be quoted
-- the `;` is only used with `def`, which is generally not
-  used in short CLI scripts
+- the `;` is used with `def`, but it is generally not used
+  in short CLI scripts
 
-The one case which can cause problem is lists (`{ .. }`)
-which can be interpreted as glob _if they do not contain
-a space_. For that reason, it is highly recommended to
-keep the space after the `,` separating items.
+One case which can cause problem is lists (`{ .. }`) which
+can be interpreted as glob _if not containing a space_.
+For that reason, it is highly recommended to keep the space
+after the `,` separating items.
 
 ## Types
 
-Type notations are inspired from Haskell.
-- number and bytestring: `Num` and `Str`
-- list: `[a]`
+Type notations are inspired by Haskell:
+- number and bytestring: `Num` and `Str`;
+- list: `[a]`;
 - function: `a -> b`, when `b` is itself a function it
   will be `a -> x -> y`, but when `a` is a function then
-  it is `(x -> y) -> b`
-- pair: `(a, b)`
+  it is `(x -> y) -> b`;
+- pair: `(a, b)`.
 
 Lists and bytestring can take a `+` suffix (eg. `Str+`
 and `[Num]+`) which represent a potentially unbounded
@@ -152,11 +152,9 @@ depending on the type:
 - `Str`: printed as is
 - `[a]`: printed with a newline after each entries
 
-## Builtins
+## Builtins and Prelude
 
-~~Like every functional-ish languages~~ *ahem* it relies
-on having a butt ton of existing functions. These can be
-queried with `-l`:
+The existing functions can be queried with `-l`:
 ```console
 $ sel -l
 [... list of every functions ...]
@@ -178,6 +176,8 @@ runtime situation that will panic and abort:
 
 - `let` without a fallback will panic if its pattern doesn't match
 - out of range list access (eg. `head` (ie. `unwrap`), `last`...) will panic
+
+WIP: there really is only one situation, the `let` with no fallback; `unwrap` is to be implemented with it: `def unwrap:: let {a} a`
 
 ## Ack & Unrelated
 
@@ -201,17 +201,16 @@ Rust,
 - `add 1, map, flip apply {1, 2, 3}` type and run broken
 - `let 0 fst snd` type broken
 - `add 1, let a [a 1]` run broken
-- `iterate [dif 1, add 1] 1, take 39` I think error type broken? (not 'dif' instead of 'div')
+- `iterate [dif 1, add 1] 1, take 39` I think error type broken? (note: typo 'dif' instead of 'div')
 - `let a let b a` type broken
 
-### need to move to multi-file support
+### `types`
 
-.. before `def` section with prelude and such ideally
+try to free indices that are not used:
+- identify operations on types that generate such
+- maybe try to visualize this first
 
-### `def` section
-
-prelude, that would limit builtin definitions
-(but then what should be b-in? only what needs to? "hand-compiled for efficiency"?...)
+### `def`s
 
 something like `$PYTHONSTARTUP`, between prelude and user script
 
@@ -219,14 +218,9 @@ is doable for both but it will require type inference to identify infinite loops
 - enable self-referential?
 - enable out-of-order?
 
-### `def` in interp
-
 `def` in interp
 
-### process description of `def`s
-
-process description of `def`s
-(eg. markdown-ish?)
+process description of `def`s (eg. markdown-ish?)
 
 ### regarding coercion:
 

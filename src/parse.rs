@@ -1,8 +1,8 @@
 use std::iter::{self, Enumerate, Peekable};
 use std::mem::{self, MaybeUninit};
 
-use crate::error::{Error, ErrorContext, ErrorKind, ErrorList, Location, SourceRef};
-use crate::scope::{Global, Scope, ScopeItem};
+use crate::error::{Error, ErrorContext, ErrorKind, ErrorList};
+use crate::scope::{Global, Location, Scope, ScopeItem, SourceRef};
 use crate::types::{FrozenType, Type, TypeList, TypeRef};
 
 pub struct Processed {
@@ -396,13 +396,13 @@ fn err_already_declared(
 
 impl<I: Iterator<Item = u8>> Parser<'_, I> {
     pub fn new(source: SourceRef, global: &mut Global, bytes: I) -> Parser<I> {
-        let scope = Scope::new(Some(&global.scope));
+        let scope = Scope::new(&global.scope);
         Parser {
             peekable: Lexer::new(source, bytes.into_iter()).peekable(),
             source,
             global,
             result: Processed {
-                errors: ErrorList::new(),
+                errors: ErrorList::default(),
                 scope,
                 tree: None,
             },
@@ -1131,7 +1131,7 @@ impl Tree {
     #[deprecated]
     pub fn new_typed(bytes: impl IntoIterator<Item = u8>) -> Result<(FrozenType, Tree), ErrorList> {
         // XXX: won't have the prelude, so that's pretty dumb
-        let mut global = Global::new();
+        let mut global = Global::with_builtin();
         let r = process(
             global.registry.add_bytes("", bytes.into_iter().collect()),
             &mut global,
