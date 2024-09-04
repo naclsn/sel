@@ -16,22 +16,15 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-use crate::builtin::NAMES;
-use crate::error::SourceRegistry;
 use crate::parse::Tree;
-use crate::scope::Scope;
-use crate::types::{FrozenType, TypeList};
+use crate::scope::Global;
+use crate::types::FrozenType;
 
 #[derive(Default)]
 struct Options {
     do_lookup: bool,
     do_typeof: bool,
     do_repl: bool,
-}
-
-struct Global {
-    registry: SourceRegistry,
-    scope: Scope,
 }
 
 fn main() {
@@ -41,14 +34,13 @@ fn main() {
         return;
     };
 
-    let mut global = {
-        let mut registry = SourceRegistry::new();
+    let mut global = Global::new();
 
-        let source = registry.add_bytes("<prelude>", include_bytes!("prelude.sel").into());
-        let scope = parse::process(source, &mut registry, None).scope;
-
-        Global { registry, scope }
-    };
+    let prelude = include_bytes!("prelude.sel");
+    let source = global.registry.add_bytes("<prelude>", prelude.into());
+    for (k, v) in parse::process(source, &mut global).scope {
+        global.scope.declare(k, v);
+    }
 
     if opts.do_lookup {
         do_lookup(args, global);
@@ -133,14 +125,9 @@ fn parse_from_args(mut args: Peekable<Args>, global: &mut Global) -> Option<(Fro
         a
     }));
 
-    let result = parse::process(
-        global.registry.add_bytes(name, bytes),
-        &mut global.registry,
-        Some(&global.scope),
-    );
+    let result = parse::process(global.registry.add_bytes(name, bytes), global);
 
     if !result.errors.is_empty() {
-        // NOTE: err reporting will surely be misleading for some inputs (eg. misplaced indicators)
         let cache = Source::from(String::from_utf8_lossy(global.registry.get_bytes(1)));
         let mut n = 0;
         for e in result.errors {
@@ -150,40 +137,45 @@ fn parse_from_args(mut args: Peekable<Args>, global: &mut Global) -> Option<(Fro
         eprintln!("({n} error{})", if 1 == n { "" } else { "s" });
         if let Some(name) = was_file {
             if used_file {
-                eprintln!("Note: {name} was interpreted as file name");
+                eprintln!("Note: {name} was interpreted as a file name");
             } else {
                 eprintln!("Note: {name} is also a file, but it did not start with '#!'");
             }
         }
+        None
+    } else {
+        result
+            .tree
+            .as_ref()
+            .map(|t| global.types.frozen(t.ty))
+            .zip(result.tree)
     }
-
-    result.tree
 }
 
-fn do_lookup(mut args: Peekable<Args>, global: Global) {
+fn do_lookup(mut args: Peekable<Args>, mut global: Global) {
     match args.peek() {
         None => {
-            let mut types = TypeList::default();
-            let mut entries: Vec<_> = global.scope.iter_rec().collect();
+            let mut entries: Vec<_> = global.scope.iter().collect();
             entries.sort_unstable_by_key(|p| p.0);
             for (name, val) in entries {
-                types.clear();
-                let ty = val.make_type(&mut types);
-                println!("{name} :: {}", types.frozen(ty));
+                // TODO: this accumulates all into types when
+                //       it could be reverted after each print
+                let ty = val.make_type(&mut global.types);
+                println!("{name} :: {}", global.types.frozen(ty));
             }
         }
 
         Some(oftype) if "::" == oftype => todo!(),
 
         _ => {
-            let mut types = TypeList::default();
             let not_found: Vec<_> = args
                 .filter(|name| {
                     if let Some(val) = global.scope.lookup(name) {
-                        types.clear();
-                        let ty = val.make_type(&mut types);
+                        // TODO: this accumulates all into types when
+                        //       it could be reverted after each print
+                        let ty = val.make_type(&mut global.types);
                         let desc = val.get_desc().unwrap();
-                        println!("{name} :: {}\n\t{desc}", types.frozen(ty));
+                        println!("{name} :: {}\n\t{desc}", global.types.frozen(ty));
                         false
                     } else {
                         true
@@ -197,7 +189,7 @@ fn do_lookup(mut args: Peekable<Args>, global: Global) {
     }
 }
 
-fn do_repl(global: Global) {
+fn do_repl(mut global: Global) {
     let stdin = io::stdin();
     let mut stdout = io::stdout();
 
@@ -222,16 +214,19 @@ fn do_repl(global: Global) {
                 continue;
             }
             _ => {
-                let mut reg = SourceRegistry::new();
-                let src = reg.add_bytes("<input>", line.clone().into_bytes());
-                let res = parse::process(src, &mut reg, Some(&global.scope));
+                // XXX: adds a new entry with the same name each round,
+                //      same with `types` accumulating more than needed
+                let src = global
+                    .registry
+                    .add_bytes("<input>", line.clone().into_bytes());
+                let res = parse::process(src, &mut global);
                 if !res.errors.is_empty() {
                     res.errors
                         .into_iter()
                         .try_for_each(|e| e.pretty().eprint(Source::from(&line)))
                         .unwrap();
-                } else if let Some((ty, tree)) = res.tree {
-                    do_the_thing(&ty, &tree, &global);
+                } else if let Some(tree) = res.tree {
+                    do_the_thing(&global.types.frozen(tree.ty), &tree, &global);
                 }
                 line.clear();
             }

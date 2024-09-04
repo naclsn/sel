@@ -202,6 +202,7 @@ Rust,
 - `let 0 fst snd` type broken
 - `add 1, let a [a 1]` run broken
 - `iterate [dif 1, add 1] 1, take 39` I think error type broken? (not 'dif' instead of 'div')
+- `let a let b a` type broken
 
 ### need to move to multi-file support
 
@@ -221,6 +222,11 @@ is doable for both but it will require type inference to identify infinite loops
 ### `def` in interp
 
 `def` in interp
+
+### process description of `def`s
+
+process description of `def`s
+(eg. markdown-ish?)
 
 ### regarding coercion:
 

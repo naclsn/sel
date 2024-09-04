@@ -1,28 +1,21 @@
 use std::iter::{self, Enumerate, Peekable};
 use std::mem::{self, MaybeUninit};
 
-use crate::error::{
-    Error, ErrorContext, ErrorKind, ErrorList, Location, SourceRef, SourceRegistry,
-};
-use crate::scope::{Bidoof, Scope};
+use crate::error::{Error, ErrorContext, ErrorKind, ErrorList, Location, SourceRef};
+use crate::scope::{Global, Scope, ScopeItem};
 use crate::types::{FrozenType, Type, TypeList, TypeRef};
 
 pub struct Processed {
     pub errors: ErrorList,
     pub scope: Scope,
-    pub tree: Option<(FrozenType, Tree)>,
+    pub tree: Option<Tree>,
 }
 
-pub fn process(
-    source: SourceRef,
-    registry: &mut SourceRegistry,
-    parent_scope: Option<&Scope>,
-) -> Processed {
-    let bytes = registry.take_bytes(source);
-    let scope = Scope::new(parent_scope);
-    let p = Parser::new(source, registry, scope, bytes.iter().copied());
+pub fn process(source: SourceRef, global: &mut Global) -> Processed {
+    let bytes = global.registry.take_bytes(source);
+    let p = Parser::new(source, global, bytes.iter().copied());
     let r = p.parse();
-    registry.put_back_bytes(source, bytes);
+    global.registry.put_back_bytes(source, bytes);
     r
 }
 
@@ -249,9 +242,8 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
 // parsing into tree {{{
 pub struct Parser<'a, I: Iterator<Item = u8>> {
     peekable: Peekable<Lexer<I>>,
-    types: TypeList,
     source: SourceRef,
-    registry: &'a mut SourceRegistry,
+    global: &'a mut Global,
     result: Processed,
 }
 
@@ -377,7 +369,7 @@ fn err_already_declared(
     types: &TypeList,
     name: String,
     new_loc: Location,
-    previous: &Bidoof,
+    previous: &ScopeItem,
 ) -> Error {
     Error(
         previous
@@ -388,13 +380,13 @@ fn err_already_declared(
             error: Box::new(Error(new_loc, ErrorKind::NameAlreadyDeclared { name })),
             because: ErrorContext::DeclaredHereWithType {
                 with_type: match previous {
-                    Bidoof::Builtin(mkty, _) => {
+                    ScopeItem::Builtin(mkty, _) => {
                         let mut types = TypeList::default();
                         let ty = mkty(&mut types);
                         types.frozen(ty)
                     }
-                    Bidoof::Defined(val, _) => types.frozen(val.ty),
-                    Bidoof::Binding(_, ty) => types.frozen(*ty),
+                    ScopeItem::Defined(val, _) => types.frozen(val.ty),
+                    ScopeItem::Binding(_, ty) => types.frozen(*ty),
                 },
             },
         },
@@ -403,17 +395,12 @@ fn err_already_declared(
 // }}}
 
 impl<I: Iterator<Item = u8>> Parser<'_, I> {
-    pub fn new(
-        source: SourceRef,
-        registry: &mut SourceRegistry,
-        scope: Scope,
-        bytes: I,
-    ) -> Parser<I> {
+    pub fn new(source: SourceRef, global: &mut Global, bytes: I) -> Parser<I> {
+        let scope = Scope::new(Some(&global.scope));
         Parser {
             peekable: Lexer::new(source, bytes.into_iter()).peekable(),
-            types: TypeList::default(),
             source,
-            registry,
+            global,
             result: Processed {
                 errors: ErrorList::new(),
                 scope,
@@ -437,7 +424,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
     }
 
     fn mktypeof(&mut self, name: &str) -> (TypeRef, TreeKind) {
-        let ty = self.types.named(&format!("typeof({name})"));
+        let ty = self.global.types.named(format!("typeof({name})"));
         (
             ty,
             TreeKind::Apply(Applicable::Name(name.into()), Vec::new()),
@@ -460,7 +447,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 .scope
                 .lookup(name)
                 .unwrap()
-                .make_type(&mut self.types),
+                .make_type(&mut self.global.types),
             value: TreeKind::Apply(Applicable::Name(name.into()), Vec::new()),
         }
     }
@@ -476,57 +463,62 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
         };
         let is_compose = matches!(base, Applicable::Name(name) if "pipe" == name);
 
-        if let Named(name) = self.types.get(func.ty) {
+        if let Named(name) = self.global.types.get(func.ty) {
             let name = name.clone();
-            let par = self.types.named(&format!("paramof({name})"));
-            let ret = self.types.named(&format!("returnof({name})"));
-            *self.types.get_mut(func.ty) = Func(par, ret);
+            let par = self.global.types.named(format!("paramof({name})"));
+            let ret = self.global.types.named(format!("returnof({name})"));
+            *self.global.types.get_mut(func.ty) = Func(par, ret);
         }
 
         // coerce if needed
-        let Func(par_ty, _) = self.types.get(func.ty) else {
+        let Func(par_ty, _) = self.global.types.get(func.ty) else {
             unreachable!();
         };
-        let coerce = if let Some(w) = match (self.types.get(*par_ty), self.types.get(arg.ty)) {
+        let coerce = if let Some(w) = match (
+            self.global.types.get(*par_ty),
+            self.global.types.get(arg.ty),
+        ) {
             (Number, Bytes(_)) => Some("tonum"),
             (Bytes(_), Number) => Some("tostr"),
-            (List(_, num), Bytes(_)) if matches!(self.types.get(*num), Number) => {
+            (List(_, num), Bytes(_)) if matches!(self.global.types.get(*num), Number) => {
                 Some("codepoints")
             }
-            (List(_, any), Bytes(_)) if matches!(self.types.get(*any), Bytes(_) | Named(_)) => {
+            (List(_, any), Bytes(_))
+                if matches!(self.global.types.get(*any), Bytes(_) | Named(_)) =>
+            {
                 Some("graphemes")
             }
-            (Bytes(_), List(_, num)) if matches!(self.types.get(*num), Number) => {
+            (Bytes(_), List(_, num)) if matches!(self.global.types.get(*num), Number) => {
                 Some("uncodepoints")
             }
-            (Bytes(_), List(_, bst)) if matches!(self.types.get(*bst), Bytes(_)) => {
+            (Bytes(_), List(_, bst)) if matches!(self.global.types.get(*bst), Bytes(_)) => {
                 Some("ungraphemes")
             }
             _ => None,
         } {
             let coerce = self.sure_lookup(arg.loc.clone(), w);
-            let fty = self.types.frozen(coerce.ty);
+            let fty = self.global.types.frozen(coerce.ty);
             arg = self.try_apply(coerce, arg, None);
             Some((arg.loc.clone(), w, fty))
         } else {
             None
         };
 
-        match Type::applied(func.ty, arg.ty, &mut self.types) {
+        match Type::applied(func.ty, arg.ty, &mut self.global.types) {
             Ok(ret_ty) => {
                 func.ty = ret_ty;
                 args.push(arg);
             }
             Err(e) => {
                 // XXX: does doing it here mess with the error report?
-                func.ty = match self.types.get(func.ty) {
+                func.ty = match self.global.types.get(func.ty) {
                     &Type::Func(_, ret) => ret,
                     _ => unreachable!(),
                 };
                 // anything, doesn't mater what, this is the easiest..
                 args.push(Tree {
                     loc: Location(self.source, 0..0),
-                    ty: self.types.number(),
+                    ty: self.global.types.number(),
                     value: TreeKind::Number(0.0),
                 });
 
@@ -537,7 +529,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 };
 
                 let mut err_kind = err_context_complete_type(
-                    &self.types,
+                    &self.global.types,
                     actual_arg.loc.clone(),
                     e,
                     actual_arg.ty,
@@ -548,7 +540,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 // actual_func is a function:
                 // see `try_apply` call sites that have a `unwrap_or_else`
                 err_kind = err_context_as_nth_arg(
-                    &self.types,
+                    &self.global.types,
                     actual_arg.loc.clone(),
                     err_kind,
                     comma_loc,
@@ -569,7 +561,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             self.report(err);
             return (
                 Pattern::Name(loc.clone(), "let".into()),
-                self.types.named("paramof(typeof(let))"),
+                self.global.types.named("paramof(typeof(let))".into()),
             );
         }
 
@@ -582,8 +574,8 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             if let Some(e) = p
                 .result
                 .scope
-                .declare(name.into(), Bidoof::Binding(loc.clone(), ty))
-                .map(|prev| err_already_declared(&p.types, name.into(), loc, prev))
+                .declare(name.into(), ScopeItem::Binding(loc.clone(), ty))
+                .map(|prev| err_already_declared(&p.global.types, name.into(), loc, prev))
             {
                 p.report(e);
             }
@@ -592,19 +584,19 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
         let first_token = self.next_tok();
         let (fst, fst_ty) = match first_token.1 {
             Word(w) => {
-                let ty = self.types.named(&w);
+                let ty = self.global.types.named(w.clone());
                 symbolic_declare(self, &w, first_token.0.clone(), ty);
                 (Pattern::Name(first_token.0, w), ty)
             }
             Bytes(v) => (Pattern::Bytes(v), {
-                let fin = self.types.finite(true);
-                self.types.bytes(fin)
+                let fin = self.global.types.finite(true);
+                self.global.types.bytes(fin)
             }),
-            Number(n) => (Pattern::Number(n), self.types.number()),
+            Number(n) => (Pattern::Number(n), self.global.types.number()),
 
             OpenBrace => {
                 let mut items = Vec::new();
-                let ty = self.types.named("itemof(typeof({}))");
+                let ty = self.global.types.named("itemof(typeof({}))".into());
                 let mut rest = None;
 
                 while match self.peek_tok() {
@@ -649,8 +641,8 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     let (item, item_ty) = self.parse_pattern();
 
                     // snapshot to have previous type in reported error
-                    let snapshot = self.types.clone();
-                    Type::harmonize(ty, item_ty, &mut self.types).unwrap_or_else(|e| {
+                    let snapshot = self.global.types.clone();
+                    Type::harmonize(ty, item_ty, &mut self.global.types).unwrap_or_else(|e| {
                         self.report(err_list_type_mismatch(
                             &snapshot,
                             cheaty_loc,
@@ -668,8 +660,8 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 }
                 self.skip_tok();
 
-                let fin = self.types.finite(rest.is_none());
-                let ty = self.types.list(fin, ty);
+                let fin = self.global.types.finite(rest.is_none());
+                let ty = self.global.types.list(fin, ty);
 
                 if let Some((loc, w)) = &rest {
                     symbolic_declare(self, w, loc.clone(), ty);
@@ -689,7 +681,10 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     _ => unreachable!(),
                 };
                 self.report(err);
-                (Pattern::Name(loc, t.into()), self.types.named(t))
+                (
+                    Pattern::Name(loc, t.into()),
+                    self.global.types.named(t.into()),
+                )
             }
 
             OpenBracket | TermToken!() => unreachable!(),
@@ -700,7 +695,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             let (snd, snd_ty) = self.parse_pattern();
             (
                 Pattern::Pair(Box::new(fst), Box::new(snd)),
-                self.types.pair(fst_ty, snd_ty),
+                self.global.types.pair(fst_ty, snd_ty),
             )
         } else {
             (fst, fst_ty)
@@ -724,7 +719,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
         let (ty, value) = match first_token.1 {
             Word(w) => match self.result.scope.lookup(&w) {
                 Some(d) => (
-                    d.make_type(&mut self.types),
+                    d.make_type(&mut self.global.types),
                     TreeKind::Apply(Applicable::Name(w), Vec::new()),
                 ),
                 None => {
@@ -756,12 +751,12 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
 
             Bytes(b) => (
                 {
-                    let fin = self.types.finite(true);
-                    self.types.bytes(fin)
+                    let fin = self.global.types.finite(true);
+                    self.global.types.bytes(fin)
                 },
                 TreeKind::Bytes(b),
             ),
-            Number(n) => (self.types.number(), TreeKind::Number(n)),
+            Number(n) => (self.global.types.number(), TreeKind::Number(n)),
 
             OpenBracket => {
                 let Tree { loc: _, ty, value } = self.parse_script();
@@ -788,7 +783,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
 
             OpenBrace => {
                 let mut items = Vec::new();
-                let ty = self.types.named("itemof(typeof({}))");
+                let ty = self.global.types.named("itemof(typeof({}))".into());
 
                 while match self.peek_tok() {
                     Token(close_loc, CloseBrace) => {
@@ -810,8 +805,8 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     let item_ty = item.ty;
 
                     // snapshot to have previous type in reported error
-                    let snapshot = self.types.clone();
-                    Type::harmonize(ty, item_ty, &mut self.types).unwrap_or_else(|e| {
+                    let snapshot = self.global.types.clone();
+                    Type::harmonize(ty, item_ty, &mut self.global.types).unwrap_or_else(|e| {
                         self.report(err_list_type_mismatch(
                             &snapshot,
                             item.loc.clone(),
@@ -829,14 +824,12 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 }
                 self.skip_tok();
 
-                let fin = self.types.finite(true);
-                (self.types.list(fin, ty), TreeKind::List(items))
+                let fin = self.global.types.finite(true);
+                (self.global.types.list(fin, ty), TreeKind::List(items))
             }
 
             Let => {
-                let parent = mem::replace(&mut self.result.scope, Scope::new(None));
-                self.result.scope.parent = &parent as *const Scope;
-
+                let parent = self.result.scope.make_into_child();
                 let (pattern, pat_ty) = self.parse_pattern();
 
                 let result = self.parse_value();
@@ -849,8 +842,8 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     let then = self.parse_value();
 
                     // snapshot to have previous type in reported error
-                    let snapshot = self.types.clone();
-                    Type::harmonize(res_ty, then.ty, &mut self.types).unwrap_or_else(|e| {
+                    let snapshot = self.global.types.clone();
+                    Type::harmonize(res_ty, then.ty, &mut self.global.types).unwrap_or_else(|e| {
                         self.report(Error(
                             then.loc.clone(),
                             ErrorKind::ContextCaused {
@@ -866,10 +859,9 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     loc.1.end = then.loc.1.end;
                     Some(Box::new(then))
                 };
+                self.result.scope.restore_from_parent(parent);
 
-                self.result.scope = parent;
-
-                let ty = self.types.func(pat_ty, res_ty);
+                let ty = self.global.types.func(pat_ty, res_ty);
                 let app = Applicable::Bind(pattern, Box::new(result), fallback);
                 (ty, TreeKind::Apply(app, Vec::new()))
             }
@@ -899,7 +891,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             let snd = self.parse_value();
             let mut loc = fst.loc.clone();
             loc.1.end = snd.loc.1.end;
-            let ty = self.types.pair(fst.ty, snd.ty);
+            let ty = self.global.types.pair(fst.ty, snd.ty);
             let value = TreeKind::Pair(Box::new(fst), Box::new(snd));
             Tree { loc, ty, value }
         } else {
@@ -934,7 +926,10 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                         p.try_apply(g, fx, None)
                     }
                     TreeKind::Apply(_, _)
-                        if matches!(p.types.get(func.ty), Type::Func(_, _) | Type::Named(_)) =>
+                        if matches!(
+                            p.global.types.get(func.ty),
+                            Type::Func(_, _) | Type::Named(_)
+                        ) =>
                     {
                         // xxx: does it need `snapshot` here?
                         let x = p.parse_value();
@@ -945,7 +940,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     _ => {
                         let x = p.parse_value();
                         *new_end = x.loc.1.end;
-                        let e = err_not_func(&p.types, &func);
+                        let e = err_not_func(&p.global.types, &func);
                         p.report(Error(func.loc.clone(), e));
                         func
                     }
@@ -970,7 +965,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             let then_ty = then.ty;
             let then_loc = then.loc.clone();
 
-            let (is_func, is_hole) = match self.types.get(then_ty) {
+            let (is_func, is_hole) = match self.global.types.get(then_ty) {
                 Type::Func(_, _) => (true, false),
                 Type::Named(_) => (false, true),
                 _ => (false, false),
@@ -981,7 +976,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 self.report(Error(
                     r_loc,
                     ErrorKind::ContextCaused {
-                        error: Box::new(Error(then_loc, err_not_func(&self.types, &then))),
+                        error: Box::new(Error(then_loc, err_not_func(&self.global.types, &then))),
                         because: ErrorContext::ChainedFromToNotFunc { comma_loc },
                     },
                 ));
@@ -991,8 +986,8 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             // - x :: A
             // - f, g, h :: a -> b, b -> c, c -> d
             else if is_hole
-                || !matches!(self.types.get(r_ty), Type::Func(_, _)) // NOTE: catches coersion cases
-                || Type::applicable(then_ty, r_ty, &self.types)
+                || !matches!(self.global.types.get(r_ty), Type::Func(_, _)) // note: catches coersion cases
+                || Type::applicable(then_ty, r_ty, &self.global.types)
             {
                 // XXX: does it need `snapshot` here?
                 // err_context_as_nth_arg: we know `then` is a function
@@ -1002,9 +997,6 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             // [f, g, h] :: a -> d; where
             // - f, g, h :: a -> b, b -> c, c -> d
             else {
-                // NOTE: I've settle on compose being `f -> g -> g(f(..))` for now
-                // but if the mathematical circle operator turns out better in enough
-                // places I'll change this over the whole codebase on a whim
                 let mut pipe = self.sure_lookup(comma_loc.clone(), "pipe");
                 // XXX: does it need `snapshot` here?
                 // we know that `r` is a function (see previous 'else if')
@@ -1045,7 +1037,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             };
             let source = match String::from_utf8(file)
                 .map_err(|e| e.to_string())
-                .and_then(|s| self.registry.add(s).map_err(|e| e.to_string()))
+                .and_then(|s| self.global.registry.add(s).map_err(|e| e.to_string()))
             {
                 Ok(bytes) => bytes,
                 Err(error) => {
@@ -1054,7 +1046,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 }
             };
 
-            let res = process(source, self.registry, Some(self.result.scope.global()));
+            let res = process(source, self.global);
             self.result.errors.0.extend(res.errors);
             for (mut k, v) in res.scope {
                 k.insert_str(0, &name);
@@ -1080,12 +1072,12 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             };
 
             let val = self.parse_script();
-            let desc = String::from_utf8_lossy(&desc).into_owned();
+            let desc = String::from_utf8_lossy(&desc).trim().into();
             if let Some(e) = self
                 .result
                 .scope
-                .declare(name.clone(), Bidoof::Defined(val, desc))
-                .map(|prev| err_already_declared(&self.types, name, loc, prev))
+                .declare(name.clone(), ScopeItem::Defined(val, desc))
+                .map(|prev| err_already_declared(&self.global.types, name, loc, prev))
             {
                 self.report(e);
             }
@@ -1107,7 +1099,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
         };
         if !self.result.errors.is_empty() {
             r = None;
-            // NOTE: this is the receiving end from `parse_value` when a name was not found: this
+            // note: this is the receiving end from `parse_value` when a name was not found: this
             //       is the point where we get the usizes again and compute the final FrozenType
             for e in self.result.errors.0.iter_mut() {
                 if let ErrorKind::UnknownName {
@@ -1117,17 +1109,18 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 {
                     let really_usize = frty as *const FrozenType as *const usize;
                     let ty = unsafe { *really_usize };
-                    mem::forget(mem::replace(frty, self.types.frozen(ty)));
+                    mem::forget(mem::replace(frty, self.global.types.frozen(ty)));
                 }
             }
         }
 
-        self.result.tree = r.map(|r| (self.types.frozen(r.ty), r));
+        self.result.tree = r;
         self.result
     }
 }
 // }}}
 
+// TODO: freaking remove that, and update test!
 #[cfg(test)]
 impl Tree {
     #[deprecated]
@@ -1137,14 +1130,16 @@ impl Tree {
 
     #[deprecated]
     pub fn new_typed(bytes: impl IntoIterator<Item = u8>) -> Result<(FrozenType, Tree), ErrorList> {
-        let mut reg = SourceRegistry::new();
+        // XXX: won't have the prelude, so that's pretty dumb
+        let mut global = Global::new();
         let r = process(
-            reg.add_bytes("", bytes.into_iter().collect()),
-            &mut reg,
-            None,
+            global.registry.add_bytes("", bytes.into_iter().collect()),
+            &mut global,
         );
         if r.errors.is_empty() && r.tree.is_some() {
-            r.tree.ok_or(r.errors)
+            r.tree
+                .map(|t| (global.types.frozen(t.ty), t))
+                .ok_or(r.errors)
         } else {
             Err(r.errors)
         }

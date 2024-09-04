@@ -21,7 +21,7 @@ impl SourceRegistry {
         SourceRegistry(Vec::new())
     }
 
-    /// Note: the given path is taken as is (ie not canonicalize)!
+    /// Note: the given path is taken as is (ie not canonicalize) and not checked for duplication
     pub fn add_bytes(&mut self, name: impl AsRef<Path>, bytes: Vec<u8>) -> SourceRef {
         self.0.push((name.as_ref().to_owned(), Some(bytes)));
         self.0.len() - 1
@@ -259,8 +259,8 @@ impl Error {
                         "Unexpected '{}', expected {expected}",
                         match token {
                             Unknown(t) => t,
-                            Word(v) => v, // actually unreachable
-                            Bytes(_) => ":...:",
+                            Word(v) => v,
+                            Bytes(_) => "(bytes)",
                             Number(_) => "(number)",
                             Comma => ",",
                             OpenBracket => "[",

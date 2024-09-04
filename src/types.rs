@@ -81,8 +81,7 @@ impl TypeList {
     pub fn pair(&mut self, fst: TypeRef, snd: TypeRef) -> TypeRef {
         self.push(Type::Pair(fst, snd))
     }
-    // TODO: maybe change for String
-    pub fn named(&mut self, name: &str) -> TypeRef {
+    pub fn named(&mut self, name: String) -> TypeRef {
         self.push(Type::Named(name.to_string()))
     }
     pub fn finite(&mut self, finite: bool) -> Boundedness {
@@ -99,7 +98,7 @@ impl TypeList {
         self.push(Type::FiniteBoth(left, right))
     }
 
-    pub fn get(&self, at: TypeRef) -> &Type {
+    pub(crate) fn get(&self, at: TypeRef) -> &Type {
         self.0[at].as_ref().unwrap()
     }
 
@@ -144,7 +143,7 @@ impl TypeList {
             }
             Type::Named(ref n) => {
                 let n = n.clone();
-                self.named(&n)
+                self.named(n)
             }
             Type::Finite(i) => self.finite(i),
             Type::FiniteBoth(l, r) => {

@@ -1,11 +1,28 @@
 use std::collections::HashMap;
 
-use crate::error::Location;
+use crate::builtin;
+use crate::error::{Location, SourceRegistry};
 use crate::parse::Tree;
 use crate::types::{TypeList, TypeRef};
 
+pub struct Global {
+    pub registry: SourceRegistry,
+    pub types: TypeList,
+    pub scope: Scope,
+}
+
+impl Global {
+    pub fn new() -> Global {
+        Global {
+            registry: SourceRegistry::new(),
+            types: TypeList::default(),
+            scope: builtin::scope(),
+        }
+    }
+}
+
 #[derive(Debug)]
-pub enum Bidoof {
+pub enum ScopeItem {
     Builtin(fn(&mut TypeList) -> TypeRef, &'static str),
     Defined(Tree, String),
     Binding(Location, TypeRef),
@@ -13,35 +30,38 @@ pub enum Bidoof {
 
 #[derive(Debug)]
 pub struct Scope {
-    pub(crate) parent: *const Scope,
-    names: HashMap<String, Bidoof>,
+    parent: *const Scope,
+    names: HashMap<String, ScopeItem>,
 }
 
-impl Bidoof {
+impl ScopeItem {
     pub fn make_type(&self, types: &mut TypeList) -> TypeRef {
         match self {
-            Bidoof::Builtin(mkty, _) => mkty(types),
-            Bidoof::Defined(val, _) => types.duplicate(val.ty, &mut HashMap::new()),
-            Bidoof::Binding(_, ty) => types.duplicate(*ty, &mut HashMap::new()),
+            ScopeItem::Builtin(mkty, _) => mkty(types),
+            ScopeItem::Defined(val, _) => types.duplicate(val.ty, &mut HashMap::new()),
+            ScopeItem::Binding(_, ty) => types.duplicate(*ty, &mut HashMap::new()),
         }
     }
 
     pub fn get_loc(&self) -> Option<&Location> {
         match self {
-            Bidoof::Builtin(_, _) => None,
-            Bidoof::Defined(val, _) => Some(&val.loc),
-            Bidoof::Binding(loc, _) => Some(loc),
+            ScopeItem::Builtin(_, _) => None,
+            ScopeItem::Defined(val, _) => Some(&val.loc),
+            ScopeItem::Binding(loc, _) => Some(loc),
         }
     }
 
     pub fn get_desc(&self) -> Option<&str> {
         match self {
-            Bidoof::Builtin(_, desc) => Some(desc),
-            Bidoof::Defined(_, desc) => Some(desc),
-            Bidoof::Binding(_, _) => None,
+            ScopeItem::Builtin(_, desc) => Some(desc),
+            ScopeItem::Defined(_, desc) => Some(desc),
+            ScopeItem::Binding(_, _) => None,
         }
     }
 }
+
+// YYY: weird pattern, surely there is better :/
+pub(crate) struct MustRestore(Scope);
 
 impl Scope {
     pub(crate) fn new(parent: Option<&Scope>) -> Scope {
@@ -53,13 +73,25 @@ impl Scope {
         }
     }
 
+    /// returns the parent scope (previously `self`)
+    /// which is expected to be restored with `restore_from_parent`
+    pub(crate) fn make_into_child(&mut self) -> MustRestore {
+        let parent = std::mem::replace(self, Scope::new(None));
+        self.parent = &parent as *const Scope;
+        MustRestore(parent)
+    }
+    /// see `make_into_child`
+    pub(crate) fn restore_from_parent(&mut self, parent: MustRestore) {
+        *self = parent.0;
+    }
+
     /// parent-most englobing scope
     pub fn global(&self) -> &Scope {
         unsafe { self.parent.as_ref() }.unwrap_or(self)
     }
 
     /// does not insert if the name already existed, returns a reference to the previous value
-    pub(crate) fn declare(&mut self, name: String, value: Bidoof) -> Option<&Bidoof> {
+    pub(crate) fn declare(&mut self, name: String, value: ScopeItem) -> Option<&ScopeItem> {
         let mut already = false;
         let r = self
             .names
@@ -73,13 +105,13 @@ impl Scope {
         }
     }
 
-    pub fn lookup(&self, name: &str) -> Option<&Bidoof> {
+    pub fn lookup(&self, name: &str) -> Option<&ScopeItem> {
         self.names
             .get(name)
             .or_else(|| unsafe { self.parent.as_ref() }?.lookup(name))
     }
 
-    pub fn iter(&self) -> <&HashMap<String, Bidoof> as IntoIterator>::IntoIter {
+    pub fn iter(&self) -> <&HashMap<String, ScopeItem> as IntoIterator>::IntoIter {
         self.names.iter()
     }
 
@@ -91,13 +123,14 @@ impl Scope {
     }
 }
 
+// iters {{{
 pub struct ScopeRecIter<'a> {
-    entries: <&'a HashMap<String, Bidoof> as IntoIterator>::IntoIter,
+    entries: <&'a HashMap<String, ScopeItem> as IntoIterator>::IntoIter,
     parent: Option<&'a Scope>,
 }
 
 impl<'a> Iterator for ScopeRecIter<'a> {
-    type Item = (&'a String, &'a Bidoof);
+    type Item = (&'a String, &'a ScopeItem);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.entries.next().or_else(|| {
@@ -108,7 +141,7 @@ impl<'a> Iterator for ScopeRecIter<'a> {
 }
 
 impl IntoIterator for Scope {
-    type IntoIter = <HashMap<String, Bidoof> as IntoIterator>::IntoIter;
+    type IntoIter = <HashMap<String, ScopeItem> as IntoIterator>::IntoIter;
     type Item = <Self::IntoIter as Iterator>::Item;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -117,10 +150,11 @@ impl IntoIterator for Scope {
 }
 
 impl<'a> IntoIterator for &'a Scope {
-    type IntoIter = <&'a HashMap<String, Bidoof> as IntoIterator>::IntoIter;
+    type IntoIter = <&'a HashMap<String, ScopeItem> as IntoIterator>::IntoIter;
     type Item = <Self::IntoIter as Iterator>::Item;
 
     fn into_iter(self) -> Self::IntoIter {
         self.names.iter()
     }
 }
+// }}}
