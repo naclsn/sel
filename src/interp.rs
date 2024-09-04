@@ -6,6 +6,7 @@ use std::rc::Rc;
 use std::sync::{OnceLock, RwLock};
 
 use crate::parse::{Applicable, Pattern, Tree, TreeKind};
+use crate::scope::{Global, ScopeItem};
 
 // runtime concrete value and macro to make curried instances {{{
 pub type Number = Box<dyn FnOnce() -> f64>;
@@ -188,51 +189,47 @@ impl Matcher {
 // }}}
 
 // lookup and make {{{
-fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
-    let apply_args = move |v: Value| args.fold(v, |acc, cur| acc.func()(cur));
-
+fn lookup_builtin(name: &str) -> Value {
     match name {
-        "pipe" => apply_args(curried_value!(|f, g| -> Func |v| g.func()(f.func()(v)))),
+        "pipe" => curried_value!(|f, g| -> Func |v| g.func()(f.func()(v))),
 
-        "apply" => apply_args(curried_value!(|f| -> Func |v| f.func()(v))),
+        "apply" => curried_value!(|f| -> Func |v| f.func()(v)),
 
-        "add" => apply_args(curried_value!(|a, b| -> Number || a.number()() + b.number()())),
+        "add" => curried_value!(|a, b| -> Number || a.number()() + b.number()()),
 
-        "const" => apply_args(curried_value!(|a| -> Func |_| a)),
+        "const" => curried_value!(|a| -> Func |_| a),
 
-        "div" => apply_args(curried_value!(|a, b| -> Number || a.number()() / b.number()())),
+        "div" => curried_value!(|a, b| -> Number || a.number()() / b.number()()),
 
-        "duple" => apply_args(curried_value!(|a| -> Pair (a.clone(), a.clone()))),
+        "duple" => curried_value!(|a| -> Pair (a.clone(), a.clone())),
 
-        "enumerate" => apply_args(
-            curried_value!(|l| -> List l.list().enumerate().map(|(k, v)| {
-                let fst = Value::Number(Box::new(move || k as f64), Rc::new(move || Box::new(move || k as f64)));
-                let snd = v;
-                let w = move || Box::new((fst.clone(), snd.clone()));
-                Value::Pair(w(), Rc::new(w))
-            })),
-        ),
+        "enumerate" => curried_value!(|l| -> List l.list().enumerate().map(|(k, v)| {
+            let fst = Value::Number(Box::new(move || k as f64), Rc::new(move || Box::new(move || k as f64)));
+            let snd = v;
+            let w = move || Box::new((fst.clone(), snd.clone()));
+            Value::Pair(w(), Rc::new(w))
+        })),
 
-        "flip" => apply_args(curried_value!(|f, b| -> Func |a| f.func()(a).func()(b))),
+        "flip" => curried_value!(|f, b| -> Func |a| f.func()(a).func()(b)),
 
-        "fold" => apply_args(
-            curried_value!(|f_ba, b| -> Func move |l_a: Value| l_a.list().fold(b, |b, a| f_ba.clone().func()(b).func()(a))),
-        ),
+        "fold" => {
+            curried_value!(|f_ba, b| -> Func move |l_a: Value| l_a.list().fold(b, |b, a| f_ba.clone().func()(b).func()(a)))
+        }
 
-        "head" => apply_args(
-            curried_value!(|| -> Func |l: Value| l.list().next().unwrap_or_else(|| panic!("runtime panic (list access)"))),
-        ),
+        "head" => {
+            curried_value!(|| -> Func |l: Value| l.list().next().unwrap_or_else(|| panic!("runtime panic (list access)")))
+        }
 
-        "init" => apply_args(curried_value!(|l| -> List {
+        "init" => curried_value!(|l| -> List {
             let mut p = l.list().peekable();
             let mut c = p.next();
             iter::from_fn(move || {
                 p.peek()?;
                 mem::replace(&mut c, p.next())
             })
-        })),
+        }),
 
-        "-" => apply_args(curried_value!(|| -> Bytes {
+        "-" => curried_value!(|| -> Bytes {
             static SHARED: OnceLock<RwLock<(Stdin, Vec<u8>)>> = OnceLock::new();
             let mut at = 0;
             iter::from_fn(move || {
@@ -254,17 +251,17 @@ fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
                     })
                 }
             })
-        })),
+        }),
 
-        "iterate" => apply_args(curried_value!(|f, ini| -> List {
+        "iterate" => curried_value!(|f, ini| -> List {
             let mut curr = ini;
             iter::from_fn(move || {
                 let next = f.clone().func()(curr.clone());
                 Some(mem::replace(&mut curr, next))
             })
-        })),
+        }),
 
-        "join" => apply_args(curried_value!(|sep, lst| -> Bytes {
+        "join" => curried_value!(|sep, lst| -> Bytes {
             let sep = sep.bytes().collect::<Vec<_>>();
             let mut lst = lst.list().map(Value::bytes).peekable();
             let mut now_sep = 0;
@@ -289,17 +286,17 @@ fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
                 }
                 None
             })
-        })),
+        }),
 
-        "last" => apply_args(
-            curried_value!(|| -> Func |l: Value| l.list().last().unwrap_or_else(|| panic!("runtime panic (list access)"))),
-        ),
+        "last" => {
+            curried_value!(|| -> Func |l: Value| l.list().last().unwrap_or_else(|| panic!("runtime panic (list access)")))
+        }
 
-        "len" => apply_args(curried_value!(|list| -> Number || list.list().count() as f64)),
+        "len" => curried_value!(|list| -> Number || list.list().count() as f64),
 
-        "ln" => apply_args(curried_value!(|s| -> Bytes s.bytes().chain(iter::once(b'\n')))),
+        "ln" => curried_value!(|s| -> Bytes s.bytes().chain(iter::once(b'\n'))),
 
-        "lookup" => apply_args(curried_value!(|l| -> Func move |k: Value| {
+        "lookup" => curried_value!(|l| -> Func move |k: Value| {
             let k: Vec<_> = k.bytes().collect();
             match l.list().find_map(|p| {
                 let p = p.pair();
@@ -312,15 +309,13 @@ fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
                 Some(v) => Value::List(Box::new(iter::once(v.clone())), Rc::new(move || Box::new(iter::once(v.clone())))),
                 None => Value::List(Box::new(iter::empty()), Rc::new(|| Box::new(iter::empty()))),
             }
-        })),
+        }),
 
-        "map" => {
-            apply_args(curried_value!(|f, l| -> List l.list().map(move |i| f.clone().func()(i))))
-        }
+        "map" => curried_value!(|f, l| -> List l.list().map(move |i| f.clone().func()(i))),
 
-        "repeat" => apply_args(curried_value!(|val| -> List iter::repeat(val))),
+        "repeat" => curried_value!(|val| -> List iter::repeat(val)),
 
-        "split" => apply_args(curried_value!(|sep, s| -> List {
+        "split" => curried_value!(|sep, s| -> List {
             let sep = sep.bytes().collect::<Vec<_>>();
             let mut s = s.bytes().peekable();
             let mut updog = Vec::<u8>::new();
@@ -342,13 +337,13 @@ fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
                     Rc::new(move || Box::new(vv.clone().into_iter())),
                 ))
             })
-        })),
+        }),
 
-        "tail" => apply_args(curried_value!(|l| -> List l.list().skip(1))),
+        "tail" => curried_value!(|l| -> List l.list().skip(1)),
 
-        "take" => apply_args(curried_value!(|n, l| -> List l.list().take(n.number()() as usize))),
+        "take" => curried_value!(|n, l| -> List l.list().take(n.number()() as usize)),
 
-        "tonum" => apply_args(curried_value!(|s| -> Number || {
+        "tonum" => curried_value!(|s| -> Number || {
             let mut r = 0;
             let mut s = s.bytes();
             for n in s.by_ref() {
@@ -367,32 +362,28 @@ fn lookup_val(name: &str, args: impl Iterator<Item = Value>) -> Value {
                 }
             }
             r as f64
-        })),
+        }),
 
-        "tostr" => apply_args(
-            curried_value!(|n| -> Bytes n.number()().to_string().into_bytes().into_iter()),
-        ),
+        "tostr" => curried_value!(|n| -> Bytes n.number()().to_string().into_bytes().into_iter()),
 
-        "zipwith" => apply_args(
-            curried_value!(|f, la, lb| -> List la.list().zip(lb.list()).map(move |(a, b)| f.clone().func()(a).func()(b))),
-        ),
-
-        // XXX: completely incorrect but just for messing around for now
-        "uncodepoints" => {
-            apply_args(curried_value!(|l| -> Bytes l.list().map(|n| n.number()() as u8)))
+        "zipwith" => {
+            curried_value!(|f, la, lb| -> List la.list().zip(lb.list()).map(move |(a, b)| f.clone().func()(a).func()(b)))
         }
 
         // XXX: completely incorrect but just for messing around for now
-        "codepoints" => apply_args(curried_value!(|s| -> List s.bytes().map(|b| {
+        "uncodepoints" => curried_value!(|l| -> Bytes l.list().map(|n| n.number()() as u8)),
+
+        // XXX: completely incorrect but just for messing around for now
+        "codepoints" => curried_value!(|s| -> List s.bytes().map(|b| {
             let n = b as f64;
             Value::Number(Box::new(move || n), Rc::new(move || Box::new(move || n)))
-        }))),
+        })),
 
         _ => Value::Name(name.into()),
     }
 }
 
-pub fn interp(tree: &Tree, names: &HashMap<String, Value>) -> Value {
+fn interp_impl(tree: &Tree, global: &Global, names: &HashMap<String, Value>) -> Value {
     use TreeKind::*;
     match &tree.value {
         Bytes(v) => {
@@ -406,7 +397,10 @@ pub fn interp(tree: &Tree, names: &HashMap<String, Value>) -> Value {
         &Number(n) => Value::Number(Box::new(move || n), Rc::new(move || Box::new(move || n))),
 
         List(items) => {
-            let v = items.iter().map(|u| interp(u, names)).collect::<Vec<_>>();
+            let v = items
+                .iter()
+                .map(|u| interp_impl(u, global, names))
+                .collect::<Vec<_>>();
             let vv = v.clone();
             Value::List(
                 Box::new(v.into_iter()),
@@ -414,49 +408,60 @@ pub fn interp(tree: &Tree, names: &HashMap<String, Value>) -> Value {
             )
         }
 
-        Apply(app, args) => match app {
-            Applicable::Name(name) => names
-                .get(name)
-                .cloned()
-                .unwrap_or_else(|| lookup_val(name, args.iter().map(|u| interp(u, names)))),
-
-            Applicable::Bind(pat, res, fbk) => {
-                let pat = Matcher::new(pat);
-                let res = *res.clone();
-                let fbk = fbk.as_deref().map(|u| interp(u, names));
-                let names_at_point = names.clone();
-                let w = move || {
-                    let pat = pat.clone();
-                    let res = res.clone();
-                    let fbk = fbk.clone();
-                    let mut names = names_at_point.clone();
-                    Box::new({
-                        move |v| {
-                            if pat.matches_and_bind(v, &mut names) {
-                                interp(&res, &names)
-                            } else {
-                                fbk.unwrap_or_else(|| panic!("runtime panic (partial let)"))
-                            }
+        Apply(app, args) => {
+            let func =
+                match app {
+                    Applicable::Name(name) => names.get(name).cloned().unwrap_or_else(|| {
+                        match global.scope.lookup(name).unwrap() {
+                            ScopeItem::Builtin(_, _) => lookup_builtin(name),
+                            ScopeItem::Defined(tree, _) => interp_impl(tree, global, names),
+                            ScopeItem::Binding(_, _) => unreachable!(),
                         }
-                    })
+                    }),
+
+                    Applicable::Bind(pat, res, fbk) => {
+                        let pat = Matcher::new(pat);
+                        let res = *res.clone();
+                        let fbk = fbk.as_deref().map(|u| interp_impl(u, global, names));
+                        let global_ptr = global as *const Global;
+                        let names_at_point = names.clone();
+                        let w = move || {
+                            let pat = pat.clone();
+                            let res = res.clone();
+                            let fbk = fbk.clone();
+                            let mut names = names_at_point.clone();
+                            Box::new({
+                                move |v| {
+                                    if pat.matches_and_bind(v, &mut names) {
+                                        interp_impl(&res, unsafe { &*global_ptr }, &names)
+                                    } else {
+                                        fbk.unwrap_or_else(|| panic!("runtime panic (partial let)"))
+                                    }
+                                }
+                            })
+                        };
+                        Value::Func(w(), Rc::new(move || w()))
+                    }
                 };
-                args.iter()
-                    .map(|u| interp(u, names))
-                    .fold(Value::Func(w(), Rc::new(move || w())), |acc, cur| {
-                        acc.func()(cur)
-                    })
-            }
-        },
+
+            args.iter()
+                .map(|u| interp_impl(u, global, names))
+                .fold(func, |acc, cur| acc.func()(cur))
+        }
 
         Pair(fst, snd) => {
-            let fst = interp(fst, names);
-            let snd = interp(snd, names);
+            let fst = interp_impl(fst, global, names);
+            let snd = interp_impl(snd, global, names);
             let w = move || Box::new((fst.clone(), snd.clone()));
             Value::Pair(w(), Rc::new(w))
         }
     }
 }
 // }}}
+
+pub fn interp(tree: &Tree, global: &Global) -> Value {
+    interp_impl(tree, global, &HashMap::new())
+}
 
 pub fn run_print(val: Value) {
     match val {
@@ -479,6 +484,6 @@ pub fn run_print(val: Value) {
             print!("\t");
             run_print(p.1);
         }
-        Value::Name(name) => panic!("'{name}' was not added to interp"),
+        Value::Name(name) => unreachable!("run_print on a name: '{name}'"),
     }
 }

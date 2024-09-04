@@ -218,8 +218,6 @@ is doable for both but it will require type inference to identify infinite loops
 - enable self-referential?
 - enable out-of-order?
 
-`def` in interp
-
 process description of `def`s (eg. markdown-ish?)
 
 ### regarding coercion:

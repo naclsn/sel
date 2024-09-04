@@ -257,6 +257,7 @@ impl Error {
                 title: "Unknown name".into(),
                 messages: vec![(
                     loc,
+                    // TODO: (could) search in scope for similar names and for matching types
                     format!("Unknown name '{name}', should be of type {expected_type}"),
                 )],
             },
@@ -286,11 +287,16 @@ impl Error {
             ExpectedButGot { expected, actual } => Report {
                 registry,
                 title: "Type mismatch".into(),
+                // TODO: (could) if expression of type `actual` is a name, search in scope,
+                //               otherwise search for function like `actual -> expected`
                 messages: vec![(loc, format!("Expected type {expected}, but got {actual}"))],
             },
             InfWhereFinExpected => Report {
                 registry,
                 title: "Wrong boundedness".into(),
+                // TODO: (could) recommend eg `take` if applicable? -> note: this goes toward
+                // making recommendations based on actually written vs guessed intent; there is
+                // a whole thing to studdy here which would sit in between parser and error
                 messages: vec![(loc, "Expected finite type, but got infinite type".into())],
             },
             NameAlreadyDeclared { name } => Report {

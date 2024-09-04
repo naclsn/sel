@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::env::{self, Args};
 use std::fs::File;
 use std::io::{self, Read, Write};
@@ -232,7 +231,7 @@ fn do_repl(mut global: Global) {
 
 fn do_the_thing(ty: &FrozenType, tree: &Tree, global: &Global) {
     use FrozenType::*;
-    interp::run_print(interp::interp(tree, &HashMap::new()));
+    interp::run_print(interp::interp(tree, global));
     match ty {
         Number | Pair(_, _) => println!(),
         Bytes(_) | List(_, _) => (),
