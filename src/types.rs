@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::fs::File;
+use std::io::Write;
+use std::sync::OnceLock;
 
 use crate::error::ErrorKind;
 
@@ -34,27 +37,193 @@ pub enum FrozenType {
 }
 
 #[derive(Clone)]
-pub struct TypeList(Vec<Option<Type>>);
+pub struct TypeList {
+    slots: Vec<Option<Type>>,
+    free_slots: usize,
+}
+
+static mut DOTS: OnceLock<File> = OnceLock::new();
+fn update_dot(types: &TypeList, title: String) {
+    let f = unsafe {
+        DOTS.get_or_init(|| {
+            let mut f = File::create("types-snapshots.html").unwrap();
+            writeln!(f, "{}", r#"<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <script src="https://d3js.org/d3.v5.min.js"></script>
+        <script src="https://unpkg.com/@hpcc-js/wasm@0.3.11/dist/index.min.js"></script>
+        <script src="https://unpkg.com/d3-graphviz@3.0.5/build/d3-graphviz.js"></script>
+        <style> body { padding: 0; margin: 0; overflow: hidden; background: #333; color: #eee; } </style>
+    </head>
+
+    <body>
+        <h2 id="shownIndex" style="position: absolute; top: 3rem; left: 50%; transform: translateX(-50%)"></h2>
+        <div id="graph" style="text-align: center"></div>
+        <script>/*-*/;onload=function(){
+            var dots = dotLines.textContent.trim().split('\n').map(l => 'digraph{edge[color="gray93"]node[color="gray93"fontcolor="gray93"]fontcolor="gray93"bgcolor="gray20"'+l+'}');
+            var graphviz = d3.select('#graph').graphviz().zoom(false).width(innerWidth).height(innerHeight).fit(true).transition(() => d3.transition('main').ease(d3.easeLinear).duration(125)).on('initEnd', next);
+
+            var dotIndex = -1;
+            function next() { if (dots.length-1 === dotIndex) flash(); else graphviz.renderDot(dots[shownIndex.textContent = ++dotIndex]); }
+            function prev() { if (0 === dotIndex) flash(); else graphviz.renderDot(dots[shownIndex.textContent = --dotIndex]); }
+            function flash() { document.body.style.background = '#eee'; setTimeout(() => document.body.style.background = '', 125); }
+
+            var num = 0;
+            onkeypress = (ev) => {
+                if (!isNaN(parseInt(ev.key))) { num = num*10 + parseInt(ev.key); shownIndex.textContent = dotIndex+' ('+num+')'; return; }
+                var f = { h: prev, j: next, k: prev, l: next, g() { graphviz.renderDot(dots[shownIndex.textContent = dotIndex = Math.min(num, dots.length-1)]); } }[ev.key];
+                if (f) f(); num = 0;
+            }
+        };</script>
+        <span id="dotLines" style="display: none">"#)
+            .unwrap();
+            f
+        });
+        DOTS.get_mut().unwrap()
+    };
+    write!(f, "label=\"{title}\"").unwrap();
+    types
+        .slots
+        .iter()
+        .enumerate()
+        .try_for_each(|(k, slot)| {
+            if let Some(slot) = slot {
+                use Type::*;
+                for at in match slot {
+                    &Number => vec![],
+                    &Bytes(fin) => vec![fin],
+                    &List(fin, has) => vec![fin, has],
+                    &Func(par, ret) => vec![par, ret],
+                    &Pair(fst, snd) => vec![fst, snd],
+                    &Named(_) => vec![],
+                    &Finite(_) => vec![],
+                    &FiniteBoth(lhs, rhs) => vec![lhs, rhs],
+                    &FiniteEither(lhs, rhs) => vec![lhs, rhs],
+                } {
+                    write!(
+                        f,
+                        " \"{k} :: {}\" -> \"{at} :: {}\" ",
+                        string_any_type(types, k),
+                        string_any_type(types, at)
+                    )?;
+                }
+                write!(f, " \"{k} :: {}\" ", string_any_type(types, k))
+            } else {
+                write!(f, "/*{k} was None*/")
+            }
+        })
+        .unwrap();
+    writeln!(f).unwrap();
+}
+
+fn string_any_type(types: &TypeList, at: TypeRef) -> String {
+    use Type::*;
+    match types.get(at) {
+        Number => "Num".into(),
+        Bytes(fin) => if types.freeze_finite(*fin) {
+            "Str"
+        } else {
+            "Str+"
+        }
+        .into(),
+        List(fin, has) => if types.freeze_finite(*fin) {
+            format!("[{}]", string_any_type(types, *has))
+        } else {
+            format!("[{}]+", string_any_type(types, *has))
+        }
+        .into(),
+        Func(par, ret) => {
+            let funcarg = matches!(types.get(*par), Func(_, _));
+            if funcarg {
+                format!(
+                    "({}) -> {}",
+                    string_any_type(types, *par),
+                    string_any_type(types, *ret)
+                )
+            } else {
+                format!(
+                    "{} -> {}",
+                    string_any_type(types, *par),
+                    string_any_type(types, *ret)
+                )
+            }
+        }
+        Pair(fst, snd) => format!(
+            "({}, {})",
+            string_any_type(types, *fst),
+            string_any_type(types, *snd)
+        ),
+        Named(name) => format!("{name}"),
+        Finite(is) => {
+            if *is {
+                format!("{at}")
+            } else {
+                "+".into()
+            }
+        }
+        FiniteBoth(l, r) => format!(
+            "<{}&{}>",
+            string_any_type(types, *l),
+            string_any_type(types, *r)
+        ),
+        FiniteEither(l, r) => format!(
+            "<{}|{}>",
+            string_any_type(types, *l),
+            string_any_type(types, *r)
+        ),
+    }
+}
 
 impl Default for TypeList {
     fn default() -> Self {
-        TypeList(vec![
-            Some(Type::Number),       // [NUMBER_TYPEREF]
-            Some(Type::Bytes(2)),     // [STRFIN_TYPEREF]
-            Some(Type::Finite(true)), // [FINITE_TYPEREF]
-        ])
+        let r = TypeList {
+            slots: vec![
+                Some(Type::Number),       // [NUMBER_TYPEREF]
+                Some(Type::Bytes(2)),     // [STRFIN_TYPEREF]
+                Some(Type::Finite(true)), // [FINITE_TYPEREF]
+            ],
+            free_slots: 0,
+        };
+        update_dot(&r, "default".into());
+        r
     }
 }
 
 // types vec with holes, also factory and such {{{
 impl TypeList {
     fn push(&mut self, it: Type) -> TypeRef {
-        if let Some((k, o)) = self.0.iter_mut().enumerate().find(|(_, o)| o.is_none()) {
+        let k = if let Some((k, o)) = match self.free_slots {
+            0 => None,
+            _ => self.slots.iter_mut().enumerate().find(|p| p.1.is_none()),
+        } {
             *o = Some(it);
+            self.free_slots -= 1;
             k
         } else {
-            self.0.push(Some(it));
-            self.0.len() - 1
+            self.slots.push(Some(it));
+            self.slots.len() - 1
+        };
+        update_dot(&self, format!("push {k} :: {}", string_any_type(self, k)));
+        k
+    }
+
+    pub(crate) fn get(&self, at: TypeRef) -> &Type {
+        self.slots[at].as_ref().unwrap()
+    }
+
+    pub(crate) fn set(&mut self, at: TypeRef, ty: Type) {
+        self.slots[at] = Some(ty);
+        update_dot(&self, format!("set {at} :: {}", string_any_type(self, at)));
+    }
+
+    pub(crate) fn plop(&mut self, at: TypeRef) {
+        update_dot(&self, format!("plop {at} :: {}", string_any_type(self, at)));
+        self.slots[at] = None;
+        self.free_slots += 1;
+        while let Some(None) = self.slots.last() {
+            self.slots.pop();
+            self.free_slots = 0;
         }
     }
 
@@ -92,22 +261,6 @@ impl TypeList {
     }
     pub fn both(&mut self, left: Boundedness, right: Boundedness) -> Boundedness {
         self.push(Type::FiniteBoth(left, right))
-    }
-
-    pub(crate) fn get(&self, at: TypeRef) -> &Type {
-        self.0[at].as_ref().unwrap()
-    }
-
-    pub(crate) fn get_mut(&mut self, at: TypeRef) -> &mut Type {
-        self.0[at].as_mut().unwrap()
-    }
-
-    pub(crate) fn pop(&mut self, at: TypeRef) -> Type {
-        let r = self.0[at].take().unwrap();
-        while let Some(None) = self.0.last() {
-            self.0.pop();
-        }
-        r
     }
 
     pub(crate) fn duplicate(
@@ -278,7 +431,7 @@ impl Type {
                 (false, false) | (true, true) => Ok(()),
                 (false, true) => {
                     if !keep_inf {
-                        *types.get_mut(fw) = Finite(true);
+                        types.set(fw, Finite(true));
                     }
                     Ok(())
                 }
@@ -312,11 +465,11 @@ impl Type {
             }
 
             (other, Named(_)) => {
-                *types.get_mut(give) = other.clone();
+                types.set(give, other.clone());
                 Ok(())
             }
             (Named(_), other) => {
-                *types.get_mut(want) = other.clone();
+                types.set(want, other.clone());
                 Ok(())
             }
 

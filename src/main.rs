@@ -33,11 +33,11 @@ fn main() {
 
     let mut global = Global::with_builtin();
 
-    let prelude = include_bytes!("prelude.sel");
-    let source = global.registry.add_bytes("<prelude>", prelude.into());
-    for (k, v) in parse::process(source, &mut global).scope {
-        global.scope.declare(k, v);
-    }
+    //let prelude = include_bytes!("prelude.sel");
+    //let source = global.registry.add_bytes("<prelude>", prelude.into());
+    //for (k, v) in parse::process(source, &mut global).scope {
+    //    global.scope.declare(k, v);
+    //}
 
     if opts.do_lookup {
         do_lookup(args, global);

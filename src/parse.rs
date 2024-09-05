@@ -467,7 +467,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             let name = name.clone();
             let par = self.global.types.named(format!("paramof({name})"));
             let ret = self.global.types.named(format!("returnof({name})"));
-            *self.global.types.get_mut(func.ty) = Func(par, ret);
+            self.global.types.set(func.ty, Func(par, ret));
         }
 
         // coerce if needed
@@ -959,24 +959,26 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             let Token(comma_loc, _) = self.next_tok();
             let then = self.parse_apply();
 
-            let r_ty = r.ty;
-            let r_loc = r.loc.clone();
-
-            let then_ty = then.ty;
-            let then_loc = then.loc.clone();
-
-            let (is_func, is_hole) = match self.global.types.get(then_ty) {
+            let (r_is_func, r_is_hole) = match self.global.types.get(r.ty) {
+                Type::Func(_, _) => (true, false),
+                Type::Named(_) => (false, true),
+                _ => (false, false),
+            };
+            let (then_is_func, then_is_hole) = match self.global.types.get(then.ty) {
                 Type::Func(_, _) => (true, false),
                 Type::Named(_) => (false, true),
                 _ => (false, false),
             };
 
             // `then` not a function nor a type hole
-            r = if !is_func && !is_hole {
+            r = if !then_is_func && !then_is_hole {
                 self.report(Error(
-                    r_loc,
+                    r.loc.clone(),
                     ErrorKind::ContextCaused {
-                        error: Box::new(Error(then_loc, err_not_func(&self.global.types, &then))),
+                        error: Box::new(Error(
+                            then.loc.clone(),
+                            err_not_func(&self.global.types, &then),
+                        )),
                         because: ErrorContext::ChainedFromToNotFunc { comma_loc },
                     },
                 ));
@@ -985,9 +987,9 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             // [x, f, g, h] :: d; where
             // - x :: A
             // - f, g, h :: a -> b, b -> c, c -> d
-            else if is_hole
-                || !matches!(self.global.types.get(r_ty), Type::Func(_, _)) // note: catches coersion cases
-                || Type::applicable(then_ty, r_ty, &self.global.types)
+            else if then_is_hole
+                || !(r_is_func || r_is_hole) // note: catches coersion cases
+                || Type::applicable(then.ty, r.ty, &self.global.types) && !r_is_hole
             {
                 // XXX: does it need `snapshot` here?
                 // err_context_as_nth_arg: we know `then` is a function
@@ -999,11 +1001,12 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             else {
                 let mut pipe = self.sure_lookup(comma_loc.clone(), "pipe");
                 // XXX: does it need `snapshot` here?
-                // we know that `r` is a function (see previous 'else if')
+                // we know that `r` is a function or hole (see previous 'else if')
                 pipe = self.try_apply(pipe, r, None);
                 // err_context_as_nth_arg: `then` is either a function or a type hole
                 // ('if') and it is not a type hole ('else if'), so it is a function
-                self.try_apply(pipe, then, Some(comma_loc))
+                pipe = self.try_apply(pipe, then, Some(comma_loc));
+                pipe
             };
         } // while let Comma
         r

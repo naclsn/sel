@@ -317,14 +317,39 @@ impl Error {
 // display report {{{
 impl Display for Report<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let (Location(file, ref range), _) = self.messages[0];
-        let path = self.registry.get_path(file);
-        let bytes = self.registry.get_bytes(file);
+        // TODO: todo
+
+        let (Location(file, range), _) = &self.messages[0];
+        let path = self.registry.get_path(*file);
+        let bytes = self.registry.get_bytes(*file);
         let line = 1 + bytes[range.start..].iter().filter(|c| b'\n' == **c).count();
         writeln!(f, "{}:{line}: {}", path.display(), self.title)?;
 
-        for (_, msg) in &self.messages {
-            writeln!(f, " -> {}", msg)?;
+        let line_start = range.start
+            - bytes[..range.start]
+                .iter()
+                .rev()
+                .position(|c| b'\n' == *c)
+                .unwrap_or(range.start);
+        let line_end = range.end
+            - bytes[range.end..]
+                .iter()
+                .position(|c| b'\n' == *c)
+                .unwrap_or(bytes.len() - range.end-1);
+        writeln!(
+            f,
+            "\t| {}",
+            String::from_utf8_lossy(&bytes[line_start..line_end])
+        )?;
+
+        for (Location(file, range), msg) in &self.messages {
+            let bytes = self.registry.get_bytes(*file);
+            writeln!(
+                f,
+                " {} -> {}",
+                String::from_utf8_lossy(&bytes[range.start..range.end]),
+                msg
+            )?;
         }
         Ok(())
     }
