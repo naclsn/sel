@@ -1,1 +1,4 @@
 target/
+
+# a debug tool
+types-snapshots.html

@@ -1,8 +1,5 @@
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result as FmtResult};
-use std::fs::File;
-use std::io::Write;
-use std::sync::OnceLock;
 
 use crate::error::ErrorKind;
 
@@ -42,9 +39,19 @@ pub struct TypeList {
     free_slots: usize,
 }
 
-static mut DOTS: OnceLock<File> = OnceLock::new();
-fn group_dot_lines(hi: String) {
-    writeln!(unsafe {
+#[cfg(feature = "types-snapshots")]
+mod types_snapshots {
+    use std::fs::File;
+    use std::io::Write;
+    use std::sync::OnceLock;
+
+    use super::*;
+
+    static mut DOTS: OnceLock<File> = OnceLock::new();
+    static mut LIMIT: usize = 0;
+
+    pub(super) fn group_dot_lines(hi: String) {
+        writeln!(unsafe {
         DOTS.get_or_init(|| {
             let mut f = File::create("types-snapshots.html").unwrap();
             writeln!(f, "{}", r#"<!DOCTYPE html>
@@ -58,6 +65,7 @@ fn group_dot_lines(hi: String) {
     </head>
     <body>
         <h2 style="position: absolute; top: 3rem; left: 50%; transform: translateX(-50%);">
+            (use hjkl)
             <span id="shownIndex"></span>
             <span id="showSection"></span>
         </h2>
@@ -68,7 +76,7 @@ fn group_dot_lines(hi: String) {
             var graphviz = d3.select('#graph').graphviz().zoom(false).width(innerWidth).height(innerHeight).fit(true).transition(() => d3.transition('main').ease(d3.easeLinear).duration(125)).on('initEnd', show);
             function show() {
                 if (dotIndex < 1) flash(), dotIndex = 1; else if (dots.length-1 < dotIndex) flash(), dotIndex = dots.length-1;
-                for (var k = dotIndex; 0 < k;) if ('#' === dots[--k][0]) { showSection.textContent = '/'+dots.length+' '+dots[k]; break; }
+                for (var k = dotIndex; 0 < k;) if ('#' === dots[--k][0]) { showSection.textContent = '/'+(dots.length-1)+' '+dots[k]; break; }
                 graphviz.renderDot(dots[shownIndex.textContent = dotIndex]);
             }
             function next() { while (dots[++dotIndex] && '#' === dots[dotIndex][0]); show(); }
@@ -84,114 +92,117 @@ fn group_dot_lines(hi: String) {
             }
         };</script>
         <span id="dotLines" style="display: none;">"#)
-            .unwrap();
-            f
-        });
-        DOTS.get_mut().unwrap()
-    }, "# {hi}").unwrap();
-}
-fn update_dot(types: &TypeList, title: String) {
-    let f = unsafe { DOTS.get_mut().unwrap() };
-    write!(f, "label=\"{title}\"").unwrap();
-    types
-        .slots
-        .iter()
-        .enumerate()
-        .try_for_each(|(k, slot)| {
-            if let Some(slot) = slot {
-                use Type::*;
-                for at in match slot {
-                    &Number => vec![],
-                    &Bytes(fin) => vec![fin],
-                    &List(fin, has) => vec![fin, has],
-                    &Func(par, ret) => vec![par, ret],
-                    &Pair(fst, snd) => vec![fst, snd],
-                    &Named(_) => vec![],
-                    &Finite(_) => vec![],
-                    &FiniteBoth(lhs, rhs) => vec![lhs, rhs],
-                    &FiniteEither(lhs, rhs) => vec![lhs, rhs],
-                } {
-                    write!(
-                        f,
-                        " \"{k} :: {}\" -> \"{at} :: {}\" ",
-                        string_any_type(types, k),
-                        string_any_type(types, at)
-                    )?;
-                }
-                write!(f, " \"{k} :: {}\" ", string_any_type(types, k))
-            } else {
-                write!(f, " \"{k} :: []\"*/")
-            }
-        })
-        .unwrap();
-    writeln!(f).unwrap();
-}
-static mut LIMIT: usize = 0;
-fn string_any_type(types: &TypeList, at: TypeRef) -> String {
-    unsafe { LIMIT = 0 };
-    string_any_type_impl(types, at)
-}
-fn string_any_type_impl(types: &TypeList, at: TypeRef) -> String {
-    use Type::*;
-    if unsafe {
-        LIMIT += 1;
-        12 < LIMIT
-    } {
-        return "...".into();
+                .unwrap();
+                f
+            });
+            DOTS.get_mut().unwrap()
+        }, "# {hi}").unwrap();
     }
-    match types.get(at) {
-        Number => "Num".into(),
-        Bytes(fin) => if types.freeze_finite(*fin) {
-            "Str"
-        } else {
-            "Str+"
+
+    pub(super) fn update_dot(types: &TypeList, title: String) {
+        let f = unsafe { DOTS.get_mut().unwrap() };
+        write!(f, "label=\"{title}\"").unwrap();
+        types
+            .slots
+            .iter()
+            .enumerate()
+            .try_for_each(|(k, slot)| {
+                if let Some(slot) = slot {
+                    use Type::*;
+                    for at in match slot {
+                        &Number => vec![],
+                        &Bytes(fin) => vec![fin],
+                        &List(fin, has) => vec![fin, has],
+                        &Func(par, ret) => vec![par, ret],
+                        &Pair(fst, snd) => vec![fst, snd],
+                        &Named(_) => vec![],
+                        &Finite(_) => vec![],
+                        &FiniteBoth(lhs, rhs) => vec![lhs, rhs],
+                        &FiniteEither(lhs, rhs) => vec![lhs, rhs],
+                    } {
+                        write!(
+                            f,
+                            " \"{k} :: {}\" -> \"{at} :: {}\" ",
+                            string_any_type(types, k),
+                            string_any_type(types, at)
+                        )?;
+                    }
+                    write!(f, " \"{k} :: {}\" ", string_any_type(types, k))
+                } else {
+                    write!(f, " \"{k} :: []\"*/")
+                }
+            })
+            .unwrap();
+        writeln!(f).unwrap();
+    }
+
+    pub(super) fn string_any_type(types: &TypeList, at: TypeRef) -> String {
+        unsafe { LIMIT = 0 };
+        string_any_type_impl(types, at)
+    }
+
+    fn string_any_type_impl(types: &TypeList, at: TypeRef) -> String {
+        use Type::*;
+        if unsafe {
+            LIMIT += 1;
+            12 < LIMIT
+        } {
+            return "...".into();
         }
-        .into(),
-        List(fin, has) => if types.freeze_finite(*fin) {
-            format!("[{}]", string_any_type_impl(types, *has))
-        } else {
-            format!("[{}]+", string_any_type_impl(types, *has))
-        }
-        .into(),
-        Func(par, ret) => {
-            let funcarg = matches!(types.get(*par), Func(_, _));
-            if funcarg {
-                format!(
-                    "({}) -> {}",
-                    string_any_type_impl(types, *par),
-                    string_any_type_impl(types, *ret)
-                )
+        match types.get(at) {
+            Number => "Num".into(),
+            Bytes(fin) => if types.freeze_finite(*fin) {
+                "Str"
             } else {
-                format!(
-                    "{} -> {}",
-                    string_any_type_impl(types, *par),
-                    string_any_type_impl(types, *ret)
-                )
+                "Str+"
             }
-        }
-        Pair(fst, snd) => format!(
-            "({}, {})",
-            string_any_type_impl(types, *fst),
-            string_any_type_impl(types, *snd)
-        ),
-        Named(name) => format!("{name}"),
-        Finite(is) => {
-            if *is {
-                format!("{at}")
+            .into(),
+            List(fin, has) => if types.freeze_finite(*fin) {
+                format!("[{}]", string_any_type_impl(types, *has))
             } else {
-                "+".into()
+                format!("[{}]+", string_any_type_impl(types, *has))
             }
+            .into(),
+            Func(par, ret) => {
+                let funcarg = matches!(types.get(*par), Func(_, _));
+                if funcarg {
+                    format!(
+                        "({}) -> {}",
+                        string_any_type_impl(types, *par),
+                        string_any_type_impl(types, *ret)
+                    )
+                } else {
+                    format!(
+                        "{} -> {}",
+                        string_any_type_impl(types, *par),
+                        string_any_type_impl(types, *ret)
+                    )
+                }
+            }
+            Pair(fst, snd) => format!(
+                "({}, {})",
+                string_any_type_impl(types, *fst),
+                string_any_type_impl(types, *snd)
+            ),
+            Named(name) => format!("{name}"),
+            Finite(is) => {
+                if *is {
+                    format!("{at}")
+                } else {
+                    "+".into()
+                }
+            }
+            FiniteBoth(l, r) => format!(
+                "<{}&{}>",
+                string_any_type_impl(types, *l),
+                string_any_type_impl(types, *r)
+            ),
+            FiniteEither(l, r) => format!(
+                "<{}|{}>",
+                string_any_type_impl(types, *l),
+                string_any_type_impl(types, *r)
+            ),
         }
-        FiniteBoth(l, r) => format!(
-            "<{}&{}>",
-            string_any_type_impl(types, *l),
-            string_any_type_impl(types, *r)
-        ),
-        FiniteEither(l, r) => format!(
-            "<{}|{}>",
-            string_any_type_impl(types, *l),
-            string_any_type_impl(types, *r)
-        ),
     }
 }
 
@@ -206,7 +217,8 @@ impl Default for TypeList {
             free_slots: 0,
         };
         r.transaction_group("default".into());
-        update_dot(&r, "default".into());
+        #[cfg(feature = "types-snapshots")]
+        types_snapshots::update_dot(&r, "default".into());
         r
     }
 }
@@ -214,7 +226,8 @@ impl Default for TypeList {
 // types vec with holes, also factory and such {{{
 impl TypeList {
     pub fn transaction_group(&self, hi: String) {
-        group_dot_lines(hi);
+        #[cfg(feature = "types-snapshots")]
+        types_snapshots::group_dot_lines(hi);
     }
 
     fn push(&mut self, it: Type) -> TypeRef {
@@ -229,7 +242,11 @@ impl TypeList {
             self.slots.push(Some(it));
             self.slots.len() - 1
         };
-        update_dot(&self, format!("push {k} :: {}", string_any_type(self, k)));
+        #[cfg(feature = "types-snapshots")]
+        types_snapshots::update_dot(
+            &self,
+            format!("push {k} :: {}", types_snapshots::string_any_type(self, k)),
+        );
         k
     }
 
@@ -239,11 +256,22 @@ impl TypeList {
 
     pub(crate) fn set(&mut self, at: TypeRef, ty: Type) {
         self.slots[at] = Some(ty);
-        update_dot(&self, format!("set {at} :: {}", string_any_type(self, at)));
+        #[cfg(feature = "types-snapshots")]
+        types_snapshots::update_dot(
+            &self,
+            format!("set {at} :: {}", types_snapshots::string_any_type(self, at)),
+        );
     }
 
     pub(crate) fn plop(&mut self, at: TypeRef) {
-        update_dot(&self, format!("plop {at} :: {}", string_any_type(self, at)));
+        #[cfg(feature = "types-snapshots")]
+        types_snapshots::update_dot(
+            &self,
+            format!(
+                "plop {at} :: {}",
+                types_snapshots::string_any_type(self, at)
+            ),
+        );
         self.slots[at] = None;
         self.free_slots += 1;
         while let Some(None) = self.slots.last() {

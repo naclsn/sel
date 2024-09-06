@@ -1141,29 +1141,3 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
     }
 }
 // }}}
-
-// TODO: freaking remove that, and update test!
-#[cfg(test)]
-impl Tree {
-    #[deprecated]
-    pub fn new(bytes: impl IntoIterator<Item = u8>) -> Result<Tree, ErrorList> {
-        Tree::new_typed(bytes).map(|r| r.1)
-    }
-
-    #[deprecated]
-    pub fn new_typed(bytes: impl IntoIterator<Item = u8>) -> Result<(FrozenType, Tree), ErrorList> {
-        // XXX: won't have the prelude, so that's pretty dumb
-        let mut global = Global::with_builtin();
-        let r = process(
-            global.registry.add_bytes("", bytes.into_iter().collect()),
-            &mut global,
-        );
-        if r.errors.is_empty() && r.tree.is_some() {
-            r.tree
-                .map(|t| (global.types.frozen(t.ty), t))
-                .ok_or(r.errors)
-        } else {
-            Err(r.errors)
-        }
-    }
-}

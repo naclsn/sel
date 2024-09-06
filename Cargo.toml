@@ -3,6 +3,11 @@ name = "sel"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+# when enabled, transactions with the TypeList are logged in a graphically navigable html (it's a hack!)
+types-snapshots = []
+debug = ["types-snapshots"]
+
 [dev-dependencies]
 insta = "1.40.0"
 
