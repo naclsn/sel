@@ -851,3 +851,14 @@ fn reporting() {
     );
 }
 // }}}
+
+// TODO: cases to add
+
+// iterate [_ 1, add 1] 1
+// _ :: Num -> Num -> Num
+
+// iterate [div 1, _ 1] 1
+// _ :: Num -> Num -> Num
+
+// iterate [div 1, add 1] 1, _
+// _ :: [Num]+ -> returnof(typeof(_))

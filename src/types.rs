@@ -43,8 +43,8 @@ pub struct TypeList {
 }
 
 static mut DOTS: OnceLock<File> = OnceLock::new();
-fn update_dot(types: &TypeList, title: String) {
-    let f = unsafe {
+fn group_dot_lines(hi: String) {
+    writeln!(unsafe {
         DOTS.get_or_init(|| {
             let mut f = File::create("types-snapshots.html").unwrap();
             writeln!(f, "{}", r#"<!DOCTYPE html>
@@ -56,32 +56,42 @@ fn update_dot(types: &TypeList, title: String) {
         <script src="https://unpkg.com/d3-graphviz@3.0.5/build/d3-graphviz.js"></script>
         <style> body { padding: 0; margin: 0; overflow: hidden; background: #333; color: #eee; } </style>
     </head>
-
     <body>
-        <h2 id="shownIndex" style="position: absolute; top: 3rem; left: 50%; transform: translateX(-50%)"></h2>
-        <div id="graph" style="text-align: center"></div>
+        <h2 style="position: absolute; top: 3rem; left: 50%; transform: translateX(-50%);">
+            <span id="shownIndex"></span>
+            <span id="showSection"></span>
+        </h2>
+        <div id="graph" style="text-align: center;"></div>
         <script>/*-*/;onload=function(){
-            var dots = dotLines.textContent.trim().split('\n').map(l => 'digraph{edge[color="gray93"]node[color="gray93"fontcolor="gray93"]fontcolor="gray93"bgcolor="gray20"'+l+'}');
-            var graphviz = d3.select('#graph').graphviz().zoom(false).width(innerWidth).height(innerHeight).fit(true).transition(() => d3.transition('main').ease(d3.easeLinear).duration(125)).on('initEnd', next);
-
-            var dotIndex = -1;
-            function next() { if (dots.length-1 === dotIndex) flash(); else graphviz.renderDot(dots[shownIndex.textContent = ++dotIndex]); }
-            function prev() { if (0 === dotIndex) flash(); else graphviz.renderDot(dots[shownIndex.textContent = --dotIndex]); }
-            function flash() { document.body.style.background = '#eee'; setTimeout(() => document.body.style.background = '', 125); }
-
+            var dots = dotLines.textContent.trim().split('\n').map(l => '#' === l[0] ? l : 'digraph{edge[color="gray93"]node[color="gray93"fontcolor="gray93"]fontcolor="gray93"bgcolor="gray20"'+l+'}');
+            var dotIndex = 0;
+            var graphviz = d3.select('#graph').graphviz().zoom(false).width(innerWidth).height(innerHeight).fit(true).transition(() => d3.transition('main').ease(d3.easeLinear).duration(125)).on('initEnd', show);
+            function show() {
+                if (dotIndex < 1) flash(), dotIndex = 1; else if (dots.length-1 < dotIndex) flash(), dotIndex = dots.length-1;
+                for (var k = dotIndex; 0 < k;) if ('#' === dots[--k][0]) { showSection.textContent = '/'+dots.length+' '+dots[k]; break; }
+                graphviz.renderDot(dots[shownIndex.textContent = dotIndex]);
+            }
+            function next() { while (dots[++dotIndex] && '#' === dots[dotIndex][0]); show(); }
+            function prev() { while (dots[--dotIndex] && '#' === dots[dotIndex][0]); show(); }
+            function jumpnext() { while (dots[++dotIndex] && '#' !== dots[dotIndex][0]); while (dots[++dotIndex] && '#' !== dots[dotIndex][0]); prev(); }
+            function jumpprev() { while (dots[--dotIndex] && '#' !== dots[dotIndex][0]); prev(); }
+            function flash() { document.body.style.color = '#333'; setTimeout(() => document.body.style.color = '', 125); }
             var num = 0;
             onkeypress = (ev) => {
                 if (!isNaN(parseInt(ev.key))) { num = num*10 + parseInt(ev.key); shownIndex.textContent = dotIndex+' ('+num+')'; return; }
-                var f = { h: prev, j: next, k: prev, l: next, g() { graphviz.renderDot(dots[shownIndex.textContent = dotIndex = Math.min(num, dots.length-1)]); } }[ev.key];
+                var f = { h: prev, j: jumpnext, k: jumpprev, l: next, g() { dotIndex = Math.min(num, dots.length-1); show(); } }[ev.key];
                 if (f) f(); num = 0;
             }
         };</script>
-        <span id="dotLines" style="display: none">"#)
+        <span id="dotLines" style="display: none;">"#)
             .unwrap();
             f
         });
         DOTS.get_mut().unwrap()
-    };
+    }, "# {hi}").unwrap();
+}
+fn update_dot(types: &TypeList, title: String) {
+    let f = unsafe { DOTS.get_mut().unwrap() };
     write!(f, "label=\"{title}\"").unwrap();
     types
         .slots
@@ -110,15 +120,25 @@ fn update_dot(types: &TypeList, title: String) {
                 }
                 write!(f, " \"{k} :: {}\" ", string_any_type(types, k))
             } else {
-                write!(f, "/*{k} was None*/")
+                write!(f, " \"{k} :: []\"*/")
             }
         })
         .unwrap();
     writeln!(f).unwrap();
 }
-
+static mut LIMIT: usize = 0;
 fn string_any_type(types: &TypeList, at: TypeRef) -> String {
+    unsafe { LIMIT = 0 };
+    string_any_type_impl(types, at)
+}
+fn string_any_type_impl(types: &TypeList, at: TypeRef) -> String {
     use Type::*;
+    if unsafe {
+        LIMIT += 1;
+        12 < LIMIT
+    } {
+        return "...".into();
+    }
     match types.get(at) {
         Number => "Num".into(),
         Bytes(fin) => if types.freeze_finite(*fin) {
@@ -128,9 +148,9 @@ fn string_any_type(types: &TypeList, at: TypeRef) -> String {
         }
         .into(),
         List(fin, has) => if types.freeze_finite(*fin) {
-            format!("[{}]", string_any_type(types, *has))
+            format!("[{}]", string_any_type_impl(types, *has))
         } else {
-            format!("[{}]+", string_any_type(types, *has))
+            format!("[{}]+", string_any_type_impl(types, *has))
         }
         .into(),
         Func(par, ret) => {
@@ -138,21 +158,21 @@ fn string_any_type(types: &TypeList, at: TypeRef) -> String {
             if funcarg {
                 format!(
                     "({}) -> {}",
-                    string_any_type(types, *par),
-                    string_any_type(types, *ret)
+                    string_any_type_impl(types, *par),
+                    string_any_type_impl(types, *ret)
                 )
             } else {
                 format!(
                     "{} -> {}",
-                    string_any_type(types, *par),
-                    string_any_type(types, *ret)
+                    string_any_type_impl(types, *par),
+                    string_any_type_impl(types, *ret)
                 )
             }
         }
         Pair(fst, snd) => format!(
             "({}, {})",
-            string_any_type(types, *fst),
-            string_any_type(types, *snd)
+            string_any_type_impl(types, *fst),
+            string_any_type_impl(types, *snd)
         ),
         Named(name) => format!("{name}"),
         Finite(is) => {
@@ -164,13 +184,13 @@ fn string_any_type(types: &TypeList, at: TypeRef) -> String {
         }
         FiniteBoth(l, r) => format!(
             "<{}&{}>",
-            string_any_type(types, *l),
-            string_any_type(types, *r)
+            string_any_type_impl(types, *l),
+            string_any_type_impl(types, *r)
         ),
         FiniteEither(l, r) => format!(
             "<{}|{}>",
-            string_any_type(types, *l),
-            string_any_type(types, *r)
+            string_any_type_impl(types, *l),
+            string_any_type_impl(types, *r)
         ),
     }
 }
@@ -185,6 +205,7 @@ impl Default for TypeList {
             ],
             free_slots: 0,
         };
+        r.transaction_group("default".into());
         update_dot(&r, "default".into());
         r
     }
@@ -192,6 +213,10 @@ impl Default for TypeList {
 
 // types vec with holes, also factory and such {{{
 impl TypeList {
+    pub fn transaction_group(&self, hi: String) {
+        group_dot_lines(hi);
+    }
+
     fn push(&mut self, it: Type) -> TypeRef {
         let k = if let Some((k, o)) = match self.free_slots {
             0 => None,
@@ -374,6 +399,7 @@ impl Type {
     }
 
     /// Same idea as `applied` but doesn't mutate anything and doesn't fail but returns true/false.
+    /// (! see comment on underlying `compatible` itself)
     pub(crate) fn applicable(func: TypeRef, give: TypeRef, types: &TypeList) -> bool {
         match types.get(func) {
             &Type::Func(want, _) => Type::compatible(want, give, types),
@@ -455,7 +481,9 @@ impl Type {
                 // parameter compare contravariantly:
                 // (Str -> c) <- (Str+ -> Str+)
                 // (a -> b) <- (c -> c)
+                Type::concretize(l_ret, r_ret, types, keep_inf)?;
                 Type::concretize(r_par, l_par, types, keep_inf)?;
+                // needs to propagate back again any change by 2nd concretize
                 Type::concretize(l_ret, r_ret, types, keep_inf)
             }
 
@@ -480,6 +508,9 @@ impl Type {
         }
     }
 
+    /// Note that there is a class of convoluted cases for which this
+    /// will return false positives; when concretization is _required_
+    /// (reasonably) to determined compatibility.
     fn compatible(want: TypeRef, give: TypeRef, types: &TypeList) -> bool {
         use Type::*;
         match (types.get(want), types.get(give)) {

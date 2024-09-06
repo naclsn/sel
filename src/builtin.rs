@@ -111,7 +111,7 @@ pub fn scope() -> Scope {
     r
 }
 
-const NAMES: [(&str, ScopeItem); 40] = [
+const NAMES: [(&str, ScopeItem); 41] = [
     ("-"            , mkbin!(mkmkty!(1          ; Str+1                                      ), "the input")),
     ("add"          , mkbin!(mkmkty!(0          ; Num -> Num -> Num                          ), "add two numbers")),
     ("apply"        , mkbin!(mkmkty!(0, a, b    ; (a -> b) -> a -> b                         ), "apply argument to function; 'apply f x' is equivalent to 'f x'")),
@@ -129,6 +129,7 @@ const NAMES: [(&str, ScopeItem); 40] = [
     ("fst"          , mkbin!(mkmkty!(0, a, b    ; (a, b) -> a                                ), "first")), // | "first" | "car"
     ("graphemes"    , mkbin!(mkmkty!(1          ; Str+1 -> [Str]+1                           ), "make a list of strings with the potentially multi-codepoints graphemes")),
     ("head"         , mkbin!(mkmkty!(1, a       ; [a]+1 -> a                                 ), "extract the head (the first item)")), // | "unwrap"
+    ("id"           , mkbin!(mkmkty!(0, a       ; a -> a                                     ), "identity function")),
     ("init"         , mkbin!(mkmkty!(0, a       ; [a] -> [a]                                 ), "extract the initial part (until the last item)")),
     ("iterate"      , mkbin!(mkmkty!(1, a       ; (a -> a) -> a -> [a]+1                     ), "create an infinite list where the first item is calculated by applying the function on the second argument, the second item by applying the function on the previous result and so on")),
     ("join"         , mkbin!(mkmkty!(2          ; Str -> [Str+1]+2 -> Str+1&2                ), "join a list of string with a separator between entries")),

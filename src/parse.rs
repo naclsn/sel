@@ -440,6 +440,9 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
     /// - `uncodepoints`
     /// - `ungraphemes`
     fn sure_lookup(&mut self, loc: Location, name: &str) -> Tree {
+        self.global
+            .types
+            .transaction_group(format!("sure_lookup '{name}'"));
         Tree {
             loc,
             ty: self
@@ -462,6 +465,14 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             unreachable!();
         };
         let is_compose = matches!(base, Applicable::Name(name) if "pipe" == name);
+
+        match base {
+            Applicable::Name(name) => self
+                .global
+                .types
+                .transaction_group(format!("try_apply '{name}' {} <- {}", func.ty, arg.ty)),
+            _ => (),
+        }
 
         if let Named(name) = self.global.types.get(func.ty) {
             let name = name.clone();
@@ -718,11 +729,19 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
         let mut loc = first_token.0.clone();
         let (ty, value) = match first_token.1 {
             Word(w) => match self.result.scope.lookup(&w) {
-                Some(d) => (
-                    d.make_type(&mut self.global.types),
-                    TreeKind::Apply(Applicable::Name(w), Vec::new()),
-                ),
+                Some(d) => {
+                    self.global
+                        .types
+                        .transaction_group(format!("lookup '{w}' => Some(..)"));
+                    (
+                        d.make_type(&mut self.global.types),
+                        TreeKind::Apply(Applicable::Name(w), Vec::new()),
+                    )
+                }
                 None => {
+                    self.global
+                        .types
+                        .transaction_group(format!("lookup '{w}' => None"));
                     let r = self.mktypeof(&w);
                     self.report(Error(
                         first_token.0,
@@ -899,7 +918,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
         }
     }
 
-    // xxx: should it be updating the location ranges as it find more arguments?
+    // XXX: should it be updating the location ranges as it find more arguments?
     fn parse_apply(&mut self) -> Tree {
         use TokenKind::*;
         let mut r = self.parse_value();

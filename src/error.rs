@@ -325,22 +325,22 @@ impl Display for Report<'_> {
         let line = 1 + bytes[range.start..].iter().filter(|c| b'\n' == **c).count();
         writeln!(f, "{}:{line}: {}", path.display(), self.title)?;
 
-        let line_start = range.start
-            - bytes[..range.start]
-                .iter()
-                .rev()
-                .position(|c| b'\n' == *c)
-                .unwrap_or(range.start);
-        let line_end = range.end
-            - bytes[range.end..]
-                .iter()
-                .position(|c| b'\n' == *c)
-                .unwrap_or(bytes.len() - range.end-1);
-        writeln!(
-            f,
-            "\t| {}",
-            String::from_utf8_lossy(&bytes[line_start..line_end])
-        )?;
+        //let line_start = range.start
+        //    - bytes[..range.start]
+        //        .iter()
+        //        .rev()
+        //        .position(|c| b'\n' == *c)
+        //        .unwrap_or(range.start);
+        //let line_end = range.end
+        //    - bytes[range.end..]
+        //        .iter()
+        //        .position(|c| b'\n' == *c)
+        //        .unwrap_or(bytes.len() - range.end-1);
+        //writeln!(
+        //    f,
+        //    "\t| {}",
+        //    String::from_utf8_lossy(&bytes[line_start..line_end])
+        //)?;
 
         for (Location(file, range), msg) in &self.messages {
             let bytes = self.registry.get_bytes(*file);

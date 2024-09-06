@@ -201,8 +201,10 @@ Rust,
 - `add 1, map, flip apply {1, 2, 3}` type and run broken
 - `let 0 fst snd` type broken
 - `add 1, let a [a 1]` run broken
-- `iterate [dif 1, add 1] 1, take 39` I think error type broken? (note: typo 'dif' instead of 'div')
 - `let a let b a` type broken
+
+formation of infinitely recursive types:
+- `(a -> a) -> a)  <-  (b -> Num) -> b`
 
 ### `types`
 
