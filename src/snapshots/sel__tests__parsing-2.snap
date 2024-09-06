@@ -1,0 +1,24 @@
+---
+source: src/tests.rs
+expression: "t(b\"-\")"
+---
+Ok(
+    (
+        Bytes(
+            false,
+        ),
+        Tree {
+            loc: Location(
+                0,
+                0..1,
+            ),
+            ty: 4,
+            value: Apply(
+                Name(
+                    "-",
+                ),
+                [],
+            ),
+        },
+    ),
+)

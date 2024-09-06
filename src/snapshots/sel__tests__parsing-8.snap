@@ -1,0 +1,66 @@
+---
+source: src/tests.rs
+expression: "t(b\"zipwith add {1}\")"
+---
+Ok(
+    (
+        Func(
+            List(
+                false,
+                Number,
+            ),
+            List(
+                true,
+                Number,
+            ),
+        ),
+        Tree {
+            loc: Location(
+                0,
+                0..15,
+            ),
+            ty: 14,
+            value: Apply(
+                Name(
+                    "zipwith",
+                ),
+                [
+                    Tree {
+                        loc: Location(
+                            0,
+                            8..11,
+                        ),
+                        ty: 18,
+                        value: Apply(
+                            Name(
+                                "add",
+                            ),
+                            [],
+                        ),
+                    },
+                    Tree {
+                        loc: Location(
+                            0,
+                            12..15,
+                        ),
+                        ty: 20,
+                        value: List(
+                            [
+                                Tree {
+                                    loc: Location(
+                                        0,
+                                        13..14,
+                                    ),
+                                    ty: 0,
+                                    value: Number(
+                                        1.0,
+                                    ),
+                                },
+                            ],
+                        ),
+                    },
+                ],
+            ),
+        },
+    ),
+)

@@ -1,0 +1,121 @@
+---
+source: src/tests.rs
+expression: "t(b\"tonum, add234121, tostr, ln\")"
+---
+Ok(
+    (
+        Func(
+            Bytes(
+                false,
+            ),
+            Bytes(
+                true,
+            ),
+        ),
+        Tree {
+            loc: Location(
+                0,
+                23..24,
+            ),
+            ty: 34,
+            value: Apply(
+                Name(
+                    "pipe",
+                ),
+                [
+                    Tree {
+                        loc: Location(
+                            0,
+                            16..17,
+                        ),
+                        ty: 22,
+                        value: Apply(
+                            Name(
+                                "pipe",
+                            ),
+                            [
+                                Tree {
+                                    loc: Location(
+                                        0,
+                                        5..6,
+                                    ),
+                                    ty: 13,
+                                    value: Apply(
+                                        Name(
+                                            "pipe",
+                                        ),
+                                        [
+                                            Tree {
+                                                loc: Location(
+                                                    0,
+                                                    0..5,
+                                                ),
+                                                ty: 5,
+                                                value: Apply(
+                                                    Name(
+                                                        "tonum",
+                                                    ),
+                                                    [],
+                                                ),
+                                            },
+                                            Tree {
+                                                loc: Location(
+                                                    0,
+                                                    7..16,
+                                                ),
+                                                ty: 6,
+                                                value: Apply(
+                                                    Name(
+                                                        "add",
+                                                    ),
+                                                    [
+                                                        Tree {
+                                                            loc: Location(
+                                                                0,
+                                                                10..16,
+                                                            ),
+                                                            ty: 0,
+                                                            value: Number(
+                                                                234121.0,
+                                                            ),
+                                                        },
+                                                    ],
+                                                ),
+                                            },
+                                        ],
+                                    ),
+                                },
+                                Tree {
+                                    loc: Location(
+                                        0,
+                                        18..23,
+                                    ),
+                                    ty: 16,
+                                    value: Apply(
+                                        Name(
+                                            "tostr",
+                                        ),
+                                        [],
+                                    ),
+                                },
+                            ],
+                        ),
+                    },
+                    Tree {
+                        loc: Location(
+                            0,
+                            25..27,
+                        ),
+                        ty: 28,
+                        value: Apply(
+                            Name(
+                                "ln",
+                            ),
+                            [],
+                        ),
+                    },
+                ],
+            ),
+        },
+    ),
+)

@@ -1,0 +1,60 @@
+---
+source: src/tests.rs
+expression: "t(b\"add 1, tonum\")"
+---
+Err(
+    ErrorList(
+        [
+            Error(
+                Location(
+                    0,
+                    7..12,
+                ),
+                ContextCaused {
+                    error: Error(
+                        Location(
+                            0,
+                            0..5,
+                        ),
+                        ContextCaused {
+                            error: Error(
+                                Location(
+                                    0,
+                                    0..5,
+                                ),
+                                ExpectedButGot {
+                                    expected: Bytes(
+                                        false,
+                                    ),
+                                    actual: Number,
+                                },
+                            ),
+                            because: CompleteType {
+                                complete_type: Func(
+                                    Number,
+                                    Number,
+                                ),
+                            },
+                        },
+                    ),
+                    because: ChainedFromAsNthArgToNowTyped {
+                        comma_loc: Location(
+                            0,
+                            5..6,
+                        ),
+                        nth_arg: 1,
+                        func: Name(
+                            "tonum",
+                        ),
+                        type_with_curr_args: Func(
+                            Bytes(
+                                false,
+                            ),
+                            Number,
+                        ),
+                    },
+                },
+            ),
+        ],
+    ),
+)

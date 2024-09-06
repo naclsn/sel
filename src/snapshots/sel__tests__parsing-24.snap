@@ -1,0 +1,27 @@
+---
+source: src/tests.rs
+expression: "t(b\":1:, tostr, _\")"
+---
+Err(
+    ErrorList(
+        [
+            Error(
+                Location(
+                    0,
+                    12..13,
+                ),
+                UnknownName {
+                    name: "_",
+                    expected_type: Func(
+                        Bytes(
+                            true,
+                        ),
+                        Named(
+                            "returnof(typeof(_))",
+                        ),
+                    ),
+                },
+            ),
+        ],
+    ),
+)

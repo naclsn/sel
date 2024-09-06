@@ -10,7 +10,6 @@ use crate::builtin;
 use crate::parse::Tree;
 use crate::types::{TypeList, TypeRef};
 
-#[derive(Default)]
 pub struct Global {
     pub registry: SourceRegistry,
     pub types: TypeList,

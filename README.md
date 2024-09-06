@@ -212,6 +212,8 @@ try to free indices that are not used:
 - identify operations on types that generate such
 - maybe try to visualize this first
 
+polish for cases such as 2 `a`s being distinct
+
 ### `def`s
 
 something like `$PYTHONSTARTUP`, between prelude and user script

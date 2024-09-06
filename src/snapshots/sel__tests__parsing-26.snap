@@ -1,0 +1,32 @@
+---
+source: src/tests.rs
+expression: "t(b\"iterate [div 1, _ 1] 1\")"
+---
+Err(
+    ErrorList(
+        [
+            Error(
+                Location(
+                    0,
+                    16..17,
+                ),
+                UnknownName {
+                    name: "_",
+                    expected_type: Func(
+                        Number,
+                        Func(
+                            Func(
+                                Number,
+                                Number,
+                            ),
+                            Func(
+                                Number,
+                                Number,
+                            ),
+                        ),
+                    ),
+                },
+            ),
+        ],
+    ),
+)

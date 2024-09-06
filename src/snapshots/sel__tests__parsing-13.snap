@@ -1,0 +1,59 @@
+---
+source: src/tests.rs
+expression: "t(b\"add 1 :2:\")"
+---
+Ok(
+    (
+        Number,
+        Tree {
+            loc: Location(
+                0,
+                0..9,
+            ),
+            ty: 0,
+            value: Apply(
+                Name(
+                    "add",
+                ),
+                [
+                    Tree {
+                        loc: Location(
+                            0,
+                            4..5,
+                        ),
+                        ty: 0,
+                        value: Number(
+                            1.0,
+                        ),
+                    },
+                    Tree {
+                        loc: Location(
+                            0,
+                            6..9,
+                        ),
+                        ty: 0,
+                        value: Apply(
+                            Name(
+                                "tonum",
+                            ),
+                            [
+                                Tree {
+                                    loc: Location(
+                                        0,
+                                        6..9,
+                                    ),
+                                    ty: 1,
+                                    value: Bytes(
+                                        [
+                                            50,
+                                        ],
+                                    ),
+                                },
+                            ],
+                        ),
+                    },
+                ],
+            ),
+        },
+    ),
+)

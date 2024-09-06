@@ -1,0 +1,33 @@
+---
+source: src/tests.rs
+expression: "t(b\"{1, 2, 3, :soleil:}, ln\")"
+---
+Err(
+    ErrorList(
+        [
+            Error(
+                Location(
+                    0,
+                    0..1,
+                ),
+                ContextCaused {
+                    error: Error(
+                        Location(
+                            0,
+                            10..18,
+                        ),
+                        ExpectedButGot {
+                            expected: Number,
+                            actual: Bytes(
+                                true,
+                            ),
+                        },
+                    ),
+                    because: TypeListInferredItemType {
+                        list_item_type: Number,
+                    },
+                },
+            ),
+        ],
+    ),
+)

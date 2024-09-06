@@ -1,0 +1,28 @@
+---
+source: src/tests.rs
+expression: "t(b\"iterate [div 1, add 1] 1, _\")"
+---
+Err(
+    ErrorList(
+        [
+            Error(
+                Location(
+                    0,
+                    26..27,
+                ),
+                UnknownName {
+                    name: "_",
+                    expected_type: Func(
+                        List(
+                            false,
+                            Number,
+                        ),
+                        Named(
+                            "returnof(typeof(_))",
+                        ),
+                    ),
+                },
+            ),
+        ],
+    ),
+)

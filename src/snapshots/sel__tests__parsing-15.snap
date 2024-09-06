@@ -1,0 +1,65 @@
+---
+source: src/tests.rs
+expression: "t(b\"add 1, tostr\")"
+---
+Ok(
+    (
+        Func(
+            Number,
+            Bytes(
+                true,
+            ),
+        ),
+        Tree {
+            loc: Location(
+                0,
+                5..6,
+            ),
+            ty: 11,
+            value: Apply(
+                Name(
+                    "pipe",
+                ),
+                [
+                    Tree {
+                        loc: Location(
+                            0,
+                            0..5,
+                        ),
+                        ty: 3,
+                        value: Apply(
+                            Name(
+                                "add",
+                            ),
+                            [
+                                Tree {
+                                    loc: Location(
+                                        0,
+                                        4..5,
+                                    ),
+                                    ty: 0,
+                                    value: Number(
+                                        1.0,
+                                    ),
+                                },
+                            ],
+                        ),
+                    },
+                    Tree {
+                        loc: Location(
+                            0,
+                            7..12,
+                        ),
+                        ty: 5,
+                        value: Apply(
+                            Name(
+                                "tostr",
+                            ),
+                            [],
+                        ),
+                    },
+                ],
+            ),
+        },
+    ),
+)

@@ -1,0 +1,22 @@
+---
+source: src/tests.rs
+expression: "t(b\"- 2\")"
+---
+Err(
+    ErrorList(
+        [
+            Error(
+                Location(
+                    0,
+                    0..1,
+                ),
+                TooManyArgs {
+                    nth_arg: 1,
+                    func: Name(
+                        "-",
+                    ),
+                },
+            ),
+        ],
+    ),
+)

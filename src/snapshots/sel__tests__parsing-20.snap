@@ -1,0 +1,19 @@
+---
+source: src/tests.rs
+expression: "t(b\"2 -\")"
+---
+Err(
+    ErrorList(
+        [
+            Error(
+                Location(
+                    0,
+                    0..1,
+                ),
+                NotFunc {
+                    actual_type: Number,
+                },
+            ),
+        ],
+    ),
+)

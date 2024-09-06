@@ -1,0 +1,36 @@
+---
+source: src/tests.rs
+expression: "t(b\"3, add 1 2\")"
+---
+Err(
+    ErrorList(
+        [
+            Error(
+                Location(
+                    0,
+                    0..1,
+                ),
+                ContextCaused {
+                    error: Error(
+                        Location(
+                            0,
+                            3..10,
+                        ),
+                        TooManyArgs {
+                            nth_arg: 3,
+                            func: Name(
+                                "add",
+                            ),
+                        },
+                    ),
+                    because: ChainedFromToNotFunc {
+                        comma_loc: Location(
+                            0,
+                            1..2,
+                        ),
+                    },
+                },
+            ),
+        ],
+    ),
+)
