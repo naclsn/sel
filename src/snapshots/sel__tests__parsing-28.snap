@@ -1,0 +1,89 @@
+---
+source: src/tests.rs
+expression: "t(b\"let {a, b} [add a b]\")"
+---
+Ok(
+    (
+        Func(
+            List(
+                true,
+                Named(
+                    "itemof(typeof({}))=a=b",
+                ),
+            ),
+            Number,
+        ),
+        Tree {
+            loc: Location(
+                0,
+                0..20,
+            ),
+            ty: 9,
+            value: Apply(
+                Bind(
+                    List(
+                        [
+                            Name(
+                                Location(
+                                    0,
+                                    5..6,
+                                ),
+                                "a",
+                            ),
+                            Name(
+                                Location(
+                                    0,
+                                    8..9,
+                                ),
+                                "b",
+                            ),
+                        ],
+                        None,
+                    ),
+                    Tree {
+                        loc: Location(
+                            0,
+                            11..20,
+                        ),
+                        ty: 0,
+                        value: Apply(
+                            Name(
+                                "add",
+                            ),
+                            [
+                                Tree {
+                                    loc: Location(
+                                        0,
+                                        16..17,
+                                    ),
+                                    ty: 4,
+                                    value: Apply(
+                                        Name(
+                                            "a",
+                                        ),
+                                        [],
+                                    ),
+                                },
+                                Tree {
+                                    loc: Location(
+                                        0,
+                                        18..19,
+                                    ),
+                                    ty: 5,
+                                    value: Apply(
+                                        Name(
+                                            "b",
+                                        ),
+                                        [],
+                                    ),
+                                },
+                            ],
+                        ),
+                    },
+                    None,
+                ),
+                [],
+            ),
+        },
+    ),
+)

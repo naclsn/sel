@@ -466,13 +466,10 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
         };
         let is_compose = matches!(base, Applicable::Name(name) if "pipe" == name);
 
-        match base {
-            Applicable::Name(name) => self
-                .global
-                .types
-                .transaction_group(format!("try_apply '{name}' {} <- {}", func.ty, arg.ty)),
-            _ => (),
-        }
+        self.global.types.transaction_group(match base {
+            Applicable::Name(name) => format!("try_apply '{name}' {} <- {}", func.ty, arg.ty),
+            Applicable::Bind(_, _, _) => format!("try_apply let {} <- {}", func.ty, arg.ty),
+        });
 
         if let Named(name) = self.global.types.get(func.ty) {
             let name = name.clone();
@@ -515,17 +512,15 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             None
         };
 
+        //// snapshot to have previous type in reported error
+        //let snapshot = self.global.types.clone();
         match Type::applied(func.ty, arg.ty, &mut self.global.types) {
             Ok(ret_ty) => {
                 func.ty = ret_ty;
                 args.push(arg);
             }
+
             Err(e) => {
-                // XXX: does doing it here mess with the error report?
-                func.ty = match self.global.types.get(func.ty) {
-                    &Type::Func(_, ret) => ret,
-                    _ => unreachable!(),
-                };
                 // anything, doesn't mater what, this is the easiest..
                 args.push(Tree {
                     loc: Location(self.source, 0..0),
@@ -558,6 +553,11 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     actual_func,
                 );
                 self.report(Error(actual_func.loc.clone(), err_kind));
+
+                func.ty = match self.global.types.get(func.ty) {
+                    &Type::Func(_, ret) => ret,
+                    _ => unreachable!(),
+                };
             }
         }
         func
@@ -849,6 +849,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
 
             Let => {
                 let parent = self.result.scope.make_into_child();
+                self.global.types.transaction_group("let pattern".into());
                 let (pattern, pat_ty) = self.parse_pattern();
 
                 let result = self.parse_value();
@@ -950,7 +951,6 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                             Type::Func(_, _) | Type::Named(_)
                         ) =>
                     {
-                        // xxx: does it need `snapshot` here?
                         let x = p.parse_value();
                         *new_end = x.loc.1.end;
                         // err_context_as_nth_arg: `func` is a function (matches ::Apply)
@@ -1010,7 +1010,6 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 || !(r_is_func || r_is_hole) // note: catches coersion cases
                 || Type::applicable(then.ty, r.ty, &self.global.types) && !r_is_hole
             {
-                // XXX: does it need `snapshot` here?
                 // err_context_as_nth_arg: we know `then` is a function
                 // (if it was hole then `try_apply` mutates it)
                 self.try_apply(then, r, Some(comma_loc))
@@ -1019,7 +1018,6 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             // - f, g, h :: a -> b, b -> c, c -> d
             else {
                 let mut pipe = self.sure_lookup(comma_loc.clone(), "pipe");
-                // XXX: does it need `snapshot` here?
                 // we know that `r` is a function or hole (see previous 'else if')
                 pipe = self.try_apply(pipe, r, None);
                 // err_context_as_nth_arg: `then` is either a function or a type hole

@@ -15,7 +15,7 @@ Err(
                     expected_type: Func(
                         Number,
                         Named(
-                            "paramof(typeof(caca))",
+                            "paramof(typeof(caca))=returnof(typeof(prout))",
                         ),
                     ),
                 },
@@ -29,7 +29,7 @@ Err(
                     name: "caca",
                     expected_type: Func(
                         Named(
-                            "paramof(typeof(caca))",
+                            "paramof(typeof(caca))=returnof(typeof(prout))",
                         ),
                         Named(
                             "returnof(typeof(caca))",

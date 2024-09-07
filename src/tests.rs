@@ -71,4 +71,5 @@ fn parsing() {
     assert_debug_snapshot!(t(b"iterate [_ 1, add 1] 1")); // _ :: Num -> Num -> Num
     assert_debug_snapshot!(t(b"iterate [div 1, _ 1] 1")); // TODO: _ :: Num -> Num -> Num
     assert_debug_snapshot!(t(b"iterate [div 1, add 1] 1, _")); // _ :: [Num]+ -> returnof(typeof(_))
+    assert_debug_snapshot!(t(b"let {a, b} [add a b]"));
 }

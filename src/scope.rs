@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Result as IoResult};
+use std::marker::PhantomPinned;
 use std::mem;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::ptr;
 
 use crate::builtin;
@@ -89,7 +91,7 @@ impl ScopeItem {
         match self {
             ScopeItem::Builtin(mkty, _) => mkty(types),
             ScopeItem::Defined(val, _) => types.duplicate(val.ty, &mut HashMap::new()),
-            ScopeItem::Binding(_, ty) => types.duplicate(*ty, &mut HashMap::new()),
+            ScopeItem::Binding(_, ty) => *ty, //types.duplicate(*ty, &mut HashMap::new()),
         }
     }
 
@@ -111,7 +113,7 @@ impl ScopeItem {
 }
 
 // YYY: weird pattern, surely there is better :/
-pub(crate) struct MustRestore(Scope);
+pub(crate) struct MustRestore(Scope, PhantomPinned);
 
 impl Default for Scope {
     fn default() -> Scope {
@@ -132,14 +134,15 @@ impl Scope {
 
     /// returns the parent scope (previously `self`)
     /// which is expected to be restored with `restore_from_parent`
-    pub(crate) fn make_into_child(&mut self) -> MustRestore {
-        let parent = mem::take(self);
-        self.parent = &parent as *const Scope;
-        MustRestore(parent)
+    pub(crate) fn make_into_child(&mut self) -> Pin<Box<MustRestore>> {
+        let parent = Box::pin(MustRestore(mem::take(self), PhantomPinned));
+        self.parent = &parent.0 as *const Scope;
+        parent
     }
     /// see `make_into_child`
-    pub(crate) fn restore_from_parent(&mut self, parent: MustRestore) {
-        *self = parent.0;
+    pub(crate) fn restore_from_parent(&mut self, parent: Pin<Box<MustRestore>>) {
+        // im not sure what im doin
+        mem::swap(self, &mut unsafe { Pin::into_inner_unchecked(parent) }.0);
     }
 
     /// parent-most englobing scope

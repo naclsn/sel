@@ -21,6 +21,7 @@ pub(crate) enum Type {
     Finite(bool),
     FiniteBoth(Boundedness, Boundedness),
     FiniteEither(Boundedness, Boundedness),
+    Transparent(TypeRef),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -119,6 +120,7 @@ mod types_snapshots {
                         &Finite(_) => vec![],
                         &FiniteBoth(lhs, rhs) => vec![lhs, rhs],
                         &FiniteEither(lhs, rhs) => vec![lhs, rhs],
+                        &Transparent(u) => vec![u],
                     } {
                         write!(
                             f,
@@ -149,7 +151,7 @@ mod types_snapshots {
         } {
             return "...".into();
         }
-        match types.get(at) {
+        match types.slots[at].as_ref().unwrap() {
             Number => "Num".into(),
             Bytes(fin) => if types.freeze_finite(*fin) {
                 "Str"
@@ -202,6 +204,7 @@ mod types_snapshots {
                 string_any_type_impl(types, *l),
                 string_any_type_impl(types, *r)
             ),
+            Transparent(u) => format!("({})", string_any_type_impl(types, *u)),
         }
     }
 }
@@ -225,9 +228,9 @@ impl Default for TypeList {
 
 // types vec with holes, also factory and such {{{
 impl TypeList {
-    pub fn transaction_group(&self, hi: String) {
+    pub fn transaction_group(&self, _hi: String) {
         #[cfg(feature = "types-snapshots")]
-        types_snapshots::group_dot_lines(hi);
+        types_snapshots::group_dot_lines(_hi);
     }
 
     fn push(&mut self, it: Type) -> TypeRef {
@@ -251,11 +254,25 @@ impl TypeList {
     }
 
     pub(crate) fn get(&self, at: TypeRef) -> &Type {
-        self.slots[at].as_ref().unwrap()
+        match self.slots[at].as_ref().unwrap() {
+            Type::Transparent(u) => self.slots[*u].as_ref().unwrap(),
+            r => r,
+        }
     }
 
     pub(crate) fn set(&mut self, at: TypeRef, ty: Type) {
-        self.slots[at] = Some(ty);
+        self.slots[at] = Some(match ty {
+            Type::Transparent(u) => {
+                if at == u {
+                    return;
+                }
+                match self.slots[u] {
+                    Some(Type::Transparent(w)) => Type::Transparent(w),
+                    _ => ty,
+                }
+            }
+            _ => ty,
+        });
         #[cfg(feature = "types-snapshots")]
         types_snapshots::update_dot(
             &self,
@@ -321,90 +338,100 @@ impl TypeList {
         at: TypeRef,
         already_done: &mut HashMap<usize, usize>,
     ) -> TypeRef {
+        use Type::*;
+
         if let Some(done) = already_done.get(&at) {
             return *done;
         }
+
         let r = match *self.get(at) {
-            Type::Number => self.number(),
-            Type::Bytes(f) => {
+            Number => self.number(),
+            Bytes(f) => {
                 let f = self.duplicate(f, already_done);
                 self.bytes(f)
             }
-            Type::List(f, i) => {
+            List(f, i) => {
                 let (f, i) = (
                     self.duplicate(f, already_done),
                     self.duplicate(i, already_done),
                 );
                 self.list(f, i)
             }
-            Type::Func(p, r) => {
+            Func(p, r) => {
                 let (p, r) = (
                     self.duplicate(p, already_done),
                     self.duplicate(r, already_done),
                 );
                 self.func(p, r)
             }
-            Type::Pair(f, s) => {
+            Pair(f, s) => {
                 let (f, s) = (
                     self.duplicate(f, already_done),
                     self.duplicate(s, already_done),
                 );
                 self.pair(f, s)
             }
-            Type::Named(ref n) => {
+            Named(ref n) => {
                 let n = n.clone();
                 self.named(n)
             }
-            Type::Finite(i) => self.finite(i),
-            Type::FiniteBoth(l, r) => {
+            Finite(i) => self.finite(i),
+            FiniteBoth(l, r) => {
                 let (l, r) = (
                     self.duplicate(l, already_done),
                     self.duplicate(r, already_done),
                 );
                 self.both(l, r)
             }
-            Type::FiniteEither(l, r) => {
+            FiniteEither(l, r) => {
                 let (l, r) = (
                     self.duplicate(l, already_done),
                     self.duplicate(r, already_done),
                 );
                 self.either(l, r)
             }
+            Transparent(_) => unreachable!(),
         };
+
         already_done.insert(at, r);
         r
     }
 
     fn freeze_finite(&self, at: Boundedness) -> bool {
-        match *self.get(at) {
-            Type::Finite(b) => b,
-            Type::FiniteBoth(l, r) => self.freeze_finite(l) && self.freeze_finite(r),
-            Type::FiniteEither(l, r) => self.freeze_finite(l) || self.freeze_finite(r),
+        use Type::*;
 
-            Type::Number
-            | Type::Bytes(_)
-            | Type::List(_, _)
-            | Type::Func(_, _)
-            | Type::Pair(_, _)
-            | Type::Named(_) => unreachable!(),
+        match *self.get(at) {
+            Finite(b) => b,
+            FiniteBoth(l, r) => self.freeze_finite(l) && self.freeze_finite(r),
+            FiniteEither(l, r) => self.freeze_finite(l) || self.freeze_finite(r),
+
+            Number
+            | Bytes(_)
+            | List(_, _)
+            | Func(_, _)
+            | Pair(_, _)
+            | Named(_)
+            | Transparent(_) => unreachable!(),
         }
     }
 
     pub(crate) fn frozen(&self, at: TypeRef) -> FrozenType {
+        use Type::*;
+
         match self.get(at) {
-            Type::Number => FrozenType::Number,
-            Type::Bytes(b) => FrozenType::Bytes(self.freeze_finite(*b)),
-            Type::List(b, items) => {
+            Number => FrozenType::Number,
+            Bytes(b) => FrozenType::Bytes(self.freeze_finite(*b)),
+            List(b, items) => {
                 FrozenType::List(self.freeze_finite(*b), Box::new(self.frozen(*items)))
             }
-            Type::Func(par, ret) => {
+            Func(par, ret) => {
                 FrozenType::Func(Box::new(self.frozen(*par)), Box::new(self.frozen(*ret)))
             }
-            Type::Pair(fst, snd) => {
+            Pair(fst, snd) => {
                 FrozenType::Pair(Box::new(self.frozen(*fst)), Box::new(self.frozen(*snd)))
             }
-            Type::Named(name) => FrozenType::Named(name.clone()),
-            Type::Finite(_) | Type::FiniteBoth(_, _) | Type::FiniteEither(_, _) => unreachable!(),
+            Named(name) => FrozenType::Named(name.clone()),
+            Finite(_) | FiniteBoth(_, _) | FiniteEither(_, _) | Transparent(_) => unreachable!(),
         }
     }
 }
@@ -520,6 +547,11 @@ impl Type {
                 Type::concretize(l_snd, r_snd, types, keep_inf)
             }
 
+            (Named(w), Named(g)) => {
+                types.set(want, Named(format!("{w}={g}")));
+                types.set(give, Transparent(want));
+                Ok(())
+            }
             (other, Named(_)) => {
                 types.set(give, other.clone());
                 Ok(())
