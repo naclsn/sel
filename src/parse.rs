@@ -665,8 +665,17 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     });
                     items.push(item);
 
-                    if matches!(self.peek_tok(), Token(_, Comma)) {
-                        self.skip_tok();
+                    match self.peek_tok() {
+                        Token(_, Comma) => self.skip_tok(),
+                        Token(_, CloseBrace) => break,
+                        other => {
+                            let err = err_unexpected(
+                                &other,
+                                "',' before next item or closing '}' in pattern",
+                                Some(&first_token),
+                            );
+                            self.report(err);
+                        }
                     }
                 }
                 self.skip_tok();

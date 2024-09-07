@@ -76,4 +76,5 @@ fn parsing() {
     assert_debug_snapshot!(t(b"{1, 2, 3}, let {h,, t} t"));
     assert_debug_snapshot!(t(b"repeat 1, let {h,, t} t"));
     assert_debug_snapshot!(t(b"let a let b a"));
+    assert_debug_snapshot!(t(b"let {a b, c} 0"));
 }

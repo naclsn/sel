@@ -195,7 +195,6 @@ Rust,
 
 ### broken:
 
-- `let {repeat 1, a, 3} [const a] [add a]` parse broken
 - `add 1, map, flip apply {1, 2, 3}` type and run broken
 - `let 0 fst snd` type broken (see `[1, ..] 1=:a:` and swapping pair)
 - `add 1, let f [f 1]` run broken

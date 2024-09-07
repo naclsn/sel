@@ -1,0 +1,33 @@
+---
+source: src/tests.rs
+expression: "t(b\"let {a b, c} 0\")"
+---
+Err(
+    ErrorList(
+        [
+            Error(
+                Location(
+                    0,
+                    4..5,
+                ),
+                ContextCaused {
+                    error: Error(
+                        Location(
+                            0,
+                            7..8,
+                        ),
+                        Unexpected {
+                            token: Word(
+                                "b",
+                            ),
+                            expected: "',' before next item or closing '}' in pattern",
+                        },
+                    ),
+                    because: Unmatched {
+                        open_token: OpenBrace,
+                    },
+                },
+            ),
+        ],
+    ),
+)
