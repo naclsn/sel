@@ -1,0 +1,74 @@
+---
+source: src/tests.rs
+expression: "t(b\"let a let b a\")"
+---
+Ok(
+    (
+        Func(
+            Named(
+                "a",
+            ),
+            Func(
+                Named(
+                    "b",
+                ),
+                Named(
+                    "a",
+                ),
+            ),
+        ),
+        Tree {
+            loc: Location(
+                0,
+                0..13,
+            ),
+            ty: 6,
+            value: Apply(
+                Bind(
+                    Name(
+                        Location(
+                            0,
+                            4..5,
+                        ),
+                        "a",
+                    ),
+                    Tree {
+                        loc: Location(
+                            0,
+                            6..13,
+                        ),
+                        ty: 5,
+                        value: Apply(
+                            Bind(
+                                Name(
+                                    Location(
+                                        0,
+                                        10..11,
+                                    ),
+                                    "b",
+                                ),
+                                Tree {
+                                    loc: Location(
+                                        0,
+                                        12..13,
+                                    ),
+                                    ty: 3,
+                                    value: Apply(
+                                        Name(
+                                            "a",
+                                        ),
+                                        [],
+                                    ),
+                                },
+                                None,
+                            ),
+                            [],
+                        ),
+                    },
+                    None,
+                ),
+                [],
+            ),
+        },
+    ),
+)

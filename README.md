@@ -196,11 +196,9 @@ Rust,
 ### broken:
 
 - `let {repeat 1, a, 3} [const a] [add a]` parse broken
-- `{1, 2, 3}, let {h,, t} h` type broken
 - `add 1, map, flip apply {1, 2, 3}` type and run broken
-- `let 0 fst snd` type broken
-- `add 1, let a [a 1]` run broken
-- `let a let b a` type broken
+- `let 0 fst snd` type broken (see `[1, ..] 1=:a:` and swapping pair)
+- `add 1, let f [f 1]` run broken
 
 formation of infinitely recursive types:
 - `(a -> a) -> a  <-  (b -> Num) -> b`

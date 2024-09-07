@@ -1,0 +1,83 @@
+---
+source: src/tests.rs
+expression: "t(b\"repeat 1, let {h,, t} t\")"
+---
+Ok(
+    (
+        List(
+            false,
+            Number,
+        ),
+        Tree {
+            loc: Location(
+                0,
+                10..23,
+            ),
+            ty: 10,
+            value: Apply(
+                Bind(
+                    List(
+                        [
+                            Name(
+                                Location(
+                                    0,
+                                    15..16,
+                                ),
+                                "h",
+                            ),
+                        ],
+                        Some(
+                            (
+                                Location(
+                                    0,
+                                    19..20,
+                                ),
+                                "t",
+                            ),
+                        ),
+                    ),
+                    Tree {
+                        loc: Location(
+                            0,
+                            22..23,
+                        ),
+                        ty: 10,
+                        value: Apply(
+                            Name(
+                                "t",
+                            ),
+                            [],
+                        ),
+                    },
+                    None,
+                ),
+                [
+                    Tree {
+                        loc: Location(
+                            0,
+                            0..8,
+                        ),
+                        ty: 5,
+                        value: Apply(
+                            Name(
+                                "repeat",
+                            ),
+                            [
+                                Tree {
+                                    loc: Location(
+                                        0,
+                                        7..8,
+                                    ),
+                                    ty: 0,
+                                    value: Number(
+                                        1.0,
+                                    ),
+                                },
+                            ],
+                        ),
+                    },
+                ],
+            ),
+        },
+    ),
+)
