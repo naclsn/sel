@@ -255,28 +255,43 @@ impl TypeList {
 
     pub(crate) fn get(&self, at: TypeRef) -> &Type {
         match self.slots[at].as_ref().unwrap() {
-            Type::Transparent(u) => self.slots[*u].as_ref().unwrap(),
+            Type::Transparent(u) => self.get(*u),
             r => r,
         }
     }
 
     pub(crate) fn set(&mut self, at: TypeRef, ty: Type) {
-        self.slots[at] = Some(match ty {
-            Type::Transparent(u) => {
+        use Type::*;
+        let ty = match ty {
+            Number => Transparent(NUMBER_TYPEREF),
+            Bytes(FINITE_TYPEREF) => Transparent(STRFIN_TYPEREF),
+            Finite(true) => Transparent(FINITE_TYPEREF),
+            Transparent(u) => {
                 if at == u {
                     return;
                 }
                 match self.slots[u] {
-                    Some(Type::Transparent(w)) => Type::Transparent(w),
+                    Some(Transparent(w)) => Transparent(w),
                     _ => ty,
                 }
             }
             _ => ty,
-        });
+        };
+        #[cfg(feature = "types-snapshots")]
+        let was = types_snapshots::string_any_type(self, at);
+        let at = match self.slots[at] {
+            Some(Transparent(u)) => u,
+            _ => at,
+        };
+        let _ = self.slots[at].replace(ty);
         #[cfg(feature = "types-snapshots")]
         types_snapshots::update_dot(
             &self,
-            format!("set {at} :: {}", types_snapshots::string_any_type(self, at)),
+            format!(
+                "set {at} :: {} (was {})",
+                types_snapshots::string_any_type(self, at),
+                was
+            ),
         );
     }
 

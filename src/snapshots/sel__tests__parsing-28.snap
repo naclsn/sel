@@ -7,9 +7,7 @@ Ok(
         Func(
             List(
                 true,
-                Named(
-                    "itemof(typeof({}))=a=b",
-                ),
+                Number,
             ),
             Number,
         ),

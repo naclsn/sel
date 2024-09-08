@@ -14,7 +14,7 @@ Err(
                     name: "_",
                     expected_type: Func(
                         Named(
-                            "a=a",
+                            "a=a=a",
                         ),
                         Bytes(
                             false,
