@@ -1,7 +1,8 @@
 use insta::{assert_debug_snapshot, assert_snapshot};
 
 use crate::error::ErrorList;
-use crate::parse::{process, Lexer, TokenKind, Tree};
+use crate::interp;
+use crate::parse::{self, Lexer, TokenKind, Tree};
 use crate::scope::Global;
 use crate::types::FrozenType;
 
@@ -37,7 +38,7 @@ fn parsing() {
     fn t(script: &[u8]) -> Result<(FrozenType, Tree), ErrorList> {
         let mut global = Global::with_builtin();
         let source = global.registry.add_bytes("<test>", script.into());
-        let result = process(source, &mut global);
+        let result = parse::process(source, &mut global);
         result
             .tree
             .map(|t| (global.types.frozen(t.ty), t))
@@ -69,7 +70,7 @@ fn parsing() {
     assert_debug_snapshot!(t(b"3, add 1 2"));
     assert_debug_snapshot!(t(b":1:, tostr, _"));
     assert_debug_snapshot!(t(b"iterate [_ 1, add 1] 1")); // _ :: Num -> Num -> Num
-    assert_debug_snapshot!(t(b"iterate [div 1, _ 1] 1")); // TODO: _ :: Num -> Num -> Num
+    assert_debug_snapshot!(t(b"iterate [div 1, _ 1] 1")); // _ :: Num -> Num -> Num
     assert_debug_snapshot!(t(b"iterate [div 1, add 1] 1, _")); // _ :: [Num]+ -> returnof(typeof(_))
     assert_debug_snapshot!(t(b"let {a, b} [add a b]"));
     assert_debug_snapshot!(t(b"{1, 2, 3}, let {h,, t} h"));
@@ -79,4 +80,20 @@ fn parsing() {
     assert_debug_snapshot!(t(b"let {a b, c} 0"));
     assert_debug_snapshot!(t(b"[1, let 0 fst snd] 1=:a:"));
     assert_debug_snapshot!(t(b"add 1, map, flip apply {1, 2, 3}"));
+}
+
+#[test]
+fn interpreting() {
+    fn t(script: &[u8]) -> String {
+        let mut global = Global::with_builtin();
+        let source = global.registry.add_bytes("<test>", script.into());
+        let result = parse::process(source, &mut global);
+        let mut out = Vec::new();
+        interp::run_write(&result.tree.unwrap(), &global, &mut out).unwrap();
+        String::from_utf8(out).unwrap()
+    }
+
+    assert_snapshot!(t(b"0"));
+    assert_snapshot!(t(b"add 1 2"));
+    assert_snapshot!(t(b"let a [add a 1], flip apply 2"));
 }
