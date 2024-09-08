@@ -670,7 +670,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                         Token(_, CloseBrace) => break,
                         other => {
                             let err = err_unexpected(
-                                &other,
+                                other,
                                 "',' before next item or closing '}' in pattern",
                                 Some(&first_token),
                             );
@@ -870,6 +870,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 } else {
                     let then = self.parse_value();
 
+                    self.global.types.transaction_group("let harmonize".into());
                     // snapshot to have previous type in reported error
                     let snapshot = self.global.types.clone();
                     Type::harmonize(res_ty, then.ty, &mut self.global.types).unwrap_or_else(|e| {
@@ -1015,8 +1016,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             // [x, f, g, h] :: d; where
             // - x :: A
             // - f, g, h :: a -> b, b -> c, c -> d
-            else if then_is_hole
-                || !(r_is_func || r_is_hole) // note: catches coersion cases
+            else if !r_is_func && (!r_is_hole || then_is_hole) // note: catches coersion cases
                 || Type::applicable(then.ty, r.ty, &self.global.types) && !r_is_hole
             {
                 // err_context_as_nth_arg: we know `then` is a function

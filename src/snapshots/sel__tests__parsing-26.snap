@@ -15,14 +15,8 @@ Err(
                     expected_type: Func(
                         Number,
                         Func(
-                            Func(
-                                Number,
-                                Number,
-                            ),
-                            Func(
-                                Number,
-                                Number,
-                            ),
+                            Number,
+                            Number,
                         ),
                     ),
                 },

@@ -277,12 +277,11 @@ impl TypeList {
             }
             _ => ty,
         };
+        if let Some(Transparent(u)) = self.slots[at] {
+            return self.set(u, ty);
+        }
         #[cfg(feature = "types-snapshots")]
         let was = types_snapshots::string_any_type(self, at);
-        let at = match self.slots[at] {
-            Some(Transparent(u)) => u,
-            _ => at,
-        };
         let _ = self.slots[at].replace(ty);
         #[cfg(feature = "types-snapshots")]
         types_snapshots::update_dot(

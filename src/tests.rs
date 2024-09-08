@@ -77,4 +77,6 @@ fn parsing() {
     assert_debug_snapshot!(t(b"repeat 1, let {h,, t} t"));
     assert_debug_snapshot!(t(b"let a let b a"));
     assert_debug_snapshot!(t(b"let {a b, c} 0"));
+    assert_debug_snapshot!(t(b"[1, let 0 fst snd] 1=:a:"));
+    assert_debug_snapshot!(t(b"add 1, map, flip apply {1, 2, 3}"));
 }

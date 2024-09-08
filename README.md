@@ -195,20 +195,17 @@ Rust,
 
 ### broken:
 
-- `add 1, map, flip apply {1, 2, 3}` type and run broken
-- `let 0 fst snd` type broken (see `[1, ..] 1=:a:` and swapping pair)
+- `add 1, map, flip apply {1, 2, 3}` run broken
 - `add 1, let f [f 1]` run broken
+- probably a lot is run broken anyways
 
 formation of infinitely recursive types:
 - `(a -> a) -> a  <-  (b -> Num) -> b`
 
 ### `types`
 
-try to free indices that are not used:
-- identify operations on types that generate such
-- maybe try to visualize this first
-
-polish for cases such as 2 `a`s being distinct
+- try to free indices that are not used
+- polish for cases such as 2 `a`s being distinct
 
 ### `def`s
 

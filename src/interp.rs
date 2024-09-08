@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{self, Read, Stdin, Write};
+use std::io::{self, Read, Result as IoResult, Stdin, Write};
 use std::iter;
 use std::mem;
 use std::rc::Rc;
@@ -7,6 +7,10 @@ use std::sync::{OnceLock, RwLock};
 
 use crate::parse::{Applicable, Pattern, Tree, TreeKind};
 use crate::scope::{Global, ScopeItem};
+
+pub fn run_write(tree: &Tree, global: &Global, w: &mut impl Write) -> IoResult<()> {
+    run_impl(interp_impl(tree, global, &HashMap::new()), w)
+}
 
 // runtime concrete value and macro to make curried instances {{{
 pub type Number = Box<dyn FnOnce() -> f64>;
@@ -188,7 +192,7 @@ impl Matcher {
 }
 // }}}
 
-// lookup and make {{{
+// lookup and interp {{{
 fn lookup_builtin(name: &str) -> Value {
     match name {
         "pipe" => curried_value!(|f, g| -> Func |v| g.func()(f.func()(v))),
@@ -459,30 +463,19 @@ fn interp_impl(tree: &Tree, global: &Global, names: &HashMap<String, Value>) -> 
 }
 // }}}
 
-pub fn interp(tree: &Tree, global: &Global) -> Value {
-    interp_impl(tree, global, &HashMap::new())
-}
-
-pub fn run_print(val: Value) {
+fn run_impl(val: Value, w: &mut impl Write) -> IoResult<()> {
     match val {
-        Value::Number(n, _) => print!("{}", n()),
-        Value::Bytes(b, _) => {
-            let mut stdout = io::stdout();
-            for ch in b {
-                stdout.write_all(&[ch]).unwrap();
-            }
-        }
-        Value::List(l, _) => {
-            for it in l {
-                run_print(it);
-                println!();
-            }
-        }
+        Value::Number(n, _) => write!(w, "{}", n()),
+        Value::Bytes(mut b, _) => b.try_for_each(|ch| w.write_all(&[ch])),
+        Value::List(mut l, _) => l.try_for_each(|it| {
+            run_impl(it, w)?;
+            writeln!(w)
+        }),
         Value::Func(_f, _) => panic!("run_print on a function value"),
         Value::Pair(p, _) => {
-            run_print(p.0);
-            print!("\t");
-            run_print(p.1);
+            run_impl(p.0, w)?;
+            write!(w, "\t")?;
+            run_impl(p.1, w)
         }
         Value::Name(name) => unreachable!("run_print on a name: '{name}'"),
     }
