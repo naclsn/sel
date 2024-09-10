@@ -1,0 +1,67 @@
+---
+source: src/tests.rs
+assertion_line: 91
+expression: "t(b\"\ndef head:\n    returns the first item:\n    [ let {h,, t}\n        h\n        [panic: head on empty list:]\n    ],\nhead {1, 2, 3}\n\")"
+---
+Ok(
+    (
+        Named(
+            "itemof(typeof({}))=h=a",
+        ),
+        Tree {
+            loc: Location(
+                0,
+                111..125,
+            ),
+            ty: 13,
+            value: Apply(
+                Name(
+                    "head",
+                ),
+                [
+                    Tree {
+                        loc: Location(
+                            0,
+                            116..125,
+                        ),
+                        ty: 16,
+                        value: List(
+                            [
+                                Tree {
+                                    loc: Location(
+                                        0,
+                                        117..118,
+                                    ),
+                                    ty: 0,
+                                    value: Number(
+                                        1.0,
+                                    ),
+                                },
+                                Tree {
+                                    loc: Location(
+                                        0,
+                                        120..121,
+                                    ),
+                                    ty: 0,
+                                    value: Number(
+                                        2.0,
+                                    ),
+                                },
+                                Tree {
+                                    loc: Location(
+                                        0,
+                                        123..124,
+                                    ),
+                                    ty: 0,
+                                    value: Number(
+                                        3.0,
+                                    ),
+                                },
+                            ],
+                        ),
+                    },
+                ],
+            ),
+        },
+    ),
+)

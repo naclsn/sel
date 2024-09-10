@@ -808,6 +808,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             }
 
             OpenBrace => {
+                self.global.types.transaction_group("parse list".into());
                 let mut items = Vec::new();
                 let ty = self.global.types.named("itemof(typeof({}))".into());
 
@@ -832,6 +833,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
 
                     // snapshot to have previous type in reported error
                     let snapshot = self.global.types.clone();
+                    self.global.types.transaction_group("list harmonize".into());
                     Type::harmonize(ty, item_ty, &mut self.global.types).unwrap_or_else(|e| {
                         self.report(err_list_type_mismatch(
                             &snapshot,

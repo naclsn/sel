@@ -185,6 +185,17 @@ cargo r -- def any:: [head {}] let a [let b a any] any 1 :a:
 cargo r -- def else-panic:: [panic :panic:] let a a else-panic 42
 ```
 
+```
+cargo r -Fdebug -- -t 'def head:
+    returns the first item:
+    [ let {h,, t}
+        h
+        [panic: head on empty list:]
+    ],
+head {1, 2, 3}
+'
+```
+
 ### `types`
 
 - try to free indices that are not used
