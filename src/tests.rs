@@ -72,15 +72,15 @@ fn parsing() {
     assert_debug_snapshot!(t(b"iterate [_ 1, add 1] 1")); // _ :: Num -> Num -> Num
     assert_debug_snapshot!(t(b"iterate [div 1, _ 1] 1")); // _ :: Num -> Num -> Num
     assert_debug_snapshot!(t(b"iterate [div 1, add 1] 1, _")); // _ :: [Num]+ -> returnof(typeof(_))
-    assert_debug_snapshot!(t(b"let {a, b} [add a b]"));
-    assert_debug_snapshot!(t(b"{1, 2, 3}, let {h,, t} h"));
-    assert_debug_snapshot!(t(b"{1, 2, 3}, let {h,, t} t"));
-    assert_debug_snapshot!(t(b"repeat 1, let {h,, t} t"));
-    assert_debug_snapshot!(t(b"let a let b a"));
+    assert_debug_snapshot!(t(b"let {a, b} [add a b] [panic::]"));
+    assert_debug_snapshot!(t(b"{1, 2, 3}, let {h,, t} h [panic::]"));
+    assert_debug_snapshot!(t(b"{1, 2, 3}, let {h,, t} t [panic::]"));
+    assert_debug_snapshot!(t(b"repeat 1, let {h,, t} t [panic::]"));
+    assert_debug_snapshot!(t(b"let a let b a b a"));
     assert_debug_snapshot!(t(b"let {a b, c} 0"));
     assert_debug_snapshot!(t(b"[1, let 0 fst snd] 1=:a:"));
     assert_debug_snapshot!(t(b"add 1, map, flip apply {1, 2, 3}"));
-    assert_debug_snapshot!(t(b"let a [let b a]"));
+    assert_debug_snapshot!(t(b"let a [let b a [panic: unreachable:]] [panic: unreachable:]"));
 }
 
 #[test]

@@ -28,6 +28,16 @@ Err(
                     },
                 },
             ),
+            Error(
+                Location(
+                    0,
+                    14..14,
+                ),
+                Unexpected {
+                    token: End,
+                    expected: "a value",
+                },
+            ),
         ],
     ),
 )

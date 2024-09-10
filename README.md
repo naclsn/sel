@@ -52,7 +52,7 @@ TLDR:
 - `f, g` is `g(f(..))` (or `pipe f g` or `[flip compose] g f`)
 
 Special characters and keywords:
-`,` `:` `=` `[` `]` `_` `def` `let` `use` `{` `}`
+`,` `:` `=` `[` `]` `def` `let` `use` `{` `}`
 
 3 special forms:
 - `def name :description: value` will define a new name
@@ -66,7 +66,7 @@ Special characters and keywords:
 
 Here is the complete syntax:
 ```bnf
-top ::= {'use' <bytes> <word>} {'def' <word> <bytes> <value>} [<script>]
+top ::= {'use' <bytes> <word> ','} {'def' <word> <bytes> <value> ','} [<script>]
 script ::= <apply> {',' <apply>}
 
 apply ::= <binding> | <value> {<value>}

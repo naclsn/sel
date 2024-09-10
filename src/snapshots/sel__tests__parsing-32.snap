@@ -1,6 +1,6 @@
 ---
 source: src/tests.rs
-expression: "t(b\"let a let b a\")"
+expression: "t(b\"let a let b a b a\")"
 ---
 Err(
     ErrorList(
@@ -22,8 +22,18 @@ Err(
                 ),
                 UnknownName {
                     name: "b",
-                    expected_type: Named(
-                        "typeof(let)=typeof(b)",
+                    expected_type: Func(
+                        Named(
+                            "paramof(typeof(let)=typeof(b))=typeof(b)",
+                        ),
+                        Func(
+                            Named(
+                                "paramof(returnof(typeof(let)=typeof(b)))=typeof(a)",
+                            ),
+                            Named(
+                                "returnof(returnof(typeof(let)=typeof(b)))",
+                            ),
+                        ),
                     ),
                 },
             ),
@@ -36,6 +46,30 @@ Err(
                     name: "a",
                     expected_type: Named(
                         "a=typeof(a)",
+                    ),
+                },
+            ),
+            Error(
+                Location(
+                    0,
+                    14..15,
+                ),
+                UnknownName {
+                    name: "b",
+                    expected_type: Named(
+                        "paramof(typeof(let)=typeof(b))=typeof(b)",
+                    ),
+                },
+            ),
+            Error(
+                Location(
+                    0,
+                    16..17,
+                ),
+                UnknownName {
+                    name: "a",
+                    expected_type: Named(
+                        "paramof(returnof(typeof(let)=typeof(b)))=typeof(a)",
                     ),
                 },
             ),

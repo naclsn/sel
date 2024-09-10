@@ -58,21 +58,19 @@ Err(
                                     [],
                                 ),
                             },
-                            Some(
-                                Tree {
-                                    loc: Location(
-                                        0,
-                                        14..17,
+                            Tree {
+                                loc: Location(
+                                    0,
+                                    14..17,
+                                ),
+                                ty: 10,
+                                value: Apply(
+                                    Name(
+                                        "snd",
                                     ),
-                                    ty: 10,
-                                    value: Apply(
-                                        Name(
-                                            "snd",
-                                        ),
-                                        [],
-                                    ),
-                                },
-                            ),
+                                    [],
+                                ),
+                            },
                         ),
                         type_with_curr_args: Func(
                             Pair(

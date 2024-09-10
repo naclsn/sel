@@ -1,28 +1,28 @@
 ---
 source: src/tests.rs
-expression: "t(b\"let a [let b a]\")"
+expression: "t(b\"let a [let b a [panic: unreachable:]] [panic: unreachable:]\")"
 ---
 Ok(
     (
         Func(
             Named(
-                "a",
+                "a=a",
             ),
             Func(
                 Named(
                     "b",
                 ),
                 Named(
-                    "a",
+                    "a=a",
                 ),
             ),
         ),
         Tree {
             loc: Location(
                 0,
-                0..15,
+                0..59,
             ),
-            ty: 6,
+            ty: 10,
             value: Apply(
                 Bind(
                     Name(
@@ -35,9 +35,9 @@ Ok(
                     Tree {
                         loc: Location(
                             0,
-                            6..15,
+                            6..37,
                         ),
-                        ty: 5,
+                        ty: 7,
                         value: Apply(
                             Bind(
                                 Name(
@@ -60,12 +60,84 @@ Ok(
                                         [],
                                     ),
                                 },
-                                None,
+                                Tree {
+                                    loc: Location(
+                                        0,
+                                        15..36,
+                                    ),
+                                    ty: 5,
+                                    value: Apply(
+                                        Name(
+                                            "panic",
+                                        ),
+                                        [
+                                            Tree {
+                                                loc: Location(
+                                                    0,
+                                                    21..35,
+                                                ),
+                                                ty: 1,
+                                                value: Bytes(
+                                                    [
+                                                        32,
+                                                        117,
+                                                        110,
+                                                        114,
+                                                        101,
+                                                        97,
+                                                        99,
+                                                        104,
+                                                        97,
+                                                        98,
+                                                        108,
+                                                        101,
+                                                    ],
+                                                ),
+                                            },
+                                        ],
+                                    ),
+                                },
                             ),
                             [],
                         ),
                     },
-                    None,
+                    Tree {
+                        loc: Location(
+                            0,
+                            38..59,
+                        ),
+                        ty: 8,
+                        value: Apply(
+                            Name(
+                                "panic",
+                            ),
+                            [
+                                Tree {
+                                    loc: Location(
+                                        0,
+                                        44..58,
+                                    ),
+                                    ty: 1,
+                                    value: Bytes(
+                                        [
+                                            32,
+                                            117,
+                                            110,
+                                            114,
+                                            101,
+                                            97,
+                                            99,
+                                            104,
+                                            97,
+                                            98,
+                                            108,
+                                            101,
+                                        ],
+                                    ),
+                                },
+                            ],
+                        ),
+                    },
                 ),
                 [],
             ),

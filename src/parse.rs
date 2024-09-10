@@ -1079,6 +1079,17 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 k.insert_str(0, &name);
                 self.result.scope.declare(k, v);
             }
+
+            match self.peek_tok() {
+                Token(_, Comma | End) => (),
+                other @ Token(_, kind) => {
+                    let err = err_unexpected(other, "a ',' (because of `use`)", None);
+                    if matches!(kind, TermToken!()) {
+                        self.skip_tok();
+                    }
+                    self.report(err);
+                }
+            }
         }
 
         // def section
@@ -1107,6 +1118,17 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 .map(|prev| err_already_declared(&self.global.types, name, loc, prev))
             {
                 self.report(e);
+            }
+
+            match self.peek_tok() {
+                Token(_, Comma | End) => (),
+                other @ Token(_, kind) => {
+                    let err = err_unexpected(other, "a ',' (because of `def`)", None);
+                    if matches!(kind, TermToken!()) {
+                        self.skip_tok();
+                    }
+                    self.report(err);
+                }
             }
         }
 

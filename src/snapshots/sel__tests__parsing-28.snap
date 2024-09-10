@@ -1,6 +1,6 @@
 ---
 source: src/tests.rs
-expression: "t(b\"let {a, b} [add a b]\")"
+expression: "t(b\"let {a, b} [add a b] [panic::]\")"
 ---
 Ok(
     (
@@ -14,9 +14,9 @@ Ok(
         Tree {
             loc: Location(
                 0,
-                0..20,
+                0..30,
             ),
-            ty: 9,
+            ty: 11,
             value: Apply(
                 Bind(
                     List(
@@ -78,7 +78,30 @@ Ok(
                             ],
                         ),
                     },
-                    None,
+                    Tree {
+                        loc: Location(
+                            0,
+                            21..30,
+                        ),
+                        ty: 9,
+                        value: Apply(
+                            Name(
+                                "panic",
+                            ),
+                            [
+                                Tree {
+                                    loc: Location(
+                                        0,
+                                        27..29,
+                                    ),
+                                    ty: 1,
+                                    value: Bytes(
+                                        [],
+                                    ),
+                                },
+                            ],
+                        ),
+                    },
                 ),
                 [],
             ),
