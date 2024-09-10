@@ -1,6 +1,6 @@
 ---
 source: src/tests.rs
-expression: "t(b\"let a [let b a [panic: unreachable:]] [panic: unreachable:]\")"
+expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]\n    [panic: unreachable:]\n\")"
 ---
 Ok(
     (
@@ -20,7 +20,7 @@ Ok(
         Tree {
             loc: Location(
                 0,
-                0..59,
+                1..84,
             ),
             ty: 10,
             value: Apply(
@@ -28,14 +28,14 @@ Ok(
                     Name(
                         Location(
                             0,
-                            4..5,
+                            5..6,
                         ),
                         "a",
                     ),
                     Tree {
                         loc: Location(
                             0,
-                            6..37,
+                            11..58,
                         ),
                         ty: 7,
                         value: Apply(
@@ -43,14 +43,14 @@ Ok(
                                 Name(
                                     Location(
                                         0,
-                                        11..12,
+                                        16..17,
                                     ),
                                     "b",
                                 ),
                                 Tree {
                                     loc: Location(
                                         0,
-                                        13..14,
+                                        26..27,
                                     ),
                                     ty: 3,
                                     value: Apply(
@@ -63,7 +63,7 @@ Ok(
                                 Tree {
                                     loc: Location(
                                         0,
-                                        15..36,
+                                        36..57,
                                     ),
                                     ty: 5,
                                     value: Apply(
@@ -74,7 +74,7 @@ Ok(
                                             Tree {
                                                 loc: Location(
                                                     0,
-                                                    21..35,
+                                                    42..56,
                                                 ),
                                                 ty: 1,
                                                 value: Bytes(
@@ -104,7 +104,7 @@ Ok(
                     Tree {
                         loc: Location(
                             0,
-                            38..59,
+                            63..84,
                         ),
                         ty: 8,
                         value: Apply(
@@ -115,7 +115,7 @@ Ok(
                                 Tree {
                                     loc: Location(
                                         0,
-                                        44..58,
+                                        69..83,
                                     ),
                                     ty: 1,
                                     value: Bytes(

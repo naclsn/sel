@@ -1062,26 +1062,25 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     continue;
                 }
             };
-            let source = match String::from_utf8(file)
+            match String::from_utf8(file)
                 .map_err(|e| e.to_string())
                 .and_then(|s| self.global.registry.add(s).map_err(|e| e.to_string()))
             {
-                Ok(bytes) => bytes,
+                Ok(source) => {
+                    let res = process(source, self.global);
+                    self.result.errors.0.extend(res.errors);
+                    for (mut k, v) in res.scope {
+                        k.insert_str(0, &name);
+                        self.result.scope.declare(k, v);
+                    }
+                }
                 Err(error) => {
                     self.report(Error(loc, ErrorKind::CouldNotReadFile { error }));
-                    continue;
                 }
-            };
-
-            let res = process(source, self.global);
-            self.result.errors.0.extend(res.errors);
-            for (mut k, v) in res.scope {
-                k.insert_str(0, &name);
-                self.result.scope.declare(k, v);
             }
 
             match self.peek_tok() {
-                Token(_, Comma | End) => (),
+                Token(_, Comma | End) => self.skip_tok(),
                 other @ Token(_, kind) => {
                     let err = err_unexpected(other, "a ',' (because of `use`)", None);
                     if matches!(kind, TermToken!()) {
@@ -1121,7 +1120,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             }
 
             match self.peek_tok() {
-                Token(_, Comma | End) => (),
+                Token(_, Comma | End) => self.skip_tok(),
                 other @ Token(_, kind) => {
                     let err = err_unexpected(other, "a ',' (because of `def`)", None);
                     if matches!(kind, TermToken!()) {

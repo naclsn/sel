@@ -80,7 +80,23 @@ fn parsing() {
     assert_debug_snapshot!(t(b"let {a b, c} 0"));
     assert_debug_snapshot!(t(b"[1, let 0 fst snd] 1=:a:"));
     assert_debug_snapshot!(t(b"add 1, map, flip apply {1, 2, 3}"));
-    assert_debug_snapshot!(t(b"let a [let b a [panic: unreachable:]] [panic: unreachable:]"));
+    assert_debug_snapshot!(t(b"
+let a
+    [let b
+        a
+        [panic: unreachable:]]
+    [panic: unreachable:]
+"));
+    assert_debug_snapshot!(t(b"use :bidoof: bdf, bdf-main"));
+    assert_debug_snapshot!(t(b"
+def head:
+    returns the first item:
+    [ let {h,, t}
+        h
+        [panic: head on empty list:]
+    ],
+head {1, 2, 3}
+"));
 }
 
 #[test]

@@ -335,7 +335,7 @@ impl Display for Report<'_> {
             let bytes = self.registry.get_bytes(*file);
             writeln!(
                 f,
-                " {} -> {}",
+                " ({range:?}) `{}` -> {}",
                 String::from_utf8_lossy(&bytes[range.start..range.end]),
                 msg
             )?;

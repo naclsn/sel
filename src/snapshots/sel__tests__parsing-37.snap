@@ -1,0 +1,31 @@
+---
+source: src/tests.rs
+expression: "t(b\"use :bidoof: bdf, bdf-main\")"
+---
+Err(
+    ErrorList(
+        [
+            Error(
+                Location(
+                    0,
+                    4..12,
+                ),
+                CouldNotReadFile {
+                    error: "No such file or directory (os error 2)",
+                },
+            ),
+            Error(
+                Location(
+                    0,
+                    18..26,
+                ),
+                UnknownName {
+                    name: "bdf-main",
+                    expected_type: Named(
+                        "typeof(bdf-main)",
+                    ),
+                },
+            ),
+        ],
+    ),
+)
