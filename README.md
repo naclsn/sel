@@ -47,12 +47,12 @@ $ sel pred.sel 5
 ## Syntax
 
 TLDR:
-- lists, strings: `{0b1, 0o2, 0x3, 4.2}`, `:hi how you:`
+- lists: `{0b1, 0o2, 0x3, 4.2}`, strings: `:hi how you:`
 - `my-func first-arg [add 1 2] third-arg`
 - `f, g` is `g(f(..))` (or `pipe f g` or `[flip compose] g f`)
 
 Special characters and keywords:
-`,` `:` `;` `=` `[` `]` `_` `def` `let` `use` `{` `}`
+`,` `:` `=` `[` `]` `_` `def` `let` `use` `{` `}`
 
 3 special forms:
 - `def name :description: value` will define a new name
@@ -62,18 +62,17 @@ Special characters and keywords:
 - `let pattern result fallback` will make a function of one
   argument that computes result if pattern matches, pattern
   can introduces names (eg `let {a, b,, rest} [add a b]`,
-  the `,, rest` matches the rest of the list), fallback is
-  optional (default is to panic).
+  the `,, rest` matches the rest of the list)
 
 Here is the complete syntax:
 ```bnf
-top ::= {'use' <bytes> <word>} {'def' <word> <bytes> <script> ';'} [<script>]
+top ::= {'use' <bytes> <word>} {'def' <word> <bytes> <value>} [<script>]
 script ::= <apply> {',' <apply>}
 
 apply ::= <binding> | <value> {<value>}
 value ::= <atom> | <subscr> | <list> | <pair>
 
-binding ::= 'let' <pattern> <value> [<value>]
+binding ::= 'let' <pattern> <value> <value>
 pattern ::= <atom> | <patlist> | <patpair>
 patlist ::= '{' [<pattern> {',' <pattern>} [',' [',' <word>]]] '}'
 patpair ::= (<atom> | <patlist>) '=' <pattern>
@@ -97,8 +96,6 @@ quoting much if at all:
   naturally with a single space
 - the single and double quotes are not used, so to feel
   safer the whole script can be quoted
-- the `;` is used with `def`, but it is generally not used
-  in short CLI scripts
 
 One case which can cause problem is lists (`{ .. }`) which
 can be interpreted as glob _if not containing a space_.
@@ -169,16 +166,6 @@ not yet implemented
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 ```
 
-## Runtime Panics
-
-Scripts are statically typed, so there are only a few
-runtime situation that will panic and abort:
-
-- `let` without a fallback will panic if its pattern doesn't match
-- out of range list access (eg. `head` (ie. `unwrap`), `last`...) will panic
-
-WIP: there really is only one situation, the `let` with no fallback; `unwrap` is to be implemented with it: `def unwrap:: let {a} a`
-
 ## Ack & Unrelated
 
 Python,
@@ -193,19 +180,16 @@ Rust,
 
 ## (wip and such)
 
-### broken:
-
-- `add 1, map, flip apply {1, 2, 3}` run broken
-- `add 1, let f [f 1]` run broken
-- probably a lot is run broken anyways
-
-formation of infinitely recursive types:
-- `(a -> a) -> a  <-  (b -> Num) -> b`
+```
+cargo r -- def any:: [head {}] let a [let b a any] any 1 :a:
+cargo r -- def else-panic:: [panic :panic:] let a a else-panic 42
+```
 
 ### `types`
 
 - try to free indices that are not used
 - polish for cases such as 2 `a`s being distinct
+- ex of inf type `(a -> a) -> a  <-  (b -> Num) -> b`
 
 ### `def`s
 

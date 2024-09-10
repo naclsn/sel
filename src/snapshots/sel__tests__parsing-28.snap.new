@@ -1,0 +1,21 @@
+---
+source: src/tests.rs
+assertion_line: 75
+expression: "t(b\"let {a, b} [add a b]\")"
+---
+Err(
+    ErrorList(
+        [
+            Error(
+                Location(
+                    0,
+                    20..20,
+                ),
+                Unexpected {
+                    token: End,
+                    expected: "a value",
+                },
+            ),
+        ],
+    ),
+)

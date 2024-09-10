@@ -35,13 +35,12 @@ pub enum TokenKind {
     Def,
     Let,
     Use,
-    Semicolon,
     End,
 }
 
 macro_rules! TermToken {
     () => {
-        Comma | CloseBracket | CloseBrace | Equal | Semicolon | End
+        Comma | CloseBracket | CloseBrace | Equal | End
     };
 }
 
@@ -51,7 +50,7 @@ pub struct Token(pub Location, pub TokenKind);
 #[derive(PartialEq, Debug, Clone)]
 pub enum Applicable {
     Name(String),
-    Bind(Pattern, Box<Tree>, Option<Box<Tree>>),
+    Bind(Pattern, Box<Tree>, Box<Tree>),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -131,7 +130,6 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
             b'{' => (1, OpenBrace),
             b'}' => (1, CloseBrace),
             b'=' => (1, Equal),
-            b';' => (1, Semicolon),
 
             b'#' => {
                 self.stream.find(|c| {
@@ -856,60 +854,16 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 (self.global.types.list(fin, ty), TreeKind::List(items))
             }
 
-            Let => {
-                let parent = self.result.scope.make_into_child();
-                self.global.types.transaction_group("let pattern".into());
-                let (pattern, pat_ty) = self.parse_pattern();
-
-                let result = self.parse_value();
-                let res_ty = result.ty;
-
-                let fallback = if let Token(_, TermToken!()) = self.peek_tok() {
-                    loc.1.end = result.loc.1.end;
-                    None
-                } else {
-                    let then = self.parse_value();
-
-                    self.global.types.transaction_group("let harmonize".into());
-                    // snapshot to have previous type in reported error
-                    let snapshot = self.global.types.clone();
-                    Type::harmonize(res_ty, then.ty, &mut self.global.types).unwrap_or_else(|e| {
-                        self.report(Error(
-                            then.loc.clone(),
-                            ErrorKind::ContextCaused {
-                                error: Box::new(Error(result.loc.clone(), e)),
-                                because: ErrorContext::LetFallbackTypeMismatch {
-                                    result_type: snapshot.frozen(res_ty),
-                                    fallback_type: snapshot.frozen(then.ty),
-                                },
-                            },
-                        ))
-                    });
-
-                    loc.1.end = then.loc.1.end;
-                    Some(Box::new(then))
-                };
-                self.result.scope.restore_from_parent(parent);
-
-                let ty = self.global.types.func(pat_ty, res_ty);
-                let app = Applicable::Bind(pattern, Box::new(result), fallback);
-                (ty, TreeKind::Apply(app, Vec::new()))
-            }
-
-            Def => {
-                self.report(Error(first_token.0, ErrorKind::UnexpectedDefInScript));
-                self.mktypeof("def")
-            }
-
-            Use => {
-                self.report(Error(first_token.0, ErrorKind::UnexpectedDefInScript));
-                self.mktypeof("use")
-            }
-
-            Unknown(ref w) => {
+            Def | Let | Use | Unknown(_) => {
                 let err = err_unexpected(&first_token, "a value", None);
                 self.report(err);
-                self.mktypeof(w)
+                self.mktypeof(match &first_token.1 {
+                    Def => "def",
+                    Let => "let",
+                    Use => "use",
+                    Unknown(t) => t,
+                    _ => unreachable!(),
+                })
             }
 
             TermToken!() => unreachable!(),
@@ -932,7 +886,48 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
     // XXX: should it be updating the location ranges as it find more arguments?
     fn parse_apply(&mut self) -> Tree {
         use TokenKind::*;
-        let mut r = self.parse_value();
+
+        let mut r = match self.peek_tok() {
+            Token(loc, Let) => {
+                let mut loc = loc.clone();
+                self.skip_tok();
+
+                let parent = self.result.scope.make_into_child();
+                self.global.types.transaction_group("let pattern".into());
+                let (pattern, pat_ty) = self.parse_pattern();
+
+                let result = self.parse_value();
+                let res_ty = result.ty;
+
+                let fallback = self.parse_value();
+
+                self.global.types.transaction_group("let harmonize".into());
+                // snapshot to have previous type in reported error
+                let snapshot = self.global.types.clone();
+                Type::harmonize(res_ty, fallback.ty, &mut self.global.types).unwrap_or_else(|e| {
+                    self.report(Error(
+                        fallback.loc.clone(),
+                        ErrorKind::ContextCaused {
+                            error: Box::new(Error(result.loc.clone(), e)),
+                            because: ErrorContext::LetFallbackTypeMismatch {
+                                result_type: snapshot.frozen(res_ty),
+                                fallback_type: snapshot.frozen(fallback.ty),
+                            },
+                        },
+                    ))
+                });
+
+                loc.1.end = fallback.loc.1.end;
+                self.result.scope.restore_from_parent(parent);
+
+                let ty = self.global.types.func(pat_ty, res_ty);
+                let app = Applicable::Bind(pattern, Box::new(result), Box::new(fallback));
+                let value = TreeKind::Apply(app, Vec::new());
+                Tree { loc, ty, value }
+            }
+            _ => self.parse_value(),
+        };
+
         while !matches!(self.peek_tok(), Token(_, TermToken!())) {
             // "unfold" means as in this example:
             // [tonum, add 1, tostr] :42:
@@ -955,6 +950,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                         //     apply_maybe_unfold(p, f) :: b
                         p.try_apply(g, fx, None)
                     }
+
                     TreeKind::Apply(_, _)
                         if matches!(
                             p.global.types.get(func.ty),
@@ -966,6 +962,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                         // err_context_as_nth_arg: `func` is a function (matches ::Apply)
                         p.try_apply(func, x, None)
                     }
+
                     _ => {
                         let x = p.parse_value();
                         *new_end = x.loc.1.end;
@@ -975,10 +972,11 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     }
                 }
             }
+
             let mut new_end = r.loc.1.end;
             r = apply_maybe_unfold(self, r, &mut new_end);
             r.loc.1.end = new_end;
-        }
+        } // while not TermToken
         r
     }
 
@@ -1100,7 +1098,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 }
             };
 
-            let val = self.parse_script();
+            let val = self.parse_value();
             let desc = String::from_utf8_lossy(&desc).trim().into();
             if let Some(e) = self
                 .result
@@ -1109,14 +1107,6 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 .map(|prev| err_already_declared(&self.global.types, name, loc, prev))
             {
                 self.report(e);
-            }
-
-            match self.peek_tok() {
-                Token(_, Semicolon) => self.skip_tok(),
-                other @ Token(_, _) => {
-                    let err = err_unexpected(other, "';' after definition", None);
-                    self.report(err);
-                }
             }
         }
 

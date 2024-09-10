@@ -2,73 +2,43 @@
 source: src/tests.rs
 expression: "t(b\"let a let b a\")"
 ---
-Ok(
-    (
-        Func(
-            Named(
-                "a",
-            ),
-            Func(
-                Named(
-                    "b",
+Err(
+    ErrorList(
+        [
+            Error(
+                Location(
+                    0,
+                    6..9,
                 ),
-                Named(
-                    "a",
+                Unexpected {
+                    token: Let,
+                    expected: "a value",
+                },
+            ),
+            Error(
+                Location(
+                    0,
+                    10..11,
                 ),
-            ),
-        ),
-        Tree {
-            loc: Location(
-                0,
-                0..13,
-            ),
-            ty: 6,
-            value: Apply(
-                Bind(
-                    Name(
-                        Location(
-                            0,
-                            4..5,
-                        ),
-                        "a",
+                UnknownName {
+                    name: "b",
+                    expected_type: Named(
+                        "typeof(let)=typeof(b)",
                     ),
-                    Tree {
-                        loc: Location(
-                            0,
-                            6..13,
-                        ),
-                        ty: 5,
-                        value: Apply(
-                            Bind(
-                                Name(
-                                    Location(
-                                        0,
-                                        10..11,
-                                    ),
-                                    "b",
-                                ),
-                                Tree {
-                                    loc: Location(
-                                        0,
-                                        12..13,
-                                    ),
-                                    ty: 3,
-                                    value: Apply(
-                                        Name(
-                                            "a",
-                                        ),
-                                        [],
-                                    ),
-                                },
-                                None,
-                            ),
-                            [],
-                        ),
-                    },
-                    None,
-                ),
-                [],
+                },
             ),
-        },
+            Error(
+                Location(
+                    0,
+                    12..13,
+                ),
+                UnknownName {
+                    name: "a",
+                    expected_type: Named(
+                        "a=typeof(a)",
+                    ),
+                },
+            ),
+        ],
     ),
 )

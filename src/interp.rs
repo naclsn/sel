@@ -197,6 +197,8 @@ fn lookup_builtin(name: &str) -> Value {
     match name {
         "pipe" => curried_value!(|f, g| -> Func |v| g.func()(f.func()(v))),
 
+        "panic" => curried_value!(|| -> Func |t: Value| panic!("{}", String::from_utf8_lossy(&t.bytes().collect::<Vec<u8>>()))),
+
         "apply" => curried_value!(|f| -> Func |v| f.func()(v)),
 
         "add" => curried_value!(|a, b| -> Number || a.number()() + b.number()()),
@@ -426,7 +428,7 @@ fn interp_impl(tree: &Tree, global: &Global, names: &HashMap<String, Value>) -> 
                     Applicable::Bind(pat, res, fbk) => {
                         let pat = Matcher::new(pat);
                         let res = *res.clone();
-                        let fbk = fbk.as_deref().map(|u| interp_impl(u, global, names));
+                        let fbk = interp_impl(fbk, global, names);
                         let global_ptr = global as *const Global;
                         let names_at_point = names.clone();
                         let w = move || {
@@ -439,7 +441,7 @@ fn interp_impl(tree: &Tree, global: &Global, names: &HashMap<String, Value>) -> 
                                     if pat.matches_and_bind(v, &mut names) {
                                         interp_impl(&res, unsafe { &*global_ptr }, &names)
                                     } else {
-                                        fbk.unwrap_or_else(|| panic!("runtime panic (partial let)"))
+                                        fbk
                                     }
                                 }
                             })

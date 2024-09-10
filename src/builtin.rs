@@ -111,7 +111,7 @@ pub fn scope() -> Scope {
     r
 }
 
-const NAMES: [(&str, ScopeItem); 41] = [
+const NAMES: [(&str, ScopeItem); 42] = [
     ("-"            , mkbin!(mkmkty!(1          ; Str+1                                      ), "the input")),
     ("add"          , mkbin!(mkmkty!(0          ; Num -> Num -> Num                          ), "add two numbers")),
     ("apply"        , mkbin!(mkmkty!(0, a, b    ; (a -> b) -> a -> b                         ), "apply argument to function; 'apply f x' is equivalent to 'f x'")),
@@ -139,6 +139,7 @@ const NAMES: [(&str, ScopeItem); 41] = [
     ("lookup"       , mkbin!(mkmkty!(0, a       ; [(Str, a)] -> Str -> [a]                   ), "lookup in the list of key/value pairs the value associated with the given key; the return is an option (ie a singleton or an empty list)")),
     ("map"          , mkbin!(mkmkty!(1, a, b    ; (a -> b) -> [a]+1 -> [b]+1                 ), "make a new list by applying an unary operation to each value from a list")),
     ("pair"         , mkbin!(mkmkty!(0, a, b    ; a -> b -> (a, b)                           ), "make a pair")),
+    ("panic"        , mkbin!(mkmkty!(0, a       ; Str -> a                                   ), "panics")),
     ("pipe"         , mkbin!(mkmkty!(0, a, b, c ; (a -> b) -> (b -> c) -> a -> c             ), "pipe two function; 'pipe one two' is equivalent to the syntax 'one, two' ie 'two(one(..))' (see also 'compose')")),
     ("repeat"       , mkbin!(mkmkty!(1, a       ; a -> [a]+1                                 ), "repeat an infinite amount of copies of the same value")),
     ("singleton"    , mkbin!(mkmkty!(0, a       ; a -> [a]                                   ), "equivalent to {a}")), // | "once" | "just" | "some"

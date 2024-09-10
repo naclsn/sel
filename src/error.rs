@@ -53,7 +53,6 @@ pub enum ErrorKind {
         token: TokenKind,
         expected: &'static str,
     },
-    UnexpectedDefInScript,
     UnknownName {
         name: String,
         expected_type: FrozenType,
@@ -125,7 +124,7 @@ impl Error {
                         OpenBracket => '[',
                         OpenBrace => '{',
                         Unknown(_) | Word(_) | Bytes(_) | Number(_) | Comma | CloseBracket
-                        | CloseBrace | Equal | Def | Let | Use | Semicolon | End => unreachable!(),
+                        | CloseBrace | Equal | Def | Let | Use | End => unreachable!(),
                     }
                 ),
             )],
@@ -234,19 +233,9 @@ impl Error {
                             Def => "def",
                             Let => "let",
                             Use => "use",
-                            Semicolon => ";",
                             End => "end of script",
                         }
                     ),
-                )],
-            },
-            UnexpectedDefInScript => Report {
-                registry,
-                title: "Unexpected definition".into(),
-                messages: vec![(
-                    loc,
-                    "these should only appear before the script, at the beginning of the file"
-                        .into(),
                 )],
             },
             UnknownName {

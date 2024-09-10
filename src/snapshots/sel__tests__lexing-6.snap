@@ -3,7 +3,7 @@ source: src/tests.rs
 expression: "t(b\"oh-no; don't let use be the def of cat!\")"
 ---
 Token(Location(0, 0..5), Word("oh-no"))
-Token(Location(0, 5..6), Semicolon)
+Token(Location(0, 5..6), Unknown(";"))
 Token(Location(0, 7..10), Word("don"))
 Token(Location(0, 10..11), Unknown("'"))
 Token(Location(0, 11..12), Word("t"))
