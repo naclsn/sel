@@ -1,5 +1,5 @@
 fu s:sel_ft()
-  setl com=:#,s::,e:: def=^\ *def isk=-,A-Z,a-z
+  setl com=:#,s::,e:: def=^\\s*def isk=-,A-Z,a-z
   sy sync fromstart
 
   sy match   selComment  /_\|#.*/ contains=selTodo
@@ -15,11 +15,10 @@ fu s:sel_ft()
 
   sy keyword selDef      def skipwhite skipempty nextgroup=selDefName
   sy match   selDefName  /\k\+/ skipwhite skipempty nextgroup=selDefDesc contained
-  sy region  selDefDesc  start=/:/ skip=/::/ end=/:/ skipwhite skipempty nextgroup=selDefBegin contains=@Spell,selTodo contained
-  sy region  selDefBegin start=/\zs/ matchgroup=selDefEnd end=/;/ contains=selDefMiss,@selPlain,selLet fold contained
-  sy match   selDefMiss  /\<def\>/
+  sy region  selDefDesc  start=/:/ skip=/::/ end=/:/ skipwhite skipempty contains=@Spell,selTodo contained
 
-  sy keyword selUse      use
+  sy keyword selUse      use skipwhite skipempty nextgroup=selUsePath
+  sy region  selUsePath  start=/:/ skip=/::/ end=/:/ skipwhite skipempty contained
 
   hi def link selComment  Comment
   hi def link selTodo     Todo
@@ -33,10 +32,9 @@ fu s:sel_ft()
   hi def link selDef      Keyword
   hi def link selDefName  Function
   hi def link selDefDesc  SpecialComment
-  hi def link selDefEnd   Keyword
-  hi def link selDefMiss  Error
 
   hi def link selUse      Keyword
+  hi def link selUsePath  Include
 endf
 
 aug filetypedetect

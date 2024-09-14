@@ -1109,17 +1109,45 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     continue;
                 }
             };
-
-            let val = self.parse_value();
             let desc = String::from_utf8_lossy(&desc).trim().into();
+
+            let (ty, value) = self.mktypeof(&name);
+            let fake_val = ScopeItem::Defined(
+                Tree {
+                    loc: loc.clone(),
+                    ty,
+                    value,
+                },
+                desc,
+            );
             if let Some(e) = self
                 .result
                 .scope
-                .declare(name.clone(), ScopeItem::Defined(val, desc))
-                .map(|prev| err_already_declared(&self.global.types, name, loc, prev))
+                .declare(name.clone(), fake_val)
+                .map(|prev| {
+                    err_already_declared(&self.global.types, name.clone(), loc.clone(), prev)
+                })
             {
                 self.report(e);
             }
+
+            let val = self.parse_value();
+
+            // snapshot to have previous type in reported error
+            let snapshot = self.global.types.clone();
+            Type::harmonize(val.ty, ty, &mut self.global.types).unwrap_or_else(|e| {
+                self.report(Error(
+                    loc.clone(),
+                    ErrorKind::ContextCaused {
+                        error: Box::new(Error(loc, e)),
+                        // TODO: this temporary, replace with a new more appropriate one
+                        because: ErrorContext::CompleteType {
+                            complete_type: snapshot.frozen(ty),
+                        },
+                    },
+                ))
+            });
+            self.result.scope.update_defined_fake(&name, val);
 
             match self.peek_tok() {
                 Token(_, Comma | End) => self.skip_tok(),

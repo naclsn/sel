@@ -307,7 +307,7 @@ impl TypeList {
         self.free_slots += 1;
         while let Some(None) = self.slots.last() {
             self.slots.pop();
-            self.free_slots = 0;
+            self.free_slots -= 1;
         }
     }
 
