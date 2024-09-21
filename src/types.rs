@@ -10,6 +10,16 @@ const FINITE_TYPEREF: usize = 2;
 pub type TypeRef = usize;
 pub type Boundedness = usize;
 
+#[derive(Debug, Clone, Copy)]
+pub enum TypeOp {
+    TypeOf,
+    ItemOf,
+    ParamOf,
+    ReturnOf,
+    FirstOf,
+    SecondOf,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) enum Type {
     Number,
@@ -21,8 +31,11 @@ pub(crate) enum Type {
     Finite(bool),
     FiniteBoth(Boundedness, Boundedness),
     FiniteEither(Boundedness, Boundedness),
-    Transparent(TypeRef),
+    Operation(TypeOp, TypeRef),
 }
+
+use Type::*;
+use TypeOp::*;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum FrozenType {
@@ -120,7 +133,7 @@ mod types_snapshots {
                         &Finite(_) => vec![],
                         &FiniteBoth(lhs, rhs) => vec![lhs, rhs],
                         &FiniteEither(lhs, rhs) => vec![lhs, rhs],
-                        &Transparent(u) => vec![u],
+                        &Operation(_, u) => vec![u],
                     } {
                         write!(
                             f,
@@ -159,32 +172,45 @@ mod types_snapshots {
                 "Str+"
             }
             .into(),
-            List(fin, has) => if types.freeze_finite(*fin) {
-                format!("[{}]", string_any_type_impl(types, *has))
-            } else {
-                format!("[{}]+", string_any_type_impl(types, *has))
+            List(fin, has) => {
+                let fin = if types.freeze_finite(*fin) { "" } else { "+" };
+                format!(
+                    "[{}]{fin}",
+                    match &types.slots[*has] {
+                        Some(Operation(ItemOf, u)) if *u == at => "...".into(),
+                        _ => string_any_type_impl(types, *has),
+                    }
+                )
             }
             .into(),
             Func(par, ret) => {
-                let funcarg = matches!(types.get(*par), Func(_, _));
-                if funcarg {
-                    format!(
-                        "({}) -> {}",
-                        string_any_type_impl(types, *par),
-                        string_any_type_impl(types, *ret)
-                    )
+                let (op, cl) = if matches!(types.get(*par), Func(_, _)) {
+                    ("(", ")")
                 } else {
-                    format!(
-                        "{} -> {}",
-                        string_any_type_impl(types, *par),
-                        string_any_type_impl(types, *ret)
-                    )
-                }
+                    ("", "")
+                };
+                format!(
+                    "{op}{}{cl} -> {}",
+                    match &types.slots[*par] {
+                        Some(Operation(ParamOf, u)) if *u == at => "...".into(),
+                        _ => string_any_type_impl(types, *par),
+                    },
+                    match &types.slots[*ret] {
+                        Some(Operation(ReturnOf, u)) if *u == at => "...".into(),
+                        _ => string_any_type_impl(types, *ret),
+                    },
+                )
             }
             Pair(fst, snd) => format!(
                 "({}, {})",
-                string_any_type_impl(types, *fst),
-                string_any_type_impl(types, *snd)
+                match &types.slots[*fst] {
+                    Some(Operation(FirstOf, u)) if *u == at => "...".into(),
+                    _ => string_any_type_impl(types, *fst),
+                },
+                match &types.slots[*snd] {
+                    Some(Operation(SecondOf, u)) if *u == at => "...".into(),
+                    _ => string_any_type_impl(types, *snd),
+                },
             ),
             Named(name) => format!("{name}"),
             Finite(is) => {
@@ -204,7 +230,7 @@ mod types_snapshots {
                 string_any_type_impl(types, *l),
                 string_any_type_impl(types, *r)
             ),
-            Transparent(u) => format!("({})", string_any_type_impl(types, *u)),
+            Operation(o, u) => format!("{o:?}({})", string_any_type_impl(types, *u)),
         }
     }
 }
@@ -254,30 +280,45 @@ impl TypeList {
     }
 
     pub(crate) fn get(&self, at: TypeRef) -> &Type {
+        self.get_impl(at, at)
+    }
+
+    fn get_impl(&self, at: TypeRef, from: TypeRef) -> &Type {
         match self.slots[at].as_ref().unwrap() {
-            Type::Transparent(u) => self.get(*u),
+            me @ Operation(o, u) => match (o, self.get(*u)) {
+                (TypeOf, r) => r,
+                (ItemOf, List(_, i)) if *i != from => self.get_impl(*i, from),
+                (ParamOf, Func(p, _)) if *p != from => self.get_impl(*p, from),
+                (ReturnOf, Func(_, r)) if *r != from => self.get_impl(*r, from),
+                (FirstOf, Pair(f, _)) if *f != from => self.get_impl(*f, from),
+                (SecondOf, Pair(_, s)) if *s != from => self.get_impl(*s, from),
+                _ => me,
+                //(_, x) => unreachable!("Operation({o:?}, {x:?})"),
+            },
             r => r,
         }
     }
 
     pub(crate) fn set(&mut self, at: TypeRef, ty: Type) {
-        use Type::*;
         let ty = match ty {
-            Number => Transparent(NUMBER_TYPEREF),
-            Bytes(FINITE_TYPEREF) => Transparent(STRFIN_TYPEREF),
-            Finite(true) => Transparent(FINITE_TYPEREF),
-            Transparent(u) => {
-                if at == u {
-                    return;
+            Number => Operation(TypeOf, NUMBER_TYPEREF),
+            Bytes(FINITE_TYPEREF) => Operation(TypeOf, STRFIN_TYPEREF),
+            Finite(true) => Operation(TypeOf, FINITE_TYPEREF),
+            Operation(ref o, u) => match o {
+                TypeOf => {
+                    if at == u {
+                        return;
+                    }
+                    match self.slots[u] {
+                        Some(Operation(TypeOf, w)) => Operation(TypeOf, w),
+                        _ => ty,
+                    }
                 }
-                match self.slots[u] {
-                    Some(Transparent(w)) => Transparent(w),
-                    _ => ty,
-                }
-            }
+                _ => todo!(),
+            },
             _ => ty,
         };
-        if let Some(Transparent(u)) = self.slots[at] {
+        if let Some(Operation(TypeOf, u)) = self.slots[at] {
             return self.set(u, ty);
         }
         #[cfg(feature = "types-snapshots")]
@@ -318,33 +359,36 @@ impl TypeList {
         if FINITE_TYPEREF == finite {
             STRFIN_TYPEREF
         } else {
-            self.push(Type::Bytes(finite))
+            self.push(Bytes(finite))
         }
     }
     pub fn list(&mut self, finite: Boundedness, item: TypeRef) -> TypeRef {
-        self.push(Type::List(finite, item))
+        self.push(List(finite, item))
     }
     pub fn func(&mut self, par: TypeRef, ret: TypeRef) -> TypeRef {
-        self.push(Type::Func(par, ret))
+        self.push(Func(par, ret))
     }
     pub fn pair(&mut self, fst: TypeRef, snd: TypeRef) -> TypeRef {
-        self.push(Type::Pair(fst, snd))
+        self.push(Pair(fst, snd))
     }
     pub fn named(&mut self, name: String) -> TypeRef {
-        self.push(Type::Named(name.to_string()))
+        self.push(Named(name.to_string()))
     }
     pub fn finite(&mut self, finite: bool) -> Boundedness {
         if finite {
             FINITE_TYPEREF
         } else {
-            self.push(Type::Finite(false))
+            self.push(Finite(false))
         }
     }
     pub fn either(&mut self, left: Boundedness, right: Boundedness) -> Boundedness {
-        self.push(Type::FiniteEither(left, right))
+        self.push(FiniteEither(left, right))
     }
     pub fn both(&mut self, left: Boundedness, right: Boundedness) -> Boundedness {
-        self.push(Type::FiniteBoth(left, right))
+        self.push(FiniteBoth(left, right))
+    }
+    pub fn operation(&mut self, o: TypeOp, u: TypeRef) -> TypeRef {
+        self.push(Operation(o, u))
     }
 
     pub(crate) fn duplicate(
@@ -352,8 +396,6 @@ impl TypeList {
         at: TypeRef,
         already_done: &mut HashMap<usize, usize>,
     ) -> TypeRef {
-        use Type::*;
-
         if let Some(done) = already_done.get(&at) {
             return *done;
         }
@@ -369,21 +411,44 @@ impl TypeList {
                     self.duplicate(f, already_done),
                     self.duplicate(i, already_done),
                 );
-                self.list(f, i)
+                let v = self.list(f, i);
+                match &mut self.slots[i] {
+                    Some(Operation(_, u)) if FINITE_TYPEREF == *u => *u = v,
+                    _ => (),
+                }
+                v
             }
             Func(p, r) => {
                 let (p, r) = (
                     self.duplicate(p, already_done),
                     self.duplicate(r, already_done),
                 );
-                self.func(p, r)
+                let v = self.func(p, r);
+                match &mut self.slots[p] {
+                    Some(Operation(_, u)) if FINITE_TYPEREF == *u => *u = v,
+                    _ => (),
+                }
+                match &mut self.slots[r] {
+                    Some(Operation(_, u)) if FINITE_TYPEREF == *u => *u = v,
+                    _ => (),
+                }
+                v
             }
             Pair(f, s) => {
                 let (f, s) = (
                     self.duplicate(f, already_done),
                     self.duplicate(s, already_done),
                 );
-                self.pair(f, s)
+                let v = self.pair(f, s);
+                match &mut self.slots[f] {
+                    Some(Operation(_, u)) if FINITE_TYPEREF == *u => *u = v,
+                    _ => (),
+                }
+                match &mut self.slots[s] {
+                    Some(Operation(_, u)) if FINITE_TYPEREF == *u => *u = v,
+                    _ => (),
+                }
+                v
             }
             Named(ref n) => {
                 let n = n.clone();
@@ -404,7 +469,20 @@ impl TypeList {
                 );
                 self.either(l, r)
             }
-            Transparent(_) => unreachable!(),
+            Operation(o, u) => {
+                let u = match (o, self.get(u)) {
+                    (TypeOf, _) => unreachable!(),
+                    (ItemOf, List(_, i)) if *i != at => self.duplicate(*i, already_done),
+                    (ParamOf, Func(p, _)) if *p != at => self.duplicate(*p, already_done),
+                    (ReturnOf, Func(_, r)) if *r != at => self.duplicate(*r, already_done),
+                    (FirstOf, Pair(f, _)) if *f != at => self.duplicate(*f, already_done),
+                    (SecondOf, Pair(_, s)) if *s != at => self.duplicate(*s, already_done),
+                    // XXX: not sure how to solve this, here's a bandage for now
+                    _ => FINITE_TYPEREF,
+                    //(_, x) => unreachable!("Operation({o:?}, {x:?})"),
+                };
+                self.operation(o, u)
+            }
         };
 
         already_done.insert(at, r);
@@ -412,8 +490,6 @@ impl TypeList {
     }
 
     fn freeze_finite(&self, at: Boundedness) -> bool {
-        use Type::*;
-
         match *self.get(at) {
             Finite(b) => b,
             FiniteBoth(l, r) => self.freeze_finite(l) && self.freeze_finite(r),
@@ -425,13 +501,11 @@ impl TypeList {
             | Func(_, _)
             | Pair(_, _)
             | Named(_)
-            | Transparent(_) => unreachable!(),
+            | Operation(_, _) => unreachable!(),
         }
     }
 
     pub(crate) fn frozen(&self, at: TypeRef) -> FrozenType {
-        use Type::*;
-
         match self.get(at) {
             Number => FrozenType::Number,
             Bytes(b) => FrozenType::Bytes(self.freeze_finite(*b)),
@@ -445,7 +519,8 @@ impl TypeList {
                 FrozenType::Pair(Box::new(self.frozen(*fst)), Box::new(self.frozen(*snd)))
             }
             Named(name) => FrozenType::Named(name.clone()),
-            Finite(_) | FiniteBoth(_, _) | FiniteEither(_, _) | Transparent(_) => unreachable!(),
+            Operation(o, t) => FrozenType::Named(format!("{o:?}({t})")),
+            Finite(_) | FiniteBoth(_, _) | FiniteEither(_, _) => unreachable!(),
         }
     }
 }
@@ -460,7 +535,7 @@ impl Type {
         types: &mut TypeList,
     ) -> Result<TypeRef, ErrorKind> {
         match types.get(func) {
-            &Type::Func(want, ret) => Type::concretize(want, give, types, false).map(|()| ret),
+            &Func(want, ret) => Type::concretize(want, give, types, false).map(|()| ret),
             _ => Err(ErrorKind::NotFunc {
                 actual_type: types.frozen(func),
             }),
@@ -471,7 +546,7 @@ impl Type {
     /// (! see comment on underlying `compatible` itself)
     pub(crate) fn applicable(func: TypeRef, give: TypeRef, types: &TypeList) -> bool {
         match types.get(func) {
-            &Type::Func(want, _) => Type::compatible(want, give, types),
+            &Func(want, _) => Type::compatible(want, give, types),
             _ => false,
         }
     }
@@ -514,8 +589,6 @@ impl Type {
         types: &mut TypeList,
         keep_inf: bool,
     ) -> Result<(), ErrorKind> {
-        use Type::*;
-
         fn handle_finiteness(
             keep_inf: bool,
             fw: Boundedness,
@@ -563,14 +636,15 @@ impl Type {
 
             (Named(w), Named(g)) => {
                 types.set(want, Named(format!("{w}={g}")));
-                types.set(give, Transparent(want));
+                types.set(give, Operation(TypeOf, want));
                 Ok(())
             }
-            (other, Named(_)) => {
+            (Operation(_, _), Operation(_, _)) => todo!("op=op"),
+            (other, Named(_) | Operation(_, _)) => {
                 types.set(give, other.clone());
                 Ok(())
             }
-            (Named(_), other) => {
+            (Named(_) | Operation(_, _), other) => {
                 types.set(want, other.clone());
                 Ok(())
             }
@@ -586,7 +660,6 @@ impl Type {
     /// will return false positives; when concretization is _required_
     /// (reasonably) to determined compatibility.
     fn compatible(want: TypeRef, give: TypeRef, types: &TypeList) -> bool {
-        use Type::*;
         match (types.get(want), types.get(give)) {
             (Number, Number) => true,
 
@@ -611,8 +684,8 @@ impl Type {
                 Type::compatible(*l_fst, *r_fst, types) && Type::compatible(*l_snd, *r_snd, types)
             }
 
-            (_, Named(_)) => true,
-            (Named(_), _) => true,
+            (_, Named(_) | Operation(_, _)) => true,
+            (Named(_) | Operation(_, _), _) => true,
 
             _ => false,
         }

@@ -206,9 +206,14 @@ head {1, 2, 3}
 
 something like `$PYTHONSTARTUP`, between prelude and user script
 
-is doable for both but it will require type inference to identify infinite loops, mutual recursions and such
-- enable self-referential?
-- enable out-of-order?
+```
+#!
+def a:: [
+    #a a # TODO: niy
+    #add a, a # FIXME: stack overflow
+],
+a
+```
 
 process description of `def`s (eg. markdown-ish?)
 

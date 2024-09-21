@@ -3,7 +3,7 @@ use std::mem::{self, MaybeUninit};
 
 use crate::error::{Error, ErrorContext, ErrorKind, ErrorList};
 use crate::scope::{Global, Location, Scope, ScopeItem, SourceRef};
-use crate::types::{FrozenType, Type, TypeList, TypeRef};
+use crate::types::{FrozenType, Type, TypeList, TypeOp::*, TypeRef};
 
 pub struct Processed {
     pub errors: ErrorList,
@@ -421,14 +421,6 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
         self.result.errors.push(err);
     }
 
-    fn mktypeof(&mut self, name: &str) -> (TypeRef, TreeKind) {
-        let ty = self.global.types.named(format!("typeof({name})"));
-        (
-            ty,
-            TreeKind::Apply(Applicable::Name(name.into()), Vec::new()),
-        )
-    }
-
     /// the following names can be looked up when parsing:
     /// - `pipe`
     /// - `tonum`
@@ -469,10 +461,9 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             Applicable::Bind(_, _, _) => format!("try_apply let {} <- {}", func.ty, arg.ty),
         });
 
-        if let Named(name) = self.global.types.get(func.ty) {
-            let name = name.clone();
-            let par = self.global.types.named(format!("paramof({name})"));
-            let ret = self.global.types.named(format!("returnof({name})"));
+        if let Named(_) = self.global.types.get(func.ty) {
+            let par = self.global.types.operation(ParamOf, func.ty);
+            let ret = self.global.types.operation(ReturnOf, func.ty);
             self.global.types.set(func.ty, Func(par, ret));
         }
 
@@ -568,9 +559,10 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             let loc = loc.clone();
             let err = err_unexpected(term, "a pattern", None);
             self.report(err);
+            let ty = self.global.types.named("let".into());
             return (
                 Pattern::Name(loc.clone(), "let".into()),
-                self.global.types.named("paramof(typeof(let))".into()),
+                self.global.types.operation(ParamOf, ty),
             );
         }
 
@@ -605,7 +597,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
 
             OpenBrace => {
                 let mut items = Vec::new();
-                let ty = self.global.types.named("itemof(typeof({}))".into());
+                let ty = self.global.types.named("item".into());
                 let mut rest = None;
 
                 while match self.peek_tok() {
@@ -727,7 +719,8 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             let loc = loc.clone();
             let err = err_unexpected(term, "a value", None);
             self.report(err);
-            let (ty, value) = self.mktypeof("");
+            let ty = self.global.types.named("?".into());
+            let value = TreeKind::Apply(Applicable::Name("".into()), Vec::new());
             return Tree { loc, ty, value };
         }
 
@@ -749,7 +742,10 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     self.global
                         .types
                         .transaction_group(format!("lookup '{w}' => None"));
-                    let r = self.mktypeof(&w);
+                    let r = (
+                        self.global.types.named(w.clone()),
+                        TreeKind::Apply(Applicable::Name(w.clone()), Vec::new()),
+                    );
                     self.report(Error(
                         first_token.0,
                         ErrorKind::UnknownName {
@@ -810,7 +806,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             OpenBrace => {
                 self.global.types.transaction_group("parse list".into());
                 let mut items = Vec::new();
-                let ty = self.global.types.named("itemof(typeof({}))".into());
+                let ty = self.global.types.named("item".into());
 
                 while match self.peek_tok() {
                     Token(close_loc, CloseBrace) => {
@@ -859,13 +855,17 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             Def | Let | Use | Unknown(_) => {
                 let err = err_unexpected(&first_token, "a value", None);
                 self.report(err);
-                self.mktypeof(match &first_token.1 {
+                let name = match &first_token.1 {
                     Def => "def",
                     Let => "let",
                     Use => "use",
                     Unknown(t) => t,
                     _ => unreachable!(),
-                })
+                };
+                (
+                    self.global.types.named(name.into()),
+                    TreeKind::Apply(Applicable::Name(name.into()), Vec::new()),
+                )
             }
 
             TermToken!() => unreachable!(),
@@ -1095,6 +1095,11 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
 
         // def section
         while let Token(_, Def) = self.peek_tok() {
+            // TODO(wip): we are trying to make it so it's like every name is already defined and
+            // is a type that can be applyed any one of the type transformation operations (itemof,
+            // paramof, returnof, firstof, secondof)
+            //
+            // but: does that require the additional Type variants?
             self.skip_tok();
             let (loc, name, desc) = match (self.next_tok(), self.next_tok()) {
                 (Token(loc, Word(name)), Token(_, Bytes(desc))) => (loc, name, desc),
@@ -1109,45 +1114,21 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     continue;
                 }
             };
+
+            let val = self.parse_value();
             let desc = String::from_utf8_lossy(&desc).trim().into();
 
-            let (ty, value) = self.mktypeof(&name);
-            let fake_val = ScopeItem::Defined(
-                Tree {
-                    loc: loc.clone(),
-                    ty,
-                    value,
-                },
-                desc,
-            );
+            let def_name = name.clone();
+            let def_ty = val.ty;
+
             if let Some(e) = self
                 .result
                 .scope
-                .declare(name.clone(), fake_val)
-                .map(|prev| {
-                    err_already_declared(&self.global.types, name.clone(), loc.clone(), prev)
-                })
+                .declare(name.clone(), ScopeItem::Defined(val, desc))
+                .map(|prev| err_already_declared(&self.global.types, name, loc.clone(), prev))
             {
                 self.report(e);
             }
-
-            let val = self.parse_value();
-
-            // snapshot to have previous type in reported error
-            let snapshot = self.global.types.clone();
-            Type::harmonize(val.ty, ty, &mut self.global.types).unwrap_or_else(|e| {
-                self.report(Error(
-                    loc.clone(),
-                    ErrorKind::ContextCaused {
-                        error: Box::new(Error(loc, e)),
-                        // TODO: this temporary, replace with a new more appropriate one
-                        because: ErrorContext::CompleteType {
-                            complete_type: snapshot.frozen(ty),
-                        },
-                    },
-                ))
-            });
-            self.result.scope.update_defined_fake(&name, val);
 
             match self.peek_tok() {
                 Token(_, Comma | End) => self.skip_tok(),
@@ -1159,6 +1140,23 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     self.report(err);
                 }
             }
+
+            self.result.errors.0.retain_mut(|e| match &mut e.1 {
+                ErrorKind::UnknownName {
+                    name,
+                    expected_type,
+                } if &def_name == name => {
+                    // note: this is the receiving end from `parse_value`:
+                    //       error is removed as name is now defined
+                    let really_usize = expected_type as *const FrozenType as *const TypeRef;
+                    let ty = unsafe { *really_usize };
+                    self.global.types.transaction_group(format!("'{def_name}' now defined: {ty} to {def_ty}"));
+                    self.global.types.set(ty, Type::Operation(TypeOf, def_ty));
+                    mem::forget(mem::replace(expected_type, FrozenType::Number));
+                    false
+                }
+                _ => true,
+            });
         }
 
         // script section
@@ -1174,12 +1172,12 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             for e in self.result.errors.0.iter_mut() {
                 if let ErrorKind::UnknownName {
                     name: _,
-                    expected_type: frty,
+                    expected_type,
                 } = &mut e.1
                 {
-                    let really_usize = frty as *const FrozenType as *const usize;
+                    let really_usize = expected_type as *const FrozenType as *const TypeRef;
                     let ty = unsafe { *really_usize };
-                    mem::forget(mem::replace(frty, self.global.types.frozen(ty)));
+                    mem::forget(mem::replace(expected_type, self.global.types.frozen(ty)));
                 }
             }
         }
