@@ -22,7 +22,7 @@ Err(
                 UnknownName {
                     name: "bdf-main",
                     expected_type: Named(
-                        "typeof(bdf-main)",
+                        "bdf-main",
                     ),
                 },
             ),

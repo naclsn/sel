@@ -4,25 +4,15 @@ expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]
 ---
 Ok(
     (
-        Func(
-            Named(
-                "a=a",
-            ),
-            Func(
-                Named(
-                    "b",
-                ),
-                Named(
-                    "a=a",
-                ),
-            ),
+        Named(
+            "a=a",
         ),
         Tree {
             loc: Location(
                 0,
                 1..84,
             ),
-            ty: 10,
+            ty: 3,
             value: Apply(
                 Bind(
                     Name(
@@ -37,7 +27,7 @@ Ok(
                             0,
                             11..58,
                         ),
-                        ty: 7,
+                        ty: 3,
                         value: Apply(
                             Bind(
                                 Name(
@@ -63,9 +53,21 @@ Ok(
                                 Tree {
                                     loc: Location(
                                         0,
+                                        0..0,
+                                    ),
+                                    ty: 0,
+                                    value: Number(
+                                        0.0,
+                                    ),
+                                },
+                            ),
+                            [
+                                Tree {
+                                    loc: Location(
+                                        0,
                                         36..57,
                                     ),
-                                    ty: 5,
+                                    ty: 6,
                                     value: Apply(
                                         Name(
                                             "panic",
@@ -97,16 +99,27 @@ Ok(
                                         ],
                                     ),
                                 },
-                            ),
-                            [],
+                            ],
                         ),
                     },
                     Tree {
                         loc: Location(
                             0,
+                            0..0,
+                        ),
+                        ty: 0,
+                        value: Number(
+                            0.0,
+                        ),
+                    },
+                ),
+                [
+                    Tree {
+                        loc: Location(
+                            0,
                             63..84,
                         ),
-                        ty: 8,
+                        ty: 9,
                         value: Apply(
                             Name(
                                 "panic",
@@ -138,8 +151,7 @@ Ok(
                             ],
                         ),
                     },
-                ),
-                [],
+                ],
             ),
         },
     ),

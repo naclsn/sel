@@ -1,0 +1,64 @@
+---
+source: src/tests.rs
+assertion_line: 110
+expression: "t(b\"\ndef sum:: [\n    let {h,, t}\n        [sum t, add h]\n        0\n],\n{sum, _}\n\")"
+---
+Err(
+    ErrorList(
+        [
+            Error(
+                Location(
+                    0,
+                    60..61,
+                ),
+                ContextCaused {
+                    error: Error(
+                        Location(
+                            0,
+                            37..51,
+                        ),
+                        ExpectedButGot {
+                            expected: Func(
+                                Named(
+                                    "a",
+                                ),
+                                Number,
+                            ),
+                            actual: Number,
+                        },
+                    ),
+                    because: LetFallbackTypeMismatch {
+                        result_type: Func(
+                            Named(
+                                "a",
+                            ),
+                            Number,
+                        ),
+                        fallback_type: Number,
+                    },
+                },
+            ),
+            Error(
+                Location(
+                    0,
+                    71..72,
+                ),
+                UnknownName {
+                    name: "_",
+                    expected_type: Func(
+                        List(
+                            false,
+                            Number,
+                        ),
+                        Func(
+                            Named(
+                                "a",
+                            ),
+                            Number,
+                        ),
+                    ),
+                },
+            ),
+        ],
+    ),
+)

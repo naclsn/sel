@@ -22,18 +22,8 @@ Err(
                 ),
                 UnknownName {
                     name: "b",
-                    expected_type: Func(
-                        Named(
-                            "paramof(typeof(let)=typeof(b))=typeof(b)",
-                        ),
-                        Func(
-                            Named(
-                                "paramof(returnof(typeof(let)=typeof(b)))=typeof(a)",
-                            ),
-                            Named(
-                                "returnof(returnof(typeof(let)=typeof(b)))",
-                            ),
-                        ),
+                    expected_type: Named(
+                        "a=b",
                     ),
                 },
             ),
@@ -45,7 +35,7 @@ Err(
                 UnknownName {
                     name: "a",
                     expected_type: Named(
-                        "a=typeof(a)",
+                        "paramof(?let)=a",
                     ),
                 },
             ),
@@ -57,7 +47,7 @@ Err(
                 UnknownName {
                     name: "b",
                     expected_type: Named(
-                        "paramof(typeof(let)=typeof(b))=typeof(b)",
+                        "paramof(returnof(?let))=b",
                     ),
                 },
             ),
@@ -69,7 +59,7 @@ Err(
                 UnknownName {
                     name: "a",
                     expected_type: Named(
-                        "paramof(returnof(typeof(let)=typeof(b)))=typeof(a)",
+                        "paramof(returnof(returnof(?let)))=a",
                     ),
                 },
             ),

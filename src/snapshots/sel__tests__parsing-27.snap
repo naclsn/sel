@@ -18,7 +18,7 @@ Err(
                             Number,
                         ),
                         Named(
-                            "returnof(typeof(_))",
+                            "returnof(_)",
                         ),
                     ),
                 },

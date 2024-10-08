@@ -1,0 +1,25 @@
+---
+source: src/tests.rs
+assertion_line: 118
+expression: "t(b\"\ndef a:: [b 2],\ndef b:: [add 1],\na\n\")"
+---
+Ok(
+    (
+        Named(
+            "returnof(b)",
+        ),
+        Tree {
+            loc: Location(
+                0,
+                33..34,
+            ),
+            ty: 8,
+            value: Apply(
+                Name(
+                    "a",
+                ),
+                [],
+            ),
+        },
+    ),
+)

@@ -230,9 +230,9 @@ impl Error {
                             OpenBrace => "{",
                             CloseBrace => "}",
                             Equal => "=",
-                            Def => "def",
-                            Let => "let",
-                            Use => "use",
+                            Def => "keyword def",
+                            Let => "keyword let",
+                            Use => "keyword use",
                             End => "end of script",
                         }
                     ),
@@ -335,7 +335,7 @@ impl Display for Report<'_> {
             let bytes = self.registry.get_bytes(*file);
             writeln!(
                 f,
-                " ({range:?}) `{}` -> {}",
+                " ({range:?}) `{}` => {}",
                 String::from_utf8_lossy(&bytes[range.start..range.end]),
                 msg
             )?;
