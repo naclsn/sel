@@ -97,6 +97,19 @@ def head:
     ],
 head {1, 2, 3}
 "));
+    assert_debug_snapshot!(t(b"
+def sum:: [
+    let {h,, t}
+        [sum t, add h]
+        0
+],
+{sum, _}
+"));
+    assert_debug_snapshot!(t(b"
+def a:: [b 2],
+def b:: [add 1],
+a
+"));
 }
 
 #[test]

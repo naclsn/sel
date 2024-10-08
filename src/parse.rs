@@ -50,13 +50,13 @@ pub struct Token(pub Location, pub TokenKind);
 #[derive(PartialEq, Debug, Clone)]
 pub enum Applicable {
     Name(String),
-    Bind(Pattern, Box<Tree>, Box<Tree>),
+    Bind(Pattern, Box<Tree>, Box<Tree>), // if pattern is infallible, fallback is garbage
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum TreeKind {
-    Bytes(Vec<u8>),
     Number(f64),
+    Bytes(Vec<u8>),
     List(Vec<Tree>),
     Apply(Applicable, Vec<Tree>),
     Pair(Box<Tree>, Box<Tree>),
@@ -71,8 +71,8 @@ pub struct Tree {
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Pattern {
-    Bytes(Vec<u8>),
     Number(f64),
+    Bytes(Vec<u8>),
     List(Vec<Pattern>, Option<(Location, String)>),
     Name(Location, String),
     Pair(Box<Pattern>, Box<Pattern>),
@@ -421,14 +421,6 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
         self.result.errors.push(err);
     }
 
-    fn mktypeof(&mut self, name: &str) -> (TypeRef, TreeKind) {
-        let ty = self.global.types.named(format!("typeof({name})"));
-        (
-            ty,
-            TreeKind::Apply(Applicable::Name(name.into()), Vec::new()),
-        )
-    }
-
     /// the following names can be looked up when parsing:
     /// - `pipe`
     /// - `tonum`
@@ -597,20 +589,21 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 symbolic_declare(self, &w, first_token.0.clone(), ty);
                 (Pattern::Name(first_token.0, w), ty)
             }
+            Number(n) => (Pattern::Number(n), self.global.types.number()),
             Bytes(v) => (Pattern::Bytes(v), {
                 let fin = self.global.types.finite(true);
                 self.global.types.bytes(fin)
             }),
-            Number(n) => (Pattern::Number(n), self.global.types.number()),
 
             OpenBrace => {
                 let mut items = Vec::new();
-                let ty = self.global.types.named("itemof(typeof({}))".into());
+                let ty = self.global.types.named("item".into());
                 let mut rest = None;
 
                 while match self.peek_tok() {
                     Token(_, CloseBrace) => false,
 
+                    // if !empty: there must be something before ',,'
                     Token(_, Comma) if !items.is_empty() => {
                         // { ... ,,
                         self.skip_tok();
@@ -727,7 +720,8 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             let loc = loc.clone();
             let err = err_unexpected(term, "a value", None);
             self.report(err);
-            let (ty, value) = self.mktypeof("");
+            let ty = self.global.types.named("?".into());
+            let value = TreeKind::Apply(Applicable::Name("".into()), Vec::new());
             return Tree { loc, ty, value };
         }
 
@@ -749,7 +743,10 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     self.global
                         .types
                         .transaction_group(format!("lookup '{w}' => None"));
-                    let r = self.mktypeof(&w);
+                    let r = (
+                        self.global.types.named(w.clone()),
+                        TreeKind::Apply(Applicable::Name(w.clone()), Vec::new()),
+                    );
                     self.report(Error(
                         first_token.0,
                         ErrorKind::UnknownName {
@@ -775,6 +772,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 }
             },
 
+            Number(n) => (self.global.types.number(), TreeKind::Number(n)),
             Bytes(b) => (
                 {
                     let fin = self.global.types.finite(true);
@@ -782,7 +780,6 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 },
                 TreeKind::Bytes(b),
             ),
-            Number(n) => (self.global.types.number(), TreeKind::Number(n)),
 
             OpenBracket => {
                 let Tree { loc: _, ty, value } = self.parse_script();
@@ -810,7 +807,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             OpenBrace => {
                 self.global.types.transaction_group("parse list".into());
                 let mut items = Vec::new();
-                let ty = self.global.types.named("itemof(typeof({}))".into());
+                let ty = self.global.types.named("item".into());
 
                 while match self.peek_tok() {
                     Token(close_loc, CloseBrace) => {
@@ -859,13 +856,17 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             Def | Let | Use | Unknown(_) => {
                 let err = err_unexpected(&first_token, "a value", None);
                 self.report(err);
-                self.mktypeof(match &first_token.1 {
+                let name = match &first_token.1 {
                     Def => "def",
                     Let => "let",
                     Use => "use",
                     Unknown(t) => t,
                     _ => unreachable!(),
-                })
+                };
+                (
+                    self.global.types.named(name.into()),
+                    TreeKind::Apply(Applicable::Name(name.into()), Vec::new()),
+                )
             }
 
             TermToken!() => unreachable!(),
@@ -901,25 +902,39 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 let result = self.parse_value();
                 let res_ty = result.ty;
 
-                let fallback = self.parse_value();
+                // if named, infallible pattern so no fallback
+                let fallback = if matches!(pattern, Pattern::Name(_, _)) {
+                    Tree {
+                        loc: Location(0, 0..0),
+                        ty: 0,
+                        value: TreeKind::Number(0.0),
+                    }
+                    //unsafe { MaybeUninit::zeroed().assume_init() }
+                } else {
+                    let fallback = self.parse_value();
 
-                self.global.types.transaction_group("let harmonize".into());
-                // snapshot to have previous type in reported error
-                let snapshot = self.global.types.clone();
-                Type::harmonize(res_ty, fallback.ty, &mut self.global.types).unwrap_or_else(|e| {
-                    self.report(Error(
-                        fallback.loc.clone(),
-                        ErrorKind::ContextCaused {
-                            error: Box::new(Error(result.loc.clone(), e)),
-                            because: ErrorContext::LetFallbackTypeMismatch {
-                                result_type: snapshot.frozen(res_ty),
-                                fallback_type: snapshot.frozen(fallback.ty),
-                            },
+                    self.global.types.transaction_group("let harmonize".into());
+                    // snapshot to have previous type in reported error
+                    let snapshot = self.global.types.clone();
+                    Type::harmonize(res_ty, fallback.ty, &mut self.global.types).unwrap_or_else(
+                        |e| {
+                            self.report(Error(
+                                fallback.loc.clone(),
+                                ErrorKind::ContextCaused {
+                                    error: Box::new(Error(result.loc.clone(), e)),
+                                    because: ErrorContext::LetFallbackTypeMismatch {
+                                        result_type: snapshot.frozen(res_ty),
+                                        fallback_type: snapshot.frozen(fallback.ty),
+                                    },
+                                },
+                            ))
                         },
-                    ))
-                });
+                    );
 
-                loc.1.end = fallback.loc.1.end;
+                    loc.1.end = fallback.loc.1.end;
+                    fallback
+                };
+
                 self.result.scope.restore_from_parent(parent);
 
                 let ty = self.global.types.func(pat_ty, res_ty);
@@ -1109,45 +1124,24 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     continue;
                 }
             };
+            // TODO: maybe use description to provide more meaningfull var type names
+
+            // note: we are faking like every name is already defined; so we first parse a value
+            // which may raise some unknown name error, then we go through these and resolve them
+            let val = self.parse_value();
             let desc = String::from_utf8_lossy(&desc).trim().into();
 
-            let (ty, value) = self.mktypeof(&name);
-            let fake_val = ScopeItem::Defined(
-                Tree {
-                    loc: loc.clone(),
-                    ty,
-                    value,
-                },
-                desc,
-            );
+            let def_name = name.clone();
+            let def_ty = val.ty;
+
             if let Some(e) = self
                 .result
                 .scope
-                .declare(name.clone(), fake_val)
-                .map(|prev| {
-                    err_already_declared(&self.global.types, name.clone(), loc.clone(), prev)
-                })
+                .declare(name.clone(), ScopeItem::Defined(val, desc))
+                .map(|prev| err_already_declared(&self.global.types, name, loc.clone(), prev))
             {
                 self.report(e);
             }
-
-            let val = self.parse_value();
-
-            // snapshot to have previous type in reported error
-            let snapshot = self.global.types.clone();
-            Type::harmonize(val.ty, ty, &mut self.global.types).unwrap_or_else(|e| {
-                self.report(Error(
-                    loc.clone(),
-                    ErrorKind::ContextCaused {
-                        error: Box::new(Error(loc, e)),
-                        // TODO: this temporary, replace with a new more appropriate one
-                        because: ErrorContext::CompleteType {
-                            complete_type: snapshot.frozen(ty),
-                        },
-                    },
-                ))
-            });
-            self.result.scope.update_defined_fake(&name, val);
 
             match self.peek_tok() {
                 Token(_, Comma | End) => self.skip_tok(),
@@ -1159,6 +1153,28 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     self.report(err);
                 }
             }
+
+            self.result.errors.0.retain_mut(|e| match &mut e.1 {
+                ErrorKind::UnknownName {
+                    name,
+                    expected_type,
+                } if &def_name == name => {
+                    // note: this is one receiving end from `parse_value`:
+                    //       error is removed as name is now defined
+                    let really_usize = expected_type as *const FrozenType as *const TypeRef;
+                    let ty = unsafe { *really_usize };
+                    self.global
+                        .types
+                        .transaction_group(format!("'{def_name}' now defined: {ty} to {def_ty}"));
+                    // XXX: 2 things: first the use of a raw `Type::Transparent`, second the
+                    // previous type is completely discarded; TODO: it needs to be checked if it is
+                    // an actual type error!
+                    self.global.types.set(ty, Type::Transparent(def_ty));
+                    mem::forget(mem::replace(expected_type, FrozenType::Number));
+                    false
+                }
+                _ => true,
+            });
         }
 
         // script section
@@ -1174,12 +1190,12 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             for e in self.result.errors.0.iter_mut() {
                 if let ErrorKind::UnknownName {
                     name: _,
-                    expected_type: frty,
+                    expected_type,
                 } = &mut e.1
                 {
-                    let really_usize = frty as *const FrozenType as *const usize;
+                    let really_usize = expected_type as *const FrozenType as *const TypeRef;
                     let ty = unsafe { *really_usize };
-                    mem::forget(mem::replace(frty, self.global.types.frozen(ty)));
+                    mem::forget(mem::replace(expected_type, self.global.types.frozen(ty)));
                 }
             }
         }

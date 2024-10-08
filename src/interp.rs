@@ -392,6 +392,8 @@ fn lookup_builtin(name: &str) -> Value {
 fn interp_impl(tree: &Tree, global: &Global, names: &HashMap<String, Value>) -> Value {
     use TreeKind::*;
     match &tree.value {
+        &Number(n) => Value::Number(Box::new(move || n), Rc::new(move || Box::new(move || n))),
+
         Bytes(v) => {
             let vv = v.clone();
             Value::Bytes(
@@ -399,8 +401,6 @@ fn interp_impl(tree: &Tree, global: &Global, names: &HashMap<String, Value>) -> 
                 Rc::new(move || Box::new(vv.clone().into_iter())),
             )
         }
-
-        &Number(n) => Value::Number(Box::new(move || n), Rc::new(move || Box::new(move || n))),
 
         List(items) => {
             let v = items

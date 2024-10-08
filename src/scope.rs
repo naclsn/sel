@@ -165,14 +165,6 @@ impl Scope {
         }
     }
 
-    /// name should point to an early fake-value `Defined`, which tree is to be replaced
-    pub(crate) fn update_defined_fake(&mut self, name: &str, val: Tree) {
-        let ScopeItem::Defined(fake_val, _) = self.names.get_mut(name).unwrap() else {
-            unreachable!();
-        };
-        *fake_val = val;
-    }
-
     pub fn lookup(&self, name: &str) -> Option<&ScopeItem> {
         self.names
             .get(name)
