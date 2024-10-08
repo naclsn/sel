@@ -22,7 +22,7 @@ Err(
                         list_item_type: List(
                             true,
                             Named(
-                                "itemof(typeof({}))",
+                                "item",
                             ),
                         ),
                     },

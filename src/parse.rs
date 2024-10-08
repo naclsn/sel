@@ -24,8 +24,8 @@ pub fn process(source: SourceRef, global: &mut Global) -> Processed {
 pub enum TokenKind {
     Unknown(String),
     Word(String),
-    Bytes(Vec<u8>),
     Number(f64),
+    Bytes(Vec<u8>),
     Comma,
     OpenBracket,
     CloseBracket,
@@ -50,13 +50,13 @@ pub struct Token(pub Location, pub TokenKind);
 #[derive(PartialEq, Debug, Clone)]
 pub enum Applicable {
     Name(String),
-    Bind(Pattern, Box<Tree>, Box<Tree>),
+    Bind(Pattern, Box<Tree>, Box<Tree>), // if pattern is name, fallback is garbage
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum TreeKind {
-    Bytes(Vec<u8>),
     Number(f64),
+    Bytes(Vec<u8>),
     List(Vec<Tree>),
     Apply(Applicable, Vec<Tree>),
     Pair(Box<Tree>, Box<Tree>),
@@ -71,8 +71,8 @@ pub struct Tree {
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Pattern {
-    Bytes(Vec<u8>),
     Number(f64),
+    Bytes(Vec<u8>),
     List(Vec<Pattern>, Option<(Location, String)>),
     Name(Location, String),
     Pair(Box<Pattern>, Box<Pattern>),
@@ -589,11 +589,11 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 symbolic_declare(self, &w, first_token.0.clone(), ty);
                 (Pattern::Name(first_token.0, w), ty)
             }
+            Number(n) => (Pattern::Number(n), self.global.types.number()),
             Bytes(v) => (Pattern::Bytes(v), {
                 let fin = self.global.types.finite(true);
                 self.global.types.bytes(fin)
             }),
-            Number(n) => (Pattern::Number(n), self.global.types.number()),
 
             OpenBrace => {
                 let mut items = Vec::new();
@@ -771,6 +771,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 }
             },
 
+            Number(n) => (self.global.types.number(), TreeKind::Number(n)),
             Bytes(b) => (
                 {
                     let fin = self.global.types.finite(true);
@@ -778,7 +779,6 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 },
                 TreeKind::Bytes(b),
             ),
-            Number(n) => (self.global.types.number(), TreeKind::Number(n)),
 
             OpenBracket => {
                 let Tree { loc: _, ty, value } = self.parse_script();
@@ -901,25 +901,38 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 let result = self.parse_value();
                 let res_ty = result.ty;
 
-                let fallback = self.parse_value();
+                let fallback = if matches!(pattern, Pattern::Name(_, _)) {
+                    Tree {
+                        loc: Location(0, 0..0),
+                        ty: 0,
+                        value: TreeKind::Number(0.0),
+                    }
+                    //unsafe { MaybeUninit::zeroed().assume_init() }
+                } else {
+                    let fallback = self.parse_value();
 
-                self.global.types.transaction_group("let harmonize".into());
-                // snapshot to have previous type in reported error
-                let snapshot = self.global.types.clone();
-                Type::harmonize(res_ty, fallback.ty, &mut self.global.types).unwrap_or_else(|e| {
-                    self.report(Error(
-                        fallback.loc.clone(),
-                        ErrorKind::ContextCaused {
-                            error: Box::new(Error(result.loc.clone(), e)),
-                            because: ErrorContext::LetFallbackTypeMismatch {
-                                result_type: snapshot.frozen(res_ty),
-                                fallback_type: snapshot.frozen(fallback.ty),
-                            },
+                    self.global.types.transaction_group("let harmonize".into());
+                    // snapshot to have previous type in reported error
+                    let snapshot = self.global.types.clone();
+                    Type::harmonize(res_ty, fallback.ty, &mut self.global.types).unwrap_or_else(
+                        |e| {
+                            self.report(Error(
+                                fallback.loc.clone(),
+                                ErrorKind::ContextCaused {
+                                    error: Box::new(Error(result.loc.clone(), e)),
+                                    because: ErrorContext::LetFallbackTypeMismatch {
+                                        result_type: snapshot.frozen(res_ty),
+                                        fallback_type: snapshot.frozen(fallback.ty),
+                                    },
+                                },
+                            ))
                         },
-                    ))
-                });
+                    );
 
-                loc.1.end = fallback.loc.1.end;
+                    loc.1.end = fallback.loc.1.end;
+                    fallback
+                };
+
                 self.result.scope.restore_from_parent(parent);
 
                 let ty = self.global.types.func(pat_ty, res_ty);
@@ -1095,11 +1108,6 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
 
         // def section
         while let Token(_, Def) = self.peek_tok() {
-            // TODO(wip): we are trying to make it so it's like every name is already defined and
-            // is a type that can be applyed any one of the type transformation operations (itemof,
-            // paramof, returnof, firstof, secondof)
-            //
-            // but: does that require the additional Type variants?
             self.skip_tok();
             let (loc, name, desc) = match (self.next_tok(), self.next_tok()) {
                 (Token(loc, Word(name)), Token(_, Bytes(desc))) => (loc, name, desc),
@@ -1114,6 +1122,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     continue;
                 }
             };
+            // TODO: maybe use description to provide more meaningfull var type names
 
             let val = self.parse_value();
             let desc = String::from_utf8_lossy(&desc).trim().into();
@@ -1146,11 +1155,13 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     name,
                     expected_type,
                 } if &def_name == name => {
-                    // note: this is the receiving end from `parse_value`:
+                    // note: this is one receiving end from `parse_value`:
                     //       error is removed as name is now defined
                     let really_usize = expected_type as *const FrozenType as *const TypeRef;
                     let ty = unsafe { *really_usize };
-                    self.global.types.transaction_group(format!("'{def_name}' now defined: {ty} to {def_ty}"));
+                    self.global
+                        .types
+                        .transaction_group(format!("'{def_name}' now defined: {ty} to {def_ty}"));
                     self.global.types.set(ty, Type::Operation(TypeOf, def_ty));
                     mem::forget(mem::replace(expected_type, FrozenType::Number));
                     false
