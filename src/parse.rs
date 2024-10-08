@@ -463,6 +463,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
 
         if let Named(name) = self.global.types.get(func.ty) {
             let name = name.clone();
+            // XXX: 'paramof' and 'returnof' pseudo syntaxes are somewhat temporary
             let par = self.global.types.named(format!("paramof({name})"));
             let ret = self.global.types.named(format!("returnof({name})"));
             self.global.types.set(func.ty, Func(par, ret));
@@ -562,7 +563,8 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             self.report(err);
             return (
                 Pattern::Name(loc.clone(), "let".into()),
-                self.global.types.named("paramof(typeof(let))".into()),
+                // XXX: 'paramof' pseudo syntax is somewhat temporary
+                self.global.types.named("paramof(let)".into()),
             );
         }
 
@@ -857,9 +859,9 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 let err = err_unexpected(&first_token, "a value", None);
                 self.report(err);
                 let name = match &first_token.1 {
-                    Def => "def",
-                    Let => "let",
-                    Use => "use",
+                    Def => "?def",
+                    Let => "?let",
+                    Use => "?use",
                     Unknown(t) => t,
                     _ => unreachable!(),
                 };
@@ -1167,8 +1169,11 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                         .types
                         .transaction_group(format!("'{def_name}' now defined: {ty} to {def_ty}"));
                     // XXX: 2 things: first the use of a raw `Type::Transparent`, second the
-                    // previous type is completely discarded; TODO: it needs to be checked if it is
-                    // an actual type error!
+                    // previous type is completely discarded
+                    // TODO: it needs to be checked if it is an actual type error!
+                    // FIXME: this steps also breaks links with any 'paramof'/'returnof'
+                    // note: overall, must never write a type other than a named (=variable, and
+                    // other being =constants); but maybe this can be done at the level of `set`?
                     self.global.types.set(ty, Type::Transparent(def_ty));
                     mem::forget(mem::replace(expected_type, FrozenType::Number));
                     false

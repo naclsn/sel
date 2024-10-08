@@ -76,10 +76,20 @@ fn parsing() {
     assert_debug_snapshot!(t(b"{1, 2, 3}, let {h,, t} h [panic::]"));
     assert_debug_snapshot!(t(b"{1, 2, 3}, let {h,, t} t [panic::]"));
     assert_debug_snapshot!(t(b"repeat 1, let {h,, t} t [panic::]"));
-    assert_debug_snapshot!(t(b"let a let b a b a"));
+    assert_debug_snapshot!(t(b"let a let b a b a")); // note: is syntax error
     assert_debug_snapshot!(t(b"let {a b, c} 0"));
     assert_debug_snapshot!(t(b"[1, let 0 fst snd] 1=:a:"));
     assert_debug_snapshot!(t(b"add 1, map, flip apply {1, 2, 3}"));
+    // not quite a syntax error but only out of luck:
+    // ```sel
+    // [let a
+    //     [[let b
+    //         a
+    //     ]                           # b -> a
+    //         [panic: unreachable:]]  # a
+    // ]                               # a -> a
+    //     [panic: unreachable:]       # a
+    // ```
     assert_debug_snapshot!(t(b"
 let a
     [let b
@@ -97,6 +107,7 @@ def head:
     ],
 head {1, 2, 3}
 "));
+    // TODO: not passing because.. uh.. 'paramof(sum)' doesn't get assigned correctly
     assert_debug_snapshot!(t(b"
 def sum:: [
     let {h,, t}
@@ -105,6 +116,7 @@ def sum:: [
 ],
 {sum, _}
 "));
+    // TODO: not passing because of src/parse.rs:1177
     assert_debug_snapshot!(t(b"
 def a:: [b 2],
 def b:: [add 1],

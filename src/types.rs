@@ -561,6 +561,7 @@ impl Type {
             }
 
             (Named(w), Named(g)) => {
+                // XXX: 'a=b' pseudo syntax is somewhat temporary
                 types.set(want, Named(format!("{w}={g}")));
                 types.set(give, Transparent(want));
                 Ok(())

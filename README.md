@@ -202,6 +202,7 @@ head {1, 2, 3}
 - try to free indices that are not used
 - polish for cases such as 2 `a`s being distinct
 - ex of inf type `(a -> a) -> a  <-  (b -> Num) -> b`
+- something about pseudo syntaxes in named type ('paramof', 'returnof', 'a=b', also '?' and '?abc')
 
 ### `def`s
 
