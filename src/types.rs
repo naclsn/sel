@@ -24,6 +24,8 @@ pub(crate) enum Type {
     Transparent(TypeRef),
 }
 
+use Type::*;
+
 #[derive(PartialEq, Debug, Clone)]
 pub enum FrozenType {
     Number,
@@ -159,27 +161,21 @@ mod types_snapshots {
                 "Str+"
             }
             .into(),
-            List(fin, has) => if types.freeze_finite(*fin) {
-                format!("[{}]", string_any_type_impl(types, *has))
-            } else {
-                format!("[{}]+", string_any_type_impl(types, *has))
+            List(fin, has) => {
+                let fin = if types.freeze_finite(*fin) { "" } else { "+" };
+                format!("[{}]{fin}", string_any_type_impl(types, *has))
             }
-            .into(),
             Func(par, ret) => {
-                let funcarg = matches!(types.get(*par), Func(_, _));
-                if funcarg {
-                    format!(
-                        "({}) -> {}",
-                        string_any_type_impl(types, *par),
-                        string_any_type_impl(types, *ret)
-                    )
+                let (op, cl) = if matches!(types.get(*par), Func(_, _)) {
+                    ("(", ")")
                 } else {
-                    format!(
-                        "{} -> {}",
-                        string_any_type_impl(types, *par),
-                        string_any_type_impl(types, *ret)
-                    )
-                }
+                    ("", "")
+                };
+                format!(
+                    "{op}{}{cl} -> {}",
+                    string_any_type_impl(types, *par),
+                    string_any_type_impl(types, *ret)
+                )
             }
             Pair(fst, snd) => format!(
                 "({}, {})",
@@ -255,13 +251,12 @@ impl TypeList {
 
     pub(crate) fn get(&self, at: TypeRef) -> &Type {
         match self.slots[at].as_ref().unwrap() {
-            Type::Transparent(u) => self.get(*u),
+            Transparent(u) => self.get(*u),
             r => r,
         }
     }
 
     pub(crate) fn set(&mut self, at: TypeRef, ty: Type) {
-        use Type::*;
         let ty = match ty {
             Number => Transparent(NUMBER_TYPEREF),
             Bytes(FINITE_TYPEREF) => Transparent(STRFIN_TYPEREF),
@@ -270,6 +265,7 @@ impl TypeList {
                 if at == u {
                     return;
                 }
+                // if setting [at] to a transparent _to a transparent_, remove one indirection level
                 match self.slots[u] {
                     Some(Transparent(w)) => Transparent(w),
                     _ => ty,
@@ -318,33 +314,33 @@ impl TypeList {
         if FINITE_TYPEREF == finite {
             STRFIN_TYPEREF
         } else {
-            self.push(Type::Bytes(finite))
+            self.push(Bytes(finite))
         }
     }
     pub fn list(&mut self, finite: Boundedness, item: TypeRef) -> TypeRef {
-        self.push(Type::List(finite, item))
+        self.push(List(finite, item))
     }
     pub fn func(&mut self, par: TypeRef, ret: TypeRef) -> TypeRef {
-        self.push(Type::Func(par, ret))
+        self.push(Func(par, ret))
     }
     pub fn pair(&mut self, fst: TypeRef, snd: TypeRef) -> TypeRef {
-        self.push(Type::Pair(fst, snd))
+        self.push(Pair(fst, snd))
     }
     pub fn named(&mut self, name: String) -> TypeRef {
-        self.push(Type::Named(name.to_string()))
+        self.push(Named(name.to_string()))
     }
     pub fn finite(&mut self, finite: bool) -> Boundedness {
         if finite {
             FINITE_TYPEREF
         } else {
-            self.push(Type::Finite(false))
+            self.push(Finite(false))
         }
     }
     pub fn either(&mut self, left: Boundedness, right: Boundedness) -> Boundedness {
-        self.push(Type::FiniteEither(left, right))
+        self.push(FiniteEither(left, right))
     }
     pub fn both(&mut self, left: Boundedness, right: Boundedness) -> Boundedness {
-        self.push(Type::FiniteBoth(left, right))
+        self.push(FiniteBoth(left, right))
     }
 
     pub(crate) fn duplicate(
@@ -352,59 +348,68 @@ impl TypeList {
         at: TypeRef,
         already_done: &mut HashMap<usize, usize>,
     ) -> TypeRef {
-        use Type::*;
-
         if let Some(done) = already_done.get(&at) {
             return *done;
         }
 
-        let r = match *self.get(at) {
-            Number => self.number(),
-            Bytes(f) => {
+        // raw array access to prenvent working around transparent
+        // (need to account for them in duplication)
+        let r = match self.slots[at].as_ref().unwrap() {
+            &Number => self.number(),
+            &Bytes(f) => {
                 let f = self.duplicate(f, already_done);
                 self.bytes(f)
             }
-            List(f, i) => {
+            &List(f, i) => {
                 let (f, i) = (
                     self.duplicate(f, already_done),
                     self.duplicate(i, already_done),
                 );
                 self.list(f, i)
             }
-            Func(p, r) => {
+            &Func(p, r) => {
                 let (p, r) = (
                     self.duplicate(p, already_done),
                     self.duplicate(r, already_done),
                 );
                 self.func(p, r)
             }
-            Pair(f, s) => {
+            &Pair(f, s) => {
                 let (f, s) = (
                     self.duplicate(f, already_done),
                     self.duplicate(s, already_done),
                 );
                 self.pair(f, s)
             }
-            Named(ref n) => {
+            Named(n) => {
                 let n = n.clone();
                 self.named(n)
             }
-            Finite(i) => self.finite(i),
-            FiniteBoth(l, r) => {
+            &Finite(i) => self.finite(i),
+            &FiniteBoth(l, r) => {
                 let (l, r) = (
                     self.duplicate(l, already_done),
                     self.duplicate(r, already_done),
                 );
                 self.both(l, r)
             }
-            FiniteEither(l, r) => {
+            &FiniteEither(l, r) => {
                 let (l, r) = (
                     self.duplicate(l, already_done),
                     self.duplicate(r, already_done),
                 );
                 self.either(l, r)
             }
-            Transparent(_) => unreachable!(),
+            &Transparent(u) => {
+                // 2 cases:
+                // - the underlying type has already been duplicated => use `already_done`
+                // - this is the first access => first duplicate `under`
+                let u = already_done
+                    .get(&u)
+                    .copied()
+                    .unwrap_or_else(|| self.duplicate(u, already_done));
+                self.push(Transparent(u))
+            }
         };
 
         already_done.insert(at, r);
@@ -412,8 +417,6 @@ impl TypeList {
     }
 
     fn freeze_finite(&self, at: Boundedness) -> bool {
-        use Type::*;
-
         match *self.get(at) {
             Finite(b) => b,
             FiniteBoth(l, r) => self.freeze_finite(l) && self.freeze_finite(r),
@@ -430,8 +433,6 @@ impl TypeList {
     }
 
     pub(crate) fn frozen(&self, at: TypeRef) -> FrozenType {
-        use Type::*;
-
         match self.get(at) {
             Number => FrozenType::Number,
             Bytes(b) => FrozenType::Bytes(self.freeze_finite(*b)),
@@ -460,7 +461,7 @@ impl Type {
         types: &mut TypeList,
     ) -> Result<TypeRef, ErrorKind> {
         match types.get(func) {
-            &Type::Func(want, ret) => Type::concretize(want, give, types, false).map(|()| ret),
+            &Func(want, ret) => Type::concretize(want, give, types, false).map(|()| ret),
             _ => Err(ErrorKind::NotFunc {
                 actual_type: types.frozen(func),
             }),
@@ -471,7 +472,7 @@ impl Type {
     /// (! see comment on underlying `compatible` itself)
     pub(crate) fn applicable(func: TypeRef, give: TypeRef, types: &TypeList) -> bool {
         match types.get(func) {
-            &Type::Func(want, _) => Type::compatible(want, give, types),
+            &Func(want, _) => Type::compatible(want, give, types),
             _ => false,
         }
     }
@@ -514,8 +515,6 @@ impl Type {
         types: &mut TypeList,
         keep_inf: bool,
     ) -> Result<(), ErrorKind> {
-        use Type::*;
-
         fn handle_finiteness(
             keep_inf: bool,
             fw: Boundedness,
@@ -586,7 +585,6 @@ impl Type {
     /// will return false positives; when concretization is _required_
     /// (reasonably) to determined compatibility.
     fn compatible(want: TypeRef, give: TypeRef, types: &TypeList) -> bool {
-        use Type::*;
         match (types.get(want), types.get(give)) {
             (Number, Number) => true,
 

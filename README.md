@@ -61,8 +61,9 @@ Special characters and keywords:
   from the file as `f-<name>` (or as is if using `_`);
 - `let pattern result fallback` will make a function of one
   argument that computes result if pattern matches, pattern
-  can introduces names (eg `let {a, b,, rest} [add a b]`,
-  the `,, rest` matches the rest of the list)
+  can introduces names (eg `let {a, b,, rest} [add a b] 0`,
+  the `,, rest` matches the rest of the list), if pattern
+  is a single name then there is no fallback.
 
 Here is the complete syntax:
 ```bnf
@@ -72,7 +73,7 @@ script ::= <apply> {',' <apply>}
 apply ::= <binding> | <value> {<value>}
 value ::= <atom> | <subscr> | <list> | <pair>
 
-binding ::= 'let' <pattern> <value> <value>
+binding ::= 'let' (<word> <value> | <pattern> <value> <value>)
 pattern ::= <atom> | <patlist> | <patpair>
 patlist ::= '{' [<pattern> {',' <pattern>} [',' [',' <word>]]] '}'
 patpair ::= (<atom> | <patlist>) '=' <pattern>
@@ -89,7 +90,7 @@ number ::= /0b[01]+/ | /0o[0-7]+/ | /0x[0-9A-Fa-f]+/ | /[0-9]+(\.[0-9]+)?/
 comment ::= '#' /.*/ '\n'
 ```
 
-The objective with it was to make it possible to type the
+The objective here was to make it possible to type the
 script plainly in any (most?) shell without worrying about
 quoting much if at all:
 - the script can span multiple arguments, they are joined
@@ -206,9 +207,12 @@ head {1, 2, 3}
 
 something like `$PYTHONSTARTUP`, between prelude and user script
 
-is doable for both but it will require type inference to identify infinite loops, mutual recursions and such
-- enable self-referential?
-- enable out-of-order?
+```
+#!
+# FIXME: stack overflow
+def a:: [add a, a],
+a
+```
 
 process description of `def`s (eg. markdown-ish?)
 
