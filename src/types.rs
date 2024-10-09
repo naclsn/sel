@@ -281,7 +281,8 @@ impl TypeList {
         let prev = self.slots[at].replace(ty);
         assert!(
             matches!(prev, Some(Named(_)) | None),
-            "should only be assigning to variable types, not constants"
+            "assertion failed: should only be assigning to variable types, not constants {:?}",
+            prev.unwrap()
         );
         #[cfg(feature = "types-snapshots")]
         types_snapshots::update_dot(
@@ -529,7 +530,11 @@ impl Type {
                 (false, false) | (true, true) => Ok(()),
                 (false, true) => {
                     if !keep_inf {
-                        types.set(fw, Finite(true));
+                        // intentionally working around `set` to skip unneeded complexity
+                        // we know anyways that we are replacing a 'finite' with an other one
+                        // this is maybe discussable as it can break 'finite-both/either' links..
+                        types.slots[fw] = Some(Finite(true));
+                        //types.set(fw, Finite(true));
                     }
                     Ok(())
                 }

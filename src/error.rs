@@ -1,8 +1,9 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
 use crate::parse::{Applicable, TokenKind};
-use crate::scope::{Location, SourceRegistry};
-use crate::types::FrozenType;
+use crate::parse::{Token, Tree, TreeKind};
+use crate::scope::{Location, ScopeItem, SourceRegistry};
+use crate::types::{FrozenType, TypeList, TypeRef};
 
 // error types {{{
 #[derive(PartialEq, Debug)]
@@ -108,6 +109,153 @@ pub struct Report<'a> {
     title: String,
     messages: Vec<(Location, String)>,
 }
+
+// error reportig helpers {{{
+pub fn context_complete_type(
+    types: &TypeList,
+    loc: Location,
+    err: ErrorKind,
+    ty: TypeRef,
+) -> ErrorKind {
+    let complete_type = types.frozen(ty);
+    match &err {
+        ErrorKind::ExpectedButGot {
+            expected: _,
+            actual,
+        } if complete_type != *actual => ErrorKind::ContextCaused {
+            error: Box::new(Error(loc, err)),
+            because: ErrorContext::CompleteType { complete_type },
+        },
+        _ => err,
+    }
+}
+
+pub fn context_auto_coerced(
+    arg_loc: Location,
+    err: ErrorKind,
+    func_name: String,
+    func_type: FrozenType,
+) -> ErrorKind {
+    ErrorKind::ContextCaused {
+        error: Box::new(Error(arg_loc, err)),
+        because: ErrorContext::AutoCoercedVia {
+            func_name,
+            func_type,
+        },
+    }
+}
+
+pub fn context_as_nth_arg(
+    types: &TypeList,
+    arg_loc: Location,
+    err: ErrorKind,
+    comma_loc: Option<Location>, // if some, ChainedFrom..
+    func: &Tree,
+) -> ErrorKind {
+    let type_with_curr_args = types.frozen(func.ty);
+    ErrorKind::ContextCaused {
+        error: Box::new(Error(arg_loc, err)),
+        because: {
+            // unreachable: func is a function, see `err_context_as_nth_arg` call sites
+            let (nth_arg, func) = match &func.value {
+                TreeKind::Apply(app, args) => (args.len() + 1, app.clone()),
+                _ => unreachable!(),
+            };
+            match comma_loc {
+                Some(comma_loc) => ErrorContext::ChainedFromAsNthArgToNowTyped {
+                    comma_loc,
+                    nth_arg,
+                    func,
+                    type_with_curr_args,
+                },
+                None => ErrorContext::AsNthArgToNowTyped {
+                    nth_arg,
+                    func,
+                    type_with_curr_args,
+                },
+            }
+        },
+    }
+}
+
+pub fn not_func(types: &TypeList, func: &Tree) -> ErrorKind {
+    match &func.value {
+        TreeKind::Apply(name, args) => ErrorKind::TooManyArgs {
+            nth_arg: args.len() + 1,
+            func: name.clone(),
+        },
+        _ => ErrorKind::NotFunc {
+            actual_type: types.frozen(func.ty),
+        },
+    }
+}
+
+pub fn unexpected(token: &Token, expected: &'static str, unmatched: Option<&Token>) -> Error {
+    let Token(here, token) = token.clone();
+    let mut err = Error(here, ErrorKind::Unexpected { token, expected });
+    if let Some(unmatched) = unmatched {
+        let Token(from, open_token) = unmatched.clone();
+        err = Error(
+            from,
+            ErrorKind::ContextCaused {
+                error: Box::new(err),
+                because: ErrorContext::Unmatched { open_token },
+            },
+        );
+    }
+    err
+}
+
+pub fn list_type_mismatch(
+    types: &TypeList,
+    item_loc: Location,
+    err: ErrorKind,
+    item_type: TypeRef,
+    open_loc: Location,
+    list_item_type: TypeRef,
+) -> Error {
+    Error(
+        open_loc,
+        ErrorKind::ContextCaused {
+            error: Box::new(Error(
+                item_loc.clone(),
+                context_complete_type(types, item_loc, err, item_type),
+            )),
+            because: ErrorContext::TypeListInferredItemType {
+                list_item_type: types.frozen(list_item_type),
+            },
+        },
+    )
+}
+
+pub fn already_declared(
+    types: &TypeList,
+    name: String,
+    new_loc: Location,
+    previous: &ScopeItem,
+) -> Error {
+    Error(
+        previous
+            .get_loc()
+            .cloned()
+            .unwrap_or_else(|| new_loc.clone()),
+        ErrorKind::ContextCaused {
+            error: Box::new(Error(new_loc, ErrorKind::NameAlreadyDeclared { name })),
+            because: ErrorContext::DeclaredHereWithType {
+                with_type: match previous {
+                    ScopeItem::Builtin(mkty, _) => {
+                        let mut types = TypeList::default();
+                        let ty = mkty(&mut types);
+                        types.frozen(ty)
+                    }
+                    ScopeItem::Defined(val, _) => types.frozen(val.ty),
+                    ScopeItem::Binding(_, ty) => types.frozen(*ty),
+                },
+            },
+        },
+    )
+}
+// }}}
 
 // generate report {{{
 impl Error {
