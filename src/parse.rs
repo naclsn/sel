@@ -245,6 +245,7 @@ pub struct Parser<'a, I: Iterator<Item = u8>> {
     result: Processed,
 }
 
+// TODO: move into src/error.rs
 // error reportig helpers {{{
 fn err_context_complete_type(
     types: &TypeList,
@@ -466,6 +467,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             // XXX: 'paramof' and 'returnof' pseudo syntaxes are somewhat temporary
             let par = self.global.types.named(format!("paramof({name})"));
             let ret = self.global.types.named(format!("returnof({name})"));
+            // raw `set` is alright because `func.ty` is a named
             self.global.types.set(func.ty, Func(par, ret));
         }
 
@@ -1165,17 +1167,15 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     //       error is removed as name is now defined
                     let really_usize = expected_type as *const FrozenType as *const TypeRef;
                     let ty = unsafe { *really_usize };
+                    mem::forget(mem::replace(expected_type, FrozenType::Number)); // make it valid
                     self.global
                         .types
                         .transaction_group(format!("'{def_name}' now defined: {ty} to {def_ty}"));
-                    // XXX: 2 things: first the use of a raw `Type::Transparent`, second the
-                    // previous type is completely discarded
-                    // TODO: it needs to be checked if it is an actual type error!
-                    // FIXME: this steps also breaks links with any 'paramof'/'returnof'
-                    // note: overall, must never write a type other than a named (=variable, and
-                    // other being =constants); but maybe this can be done at the level of `set`?
-                    self.global.types.set(ty, Type::Transparent(def_ty));
-                    mem::forget(mem::replace(expected_type, FrozenType::Number));
+                    // todo: snapshot, maybe here maybe outside the loop
+                    // TODO(wip): more or less
+                    Type::harmonize(ty, def_ty, &mut self.global.types).unwrap_or_else(|e2| {
+                        todo!("e = Error::InconsistantWithDef {{ loc: e.0, because: {e2:?}, .. }}");
+                    });
                     false
                 }
                 _ => true,
