@@ -107,16 +107,16 @@ def head:
     ],
 head {1, 2, 3}
 "));
-    // TODO: not passing because.. uh.. 'paramof(sum)' doesn't get assigned correctly
     assert_debug_snapshot!(t(b"
 def sum:: [
     let {h,, t}
-        [sum t, add h]
+        #[sum t, add h] # cannot use this syntax, otherwise `sum t` is made to be `:: a -> b`
+                        # note: accepting type hinting in the description would 'solve' this
+        [add h [sum t]]
         0
 ],
 {sum, _}
 "));
-    // TODO: not passing because of src/parse.rs:1177
     assert_debug_snapshot!(t(b"
 def a:: [b 2],
 def b:: [add 1],
