@@ -278,7 +278,11 @@ impl TypeList {
         }
         #[cfg(feature = "types-snapshots")]
         let was = types_snapshots::string_any_type(self, at);
-        let _ = self.slots[at].replace(ty);
+        let prev = self.slots[at].replace(ty);
+        assert!(
+            matches!(prev, Some(Named(_)) | None),
+            "should only be assigning to variable types, not constants"
+        );
         #[cfg(feature = "types-snapshots")]
         types_snapshots::update_dot(
             &self,
