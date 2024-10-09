@@ -887,8 +887,15 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             // [x, f, g, h] :: d; where
             // - x :: A
             // - f, g, h :: a -> b, b -> c, c -> d
-            else if !r_is_func && (!r_is_hole || then_is_hole) // note: catches coersion cases
-                || Type::applicable(then.ty, r.ty, &self.global.types) && !r_is_hole
+            else if
+            // is likely an `arg, func` situation if r not a function and either:
+            // - r neither func nor a hole: has to be an arg (whever err it causes)
+            // - hole at this position (after ',') has to be a func
+            // note: catches some coersion cases
+            !r_is_func && (!r_is_hole || then_is_hole)
+                // if r is a hole, making it an arg actually disables certains useful situations
+                // TODO: figure it out
+                    || !r_is_hole && Type::applicable(then.ty, r.ty, &self.global.types)
             {
                 // err_context_as_nth_arg: we know `then` is a function
                 // (if it was hole then `try_apply` mutates it)

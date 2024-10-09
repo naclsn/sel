@@ -1,13 +1,10 @@
 ---
 source: src/tests.rs
-assertion_line: 118
 expression: "t(b\"\ndef a:: [b 2],\ndef b:: [add 1],\na\n\")"
 ---
 Ok(
     (
-        Named(
-            "returnof(b)",
-        ),
+        Number,
         Tree {
             loc: Location(
                 0,

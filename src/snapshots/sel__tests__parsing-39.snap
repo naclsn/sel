@@ -1,0 +1,26 @@
+---
+source: src/tests.rs
+expression: "t(b\"\ndef sum:: [\n    let {h,, t}\n        #[sum t, add h] # cannot use this syntax, otherwise `sum t` is made to be `:: a -> b`\n                        # note: accepting type hinting in the description would 'solve' this\n        [add h [sum t]]\n        0\n],\n{sum, _}\n\")"
+---
+Err(
+    ErrorList(
+        [
+            Error(
+                Location(
+                    0,
+                    259..260,
+                ),
+                UnknownName {
+                    name: "_",
+                    expected_type: Func(
+                        List(
+                            false,
+                            Number,
+                        ),
+                        Number,
+                    ),
+                },
+            ),
+        ],
+    ),
+)
