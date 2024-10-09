@@ -1,9 +1,9 @@
 use std::iter::{self, Enumerate, Peekable};
 use std::mem::{self, MaybeUninit};
 
-use crate::error::{Error, ErrorContext, ErrorKind, ErrorList};
+use crate::error::{self, Error, ErrorContext, ErrorKind, ErrorList};
 use crate::scope::{Global, Location, Scope, ScopeItem, SourceRef};
-use crate::types::{FrozenType, Type, TypeList, TypeRef};
+use crate::types::{FrozenType, Type, TypeRef};
 
 pub struct Processed {
     pub errors: ErrorList,
@@ -245,154 +245,6 @@ pub struct Parser<'a, I: Iterator<Item = u8>> {
     result: Processed,
 }
 
-// TODO: move into src/error.rs
-// error reportig helpers {{{
-fn err_context_complete_type(
-    types: &TypeList,
-    loc: Location,
-    err: ErrorKind,
-    ty: TypeRef,
-) -> ErrorKind {
-    let complete_type = types.frozen(ty);
-    match &err {
-        ErrorKind::ExpectedButGot {
-            expected: _,
-            actual,
-        } if complete_type != *actual => ErrorKind::ContextCaused {
-            error: Box::new(Error(loc, err)),
-            because: ErrorContext::CompleteType { complete_type },
-        },
-        _ => err,
-    }
-}
-
-fn err_context_auto_coerced(
-    arg_loc: Location,
-    err: ErrorKind,
-    func_name: String,
-    func_type: FrozenType,
-) -> ErrorKind {
-    ErrorKind::ContextCaused {
-        error: Box::new(Error(arg_loc, err)),
-        because: ErrorContext::AutoCoercedVia {
-            func_name,
-            func_type,
-        },
-    }
-}
-
-fn err_context_as_nth_arg(
-    types: &TypeList,
-    arg_loc: Location,
-    err: ErrorKind,
-    comma_loc: Option<Location>, // if some, ChainedFrom..
-    func: &Tree,
-) -> ErrorKind {
-    let type_with_curr_args = types.frozen(func.ty);
-    ErrorKind::ContextCaused {
-        error: Box::new(Error(arg_loc, err)),
-        because: {
-            // unreachable: func is a function, see `err_context_as_nth_arg` call sites
-            let (nth_arg, func) = match &func.value {
-                TreeKind::Apply(app, args) => (args.len() + 1, app.clone()),
-                _ => unreachable!(),
-            };
-            match comma_loc {
-                Some(comma_loc) => ErrorContext::ChainedFromAsNthArgToNowTyped {
-                    comma_loc,
-                    nth_arg,
-                    func,
-                    type_with_curr_args,
-                },
-                None => ErrorContext::AsNthArgToNowTyped {
-                    nth_arg,
-                    func,
-                    type_with_curr_args,
-                },
-            }
-        },
-    }
-}
-
-fn err_not_func(types: &TypeList, func: &Tree) -> ErrorKind {
-    match &func.value {
-        TreeKind::Apply(name, args) => ErrorKind::TooManyArgs {
-            nth_arg: args.len() + 1,
-            func: name.clone(),
-        },
-        _ => ErrorKind::NotFunc {
-            actual_type: types.frozen(func.ty),
-        },
-    }
-}
-
-fn err_unexpected(token: &Token, expected: &'static str, unmatched: Option<&Token>) -> Error {
-    let Token(here, token) = token.clone();
-    let mut err = Error(here, ErrorKind::Unexpected { token, expected });
-    if let Some(unmatched) = unmatched {
-        let Token(from, open_token) = unmatched.clone();
-        err = Error(
-            from,
-            ErrorKind::ContextCaused {
-                error: Box::new(err),
-                because: ErrorContext::Unmatched { open_token },
-            },
-        );
-    }
-    err
-}
-
-fn err_list_type_mismatch(
-    types: &TypeList,
-    item_loc: Location,
-    err: ErrorKind,
-    item_type: TypeRef,
-    open_loc: Location,
-    list_item_type: TypeRef,
-) -> Error {
-    Error(
-        open_loc,
-        ErrorKind::ContextCaused {
-            error: Box::new(Error(
-                item_loc.clone(),
-                err_context_complete_type(types, item_loc, err, item_type),
-            )),
-            because: ErrorContext::TypeListInferredItemType {
-                list_item_type: types.frozen(list_item_type),
-            },
-        },
-    )
-}
-
-fn err_already_declared(
-    types: &TypeList,
-    name: String,
-    new_loc: Location,
-    previous: &ScopeItem,
-) -> Error {
-    Error(
-        previous
-            .get_loc()
-            .cloned()
-            .unwrap_or_else(|| new_loc.clone()),
-        ErrorKind::ContextCaused {
-            error: Box::new(Error(new_loc, ErrorKind::NameAlreadyDeclared { name })),
-            because: ErrorContext::DeclaredHereWithType {
-                with_type: match previous {
-                    ScopeItem::Builtin(mkty, _) => {
-                        let mut types = TypeList::default();
-                        let ty = mkty(&mut types);
-                        types.frozen(ty)
-                    }
-                    ScopeItem::Defined(val, _) => types.frozen(val.ty),
-                    ScopeItem::Binding(_, ty) => types.frozen(*ty),
-                },
-            },
-        },
-    )
-}
-// }}}
-
 impl<I: Iterator<Item = u8>> Parser<'_, I> {
     pub fn new(source: SourceRef, global: &mut Global, bytes: I) -> Parser<I> {
         let scope = Scope::new(&global.scope);
@@ -527,18 +379,18 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     (&func, &arg)
                 };
 
-                let mut err_kind = err_context_complete_type(
+                let mut err_kind = error::context_complete_type(
                     &self.global.types,
                     actual_arg.loc.clone(),
                     e,
                     actual_arg.ty,
                 );
                 if let Some((loc, name, fty)) = coerce {
-                    err_kind = err_context_auto_coerced(loc, err_kind, name.into(), fty);
+                    err_kind = error::context_auto_coerced(loc, err_kind, name.into(), fty);
                 }
                 // actual_func is a function:
                 // see `try_apply` call sites that have a `unwrap_or_else`
-                err_kind = err_context_as_nth_arg(
+                err_kind = error::context_as_nth_arg(
                     &self.global.types,
                     actual_arg.loc.clone(),
                     err_kind,
@@ -561,7 +413,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
 
         if let term @ Token(loc, OpenBracket | TermToken!()) = self.peek_tok() {
             let loc = loc.clone();
-            let err = err_unexpected(term, "a pattern", None);
+            let err = error::unexpected(term, "a pattern", None);
             self.report(err);
             return (
                 Pattern::Name(loc.clone(), "let".into()),
@@ -580,7 +432,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 .result
                 .scope
                 .declare(name.into(), ScopeItem::Binding(loc.clone(), ty))
-                .map(|prev| err_already_declared(&p.global.types, name.into(), loc, prev))
+                .map(|prev| error::already_declared(&p.global.types, name.into(), loc, prev))
             {
                 p.report(e);
             }
@@ -617,7 +469,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                                 false
                             }
                             (other, _) => {
-                                let err = err_unexpected(
+                                let err = error::unexpected(
                                     &other,
                                     "a name then closing '}' after ',,'",
                                     Some(&first_token),
@@ -630,7 +482,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
 
                     #[allow(unreachable_patterns)] // because of 'CloseBrace'
                     term @ Token(_, TermToken!()) => {
-                        let err = err_unexpected(
+                        let err = error::unexpected(
                             term,
                             "next item or closing '}' in pattern",
                             Some(&first_token),
@@ -649,7 +501,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     // snapshot to have previous type in reported error
                     let snapshot = self.global.types.clone();
                     Type::harmonize(ty, item_ty, &mut self.global.types).unwrap_or_else(|e| {
-                        self.report(err_list_type_mismatch(
+                        self.report(error::list_type_mismatch(
                             &snapshot,
                             cheaty_loc,
                             e,
@@ -664,7 +516,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                         Token(_, Comma) => self.skip_tok(),
                         Token(_, CloseBrace) => break,
                         other => {
-                            let err = err_unexpected(
+                            let err = error::unexpected(
                                 other,
                                 "',' before next item or closing '}' in pattern",
                                 Some(&first_token),
@@ -687,7 +539,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
 
             Def | Let | Use | Unknown(_) => {
                 let loc = first_token.0.clone();
-                let err = err_unexpected(&first_token, "a pattern", None);
+                let err = error::unexpected(&first_token, "a pattern", None);
                 let t = match &first_token.1 {
                     Def => "def",
                     Let => "let",
@@ -722,7 +574,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
 
         if let term @ Token(loc, TermToken!()) = self.peek_tok() {
             let loc = loc.clone();
-            let err = err_unexpected(term, "a value", None);
+            let err = error::unexpected(term, "a value", None);
             self.report(err);
             let ty = self.global.types.named("?".into());
             let value = TreeKind::Apply(Applicable::Name("".into()), Vec::new());
@@ -794,7 +646,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     }
                     other @ Token(_, kind) => {
                         let skip = Comma == *kind;
-                        let err = err_unexpected(
+                        let err = error::unexpected(
                             other,
                             "next argument or closing ']'",
                             Some(&first_token),
@@ -822,7 +674,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     #[allow(unreachable_patterns)] // because of 'CloseBrace'
                     term @ Token(_, TermToken!()) => {
                         let err =
-                            err_unexpected(term, "next item or closing '}'", Some(&first_token));
+                            error::unexpected(term, "next item or closing '}'", Some(&first_token));
                         self.report(err);
                         false
                     }
@@ -836,7 +688,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     let snapshot = self.global.types.clone();
                     self.global.types.transaction_group("list harmonize".into());
                     Type::harmonize(ty, item_ty, &mut self.global.types).unwrap_or_else(|e| {
-                        self.report(err_list_type_mismatch(
+                        self.report(error::list_type_mismatch(
                             &snapshot,
                             item.loc.clone(),
                             e,
@@ -858,7 +710,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             }
 
             Def | Let | Use | Unknown(_) => {
-                let err = err_unexpected(&first_token, "a value", None);
+                let err = error::unexpected(&first_token, "a value", None);
                 self.report(err);
                 let name = match &first_token.1 {
                     Def => "?def",
@@ -987,7 +839,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     _ => {
                         let x = p.parse_value();
                         *new_end = x.loc.1.end;
-                        let e = err_not_func(&p.global.types, &func);
+                        let e = error::not_func(&p.global.types, &func);
                         p.report(Error(func.loc.clone(), e));
                         func
                     }
@@ -1025,7 +877,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     ErrorKind::ContextCaused {
                         error: Box::new(Error(
                             then.loc.clone(),
-                            err_not_func(&self.global.types, &then),
+                            error::not_func(&self.global.types, &then),
                         )),
                         because: ErrorContext::ChainedFromToNotFunc { comma_loc },
                     },
@@ -1103,7 +955,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             match self.peek_tok() {
                 Token(_, Comma | End) => self.skip_tok(),
                 other @ Token(_, kind) => {
-                    let err = err_unexpected(other, "a ',' (because of `use`)", None);
+                    let err = error::unexpected(other, "a ',' (because of `use`)", None);
                     if matches!(kind, TermToken!()) {
                         self.skip_tok();
                     }
@@ -1142,7 +994,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 .result
                 .scope
                 .declare(name.clone(), ScopeItem::Defined(val, desc))
-                .map(|prev| err_already_declared(&self.global.types, name, loc.clone(), prev))
+                .map(|prev| error::already_declared(&self.global.types, name, loc.clone(), prev))
             {
                 self.report(e);
             }
@@ -1150,7 +1002,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             match self.peek_tok() {
                 Token(_, Comma | End) => self.skip_tok(),
                 other @ Token(_, kind) => {
-                    let err = err_unexpected(other, "a ',' (because of `def`)", None);
+                    let err = error::unexpected(other, "a ',' (because of `def`)", None);
                     if matches!(kind, TermToken!()) {
                         self.skip_tok();
                     }
