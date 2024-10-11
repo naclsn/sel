@@ -76,6 +76,9 @@ pub enum ErrorKind {
     CouldNotReadFile {
         error: String,
     },
+    InconsistentType {
+        types: Vec<(Location, FrozenType)>,
+    },
 }
 
 #[derive(PartialEq, Debug)]
@@ -336,7 +339,7 @@ impl Error {
                 loc,
                 format!("coerced via '{func_name}' (which has type {func_type})"),
             )],
-            DeclaredHereWithType { with_type } => &[(loc, format!("here with type {with_type}"))],
+            DeclaredHereWithType { with_type } => &[(loc, format!("declared here with type {with_type}"))],
             LetFallbackTypeMismatch {
                 result_type,
                 fallback_type,
@@ -445,6 +448,14 @@ impl Error {
                 registry,
                 title: "Could not read file".into(),
                 messages: vec![(loc, format!("<< {error} >>"))],
+            },
+            InconsistentType { types } => Report {
+                registry,
+                title: "Inconsistent type from usage".into(),
+                messages: types
+                    .iter()
+                    .map(|(loc, ty)| (loc.clone(), format!("Use here with type {ty}")))
+                    .collect(),
             },
         }
     }

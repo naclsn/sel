@@ -996,6 +996,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
 
             let def_name = name.clone();
             let def_ty = val.ty;
+            let def_loc = val.loc.clone();
 
             if let Some(e) = self
                 .result
@@ -1004,6 +1005,44 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 .map(|prev| error::already_declared(&self.global.types, name, loc.clone(), prev))
             {
                 self.report(e);
+            } else {
+                let mut types = Vec::new();
+
+                self.result.errors.0.retain_mut(|e| match &mut e.1 {
+                    ErrorKind::UnknownName {
+                        name,
+                        expected_type,
+                    } if &def_name == name => {
+                        // note: this is one receiving end from `parse_value`:
+                        //       error is removed as name is now defined
+                        let really_usize = expected_type as *const FrozenType as *const TypeRef;
+                        let ty = unsafe { *really_usize };
+                        mem::forget(mem::replace(expected_type, FrozenType::Number)); // make it valid
+
+                        self.global.types.transaction_group(format!(
+                            "'{def_name}' now defined: {ty} to {def_ty}"
+                        ));
+                        // todo: maybe snapshot?
+                        if Type::harmonize(ty, def_ty, &mut self.global.types).is_err() {
+                            types.push((e.0.clone(), self.global.types.frozen(ty)));
+                        }
+
+                        false
+                    }
+                    _ => true,
+                });
+
+                if !types.is_empty() {
+                    let with_type = self.global.types.frozen(def_ty);
+                    let e = Error(
+                        def_loc.clone(),
+                        ErrorKind::ContextCaused {
+                            error: Box::new(Error(def_loc, ErrorKind::InconsistentType { types })),
+                            because: ErrorContext::DeclaredHereWithType { with_type },
+                        },
+                    );
+                    self.report(e);
+                }
             }
 
             match self.peek_tok() {
@@ -1016,29 +1055,6 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     self.report(err);
                 }
             }
-
-            self.result.errors.0.retain_mut(|e| match &mut e.1 {
-                ErrorKind::UnknownName {
-                    name,
-                    expected_type,
-                } if &def_name == name => {
-                    // note: this is one receiving end from `parse_value`:
-                    //       error is removed as name is now defined
-                    let really_usize = expected_type as *const FrozenType as *const TypeRef;
-                    let ty = unsafe { *really_usize };
-                    mem::forget(mem::replace(expected_type, FrozenType::Number)); // make it valid
-                    self.global
-                        .types
-                        .transaction_group(format!("'{def_name}' now defined: {ty} to {def_ty}"));
-                    // todo: snapshot, maybe here maybe outside the loop
-                    // TODO(wip): more or less
-                    Type::harmonize(ty, def_ty, &mut self.global.types).unwrap_or_else(|e2| {
-                        todo!("e = Error::InconsistantWithDef {{ loc: e.0, because: {e2:?}, .. }}");
-                    });
-                    false
-                }
-                _ => true,
-            });
         }
 
         // script section

@@ -1,0 +1,43 @@
+---
+source: src/tests.rs
+expression: "t(b\"def a:: [add a, a], a\")"
+---
+Err(
+    ErrorList(
+        [
+            Error(
+                Location(
+                    0,
+                    8..18,
+                ),
+                ContextCaused {
+                    error: Error(
+                        Location(
+                            0,
+                            8..18,
+                        ),
+                        InconsistentType {
+                            types: [
+                                (
+                                    Location(
+                                        0,
+                                        13..14,
+                                    ),
+                                    Number,
+                                ),
+                            ],
+                        },
+                    ),
+                    because: DeclaredHereWithType {
+                        with_type: Func(
+                            Number,
+                            Named(
+                                "c=c=c=c",
+                            ),
+                        ),
+                    },
+                },
+            ),
+        ],
+    ),
+)

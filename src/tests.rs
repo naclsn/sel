@@ -122,6 +122,7 @@ def a:: [b 2],
 def b:: [add 1],
 a
 "));
+    assert_debug_snapshot!(t(b"def a:: [add a, a], a"))
 }
 
 #[test]
