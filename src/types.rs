@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::iter::{self, Peekable};
 
 use crate::error::ErrorKind;
 
@@ -348,6 +349,89 @@ impl TypeList {
         self.push(FiniteBoth(left, right))
     }
 
+    // (ofc does not support pseudo-notations)
+    pub fn from_str(&mut self, s: &str) -> Option<TypeRef> {
+        // janky implementation with technical limitation of 20 named types
+        let mut nameds = HashMap::new();
+
+        let mut s = s.bytes().peekable();
+        let tokens: Vec<_> = iter::from_fn(|| match s.find(|c: &u8| !c.is_ascii_whitespace())? {
+            b'-' => s.next().filter(|c| b'>' == *c),
+
+            b'N' => s
+                .next()
+                .zip(s.next())
+                .filter(|p| (b'u', b'm') == *p)
+                .map(|_| b'N'),
+            b'S' => s
+                .next()
+                .zip(s.next())
+                .filter(|p| (b't', b'r') == *p)
+                .map(|_| b'S'),
+
+            c @ (b'(' | b')' | b'+' | b',' | b'[' | b']') => Some(c),
+
+            c @ b'a'..=b'z' => {
+                let mut name = vec![c];
+                name.extend(iter::from_fn(|| s.next_if(u8::is_ascii_lowercase)));
+                let name = unsafe { String::from_utf8_unchecked(name.clone()) };
+                nameds.get(&name).copied().or_else(|| {
+                    let named = self.named(name.clone()) as u8;
+                    nameds.insert(name, named);
+                    Some(named)
+                })
+            }
+
+            _ => None,
+        })
+        .collect();
+
+        fn _impl(
+            types: &mut TypeList,
+            tokens: &mut Peekable<impl Iterator<Item = u8>>,
+        ) -> Option<TypeRef> {
+            let par = match tokens.next()? {
+                b'N' => types.number(),
+                b'S' => {
+                    let fin = types.finite(tokens.next_if(|t| b'+' == *t).is_none());
+                    types.bytes(fin)
+                }
+
+                b'[' => {
+                    let item = _impl(types, tokens)?;
+                    tokens.next_if(|t| b']' == *t)?;
+                    let fin = types.finite(tokens.next_if(|t| b'+' == *t).is_none());
+                    types.list(fin, item)
+                }
+
+                b'(' => {
+                    let fst = _impl(types, tokens)?;
+                    let r = if tokens.next_if(|t| b',' == *t).is_some() {
+                        let snd = _impl(types, tokens)?;
+                        types.pair(fst, snd)
+                    } else {
+                        fst
+                    };
+                    tokens.next_if(|t| b')' == *t)?;
+                    r
+                }
+
+                k if k < 20 => k as usize,
+
+                _ => return None,
+            };
+
+            Some(if tokens.next_if(|t| b'>' == *t).is_some() {
+                let ret = _impl(types, tokens)?;
+                types.func(par, ret)
+            } else {
+                par
+            })
+        }
+
+        _impl(self, &mut tokens.into_iter().peekable())
+    }
+
     pub(crate) fn duplicate(
         &mut self,
         at: TypeRef,
@@ -594,7 +678,7 @@ impl Type {
     /// Note that there is a class of convoluted cases for which this
     /// will return false positives; when concretization is _required_
     /// (reasonably) to determined compatibility.
-    fn compatible(want: TypeRef, give: TypeRef, types: &TypeList) -> bool {
+    pub(crate) fn compatible(want: TypeRef, give: TypeRef, types: &TypeList) -> bool {
         match (types.get(want), types.get(give)) {
             (Number, Number) => true,
 

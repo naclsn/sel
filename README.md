@@ -33,7 +33,7 @@ $ printf abc | sel -, codepoints # same as 'sel codepoint -'
 99
 ```
 
-When the first argument matches a file starting with `#!`
+When the first argument names a file starting with `#!`
 the file is read and parsed first. Any additional arguments
 are also parsed in continuation of the script.
 ```console
@@ -162,9 +162,7 @@ map :: (a -> b) -> [a]+ -> [b]+
 add :: Num -> Num -> Num
 	add two numbers
 $ sel -l :: 'a -> Num'
-thread 'main' panicked at src/main.rs:114:43:
-not yet implemented
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+[... list of matching functions ...]
 ```
 
 ## Ack & Unrelated
@@ -181,22 +179,6 @@ Rust,
 
 ## (wip and such)
 
-```
-cargo r -- def any:: [head {}] let a [let b a any] any 1 :a:
-cargo r -- def else-panic:: [panic :panic:] let a a else-panic 42
-```
-
-```
-cargo r -Fdebug -- -t 'def head:
-    returns the first item:
-    [ let {h,, t}
-        h
-        [panic: head on empty list:]
-    ],
-head {1, 2, 3}
-'
-```
-
 ### `types`
 
 - try to free indices that are not used
@@ -208,14 +190,8 @@ head {1, 2, 3}
 
 something like `$PYTHONSTARTUP`, between prelude and user script
 
-```
-#!
-# FIXME: stack overflow
-def a:: [add a, a],
-a
-```
-
 process description of `def`s (eg. markdown-ish?)
+maybe name for var types in there
 
 ### regarding coercion:
 

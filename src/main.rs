@@ -161,7 +161,31 @@ fn do_lookup(mut args: Peekable<Args>, mut global: Global) {
             }
         }
 
-        Some(oftype) if "::" == oftype => todo!(),
+        Some(oftype) if "::" == oftype => {
+            let search = global
+                .types
+                .from_str(&args.skip(1).next().unwrap())
+                .unwrap();
+            let mut entries: Vec<_> = global
+                .scope
+                .iter()
+                .filter_map(|(name, val)| {
+                    // TODO: this accumulates all into types when
+                    //       it could be reverted after each print
+                    let ty = val.make_type(&mut global.types);
+                    // FIXME: wrong
+                    if types::Type::compatible(search, ty, &global.types) {
+                        Some((name, ty))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            entries.sort_unstable_by_key(|p| p.0);
+            for (name, ty) in entries {
+                println!("{name} :: {}", global.types.frozen(ty));
+            }
+        }
 
         _ => {
             let not_found: Vec<_> = args
