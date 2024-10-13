@@ -72,7 +72,7 @@ impl Options {
                 eprintln!(
                     "Usage: {prog} -h
            [-t] <file> <args...> | <script...>
-           -l [<name>...]"
+           -l [<name>...] | :: <type>"
                 );
                 return None;
             }
@@ -164,7 +164,7 @@ fn do_lookup(mut args: Peekable<Args>, mut global: Global) {
         Some(oftype) if "::" == oftype => {
             let search = global
                 .types
-                .from_str(&args.skip(1).next().unwrap())
+                .parse_str(&args.nth(1).unwrap())
                 .unwrap();
             let mut entries: Vec<_> = global
                 .scope

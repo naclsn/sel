@@ -465,11 +465,11 @@ impl Error {
 // display report {{{
 impl Display for Report<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        const TOP: &'static str = "\x1b[33m";
-        const MSG: &'static str = "\x1b[34m";
-        const ARR: &'static str = "\x1b[35m";
-        const NUM: &'static str = "\x1b[36m";
-        const R: &'static str = "\x1b[m";
+        const TOP: &str = "\x1b[33m";
+        const MSG: &str = "\x1b[34m";
+        const ARR: &str = "\x1b[35m";
+        const NUM: &str = "\x1b[36m";
+        const R: &str = "\x1b[m";
 
         let (Location(file, range), _) = &self.messages[0];
         let source = self.registry.get(*file);
@@ -484,7 +484,7 @@ impl Display for Report<'_> {
 
         for (Location(file, range), msg) in &self.messages {
             let source = &self.registry.get(*file);
-            let (first_lnum, lranges) = source.get_containing_lines(&range).unwrap();
+            let (first_lnum, lranges) = source.get_containing_lines(range).unwrap();
 
             if let [lrange, _, ..] = lranges {
                 writeln!(

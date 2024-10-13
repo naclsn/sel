@@ -350,7 +350,7 @@ impl TypeList {
     }
 
     // (ofc does not support pseudo-notations)
-    pub fn from_str(&mut self, s: &str) -> Option<TypeRef> {
+    pub fn parse_str(&mut self, s: &str) -> Option<TypeRef> {
         // janky implementation with technical limitation of 20 named types
         let mut nameds = HashMap::new();
 

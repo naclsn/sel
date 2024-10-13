@@ -14,8 +14,7 @@ pub struct Processed {
 pub fn process(source: SourceRef, global: &mut Global) -> Processed {
     let bytes = global.registry.get(source).bytes.clone();
     let p = Parser::new(source, global, bytes.into_iter());
-    let r = p.parse();
-    r
+    p.parse()
 }
 
 // other types {{{
