@@ -1,6 +1,6 @@
 use std::env::{self, Args};
 use std::fs::File;
-use std::io::{self, Read, Write};
+use std::io::{self, IsTerminal, Read, Write};
 use std::iter::Peekable;
 
 mod builtin;
@@ -126,8 +126,9 @@ fn parse_from_args(mut args: Peekable<Args>, global: &mut Global) -> Option<(Fro
 
     if !result.errors.is_empty() {
         let mut n = 0;
+        let use_color = io::stderr().is_terminal();
         for e in result.errors {
-            eprintln!("{}", e.report(&global.registry));
+            eprintln!("{}", e.report(&global.registry, use_color));
             n += 1;
         }
         eprintln!("({n} error{})", if 1 == n { "" } else { "s" });
@@ -162,10 +163,7 @@ fn do_lookup(mut args: Peekable<Args>, mut global: Global) {
         }
 
         Some(oftype) if "::" == oftype => {
-            let search = global
-                .types
-                .parse_str(&args.nth(1).unwrap())
-                .unwrap();
+            let search = global.types.parse_str(&args.nth(1).unwrap()).unwrap();
             let mut entries: Vec<_> = global
                 .scope
                 .iter()
@@ -242,7 +240,7 @@ fn do_repl(mut global: Global) {
                 let res = parse::process(src, &mut global);
                 if !res.errors.is_empty() {
                     for e in res.errors {
-                        eprintln!("{}", e.report(&global.registry));
+                        eprintln!("{}", e.report(&global.registry, true));
                     }
                 } else if let Some(tree) = res.tree {
                     do_the_thing(&global.types.frozen(tree.ty), &tree, &global);

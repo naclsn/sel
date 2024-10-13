@@ -111,6 +111,7 @@ pub struct Report<'a> {
     registry: &'a SourceRegistry,
     title: String,
     messages: Vec<(Location, String)>,
+    use_colors: bool,
 }
 
 // error reportig helpers {{{
@@ -351,7 +352,7 @@ impl Error {
         report.messages.extend_from_slice(msgs);
     }
 
-    pub fn report<'a>(&self, registry: &'a SourceRegistry) -> Report<'a> {
+    pub fn report<'a>(&self, registry: &'a SourceRegistry, use_colors: bool) -> Report<'a> {
         use ErrorKind::*;
         use TokenKind::*;
 
@@ -359,7 +360,7 @@ impl Error {
 
         match &self.1 {
             ContextCaused { error, because } => {
-                let mut r = error.report(registry);
+                let mut r = error.report(registry, use_colors);
                 Error::ctx_messages(loc, because, &mut r);
                 r
             }
@@ -388,6 +389,7 @@ impl Error {
                         }
                     ),
                 )],
+                use_colors,
             },
             UnknownName {
                 name,
@@ -400,6 +402,7 @@ impl Error {
                     // TODO: (could) search in scope for similar names and for matching types
                     format!("Unknown name '{name}', should be of type {expected_type}"),
                 )],
+                use_colors,
             },
             NotFunc { actual_type } => Report {
                 registry,
@@ -408,6 +411,7 @@ impl Error {
                     loc,
                     format!("Expected a function type, but got {actual_type}"),
                 )],
+                use_colors,
             },
             TooManyArgs { nth_arg, func } => Report {
                 registry,
@@ -423,6 +427,7 @@ impl Error {
                         nth_arg - 1
                     ),
                 )],
+                use_colors,
             },
             ExpectedButGot { expected, actual } => Report {
                 registry,
@@ -430,6 +435,7 @@ impl Error {
                 // TODO: (could) if expression of type `actual` is a name, search in scope,
                 //               otherwise search for function like `actual -> expected`
                 messages: vec![(loc, format!("Expected type {expected}, but got {actual}"))],
+                use_colors,
             },
             InfWhereFinExpected => Report {
                 registry,
@@ -438,16 +444,19 @@ impl Error {
                 // making recommendations based on actually written vs guessed intent; there is
                 // a whole thing to studdy here which would sit in between parser and error
                 messages: vec![(loc, "Expected finite type, but got infinite type".into())],
+                use_colors,
             },
             NameAlreadyDeclared { name } => Report {
                 registry,
                 title: "Name used twice".into(),
                 messages: vec![(loc, format!("Name {name} was already declared"))],
+                use_colors,
             },
             CouldNotReadFile { error } => Report {
                 registry,
                 title: "Could not read file".into(),
                 messages: vec![(loc, format!("<< {error} >>"))],
+                use_colors,
             },
             InconsistentType { types } => Report {
                 registry,
@@ -456,6 +465,7 @@ impl Error {
                     .iter()
                     .map(|(loc, ty)| (loc.clone(), format!("Use here with type {ty}")))
                     .collect(),
+                use_colors,
             },
         }
     }
@@ -465,11 +475,11 @@ impl Error {
 // display report {{{
 impl Display for Report<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        const TOP: &str = "\x1b[33m";
-        const MSG: &str = "\x1b[34m";
-        const ARR: &str = "\x1b[35m";
-        const NUM: &str = "\x1b[36m";
-        const R: &str = "\x1b[m";
+        let ctop: &str = if self.use_colors { "\x1b[33m" } else { "" };
+        let cmsg: &str = if self.use_colors { "\x1b[34m" } else { "" };
+        let carr: &str = if self.use_colors { "\x1b[35m" } else { "" };
+        let cnum: &str = if self.use_colors { "\x1b[36m" } else { "" };
+        let r: &str = if self.use_colors { "\x1b[m" } else { "" };
 
         let (Location(file, range), _) = &self.messages[0];
         let source = self.registry.get(*file);
@@ -477,7 +487,7 @@ impl Display for Report<'_> {
         let lnum = source.get_containing_lnum(range.start).unwrap();
         writeln!(
             f,
-            "{}:{lnum}: {TOP}{}{R}",
+            "{}:{lnum}: {ctop}{}{r}",
             source.path.display(),
             self.title
         )?;
@@ -489,7 +499,7 @@ impl Display for Report<'_> {
             if let [lrange, _, ..] = lranges {
                 writeln!(
                     f,
-                    "{TOP}|{R}        {}{ARR}.{}{R}",
+                    "{ctop}|{r}        {}{carr}.{}{r}",
                     " ".repeat(range.start - lrange.start),
                     "-".repeat(lrange.end - range.start - 1)
                 )?;
@@ -498,7 +508,7 @@ impl Display for Report<'_> {
             for (lnum, lrange) in lranges.iter().enumerate() {
                 writeln!(
                     f,
-                    "{TOP}|{NUM}{:5} {ARR}|{R} {}",
+                    "{ctop}|{cnum}{:5} {carr}|{r} {}",
                     lnum + first_lnum,
                     String::from_utf8_lossy(&source.bytes[lrange.clone()])
                 )?;
@@ -507,22 +517,22 @@ impl Display for Report<'_> {
             match lranges {
                 [lrange] => write!(
                     f,
-                    "{TOP}|{R}        {}{ARR}{}{R}",
+                    "{ctop}|{r}        {}{carr}{}{r}",
                     " ".repeat(range.start - lrange.start),
                     "-".repeat(range.len())
                 )?,
                 [.., lrange] => write!(
                     f,
-                    "{TOP}|{R}        {ARR}{}'{R}",
+                    "{ctop}|{r}        {carr}{}'{r}",
                     "-".repeat(range.end - lrange.start - 1)
                 )?,
                 _ => unreachable!("empty ranges"),
             }
 
-            writeln!(f, " {MSG}{msg}{R}")?;
+            writeln!(f, " {cmsg}{msg}{r}")?;
         }
 
-        writeln!(f, "{TOP}==={R}")
+        writeln!(f, "{ctop}==={r}")
     }
 }
 // }}}
