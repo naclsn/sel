@@ -465,41 +465,64 @@ impl Error {
 // display report {{{
 impl Display for Report<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        // TODO: todo
+        const TOP: &'static str = "\x1b[33m";
+        const MSG: &'static str = "\x1b[34m";
+        const ARR: &'static str = "\x1b[35m";
+        const NUM: &'static str = "\x1b[36m";
+        const R: &'static str = "\x1b[m";
 
         let (Location(file, range), _) = &self.messages[0];
-        let path = self.registry.get_path(*file);
-        let bytes = self.registry.get_bytes(*file);
-        let line = 1 + bytes[range.start..].iter().filter(|c| b'\n' == **c).count();
-        writeln!(f, "{}:{line}: {}", path.display(), self.title)?;
+        let source = self.registry.get(*file);
 
-        //let line_start = range.start
-        //    - bytes[..range.start]
-        //        .iter()
-        //        .rev()
-        //        .position(|c| b'\n' == *c)
-        //        .unwrap_or(range.start);
-        //let line_end = range.end
-        //    - bytes[range.end..]
-        //        .iter()
-        //        .position(|c| b'\n' == *c)
-        //        .unwrap_or(bytes.len() - range.end-1);
-        //writeln!(
-        //    f,
-        //    "\t| {}",
-        //    String::from_utf8_lossy(&bytes[line_start..line_end])
-        //)?;
+        let lnum = source.get_containing_lnum(range.start).unwrap();
+        writeln!(
+            f,
+            "{}:{lnum}: {TOP}{}{R}",
+            source.path.display(),
+            self.title
+        )?;
 
         for (Location(file, range), msg) in &self.messages {
-            let bytes = self.registry.get_bytes(*file);
-            writeln!(
-                f,
-                " ({range:?}) `{}` => {}",
-                String::from_utf8_lossy(&bytes[range.start..range.end]),
-                msg
-            )?;
+            let source = &self.registry.get(*file);
+            let (first_lnum, lranges) = source.get_containing_lines(&range).unwrap();
+
+            if let [lrange, _, ..] = lranges {
+                writeln!(
+                    f,
+                    "{TOP}|{R}        {}{ARR}.{}{R}",
+                    " ".repeat(range.start - lrange.start),
+                    "-".repeat(lrange.end - range.start - 1)
+                )?;
+            }
+
+            for (lnum, lrange) in lranges.iter().enumerate() {
+                writeln!(
+                    f,
+                    "{TOP}|{NUM}{:5} {ARR}|{R} {}",
+                    lnum + first_lnum,
+                    String::from_utf8_lossy(&source.bytes[lrange.clone()])
+                )?;
+            }
+
+            match lranges {
+                [lrange] => write!(
+                    f,
+                    "{TOP}|{R}        {}{ARR}{}{R}",
+                    " ".repeat(range.start - lrange.start),
+                    "-".repeat(range.len())
+                )?,
+                [.., lrange] => write!(
+                    f,
+                    "{TOP}|{R}        {ARR}{}'{R}",
+                    "-".repeat(range.end - lrange.start - 1)
+                )?,
+                _ => unreachable!("empty ranges"),
+            }
+
+            writeln!(f, " {MSG}{msg}{R}")?;
         }
-        Ok(())
+
+        writeln!(f, "{TOP}==={R}")
     }
 }
 // }}}

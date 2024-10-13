@@ -12,10 +12,9 @@ pub struct Processed {
 }
 
 pub fn process(source: SourceRef, global: &mut Global) -> Processed {
-    let bytes = global.registry.take_bytes(source);
-    let p = Parser::new(source, global, bytes.iter().copied());
+    let bytes = global.registry.get(source).bytes.clone();
+    let p = Parser::new(source, global, bytes.into_iter());
     let r = p.parse();
-    global.registry.put_back_bytes(source, bytes);
     r
 }
 
@@ -962,7 +961,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             match self.peek_tok() {
                 Token(_, Comma | End) => self.skip_tok(),
                 other @ Token(_, kind) => {
-                    let err = error::unexpected(other, "a ',' (because of `use`)", None);
+                    let err = error::unexpected(other, "a ',' (because of prior `use`)", None);
                     if matches!(kind, TermToken!()) {
                         self.skip_tok();
                     }
@@ -1048,7 +1047,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             match self.peek_tok() {
                 Token(_, Comma | End) => self.skip_tok(),
                 other @ Token(_, kind) => {
-                    let err = error::unexpected(other, "a ',' (because of `def`)", None);
+                    let err = error::unexpected(other, "a ',' (because of prior `def`)", None);
                     if matches!(kind, TermToken!()) {
                         self.skip_tok();
                     }

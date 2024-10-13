@@ -37,19 +37,30 @@ pub type SourceRef = usize;
 #[derive(PartialEq, Debug, Clone)]
 pub struct Location(pub SourceRef, pub Range<usize>);
 
+pub struct Source {
+    pub path: PathBuf,
+    pub bytes: Vec<u8>,
+    line_map: Vec<Range<usize>>,
+}
+
 #[derive(Default)]
-pub struct SourceRegistry(Vec<(PathBuf, Option<Vec<u8>>)>);
+pub struct SourceRegistry(Vec<Source>);
 
 impl SourceRegistry {
     /// Note: the given path is taken as is (ie not canonicalize) and not checked for duplication
     pub fn add_bytes(&mut self, name: impl AsRef<Path>, bytes: Vec<u8>) -> SourceRef {
-        self.0.push((name.as_ref().to_owned(), Some(bytes)));
+        let line_map = Source::compute_line_map(&bytes);
+        self.0.push(Source {
+            path: name.as_ref().to_owned(),
+            bytes,
+            line_map,
+        });
         self.0.len() - 1
     }
 
     pub fn add(&mut self, name: impl AsRef<Path>) -> IoResult<SourceRef> {
         let name = name.as_ref().canonicalize()?;
-        if let Some(found) = self.0.iter().position(|c| c.0 == name) {
+        if let Some(found) = self.0.iter().position(|c| c.path == name) {
             return Ok(found);
         }
         let mut bytes = Vec::new();
@@ -57,20 +68,41 @@ impl SourceRegistry {
         Ok(self.add_bytes(name, bytes))
     }
 
-    pub fn get_path(&self, at: SourceRef) -> &Path {
-        &self.0[at].0
+    pub fn get(&self, at: SourceRef) -> &Source {
+        &self.0[at]
+    }
+}
+
+impl Source {
+    fn compute_line_map(bytes: &[u8]) -> Vec<Range<usize>> {
+        let mut r = Vec::new();
+
+        let mut it = bytes.iter();
+        let mut at = 0;
+        while let Some(nl) = it.position(|c| b'\n' == *c) {
+            r.push(at..at + nl);
+            at += nl + 1;
+        }
+        if at < bytes.len() {
+            r.push(at..bytes.len());
+        }
+
+        r
     }
 
-    pub fn get_bytes(&self, at: SourceRef) -> &[u8] {
-        self.0[at].1.as_ref().unwrap()
+    pub fn get_containing_lnum(&self, k: usize) -> Option<usize> {
+        self.line_map
+            .iter()
+            .position(|r| r.contains(&k))
+            .map(|l| l + 1)
     }
 
-    pub fn take_bytes(&mut self, at: SourceRef) -> Vec<u8> {
-        self.0[at].1.take().unwrap()
-    }
-
-    pub fn put_back_bytes(&mut self, at: SourceRef, bytes: Vec<u8>) {
-        self.0[at].1 = Some(bytes);
+    /// the tuple's first item is the same as if `source.get_containing_lnum(k.start)`
+    pub fn get_containing_lines(&self, k: &Range<usize>) -> Option<(usize, &[Range<usize>])> {
+        let mut it = self.line_map.iter();
+        let start = it.position(|r| k.start < r.end)?;
+        let end = start + it.position(|r| k.end < r.start)?;
+        Some((start + 1, &self.line_map[start..=end]))
     }
 }
 // }}}
