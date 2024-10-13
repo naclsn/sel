@@ -1,66 +1,102 @@
 # (wip placeholder prelude)
 
-#def const:
-#    returns the first argument, discarding the second one:
-#    let a
-#    let b
-#        a;
+def unreachable:: [panic: entered unreachable code:],
 
-def true:
-    returns always true:
-    const 1;
+def apply: (a -> b) -> a -> b
+    apply argument to function; 'apply f x' is equivalent to 'f x':
+    [let f f],
 
-def false:
-    returns always false:
-    const 0;
+def compose:
+    compose two function; 'compose one two' is equivalent to the syntax 'two, one' ie 'one(two(..))' (see also 'pipe'):
+    [ let f
+    [ let g [ g, f ] ]],
 
-#def not:
-#    negates a boolean value:
-#    let 0 1 0;
-#
-## TODO: I *think*? I'm not sure tho
-##def if:
-##    if condition consequence alternative:
-##    let 0 fst snd, flip apply pair;
-#
-#def head:
-#    returns the first item of the list:
-#    let {h,, t} h;
-#
-#def tail:
-#    returns all after the first item:
-#    let {h,, t} t;
-#
-## XXX: not fixated on recursion yet
-##def len:
-##    computes the length of the list, or string by coercion:
-##    let {h,, t}
-##        [len t, add 1]
-##        0;
-#
-#def unwrap:
-#    returns the contained value if any, panics otherwise
-#    (see is-none/is-some):
-#    head;
-#
-#def is-none:
-#    true if there is no contained value:
-#    len, not;
-#
-#def is-some:
-#    true if there is a contained value:
-#    is-none, not;
-#
-#def fst: first: let a=b a;
-#def snd: second: let a=b b;
-#
-#def duple:: let a a=a;
-#
-#def zip:: zipwith pair;
-#
-#def uints:: iterate [add1] 0;
-#def enumerate:: zip uints;
-#
+def const:
+    always evaluate to its first argument, ignoring its second one:
+    [ let a
+    [ let b a ]],
+
+def curry:
+    TODO doc:
+    [ let f
+    [ let a=b [ f a b ] ]],
+
+def duple:
+    returns a pair with twice the same value (essentially 'clone'):
+    [let a a=a],
+
+def none:: {},
+def some:: [let a {a}],
+def singleton:?: some,
+
+def enumerate-from:
+    enumerate a list into a list of (index, value), starting from a given value for index (but still from the start of the list):
+    [ let k
+    [ let {h,, t}
+        cons k=h [enumerate-from [inc k] t]
+        {} ]],
+
+def enumerate:
+    enumerate a list into a list of (index, value):
+    [ enumerate-from 0 ],
+
+#def true: returns always true: [const 1],
+#def false: returns always false: [const 0],
+def not: negates a boolean value: [let 0 1 0],
+
+def flip:
+    flip the order in which the parameters are needed:
+    [ let f
+        [ let b
+        [ let a [f a b] ]]],
+
+def fold:
+    TODO doc:
+    [ let f
+    [ let v
+        [ let {h,, t}
+            [fold f [f v h] t]
+            v ]]],
+
+def fst: retrieve the first element: [let a=b a unreachable],
+def snd: retrieve the second element: [let a=b b unreachable],
+
+def head: return the first item of the list: [let {h,, t} h [panic: empty list:]],
+def tail: return all after the first item: [let {h,, t} t [panic: empty list:]],
+
+def unwrap:
+    returns the contained value if any, panics otherwise (see is-none/is-some):
+    head,
+
+def is-none: true if there is no contained value: [len, not],
+def is-some: true if there is a contained value: [is-none, not],
+
+def id: identity function: [let a a],
+
+def iterate:
+    create an infinite list where the first item is given, the second is
+    calculated by applying the function on it, the third item by applying the
+    function on the previous result and so on:
+    [ let f
+    [ let v
+        [iterate f v, cons v] ]],
+
+def len:
+    computes the length of the list, or string by coercion:
+    [ let {h,, t}
+        [len t, add 1]
+        0 ],
+
+#def if:
+#    if condition consequence alternative:
+#    # not sure tho
+#    [let 0 fst snd, flip apply pair],
+
+#def zip:: [zipwith pair],
+
+#def uints:: [iterate [add1] 0],
+#def enumerate:: [zip uints],
+
 #def sum:
 #    sum the elements:
-#    fold add 0;
+#    [fold add 0],
