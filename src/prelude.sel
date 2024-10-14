@@ -1,3 +1,4 @@
+#!
 # (wip placeholder prelude)
 
 def unreachable:: [panic: entered unreachable code:],
@@ -11,6 +12,11 @@ def compose:
     [ let f
     [ let g [ g, f ] ]],
 
+#def pipe::
+#    [ let f
+#    [ let g
+#        [ let a [g [f a]] ]]],
+
 def const:
     always evaluate to its first argument, ignoring its second one:
     [ let a
@@ -20,6 +26,9 @@ def curry:
     TODO doc:
     [ let f
     [ let a=b [ f a b ] ]],
+
+#def uncurry::
+#    [pair, f],
 
 def duple:
     returns a pair with twice the same value (essentially 'clone'):
@@ -73,6 +82,7 @@ def is-some: true if there is a contained value: [is-none, not],
 
 def id: identity function: [let a a],
 
+fatal # iterate causes a stack overflow
 def iterate:
     create an infinite list where the first item is given, the second is
     calculated by applying the function on it, the third item by applying the

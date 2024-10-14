@@ -7,7 +7,8 @@ fu s:sel_ft()
   sy match   selNumber   /\v(0b[01]+)|(0o[0-7]+)|(0x[0-9A-Fa-f]+)|([0-9]+(\.[0-9]+)?)/
   sy region  selString   start=/:/ skip=/::/ end=/:/
   sy match   selOperator /[,=]/
-  sy cluster selPlain    contains=selComment,selNumber,selString,selOperator
+  sy keyword selFatal    fatal
+  sy cluster selPlain    contains=selComment,selNumber,selString,selOperator,selFatal
 
   sy keyword selLet      let skipwhite skipempty nextgroup=selLetWord,selLetList
   sy match   selLetWord  /\k\+/ contained
@@ -25,6 +26,7 @@ fu s:sel_ft()
   hi def link selNumber   Number
   hi def link selString   String
   hi def link selOperator Operator
+  hi def link selFatal    Error
 
   hi def link selLet      Keyword
   hi def link selLetWord  Identifier

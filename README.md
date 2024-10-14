@@ -165,6 +165,8 @@ $ sel -l :: 'a -> Num'
 [... list of matching functions ...]
 ```
 
+There is also an undocumented word that completely aborts the parsing: `fatal`.
+
 ## Ack & Unrelated
 
 Python,

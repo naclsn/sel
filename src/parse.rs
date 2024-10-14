@@ -296,6 +296,34 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
         }
     }
 
+    /// this is the receiving end from `parse_value` when a name was not found: this
+    /// is the point where we get the usizes again and compute the final FrozenType
+    fn fixup_errors(&mut self) {
+        for e in self.result.errors.0.iter_mut() {
+            if let ErrorKind::UnknownName { expected_type, .. } = &mut e.1 {
+                let really_usize = expected_type as *const FrozenType as *const TypeRef;
+                let ty = unsafe { *really_usize };
+                mem::forget(mem::replace(expected_type, self.global.types.frozen(ty)));
+            }
+        }
+    }
+
+    fn fatal_reached(&mut self) -> ! {
+        use std::io::IsTerminal;
+        if std::env::var("SEL_FATAL").is_ok() {
+            let mut n = 0;
+            let use_color = std::io::stderr().is_terminal();
+            for e in self.result.errors.iter() {
+                eprintln!("{}", e.report(&self.global.registry, use_color));
+                n += 1;
+            }
+            eprintln!("({n} error{})", if 1 == n { "" } else { "s" });
+        } else {
+            eprintln!("note: run with `SEL_FATAL=1` to show parsing diagonistic at this point");
+        }
+        panic!("fatal encoutered - stopping there");
+    }
+
     /// - named to func conversion
     /// - any needed coercion
     /// - if couldn't then still `force_apply`s and err appropriately
@@ -583,6 +611,16 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
 
         let mut loc = first_token.0.clone();
         let (ty, value) = match first_token.1 {
+            Word(fatal) if "fatal" == fatal => {
+                self.report(Error(
+                    loc,
+                    ErrorKind::CouldNotReadFile {
+                        error: "fatal reached".into(),
+                    },
+                ));
+                self.fixup_errors();
+                self.fatal_reached();
+            }
             Word(w) => match self.result.scope.lookup(&w) {
                 Some(d) => {
                     self.global
@@ -1063,19 +1101,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
         };
         if !self.result.errors.is_empty() {
             r = None;
-            // note: this is the receiving end from `parse_value` when a name was not found: this
-            //       is the point where we get the usizes again and compute the final FrozenType
-            for e in self.result.errors.0.iter_mut() {
-                if let ErrorKind::UnknownName {
-                    name: _,
-                    expected_type,
-                } = &mut e.1
-                {
-                    let really_usize = expected_type as *const FrozenType as *const TypeRef;
-                    let ty = unsafe { *really_usize };
-                    mem::forget(mem::replace(expected_type, self.global.types.frozen(ty)));
-                }
-            }
+            self.fixup_errors();
         }
 
         self.result.tree = r;

@@ -104,6 +104,10 @@ impl ErrorList {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
+    pub fn iter(&self) -> <&Vec<Error> as IntoIterator>::IntoIter {
+        self.0.iter()
+    }
 }
 // }}}
 
