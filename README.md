@@ -63,7 +63,7 @@ Special characters and keywords:
   argument that computes result if pattern matches, pattern
   can introduces names (eg `let {a, b,, rest} [add a b] 0`,
   the `,, rest` matches the rest of the list), if pattern
-  is a single name then there is no fallback.
+  is irrefutable then there is no fallback.
 
 Here is the complete syntax:
 ```bnf
@@ -73,7 +73,8 @@ script ::= <apply> {',' <apply>}
 apply ::= <binding> | <value> {<value>}
 value ::= <atom> | <subscr> | <list> | <pair>
 
-binding ::= 'let' (<word> <value> | <pattern> <value> <value>)
+binding ::= 'let' (<irrefut> <value> | <pattern> <value> <value>)
+irrefut ::= <word> | <irrefut> '=' <irrefut>
 pattern ::= <atom> | <patlist> | <patpair>
 patlist ::= '{' [<pattern> {',' <pattern>} [',' [',' <word>]]] '}'
 patpair ::= (<atom> | <patlist>) '=' <pattern>

@@ -794,8 +794,16 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 let result = self.parse_value();
                 let res_ty = result.ty;
 
-                // if named, infallible pattern so no fallback
-                let fallback = if matches!(pattern, Pattern::Name(_, _)) {
+                fn is_irrefutable(pattern: &Pattern) -> bool {
+                    match pattern {
+                        Pattern::Number(_) | Pattern::Bytes(_) | Pattern::List(_, _) => false,
+                        Pattern::Name(_, _) => true,
+                        Pattern::Pair(fst, snd) => is_irrefutable(fst) && is_irrefutable(snd),
+                    }
+                }
+
+                // if irrefutable, no fallback
+                let fallback = if is_irrefutable(&pattern) {
                     Tree {
                         loc: Location(0, 0..0),
                         ty: 0,
