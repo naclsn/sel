@@ -115,11 +115,11 @@ fn parsing() {
     /* src/snapshots/sel__tests__parsing-24.snap */
     assert_debug_snapshot!(t(b":1:, tostr, _"));
     /* src/snapshots/sel__tests__parsing-25.snap */
-    assert_debug_snapshot!(t(b"iterate [_ 1, add 1] 1")); // _ :: Num -> Num -> Num
+    assert_debug_snapshot!(t(b"iterate [_ 1, add 1] 1 # _ :: Num -> Num -> Num"));
     /* src/snapshots/sel__tests__parsing-26.snap */
-    assert_debug_snapshot!(t(b"iterate [div 1, _ 1] 1")); // _ :: Num -> Num -> Num
+    assert_debug_snapshot!(t(b"iterate [div 1, _ 1] 1 # _ :: Num -> Num -> Num"));
     /* src/snapshots/sel__tests__parsing-27.snap */
-    assert_debug_snapshot!(t(b"iterate [div 1, add 1] 1, _")); // _ :: [Num]+ -> returnof(typeof(_))
+    assert_debug_snapshot!(t(b"iterate [div 1, add 1] 1, _ # _ :: [Num]+ -> returnof(typeof(_))"));
     /* src/snapshots/sel__tests__parsing-28.snap */
     assert_debug_snapshot!(t(b"let {a, b} [add a b] [panic::]"));
     /* src/snapshots/sel__tests__parsing-29.snap */
@@ -129,7 +129,7 @@ fn parsing() {
     /* src/snapshots/sel__tests__parsing-31.snap */
     assert_debug_snapshot!(t(b"repeat 1, let {h,, t} t [panic::]"));
     /* src/snapshots/sel__tests__parsing-32.snap */
-    assert_debug_snapshot!(t(b"let a let b a b a")); // note: is syntax error
+    assert_debug_snapshot!(t(b"let a let b a b a # note: is syntax error"));
     /* src/snapshots/sel__tests__parsing-33.snap */
     assert_debug_snapshot!(t(b"let {a b, c} 0"));
     /* src/snapshots/sel__tests__parsing-34.snap */
