@@ -252,7 +252,17 @@ impl TypeList {
 
     pub(crate) fn get(&self, at: TypeRef) -> &Type {
         match self.slots[at].as_ref().unwrap() {
-            Transparent(u) => self.get(*u),
+            Transparent(u) => {
+
+                // XXX: this is a temporary debugging situation
+                if let Transparent(v) = self.slots[*u].as_ref().unwrap() {
+                    if at == *v {
+                        panic!("back to first one! {at} to {u} to {v}");
+                    }
+                }
+
+                self.get(*u)
+            }
             r => r,
         }
     }

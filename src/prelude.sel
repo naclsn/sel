@@ -42,7 +42,9 @@ def enumerate-from:
     enumerate a list into a list of (index, value), starting from a given value for index (but still from the start of the list):
     [ let k
     [ let {h,, t}
-        cons k=h [enumerate-from [inc k] t]
+        #[enumerate-from [inc k] t, cons k=h] FIXME: doesn't give the same result tho it should
+        #                                            there is a test that might be about this (parsing-39)
+        [cons k=h [enumerate-from [inc k] t]]
         {} ]],
 
 def enumerate:
@@ -82,19 +84,24 @@ def is-some: true if there is a contained value: [is-none, not],
 
 def id: identity function: [let a a],
 
-fatal # iterate causes a stack overflow
+#fatal # iterate causes a stack overflow
 def iterate:
-    create an infinite list where the first item is given, the second is
-    calculated by applying the function on it, the third item by applying the
-    function on the previous result and so on:
+    create an infinite list where
+    * the first item is given,
+    * the second is calculated by applying the function on it,
+    * the third item by applying the function on the previous result
+    and so on:
     [ let f
     [ let v
-        [iterate f v, cons v] ]],
+        #[iterate f v, cons v] ]],
+        [cons v [iterate f v]] ]],
 
 def len:
     computes the length of the list, or string by coercion:
     [ let {h,, t}
-        [len t, add 1]
+        #[len t, inc] FIXME: doesn't give the same result tho it should
+        #                    there is a test that might be about this (parsing-39)
+        [inc [len t]]
         0 ],
 
 #def if:

@@ -111,7 +111,7 @@ pub fn scope() -> Scope {
     r
 }
 
-const NAMES: [(&str, ScopeItem); 27] = [
+const NAMES: [(&str, ScopeItem); 29] = [
     ("-"            , mkbin!(mkmkty!(1          ; Str+1                                      ), "the input")),
     ("add"          , mkbin!(mkmkty!(0          ; Num -> Num -> Num                          ), "add two numbers")),
     //("apply"        , mkbin!(mkmkty!(0, a, b    ; (a -> b) -> a -> b                         ), "apply argument to function; 'apply f x' is equivalent to 'f x'")),
@@ -154,4 +154,8 @@ const NAMES: [(&str, ScopeItem); 27] = [
     ("ungraphemes"  , mkbin!(mkmkty!(1          ; [Str]+1 -> Str+1                           ), "make a list of strings with the potentially multi-codepoints graphemes")),
     ("unpair"       , mkbin!(mkmkty!(0, a, b, c ; (a, b) -> (a -> b -> c) -> c               ), "unmake a pair")),
     ("zipwith"      , mkbin!(mkmkty!(2, a, b, c ; (a -> b -> c) -> [a]+1 -> [b]+2 -> [c]+1|2 ), "make a new list by applying an binary operation to each corresponding value from each lists; stops when either list ends")),
+
+
+    ("cons", mkbin!(mkmkty!(0, a ; a -> [a] -> [a]), "cons")),
+    ("inc", mkbin!(mkmkty!(0 ; Num -> Num), "cons")),
 ];

@@ -130,10 +130,33 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
             b'=' => (1, Equal),
 
             b'#' => {
-                self.stream.find(|c| {
-                    self.last_at = c.0;
-                    b'\n' == c.1
-                })?;
+                if let Some((_, b'-')) = self.stream.peek() {
+                    self.stream.next();
+                    let mut missmatch = Vec::new();
+                    while {
+                        match self.next()?.1 {
+                            OpenBracket => missmatch.push(b'b'),
+                            CloseBracket if missmatch.last().is_some_and(|b| b'b' == *b) => {
+                                missmatch.pop();
+                            }
+                            OpenBrace => missmatch.push(b'B'),
+                            CloseBrace if missmatch.last().is_some_and(|b| b'B' == *b) => {
+                                missmatch.pop();
+                            }
+                            _ => {}
+                        }
+                        missmatch.is_empty()
+                    } {}
+                    let n = self.next();
+                    let Some(Token(_, Comma)) = n else {
+                        return n;
+                    };
+                } else {
+                    self.stream.find(|c| {
+                        self.last_at = c.0;
+                        b'\n' == c.1
+                    })?;
+                }
                 return self.next();
             }
             b'_' => (1, Word("_".into())),
