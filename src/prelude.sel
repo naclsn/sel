@@ -84,7 +84,6 @@ def is-some: true if there is a contained value: [is-none, not],
 
 def id: identity function: [let a a],
 
-#fatal # iterate causes a stack overflow
 def iterate:
     create an infinite list where
     * the first item is given,
@@ -93,8 +92,10 @@ def iterate:
     and so on:
     [ let f
     [ let v
-        #[iterate f v, cons v] ]],
-        [cons v [iterate f v]] ]],
+        #[f v, iterate f, cons v] ]], FIXME: doesn't give the same result tho it should
+        #                                     there is a test that might be about this (parsing-39)
+        [cons v [f v, iterate f]] ]],
+        #[cons v [iterate f v]] ]], # FIXME: this is incorrect, but it should still behave
 
 def len:
     computes the length of the list, or string by coercion:
