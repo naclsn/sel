@@ -1,7 +1,9 @@
+// TODO(wip): trim down, rename to fundamentals or something
 use crate::scope::{Scope, ScopeItem};
 use crate::types::{Boundedness, TypeList, TypeRef};
 
 // macro to generate the fn generating the type {{{
+#[macro_export]
 macro_rules! mkmktyty {
     ($st:ident, Num) => {
         $st.types.number()
@@ -73,6 +75,7 @@ macro_rules! mkmktyty {
 }
 
 // (nb_infinites, names; type)
+#[macro_export]
 macro_rules! mkmkty {
     ($f:tt$(, $n:ident)*; $($ty:tt)+) => {
         |types| {
@@ -111,7 +114,19 @@ pub fn scope() -> Scope {
     r
 }
 
-const NAMES: [(&str, ScopeItem); 29] = [
+const NAMES: [(&str, ScopeItem); 9] = [
+    ("-"            , mkbin!(mkmkty!(1          ; Str+1                                      ), "the input")),
+    ("codepoints"   , mkbin!(mkmkty!(1          ; Str+1 -> [Num]+1                           ), "make a list of numbers with the 32 bits codepoints")),
+    ("graphemes"    , mkbin!(mkmkty!(1          ; Str+1 -> [Str]+1                           ), "make a list of strings with the potentially multi-codepoints graphemes")),
+    ("panic"        , mkbin!(mkmkty!(0, a       ; Str -> a                                   ), "panics")),
+    ("pipe"         , mkbin!(mkmkty!(0, a, b, c ; (a -> b) -> (b -> c) -> a -> c             ), "pipe two function; 'pipe one two' is equivalent to the syntax 'one, two' ie 'two(one(..))' (see also 'compose')")),
+    ("tonum"        , mkbin!(mkmkty!(1          ; Str+1 -> Num                               ), "convert a string into number, accept an infinite string for convenience but stop on the first byte that is not in '0'..='9'")),
+    ("tostr"        , mkbin!(mkmkty!(0          ; Num -> Str                                 ), "convert a number into string")),
+    ("uncodepoints" , mkbin!(mkmkty!(1          ; [Num]+1 -> Str+1                           ), "make a list of numbers with the 32 bits codepoints")),
+    ("ungraphemes"  , mkbin!(mkmkty!(1          ; [Str]+1 -> Str+1                           ), "make a list of strings with the potentially multi-codepoints graphemes")),
+];
+
+/*
     ("-"            , mkbin!(mkmkty!(1          ; Str+1                                      ), "the input")),
     ("add"          , mkbin!(mkmkty!(0          ; Num -> Num -> Num                          ), "add two numbers")),
     //("apply"        , mkbin!(mkmkty!(0, a, b    ; (a -> b) -> a -> b                         ), "apply argument to function; 'apply f x' is equivalent to 'f x'")),
@@ -158,4 +173,4 @@ const NAMES: [(&str, ScopeItem); 29] = [
 
     ("cons", mkbin!(mkmkty!(0, a ; a -> [a] -> [a]), "cons")),
     ("inc", mkbin!(mkmkty!(0 ; Num -> Num), "cons")),
-];
+];*/
