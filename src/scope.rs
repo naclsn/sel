@@ -101,7 +101,8 @@ impl Source {
     pub fn get_containing_lines(&self, k: &Range<usize>) -> Option<(usize, &[Range<usize>])> {
         let mut it = self.line_map.iter();
         let start = it.position(|r| k.start <= r.end)?;
-        let end = start + it.position(|r| k.end < r.start).unwrap_or(0);
+        let eof = self.line_map.len() - start;
+        let end = start + it.position(|r| k.end < r.start).unwrap_or(eof - 1);
         Some((start + 1, &self.line_map[start..=end]))
     }
 }

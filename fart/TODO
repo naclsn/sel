@@ -1,0 +1,5 @@
+the situation with iterate causing a stack overflow
+appears when this does:
+types.slots[at] => Transparent(u)
+                   types.slots[*u] => Transparent(v)
+                                      *v == at

@@ -404,7 +404,12 @@ impl Error {
                 messages: vec![(
                     loc,
                     // TODO: (could) search in scope for similar names and for matching types
-                    format!("Unknown name '{name}', should be of type {expected_type}"),
+                    if matches!(expected_type, FrozenType::Named(_named)) {
+                        //if name == named) {
+                        format!("Unknown name '{name}' (may be of any type)")
+                    } else {
+                        format!("Unknown name '{name}', should be of type {expected_type}")
+                    },
                 )],
                 use_colors,
             },

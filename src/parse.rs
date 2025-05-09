@@ -292,12 +292,13 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
         self.result.errors.push(err);
     }
 
-    /// the following names can be looked up when parsing:
+    /// the following names can be looked up when parsing (ie as part of syntactical constructs):
+    /// - `codepoints`
+    /// - `cons`
+    /// - `graphemes`
     /// - `pipe`
     /// - `tonum`
     /// - `tostr`
-    /// - `codepoints`
-    /// - `graphemes`
     /// - `uncodepoints`
     /// - `ungraphemes`
     fn sure_lookup(&mut self, loc: Location, name: &str) -> Tree {
@@ -505,7 +506,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 while match self.peek_tok() {
                     Token(_, CloseBrace) => false,
 
-                    // if !empty: there must be something before ',,'
+                    // `if !empty`: there must be something before ',,'
                     Token(_, Comma) if !items.is_empty() => {
                         // { ... ,,
                         self.skip_tok();
@@ -720,11 +721,35 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 self.global.types.transaction_group("parse list".into());
                 let mut items = Vec::new();
                 let ty = self.global.types.named("item".into());
+                let mut rest = None;
 
                 while match self.peek_tok() {
                     Token(close_loc, CloseBrace) => {
                         loc.1.end = close_loc.1.end;
                         false
+                    }
+
+                    // `if !empty`: there must be something before ',,'
+                    Token(_, Comma) if !items.is_empty() => {
+                        // { ... ,,
+                        self.skip_tok();
+                        rest = Some(self.parse_value());
+                        match self.peek_tok() {
+                            Token(close_loc, CloseBrace) => {
+                                loc.1.end = close_loc.1.end;
+                                panic!("all good: {rest:#?}");
+                                //false
+                            }
+                            other => {
+                                let err = error::unexpected(
+                                    &other,
+                                    "closing '}' after ',,'",
+                                    Some(&first_token),
+                                );
+                                self.report(err);
+                                false
+                            }
+                        }
                     }
 
                     #[allow(unreachable_patterns)] // because of 'CloseBrace'
@@ -761,8 +786,12 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 }
                 self.skip_tok();
 
-                let fin = self.global.types.finite(true);
-                (self.global.types.list(fin, ty), TreeKind::List(items))
+                if let Some(rest) = rest {
+                    todo!("multiple cons with {items:?} {rest:?}");
+                } else {
+                    let fin = self.global.types.finite(true);
+                    (self.global.types.list(fin, ty), TreeKind::List(items))
+                }
             }
 
             Def | Let | Use | Unknown(_) => {
@@ -1103,7 +1132,9 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     _ => true,
                 });
 
-                self.global.types.transaction_group(format!("finish def '{def_name}'"));
+                self.global
+                    .types
+                    .transaction_group(format!("finish def '{def_name}'"));
 
                 if !types.is_empty() {
                     let with_type = self.global.types.frozen(def_ty);

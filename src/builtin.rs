@@ -114,11 +114,12 @@ pub fn scope() -> Scope {
     r
 }
 
-const NAMES: [(&str, ScopeItem); 9] = [
+const NAMES: [(&str, ScopeItem); 10] = [
     ("-"            , mkbin!(mkmkty!(1          ; Str+1                                      ), "the input")),
     ("codepoints"   , mkbin!(mkmkty!(1          ; Str+1 -> [Num]+1                           ), "make a list of numbers with the 32 bits codepoints")),
+    ("cons"         , mkbin!(mkmkty!(0, a       ; a -> [a] -> [a]                            ), "make a list with the head element first, then the rest as tail; 'cons val lst' is equivalent to the syntax '{val,, lst}'")),
     ("graphemes"    , mkbin!(mkmkty!(1          ; Str+1 -> [Str]+1                           ), "make a list of strings with the potentially multi-codepoints graphemes")),
-    ("panic"        , mkbin!(mkmkty!(0, a       ; Str -> a                                   ), "panics")),
+    ("panic"        , mkbin!(mkmkty!(0, a       ; Str -> a                                   ), "panics; this is different from fatal: fatal is a parse-time abort, panic is a runtime abort")),
     ("pipe"         , mkbin!(mkmkty!(0, a, b, c ; (a -> b) -> (b -> c) -> a -> c             ), "pipe two function; 'pipe one two' is equivalent to the syntax 'one, two' ie 'two(one(..))' (see also 'compose')")),
     ("tonum"        , mkbin!(mkmkty!(1          ; Str+1 -> Num                               ), "convert a string into number, accept an infinite string for convenience but stop on the first byte that is not in '0'..='9'")),
     ("tostr"        , mkbin!(mkmkty!(0          ; Num -> Str                                 ), "convert a number into string")),
@@ -171,6 +172,5 @@ const NAMES: [(&str, ScopeItem); 9] = [
     ("zipwith"      , mkbin!(mkmkty!(2, a, b, c ; (a -> b -> c) -> [a]+1 -> [b]+2 -> [c]+1|2 ), "make a new list by applying an binary operation to each corresponding value from each lists; stops when either list ends")),
 
 
-    ("cons", mkbin!(mkmkty!(0, a ; a -> [a] -> [a]), "cons")),
     ("inc", mkbin!(mkmkty!(0 ; Num -> Num), "cons")),
 ];*/
