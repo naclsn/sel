@@ -32,7 +32,7 @@ Err(
                         with_type: Func(
                             Number,
                             Named(
-                                "c=c=c=c",
+                                "c",
                             ),
                         ),
                     },

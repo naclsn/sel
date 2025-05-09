@@ -63,29 +63,53 @@ mod types_snapshots {
     <head>
         <meta charset="utf-8">
         <script src="https://d3js.org/d3.v5.min.js"></script>
-        <script src="https://unpkg.com/@hpcc-js/wasm@0.3.11/dist/index.min.js"></script>
-        <script src="https://unpkg.com/d3-graphviz@3.0.5/build/d3-graphviz.js"></script>
-        <style> body { padding: 0; margin: 0; overflow: hidden; background: #333; color: #eee; } </style>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-graphviz/5.6.0/d3-graphviz.min.js" integrity="sha512-Le8HpIpS2Tc7SDHLM6AOgAKq6ZR4uDwLhjPSR20DtXE5dFb9xECHRwgpc1nxxnU0Dv+j6FNMoSddky5gyvI3lQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <style> body { padding: 0; margin: 0; overflow: hidden; background: #333; color: #eee; } #currentSection { font-weight: bolder; } </style>
     </head>
     <body>
-        <h2 style="position: absolute; top: 3rem; left: 50%; transform: translateX(-50%);">
-            (use hjkl)
-            <span id="shownIndex"></span>
-            <span id="showSection"></span>
-        </h2>
+        <div id="control">
+            <h2 style="text-align: center;">(use hjkl) <span id="shownIndex"></span><span id="showSection"></span></h2>
+            <ul id="listSections"></ul>
+        </div>
         <div id="graph" style="text-align: center;"></div>
         <script>/*-*/;onload=function(){
-            var dots = dotLines.textContent.trim().split('\n').map(l => '#' === l[0] ? l : 'digraph{edge[color="gray93"]node[color="gray93"fontcolor="gray93"]fontcolor="gray93"bgcolor="gray20"'+l+'}');
+            var useWidth = innerWidth, useHeight = innerHeight;
+            if (innerWidth < innerHeight) {
+                useHeight*= .6;
+                control.style.width = innerWidth+'px';
+                control.style.height = (innerHeight-useHeight-20)+'px';
+            } else {
+                useWidth*= .7;
+                control.style.width = (innerWidth-useWidth-20)+'px';
+                control.style.height = innerHeight+'px';
+                control.style.float = 'left';
+                graph.style.float = 'right';
+            }
+            graph.style.height = useHeight+'px';
+            graph.style.width = useWidth+'px';
+            var dots = dotLines.textContent.trim().split('\n').map(l => '#' === l[0] ? ['#', l.slice(2), 0] : 'digraph{edge[color="gray93"]node[color="gray93"fontcolor="gray93"]fontcolor="gray93"bgcolor="gray20"'+l+'}');
+            for (var k = 0; k < dots.length; ++k) if ('#' === dots[k][0]) {
+                dots[k][2] = listSections.childNodes.length;
+                var li = listSections.appendChild(document.createElement('li'));
+                li.textContent = dots[k][1];
+                if (k+1 === dots.length || '#' === dots[k+1][0]) li.style.fontStyle = 'italic';
+            }
+            listSections.firstChild.id = 'currentSection';
             var dotIndex = 0;
-            var graphviz = d3.select('#graph').graphviz().zoom(false).width(innerWidth).height(innerHeight).fit(true).transition(() => d3.transition('main').ease(d3.easeLinear).duration(125)).on('initEnd', show);
+            var graphviz = d3.select('#graph').graphviz().zoom(false).width(useWidth).height(useHeight).fit(true).transition(() => d3.transition('main').ease(d3.easeLinear).duration(125)).on('initEnd', show);
             function show() {
                 if (dotIndex < 1) flash(), dotIndex = 1; else if (dots.length-1 < dotIndex) flash(), dotIndex = dots.length-1;
-                for (var k = dotIndex; 0 < k;) if ('#' === dots[--k][0]) { showSection.textContent = '/'+(dots.length-1)+' '+dots[k]; break; }
+                for (var k = dotIndex; 0 < k;) if ('#' === dots[--k][0]) {
+                    showSection.textContent = '/'+(dots.length-1)+' '+dots[k][1];
+                    currentSection.removeAttribute('id');
+                    listSections.childNodes[dots[k][2]].id = 'currentSection';
+                    break;
+                }
                 graphviz.renderDot(dots[shownIndex.textContent = dotIndex]);
             }
             function next() { while (dots[++dotIndex] && '#' === dots[dotIndex][0]); show(); }
             function prev() { while (dots[--dotIndex] && '#' === dots[dotIndex][0]); show(); }
-            function jumpnext() { while (dots[++dotIndex] && '#' !== dots[dotIndex][0]); while (dots[++dotIndex] && '#' !== dots[dotIndex][0]); prev(); }
+            function jumpnext() { while (dots[++dotIndex] && '#' !== dots[dotIndex][0]); while (dots[++dotIndex] && '#' === dots[dotIndex][0]); next(); }
             function jumpprev() { while (dots[--dotIndex] && '#' !== dots[dotIndex][0]); prev(); }
             function flash() { document.body.style.color = '#333'; setTimeout(() => document.body.style.color = '', 125); }
             var num = 0;
@@ -253,7 +277,6 @@ impl TypeList {
     pub(crate) fn get(&self, at: TypeRef) -> &Type {
         match self.slots[at].as_ref().unwrap() {
             Transparent(u) => {
-
                 // XXX: this is a temporary debugging situation
                 if let Transparent(v) = self.slots[*u].as_ref().unwrap() {
                     if at == *v {
@@ -267,34 +290,59 @@ impl TypeList {
         }
     }
 
-    pub(crate) fn set(&mut self, at: TypeRef, ty: Type) {
+    /// can only `set` when `at` is either a named or a tr-chain to one;
+    /// more specifically called when:
+    ///  * upgrading a func.ty from named to func in `try_apply`
+    ///  * matching 2 named (/ tr to named) in `concretize`
+    ///  * aliasing named to known in `concretize`
+    ///
+    /// tr-chains can go more than 1 level because a named could have been changed into
+    /// a transparent under our feets (/normally/ there should only be this one call to
+    /// `set` in `concretize` with a transparent that can create this situation...
+    pub(crate) fn set(&mut self, mut at: TypeRef, ty: Type) {
+        // find the actual cell that will be updated
+        while let Some(Transparent(atu)) = self.slots[at] {
+            at = atu;
+        }
+        let at = at;
+
         let ty = match ty {
             Number => Transparent(NUMBER_TYPEREF),
             Bytes(FINITE_TYPEREF) => Transparent(STRFIN_TYPEREF),
             Finite(true) => Transparent(FINITE_TYPEREF),
-            Transparent(u) => {
+            Transparent(mut u) => {
+                // flatten any tr-chain to single level indirection
+                while let &Transparent(uu) = self.slots[u].as_ref().unwrap() {
+                    u = uu;
+                }
+                // a `set` can make a (or two) tr-chain(s) into a tr-loop iif both `at` and `ty`
+                // are within the same chain (within two chains that ends on the same last thingy),
+                // ie the two have the same last thingy at the end, ie `at == u` (after the two
+                // `while let` tr resolution loops)
+                // likely that the correct behavior is to do nothing about it, ie early return to
+                // keep the tr-chain as-is
+                // yes it is because `at == u` means we just established that we (caller) are
+                // trying to make both `at` and `ty` refer to the same last thingy but they both
+                // already do (so job done)
+                //assert!(at != u, "assertion failed: set({at}, {ty:?}) will result in a tr-loop");
                 if at == u {
                     return;
                 }
-                // if setting [at] to a transparent _to a transparent_, remove one indirection level
-                match self.slots[u] {
-                    Some(Transparent(w)) => Transparent(w),
-                    _ => ty,
-                }
+                Transparent(u)
             }
             _ => ty,
         };
-        if let Some(Transparent(u)) = self.slots[at] {
-            return self.set(u, ty);
-        }
+
         #[cfg(feature = "types-snapshots")]
         let was = types_snapshots::string_any_type(self, at);
+
         let prev = self.slots[at].replace(ty);
         assert!(
             matches!(prev, Some(Named(_)) | None),
             "assertion failed: should only be assigning to variable types, not constants {:?}",
             prev.unwrap()
         );
+
         #[cfg(feature = "types-snapshots")]
         types_snapshots::update_dot(
             &self,
@@ -442,6 +490,7 @@ impl TypeList {
         _impl(self, &mut tokens.into_iter().peekable())
     }
 
+    /// note: a duplicate is always a tr-free subgraph
     pub(crate) fn duplicate(
         &mut self,
         at: TypeRef,
@@ -499,15 +548,22 @@ impl TypeList {
                 );
                 self.either(l, r)
             }
-            &Transparent(u) => {
+            &Transparent(mut u) => {
+                // flatten any tr-chain to single level indirection
+                while let &Transparent(uu) = self.slots[u].as_ref().unwrap() {
+                    u = uu;
+                }
                 // 2 cases:
                 // - the underlying type has already been duplicated => use `already_done`
                 // - this is the first access => first duplicate `under`
-                let u = already_done
+                // we know this is not getting/duplicating a tr in either branch because:
+                // - `already_done` memoizes results from `duplicate` and
+                // - `duplicate` only creates tr for a tr and
+                // - `u` does not refer to a tr (from the `while` above)
+                already_done
                     .get(&u)
                     .copied()
-                    .unwrap_or_else(|| self.duplicate(u, already_done));
-                self.push(Transparent(u))
+                    .unwrap_or_else(|| self.duplicate(u, already_done))
             }
         };
 
@@ -664,9 +720,20 @@ impl Type {
             }
 
             (Named(w), Named(g)) => {
-                // XXX: 'a=b' pseudo syntax is somewhat temporary
-                types.set(want, Named(format!("{w}={g}")));
-                types.set(give, Transparent(want));
+                // when we have ptr equality, we know we are talking twice about the exact same
+                // named, in which case nothing needs to be done (it would only introduce
+                // a redundant named and trs that cannot be easily removed)
+                if !std::ptr::eq(w, g) {
+                    // XXX: 'a=b' pseudo syntax is somewhat temporary
+                    // mostly because idk which one you'd more likely want to keep
+                    let u = types.named(if w == g {
+                        w.clone()
+                    } else {
+                        format!("{w}={g}")
+                    });
+                    types.set(want, Transparent(u));
+                    types.set(give, Transparent(u));
+                }
                 Ok(())
             }
             (other, Named(_)) => {

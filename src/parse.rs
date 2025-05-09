@@ -857,6 +857,9 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
 
                 self.result.scope.restore_from_parent(parent);
 
+                self.global.types.transaction_group(format!(
+                    "finish let pattern; pattern type: {pat_ty}, result type: {res_ty}"
+                ));
                 let ty = self.global.types.func(pat_ty, res_ty);
                 let app = Applicable::Bind(pattern, Box::new(result), Box::new(fallback));
                 let value = TreeKind::Apply(app, Vec::new());
@@ -1053,8 +1056,12 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
             };
             // TODO: maybe use description to provide more meaningfull var type names
 
-            // note: we are faking like every name is already defined; so we first parse a value
-            // which may raise some unknown name error, then we go through these and resolve them
+            // note: we are faking like the name is already defined; so we first parse a value
+            // which may report some unknown name error, then we go through these and resolve
+            // these that regard the name currently being defined
+            // this approach is used over declaring a `Named(name)` because it makes it possible to
+            // work and harmonize with previous uses of `name` (in the
+            // `result->errors->retain_mut`)
             let val = self.parse_value();
             let desc = String::from_utf8_lossy(&desc).trim().into();
 
@@ -1084,7 +1091,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                         mem::forget(mem::replace(expected_type, FrozenType::Number)); // make it valid
 
                         self.global.types.transaction_group(format!(
-                            "'{def_name}' now defined: {ty} to {def_ty}"
+                            "'{def_name}' now defined; type in error: {ty}, parsed value type: {def_ty}"
                         ));
                         // todo: maybe snapshot?
                         if Type::harmonize(ty, def_ty, &mut self.global.types).is_err() {
@@ -1095,6 +1102,8 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     }
                     _ => true,
                 });
+
+                self.global.types.transaction_group(format!("finish def '{def_name}'"));
 
                 if !types.is_empty() {
                     let with_type = self.global.types.frozen(def_ty);

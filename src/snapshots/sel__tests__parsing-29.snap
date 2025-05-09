@@ -51,7 +51,7 @@ Ok(
                             0,
                             25..34,
                         ),
-                        ty: 9,
+                        ty: 10,
                         value: Apply(
                             Name(
                                 "panic",

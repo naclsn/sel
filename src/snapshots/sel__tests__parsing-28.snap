@@ -16,7 +16,7 @@ Ok(
                 0,
                 0..30,
             ),
-            ty: 11,
+            ty: 13,
             value: Apply(
                 Bind(
                     List(
@@ -67,7 +67,7 @@ Ok(
                                         0,
                                         18..19,
                                     ),
-                                    ty: 5,
+                                    ty: 6,
                                     value: Apply(
                                         Name(
                                             "b",
@@ -83,7 +83,7 @@ Ok(
                             0,
                             21..30,
                         ),
-                        ty: 9,
+                        ty: 11,
                         value: Apply(
                             Name(
                                 "panic",

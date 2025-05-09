@@ -1,8 +1,11 @@
 fu s:sel_ft()
-  setl com=:#,s::,e:: def=^\\s*def isk=-,A-Z,a-z
+  setl com=:#,s::,e:: def=^\\s*def inc=^\\s*use\ :\\zs[^:]\\+\\ze: isk=-,A-Z,a-z
   sy sync fromstart
 
-  sy match   selComment  /_\|#.*/ contains=selTodo
+  sy match   selComment  /_\|#-\_s*\S\+\|#.*/ contains=@Spell,selTodo
+  sy region  selComment  start=/#-\_s*\[/ end=/]/ contains=selSubscr,selTodo
+  sy region  selComment  start=/#-\_s*{/ end=/}/ contains=selList,selTodo
+
   sy keyword selTodo     TODO FIXME XXX contained
   sy match   selNumber   /\v(0b[01]+)|(0o[0-7]+)|(0x[0-9A-Fa-f]+)|([0-9]+(\.[0-9]+)?)/
   sy region  selString   start=/:/ skip=/::/ end=/:/
@@ -10,9 +13,12 @@ fu s:sel_ft()
   sy keyword selFatal    fatal
   sy cluster selPlain    contains=selComment,selNumber,selString,selOperator,selFatal
 
+  sy region  selSubscr   start=/\[/ end=/]/ contains=@selPlain,selSubsc,selList,selLet transparent
+  sy region  selList     start=/{/ end=/}/ contains=@selPlain,selSubsc,selList,selLet transparent
+
   sy keyword selLet      let skipwhite skipempty nextgroup=selLetWord,selLetList
   sy match   selLetWord  /\k\+/ contained
-  sy region  selLetList  start=/{/ end=/}/ contains=selLetWord,@selPlain contained
+  sy region  selLetList  start=/{/ end=/}/ contains=selLetWord,selLetList,@selPlain contained
 
   sy keyword selDef      def skipwhite skipempty nextgroup=selDefName
   sy match   selDefName  /\k\+/ skipwhite skipempty nextgroup=selDefDesc contained

@@ -10,7 +10,7 @@ Ok(
                 0,
                 33..34,
             ),
-            ty: 8,
+            ty: 0,
             value: Apply(
                 Name(
                     "a",

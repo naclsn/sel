@@ -221,6 +221,8 @@ def mre :: # a -> returnof(mre)
     [ let a
         [mre a] ],
 mre
+# so it possible to create a `a -> b`
+# not sure what to make of it yet...
 ")); // */
 }
 
