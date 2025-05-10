@@ -197,7 +197,9 @@ fn lookup_builtin(name: &str) -> Value {
     match name {
         "pipe" => curried_value!(|f, g| -> Func |v| g.func()(f.func()(v))),
 
-        "panic" => curried_value!(|| -> Func |t: Value| panic!("{}", String::from_utf8_lossy(&t.bytes().collect::<Vec<u8>>()))),
+        "panic" => {
+            curried_value!(|| -> Func |t: Value| panic!("{}", String::from_utf8_lossy(&t.bytes().collect::<Vec<u8>>())))
+        }
 
         "apply" => curried_value!(|f| -> Func |v| f.func()(v)),
 
@@ -384,6 +386,8 @@ fn lookup_builtin(name: &str) -> Value {
             let n = b as f64;
             Value::Number(Box::new(move || n), Rc::new(move || Box::new(move || n)))
         })),
+
+        "cons" => curried_value!(|v, l| -> List iter::once(v).chain(l.list())),
 
         _ => Value::Name(name.into()),
     }

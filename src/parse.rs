@@ -527,7 +527,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                         }
                     }
 
-                    #[allow(unreachable_patterns)] // because of 'CloseBrace'
+                    #[allow(unreachable_patterns, reason = "because of 'CloseBrace'")]
                     term @ Token(_, TermToken!()) => {
                         let err = error::unexpected(
                             term,
@@ -733,12 +733,11 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                     Token(_, Comma) if !items.is_empty() => {
                         // { ... ,,
                         self.skip_tok();
-                        rest = Some(self.parse_value());
+                        rest = Some(self.parse_apply());
                         match self.peek_tok() {
                             Token(close_loc, CloseBrace) => {
                                 loc.1.end = close_loc.1.end;
-                                panic!("all good: {rest:#?}");
-                                //false
+                                false
                             }
                             other => {
                                 let err = error::unexpected(
@@ -752,7 +751,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                         }
                     }
 
-                    #[allow(unreachable_patterns)] // because of 'CloseBrace'
+                    #[allow(unreachable_patterns, reason = "because of 'CloseBrace'")]
                     term @ Token(_, TermToken!()) => {
                         let err =
                             error::unexpected(term, "next item or closing '}'", Some(&first_token));
@@ -787,7 +786,14 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 self.skip_tok();
 
                 if let Some(rest) = rest {
-                    todo!("multiple cons with {items:?} {rest:?}");
+                    // cons(items[0], .... cons(items[n-1], cons(items[n], rest)) .... )
+                    let mut lst = rest;
+                    for it in items.into_iter().rev() {
+                        let cons = self.sure_lookup(loc.clone(), "cons");
+                        let cons_it = self.try_apply(cons, it, None);
+                        lst = self.try_apply(cons_it, lst, None);
+                    }
+                    (lst.ty, lst.value)
                 } else {
                     let fin = self.global.types.finite(true);
                     (self.global.types.list(fin, ty), TreeKind::List(items))

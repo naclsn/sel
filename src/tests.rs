@@ -37,19 +37,19 @@ fn lexing() {
             })
     }
 
-    /* src/snapshots/sel__tests__lexing.snap */
-    assert_snapshot!(t(b"")); // */
-    /* src/snapshots/sel__tests__lexing-2.snap */
-    assert_snapshot!(t(b"coucou")); // */
-    /* src/snapshots/sel__tests__lexing-3.snap */
-    assert_snapshot!(t(b"[a 1 b, {w, x, y, z}, 0.5]")); // */
-    /* src/snapshots/sel__tests__lexing-4.snap */
-    assert_snapshot!(t(b":hay: :hey:: not hay: :: :::: fin")); // */
-    /* src/snapshots/sel__tests__lexing-5.snap */
-    assert_snapshot!(t(b"42 :*: 0x2a 0b101010 0o52")); // */
-    /* src/snapshots/sel__tests__lexing-6.snap */
-    assert_snapshot!(t(b"oh-no; don't let use be the def of cat!")); // */
-    /* src/snapshots/sel__tests__lexing-7.snap */
+    // src/snapshots/sel__tests__lexing.snap
+    assert_snapshot!(t(b""));
+    // src/snapshots/sel__tests__lexing-2.snap
+    assert_snapshot!(t(b"coucou"));
+    // src/snapshots/sel__tests__lexing-3.snap
+    assert_snapshot!(t(b"[a 1 b, {w, x, y, z}, 0.5]"));
+    // src/snapshots/sel__tests__lexing-4.snap
+    assert_snapshot!(t(b":hay: :hey:: not hay: :: :::: fin"));
+    // src/snapshots/sel__tests__lexing-5.snap
+    assert_snapshot!(t(b"42 :*: 0x2a 0b101010 0o52"));
+    // src/snapshots/sel__tests__lexing-6.snap
+    assert_snapshot!(t(b"oh-no; don't let use be the def of cat!"));
+    // src/snapshots/sel__tests__lexing-7.snap
     assert_snapshot!(t(b"
 normal
 # comment
@@ -63,7 +63,7 @@ a #- {one, [two], [{three}]} b
 a #- {one, #-[two], [{three}]} b
 {heyo, #-baba, owieur} # the ',' is also commented
 {heyo, baba, #-owieur} # the '}' isn't
-")); // */
+"));
 }
 
 #[test]
@@ -94,78 +94,78 @@ fn parsing() {
             .ok_or(result.errors)
     }
 
-    /* src/snapshots/sel__tests__parsing.snap */
-    assert_debug_snapshot!(t(b"")); // */
-    /* src/snapshots/sel__tests__parsing-2.snap */
-    assert_debug_snapshot!(t(b"-")); // */
-    /* src/snapshots/sel__tests__parsing-3.snap */
-    assert_debug_snapshot!(t(b"-, split:-:, map[tonum, add1, tostr], join:+:")); // */
-    /* src/snapshots/sel__tests__parsing-4.snap */
-    assert_debug_snapshot!(t(b"tonum, add234121, tostr, ln")); // */
-    /* src/snapshots/sel__tests__parsing-5.snap */
-    assert_debug_snapshot!(t(b"[tonum, add234121, tostr] :13242:")); // */
-    /* src/snapshots/sel__tests__parsing-6.snap */
-    assert_debug_snapshot!(t(b"{repeat 1, {}}")); // */
-    /* src/snapshots/sel__tests__parsing-7.snap */
-    assert_debug_snapshot!(t(b"add 1, tostr")); // */
-    /* src/snapshots/sel__tests__parsing-8.snap */
-    assert_debug_snapshot!(t(b"zipwith add {1}")); // */
-    /* src/snapshots/sel__tests__parsing-9.snap */
-    assert_debug_snapshot!(t(b"{repeat 1, {}}")); // */
-    /* src/snapshots/sel__tests__parsing-10.snap */
-    assert_debug_snapshot!(t(b"{{}, repeat 1}")); // */
-    /* src/snapshots/sel__tests__parsing-11.snap */
-    assert_debug_snapshot!(t(b"{{42}, repeat 1}")); // */
-    /* src/snapshots/sel__tests__parsing-12.snap */
-    assert_debug_snapshot!(t(b"{1, 2, 3, :soleil:}, ln")); // */
-    /* src/snapshots/sel__tests__parsing-13.snap */
-    assert_debug_snapshot!(t(b"add 1 :2:")); // */
-    /* src/snapshots/sel__tests__parsing-14.snap */
-    assert_debug_snapshot!(t(b":42:, add 1")); // */
-    /* src/snapshots/sel__tests__parsing-15.snap */
-    assert_debug_snapshot!(t(b"add 1, tostr")); // */
-    /* src/snapshots/sel__tests__parsing-16.snap */
-    assert_debug_snapshot!(t(b"add 1, tonum")); // */
-    /* src/snapshots/sel__tests__parsing-17.snap */
-    assert_debug_snapshot!(t(b"prout 1, caca")); // */
-    /* src/snapshots/sel__tests__parsing-18.snap */
-    assert_debug_snapshot!(t(b"_, split_, map_, join_")); // */
-    /* src/snapshots/sel__tests__parsing-19.snap */
-    assert_debug_snapshot!(t(b"{const, _, add, map}")); // */
-    /* src/snapshots/sel__tests__parsing-20.snap */
-    assert_debug_snapshot!(t(b"2 -")); // */
-    /* src/snapshots/sel__tests__parsing-21.snap */
-    assert_debug_snapshot!(t(b"- 2")); // */
-    /* src/snapshots/sel__tests__parsing-22.snap */
-    assert_debug_snapshot!(t(b"add 1 2 3")); // */
-    /* src/snapshots/sel__tests__parsing-23.snap */
-    assert_debug_snapshot!(t(b"3, add 1 2")); // */
-    /* src/snapshots/sel__tests__parsing-24.snap */
-    assert_debug_snapshot!(t(b":1:, tostr, _")); // */
-    /* src/snapshots/sel__tests__parsing-25.snap */
-    assert_debug_snapshot!(t(b"iterate [_ 1, add 1] 1 # _ :: Num -> Num -> Num")); // */
-    /* src/snapshots/sel__tests__parsing-26.snap */
-    assert_debug_snapshot!(t(b"iterate [div 1, _ 1] 1 # _ :: Num -> Num -> Num")); // */
-    /* src/snapshots/sel__tests__parsing-27.snap */
+    // src/snapshots/sel__tests__parsing.snap
+    assert_debug_snapshot!(t(b""));
+    // src/snapshots/sel__tests__parsing-2.snap
+    assert_debug_snapshot!(t(b"-"));
+    // src/snapshots/sel__tests__parsing-3.snap
+    assert_debug_snapshot!(t(b"-, split:-:, map[tonum, add1, tostr], join:+:"));
+    // src/snapshots/sel__tests__parsing-4.snap
+    assert_debug_snapshot!(t(b"tonum, add234121, tostr, ln"));
+    // src/snapshots/sel__tests__parsing-5.snap
+    assert_debug_snapshot!(t(b"[tonum, add234121, tostr] :13242:"));
+    // src/snapshots/sel__tests__parsing-6.snap
+    assert_debug_snapshot!(t(b"{repeat 1, {}}"));
+    // src/snapshots/sel__tests__parsing-7.snap
+    assert_debug_snapshot!(t(b"add 1, tostr"));
+    // src/snapshots/sel__tests__parsing-8.snap
+    assert_debug_snapshot!(t(b"zipwith add {1}"));
+    // src/snapshots/sel__tests__parsing-9.snap
+    assert_debug_snapshot!(t(b"{repeat 1, {}}"));
+    // src/snapshots/sel__tests__parsing-10.snap
+    assert_debug_snapshot!(t(b"{{}, repeat 1}"));
+    // src/snapshots/sel__tests__parsing-11.snap
+    assert_debug_snapshot!(t(b"{{42}, repeat 1}"));
+    // src/snapshots/sel__tests__parsing-12.snap
+    assert_debug_snapshot!(t(b"{1, 2, 3, :soleil:}, ln"));
+    // src/snapshots/sel__tests__parsing-13.snap
+    assert_debug_snapshot!(t(b"add 1 :2:"));
+    // src/snapshots/sel__tests__parsing-14.snap
+    assert_debug_snapshot!(t(b":42:, add 1"));
+    // src/snapshots/sel__tests__parsing-15.snap
+    assert_debug_snapshot!(t(b"add 1, tostr"));
+    // src/snapshots/sel__tests__parsing-16.snap
+    assert_debug_snapshot!(t(b"add 1, tonum"));
+    // src/snapshots/sel__tests__parsing-17.snap
+    assert_debug_snapshot!(t(b"prout 1, caca"));
+    // src/snapshots/sel__tests__parsing-18.snap
+    assert_debug_snapshot!(t(b"_, split_, map_, join_"));
+    // src/snapshots/sel__tests__parsing-19.snap
+    assert_debug_snapshot!(t(b"{const, _, add, map}"));
+    // src/snapshots/sel__tests__parsing-20.snap
+    assert_debug_snapshot!(t(b"2 -"));
+    // src/snapshots/sel__tests__parsing-21.snap
+    assert_debug_snapshot!(t(b"- 2"));
+    // src/snapshots/sel__tests__parsing-22.snap
+    assert_debug_snapshot!(t(b"add 1 2 3"));
+    // src/snapshots/sel__tests__parsing-23.snap
+    assert_debug_snapshot!(t(b"3, add 1 2"));
+    // src/snapshots/sel__tests__parsing-24.snap
+    assert_debug_snapshot!(t(b":1:, tostr, _"));
+    // src/snapshots/sel__tests__parsing-25.snap
+    assert_debug_snapshot!(t(b"iterate [_ 1, add 1] 1 # _ :: Num -> Num -> Num"));
+    // src/snapshots/sel__tests__parsing-26.snap
+    assert_debug_snapshot!(t(b"iterate [div 1, _ 1] 1 # _ :: Num -> Num -> Num"));
+    // src/snapshots/sel__tests__parsing-27.snap
     assert_debug_snapshot!(t(
         b"iterate [div 1, add 1] 1, _ # _ :: [Num]+ -> returnof(typeof(_))"
-    )); // */
-    /* src/snapshots/sel__tests__parsing-28.snap */
-    assert_debug_snapshot!(t(b"let {a, b} [add a b] [panic::]")); // */
-    /* src/snapshots/sel__tests__parsing-29.snap */
-    assert_debug_snapshot!(t(b"{1, 2, 3}, let {h,, t} h [panic::]")); // */
-    /* src/snapshots/sel__tests__parsing-30.snap */
-    assert_debug_snapshot!(t(b"{1, 2, 3}, let {h,, t} t [panic::]")); // */
-    /* src/snapshots/sel__tests__parsing-31.snap */
-    assert_debug_snapshot!(t(b"repeat 1, let {h,, t} t [panic::]")); // */
-    /* src/snapshots/sel__tests__parsing-32.snap */
-    assert_debug_snapshot!(t(b"let a let b a b a # note: is syntax error")); // */
-    /* src/snapshots/sel__tests__parsing-33.snap */
-    assert_debug_snapshot!(t(b"let {a b, c} 0")); // */
-    /* src/snapshots/sel__tests__parsing-34.snap */
-    assert_debug_snapshot!(t(b"[1, let 0 fst snd] 1=:a:")); // */
-    /* src/snapshots/sel__tests__parsing-35.snap */
-    assert_debug_snapshot!(t(b"add 1, map, flip apply {1, 2, 3}")); // */
+    ));
+    // src/snapshots/sel__tests__parsing-28.snap
+    assert_debug_snapshot!(t(b"let {a, b} [add a b] [panic::]"));
+    // src/snapshots/sel__tests__parsing-29.snap
+    assert_debug_snapshot!(t(b"{1, 2, 3}, let {h,, t} h [panic::]"));
+    // src/snapshots/sel__tests__parsing-30.snap
+    assert_debug_snapshot!(t(b"{1, 2, 3}, let {h,, t} t [panic::]"));
+    // src/snapshots/sel__tests__parsing-31.snap
+    assert_debug_snapshot!(t(b"repeat 1, let {h,, t} t [panic::]"));
+    // src/snapshots/sel__tests__parsing-32.snap
+    assert_debug_snapshot!(t(b"let a let b a b a # note: is syntax error"));
+    // src/snapshots/sel__tests__parsing-33.snap
+    assert_debug_snapshot!(t(b"let {a b, c} 0"));
+    // src/snapshots/sel__tests__parsing-34.snap
+    assert_debug_snapshot!(t(b"[1, let 0 fst snd] 1=:a:"));
+    // src/snapshots/sel__tests__parsing-35.snap
+    assert_debug_snapshot!(t(b"add 1, map, flip apply {1, 2, 3}"));
     // not quite a syntax error but only out of luck:
     // ```sel
     // [let a
@@ -176,17 +176,17 @@ fn parsing() {
     // ]                               # a -> a
     //     [panic: unreachable:]       # a
     // ```
-    /* src/snapshots/sel__tests__parsing-36.snap */
+    // src/snapshots/sel__tests__parsing-36.snap
     assert_debug_snapshot!(t(b"
 let a
     [let b
         a
         [panic: unreachable:]]
     [panic: unreachable:]
-")); // */
-    /* src/snapshots/sel__tests__parsing-37.snap */
-    assert_debug_snapshot!(t(b"use :bidoof: bdf, bdf-main")); // */
-    /* src/snapshots/sel__tests__parsing-38.snap */
+"));
+    // src/snapshots/sel__tests__parsing-37.snap
+    assert_debug_snapshot!(t(b"use :bidoof: bdf, bdf-main"));
+    // src/snapshots/sel__tests__parsing-38.snap
     assert_debug_snapshot!(t(b"
 def head:
     returns the first item:
@@ -195,8 +195,8 @@ def head:
         [panic: head on empty list:]
     ],
 head {1, 2, 3}
-")); // */
-    /* src/snapshots/sel__tests__parsing-39.snap */
+"));
+    // src/snapshots/sel__tests__parsing-39.snap
     assert_debug_snapshot!(t(b"
 def sum:: [
     let {h,, t}
@@ -206,22 +206,22 @@ def sum:: [
         0
 ],
 {sum, _}
-")); // */
-    /* src/snapshots/sel__tests__parsing-40.snap */
+"));
+    // src/snapshots/sel__tests__parsing-40.snap
     assert_debug_snapshot!(t(b"
 def a:: [b 2],
 def b:: [add 1],
 a
-")); // */
-    /* src/snapshots/sel__tests__parsing-41.snap */
-    assert_debug_snapshot!(t(b"def a:: [add a, a], a")); // */
-    /* src/snapshots/sel__tests__parsing-42.snap */
+"));
+    // src/snapshots/sel__tests__parsing-41.snap
+    assert_debug_snapshot!(t(b"def a:: [add a, a], a"));
+    // src/snapshots/sel__tests__parsing-42.snap
     assert_debug_snapshot!(t(b"
 def mre :: # a -> returnof(mre)
     [ let a
         [mre a] ],
 mre
-")); // */
+"));
 }
 
 #[test]
@@ -235,10 +235,10 @@ fn interpreting() {
         String::from_utf8(out).unwrap()
     }
 
-    /* src/snapshots/sel__tests__interpreting.snap */
-    assert_snapshot!(t(b"0")); // */
-    /* src/snapshots/sel__tests__interpreting-2.snap */
-    assert_snapshot!(t(b"add 1 2")); // */
-    /* src/snapshots/sel__tests__interpreting-3.snap */
-    assert_snapshot!(t(b"let a [add a 1], flip apply 2")); // */
+    // src/snapshots/sel__tests__interpreting.snap
+    assert_snapshot!(t(b"0"));
+    // src/snapshots/sel__tests__interpreting-2.snap
+    assert_snapshot!(t(b"add 1 2"));
+    // src/snapshots/sel__tests__interpreting-3.snap
+    assert_snapshot!(t(b"let a [add a 1], flip apply 2"));
 }
