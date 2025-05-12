@@ -204,7 +204,7 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
                     r = if 0 == shift {
                         r * 10 + k
                     } else {
-                        r << shift | k
+                        (r << shift) | k
                     };
                 }
 
@@ -741,7 +741,7 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                             }
                             other => {
                                 let err = error::unexpected(
-                                    &other,
+                                    other,
                                     "closing '}' after ',,'",
                                     Some(&first_token),
                                 );

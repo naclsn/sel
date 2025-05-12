@@ -22,6 +22,10 @@ def const:
     [ let a
     [ let b a ]],
 
+def pair::
+    [ let a
+    [ let b a=b ]],
+
 def curry:
     TODO doc:
     [ let f
@@ -29,6 +33,9 @@ def curry:
 
 #def uncurry::
 #    [pair, f],
+
+def uncons::
+    [let {h,, t} h=t],
 
 def duple:
     returns a pair with twice the same value (essentially 'clone'):
@@ -38,13 +45,14 @@ def none:: {},
 def some:: [let a {a}],
 def singleton:?: some,
 
+def inc:: [add 1],
+def dec:: [sub 1],
+
 def enumerate-from:
     enumerate a list into a list of (index, value), starting from a given value for index (but still from the start of the list):
     [ let k
     [ let {h,, t}
-        #[enumerate-from [inc k] t, cons k=h] FIXME: doesn't give the same result tho it should
-        #                                            there is a test that might be about this (parsing-39)
-        [cons k=h [enumerate-from [inc k] t]]
+        {k=h,, [enumerate-from [inc k] t]}
         {} ]],
 
 def enumerate:
@@ -84,7 +92,7 @@ def is-some: true if there is a contained value: [is-none, not],
 
 def id: identity function: [let a a],
 
-def iterate:
+def iterate: (a -> a) -> a -> [a]+
     create an infinite list where
     * the first item is given,
     * the second is calculated by applying the function on it,
@@ -92,10 +100,7 @@ def iterate:
     and so on:
     [ let f
     [ let v
-        #[f v, iterate f, cons v] ]], FIXME: doesn't give the same result tho it should
-        #                                     there is a test that might be about this (parsing-39)
-        [cons v [f v, iterate f]] ]],
-        #[cons v [iterate f v]] ]], # FIXME: this is incorrect, but it should still behave
+        {v,, [f v, iterate f]} ]],
 
 def len:
     computes the length of the list, or string by coercion:
@@ -118,3 +123,11 @@ def len:
 #def sum:
 #    sum the elements:
 #    [fold add 0],
+
+
+# ---
+# [:size:: :, cat-num 42, cat-str :name:: :, cat-str name], print-or-whever
+# def cat: (has to be builtin): # Str+1 -> Str+2 -> Str+1|2
+# def cat-num: not actually needed 'cause of auto tostr: [tostr, cat],
+# def cat-str: not actually needed 'cause just same as cat: cat,
+# def cat-hex: same as cat-num, but as hex: [hex, cat],

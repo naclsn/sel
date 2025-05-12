@@ -38,27 +38,19 @@ pub enum FrozenType {
 }
 
 #[derive(Clone)]
-pub struct TypeList {
-    slots: Vec<Option<Type>>,
-    free_slots: usize,
-}
+pub struct TypeList(Vec<Type>);
 
 #[cfg(feature = "types-snapshots")]
 mod types_snapshots {
     use std::fs::File;
     use std::io::Write;
-    use std::sync::OnceLock;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::{LazyLock, Mutex};
 
     use super::*;
 
-    static mut DOTS: OnceLock<File> = OnceLock::new();
-    static mut LIMIT: usize = 0;
-
-    pub(super) fn group_dot_lines(hi: String) {
-        writeln!(unsafe {
-        DOTS.get_or_init(|| {
-            let mut f = File::create("types-snapshots.html").unwrap();
-            writeln!(f, "{}", r#"<!DOCTYPE html>
+    static DOTS: LazyLock<Mutex<File>> = LazyLock::new(|| {
+        const HTML: &str = r#"<!DOCTYPE html>
 <html>
     <head>
         <meta charset="utf-8">
@@ -119,127 +111,120 @@ mod types_snapshots {
                 if (f) f(); num = 0;
             }
         };</script>
-        <span id="dotLines" style="display: none;">"#)
-                .unwrap();
-                f
-            });
-            DOTS.get_mut().unwrap()
-        }, "# {hi}").unwrap();
+        <span id="dotLines" style="display: none;">"#;
+        let mut f = File::create("types-snapshots.html").unwrap();
+        writeln!(f, "{HTML}").unwrap();
+        Mutex::new(f)
+    });
+    static DEPTH: AtomicU32 = AtomicU32::new(0);
+
+    pub(super) fn group_dot_lines(hi: String) {
+        writeln!(DOTS.lock().unwrap(), "# {hi}").unwrap();
     }
 
     pub(super) fn update_dot(types: &TypeList, title: String) {
-        let f = unsafe { DOTS.get_mut().unwrap() };
+        let mut f = DOTS.lock().unwrap();
         write!(f, "label=\"{title}\"").unwrap();
         types
-            .slots
+            .0
             .iter()
             .enumerate()
             .try_for_each(|(k, slot)| {
-                if let Some(slot) = slot {
-                    use Type::*;
-                    for at in match slot {
-                        &Number => vec![],
-                        &Bytes(fin) => vec![fin],
-                        &List(fin, has) => vec![fin, has],
-                        &Func(par, ret) => vec![par, ret],
-                        &Pair(fst, snd) => vec![fst, snd],
-                        &Named(_) => vec![],
-                        &Finite(_) => vec![],
-                        &FiniteBoth(lhs, rhs) => vec![lhs, rhs],
-                        &FiniteEither(lhs, rhs) => vec![lhs, rhs],
-                        &Transparent(u) => vec![u],
-                    } {
-                        write!(
-                            f,
-                            " \"{k} :: {}\" -> \"{at} :: {}\" ",
-                            string_any_type(types, k),
-                            string_any_type(types, at)
-                        )?;
-                    }
-                    write!(f, " \"{k} :: {}\" ", string_any_type(types, k))
-                } else {
-                    write!(f, " \"{k} :: []\"*/")
+                use Type::*;
+                for at in match *slot {
+                    Number => vec![],
+                    Bytes(fin) => vec![fin],
+                    List(fin, has) => vec![fin, has],
+                    Func(par, ret) => vec![par, ret],
+                    Pair(fst, snd) => vec![fst, snd],
+                    Named(_) => vec![],
+                    Finite(_) => vec![],
+                    FiniteBoth(lhs, rhs) => vec![lhs, rhs],
+                    FiniteEither(lhs, rhs) => vec![lhs, rhs],
+                    Transparent(u) => vec![u],
+                } {
+                    write!(
+                        f,
+                        " \"{k} :: {}\" -> \"{at} :: {}\" ",
+                        string_any_type(types, k),
+                        string_any_type(types, at)
+                    )?;
                 }
+                write!(f, " \"{k} :: {}\" ", string_any_type(types, k))
             })
             .unwrap();
         writeln!(f).unwrap();
     }
 
     pub(super) fn string_any_type(types: &TypeList, at: TypeRef) -> String {
-        unsafe { LIMIT = 0 };
+        DEPTH.store(0, Ordering::Relaxed);
         string_any_type_impl(types, at)
     }
 
     fn string_any_type_impl(types: &TypeList, at: TypeRef) -> String {
         use Type::*;
-        if unsafe {
-            LIMIT += 1;
-            12 < LIMIT
-        } {
+        if 12 < DEPTH.fetch_add(1, Ordering::Relaxed) {
             return "...".into();
         }
-        match types.slots[at].as_ref().unwrap() {
+        match &types.0[at] {
             Number => "Num".into(),
-            Bytes(fin) => if types.freeze_finite(*fin) {
+            &Bytes(fin) => if types.freeze_finite(fin) {
                 "Str"
             } else {
                 "Str+"
             }
             .into(),
-            List(fin, has) => {
-                let fin = if types.freeze_finite(*fin) { "" } else { "+" };
-                format!("[{}]{fin}", string_any_type_impl(types, *has))
+            &List(fin, has) => {
+                let fin = if types.freeze_finite(fin) { "" } else { "+" };
+                format!("[{}]{fin}", string_any_type_impl(types, has))
             }
-            Func(par, ret) => {
-                let (op, cl) = if matches!(types.get(*par), Func(_, _)) {
+            &Func(par, ret) => {
+                let (op, cl) = if matches!(types.get(par), Func(_, _)) {
                     ("(", ")")
                 } else {
                     ("", "")
                 };
                 format!(
                     "{op}{}{cl} -> {}",
-                    string_any_type_impl(types, *par),
-                    string_any_type_impl(types, *ret)
+                    string_any_type_impl(types, par),
+                    string_any_type_impl(types, ret)
                 )
             }
-            Pair(fst, snd) => format!(
+            &Pair(fst, snd) => format!(
                 "({}, {})",
-                string_any_type_impl(types, *fst),
-                string_any_type_impl(types, *snd)
+                string_any_type_impl(types, fst),
+                string_any_type_impl(types, snd)
             ),
-            Named(name) => format!("{name}"),
-            Finite(is) => {
-                if *is {
+            Named(name) => name.clone(),
+            &Finite(is) => {
+                if is {
                     format!("{at}")
                 } else {
                     "+".into()
                 }
             }
-            FiniteBoth(l, r) => format!(
+            &FiniteBoth(l, r) => format!(
                 "<{}&{}>",
-                string_any_type_impl(types, *l),
-                string_any_type_impl(types, *r)
+                string_any_type_impl(types, l),
+                string_any_type_impl(types, r)
             ),
-            FiniteEither(l, r) => format!(
+            &FiniteEither(l, r) => format!(
                 "<{}|{}>",
-                string_any_type_impl(types, *l),
-                string_any_type_impl(types, *r)
+                string_any_type_impl(types, l),
+                string_any_type_impl(types, r)
             ),
-            Transparent(u) => format!("({})", string_any_type_impl(types, *u)),
+            &Transparent(u) => format!("({})", string_any_type_impl(types, u)),
         }
     }
 }
 
 impl Default for TypeList {
     fn default() -> Self {
-        let r = TypeList {
-            slots: vec![
-                Some(Type::Number),       // [NUMBER_TYPEREF]
-                Some(Type::Bytes(2)),     // [STRFIN_TYPEREF]
-                Some(Type::Finite(true)), // [FINITE_TYPEREF]
-            ],
-            free_slots: 0,
-        };
+        let r = TypeList(vec![
+            Type::Number,       // [NUMBER_TYPEREF]
+            Type::Bytes(2),     // [STRFIN_TYPEREF]
+            Type::Finite(true), // [FINITE_TYPEREF]
+        ]);
         r.transaction_group("default".into());
         #[cfg(feature = "types-snapshots")]
         types_snapshots::update_dot(&r, "default".into());
@@ -255,37 +240,19 @@ impl TypeList {
     }
 
     fn push(&mut self, it: Type) -> TypeRef {
-        let k = if let Some((k, o)) = match self.free_slots {
-            0 => None,
-            _ => self.slots.iter_mut().enumerate().find(|p| p.1.is_none()),
-        } {
-            *o = Some(it);
-            self.free_slots -= 1;
-            k
-        } else {
-            self.slots.push(Some(it));
-            self.slots.len() - 1
-        };
+        self.0.push(it);
+        let k = self.0.len() - 1;
         #[cfg(feature = "types-snapshots")]
         types_snapshots::update_dot(
-            &self,
+            self,
             format!("push {k} :: {}", types_snapshots::string_any_type(self, k)),
         );
         k
     }
 
     pub(crate) fn get(&self, at: TypeRef) -> &Type {
-        match self.slots[at].as_ref().unwrap() {
-            Transparent(u) => {
-                // XXX: this is a temporary debugging situation
-                if let Transparent(v) = self.slots[*u].as_ref().unwrap() {
-                    if at == *v {
-                        panic!("back to first one! {at} to {u} to {v}");
-                    }
-                }
-
-                self.get(*u)
-            }
+        match &self.0[at] {
+            &Transparent(u) => self.get(u),
             r => r,
         }
     }
@@ -301,10 +268,15 @@ impl TypeList {
     /// `set` in `concretize` with a transparent that can create this situation...
     pub(crate) fn set(&mut self, mut at: TypeRef, ty: Type) {
         // find the actual cell that will be updated
-        while let Some(Transparent(atu)) = self.slots[at] {
+        while let &Transparent(atu) = &self.0[at] {
             at = atu;
         }
         let at = at;
+        assert!(
+            matches!(self.0[at], Named(_)),
+            "assertion failed: should only be assigning to variable types, not constant {:?}",
+            self.0[at]
+        );
 
         let ty = match ty {
             Number => Transparent(NUMBER_TYPEREF),
@@ -312,7 +284,7 @@ impl TypeList {
             Finite(true) => Transparent(FINITE_TYPEREF),
             Transparent(mut u) => {
                 // flatten any tr-chain to single level indirection
-                while let &Transparent(uu) = self.slots[u].as_ref().unwrap() {
+                while let &Transparent(uu) = &self.0[u] {
                     u = uu;
                 }
                 // a `set` can make a (or two) tr-chain(s) into a tr-loop iif both `at` and `ty`
@@ -336,39 +308,17 @@ impl TypeList {
         #[cfg(feature = "types-snapshots")]
         let was = types_snapshots::string_any_type(self, at);
 
-        let prev = self.slots[at].replace(ty);
-        assert!(
-            matches!(prev, Some(Named(_)) | None),
-            "assertion failed: should only be assigning to variable types, not constants {:?}",
-            prev.unwrap()
-        );
+        self.0[at] = ty;
 
         #[cfg(feature = "types-snapshots")]
         types_snapshots::update_dot(
-            &self,
+            self,
             format!(
                 "set {at} :: {} (was {})",
                 types_snapshots::string_any_type(self, at),
                 was
             ),
         );
-    }
-
-    pub(crate) fn plop(&mut self, at: TypeRef) {
-        #[cfg(feature = "types-snapshots")]
-        types_snapshots::update_dot(
-            &self,
-            format!(
-                "plop {at} :: {}",
-                types_snapshots::string_any_type(self, at)
-            ),
-        );
-        self.slots[at] = None;
-        self.free_slots += 1;
-        while let Some(None) = self.slots.last() {
-            self.slots.pop();
-            self.free_slots -= 1;
-        }
     }
 
     pub fn number(&self) -> TypeRef {
@@ -502,7 +452,7 @@ impl TypeList {
 
         // raw array access to prenvent working around transparent
         // (need to account for them in duplication)
-        let r = match self.slots[at].as_ref().unwrap() {
+        let r = match &self.0[at] {
             &Number => self.number(),
             &Bytes(f) => {
                 let f = self.duplicate(f, already_done);
@@ -550,7 +500,7 @@ impl TypeList {
             }
             &Transparent(mut u) => {
                 // flatten any tr-chain to single level indirection
-                while let &Transparent(uu) = self.slots[u].as_ref().unwrap() {
+                while let &Transparent(uu) = &self.0[u] {
                     u = uu;
                 }
                 // 2 cases:
@@ -683,7 +633,7 @@ impl Type {
                         // intentionally working around `set` to skip unneeded complexity
                         // we know anyways that we are replacing a 'finite' with an other one
                         // this is maybe discussable as it can break 'finite-both/either' links..
-                        types.slots[fw] = Some(Finite(true));
+                        types.0[fw] = Finite(true);
                         //types.set(fw, Finite(true));
                     }
                     Ok(())
