@@ -42,6 +42,7 @@ pub enum ErrorContext {
         result_type: FrozenType,
         fallback_type: FrozenType,
     },
+    LetFallbackRequired,
 }
 
 #[derive(PartialEq, Debug)]
@@ -352,6 +353,7 @@ impl Error {
                 loc,
                 format!("fallback of type {fallback_type} doesn't match result type {result_type}"),
             )],
+            LetFallbackRequired => &[(loc, "pattern is refutable so a fallback is required".to_string())],
         };
         report.messages.extend_from_slice(msgs);
     }

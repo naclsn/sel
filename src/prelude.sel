@@ -26,6 +26,11 @@ def pair::
     [ let a
     [ let b a=b ]],
 
+#def unpair::
+#    [ let a=b
+#    [ let f
+#        f a b ]],
+
 def curry:
     TODO doc:
     [ let f
@@ -35,7 +40,9 @@ def curry:
 #    [pair, f],
 
 def uncons::
-    [let {h,, t} h=t],
+    [ let {h,, t} # breaks sy-hi
+        h=t
+        [panic: empty list:] ],
 
 def duple:
     returns a pair with twice the same value (essentially 'clone'):
@@ -44,6 +51,7 @@ def duple:
 def none:: {},
 def some:: [let a {a}],
 def singleton:?: some,
+def empty:: {},
 
 def inc:: [add 1],
 def dec:: [sub 1],
@@ -126,7 +134,11 @@ def len:
 
 
 # ---
-# [:size:: :, cat-num 42, cat-str :name:: :, cat-str name], print-or-whever
+# def ln:: cat {10},
+#
+# [:size:: :, cat-num 42, cat-str :name:: :, cat-str name, ln], print-or-whever
+# {:size:: :, 42, :name:: :, name}, cat, ln, print-or-whever
+#
 # def cat: (has to be builtin): # Str+1 -> Str+2 -> Str+1|2
 # def cat-num: not actually needed 'cause of auto tostr: [tostr, cat],
 # def cat-str: not actually needed 'cause just same as cat: cat,

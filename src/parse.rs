@@ -864,9 +864,21 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                         ty: 0,
                         value: TreeKind::Number(0.0),
                     }
-                    //unsafe { MaybeUninit::zeroed().assume_init() }
                 } else {
+                    let missing = matches!(self.peek_tok(), Token(_, TermToken!()));
                     let fallback = self.parse_value();
+                    // catch an easy mistake of missing the fallback of a refutable pattern;
+                    // amend the last error (which was caused right away in `parse_value`)
+                    if missing {
+                        let e = self.result.errors.0.pop().unwrap();
+                        self.report(Error(
+                            loc.clone(), // the 'let'.. maybe could be the pattern
+                            ErrorKind::ContextCaused {
+                                error: Box::new(e),
+                                because: ErrorContext::LetFallbackRequired,
+                            },
+                        ));
+                    }
 
                     self.global.types.transaction_group("let harmonize".into());
                     // snapshot to have previous type in reported error
