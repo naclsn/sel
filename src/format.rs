@@ -91,23 +91,20 @@ impl Tree {
                     Applicable::Bind(pattern, result, fallback) => {
                         print!("[let ");
                         print_pattern(pattern);
+                        let p_needs_subscr = state.needs_subscr;
+                        state.needs_subscr = true;
                         if pattern.is_irrefutable() {
-                            print_pattern(pattern);
-                            let p_needs_subscr = state.needs_subscr;
-                            state.needs_subscr = true;
+                            print!(" ");
                             print_tree(result, state);
-                            state.needs_subscr = p_needs_subscr;
                         } else {
                             state.indent += 1;
-                            let p_needs_subscr = state.needs_subscr;
-                            state.needs_subscr = true;
                             print!("\n{:1$}", "", state.indent * 2);
                             print_tree(result, state);
                             print!("\n{:1$}", "", state.indent * 2);
                             print_tree(fallback, state);
                             state.indent -= 1;
-                            state.needs_subscr = p_needs_subscr;
                         }
+                        state.needs_subscr = p_needs_subscr;
                         print!("]");
                     }
                 },
