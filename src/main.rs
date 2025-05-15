@@ -5,6 +5,7 @@ use std::iter::Peekable;
 
 mod builtin;
 mod error;
+mod format;
 mod interp;
 mod parse;
 mod scope;
@@ -22,6 +23,7 @@ struct Options {
     do_lookup: bool,
     do_typeof: bool,
     do_repl: bool,
+    do_fmt: Option<String>,
 }
 
 fn main() {
@@ -53,6 +55,15 @@ fn main() {
         return;
     };
 
+    if let Some(fmt) = opts.do_fmt {
+        match fmt.as_str() {
+            "rustdebug" => println!("{tree:#?}"),
+            "ast" => tree.print_simple_ast(),
+            _ => eprintln!("?"),
+        }
+        return;
+    }
+
     if opts.do_typeof {
         println!("{ty}");
         return;
@@ -72,6 +83,7 @@ impl Options {
                 eprintln!(
                     "Usage: {prog} -h
            [-t] <file> <args...> | <script...>
+           [--fmt=..] <file> | <script...>
            -l [<name>...] | :: <type>"
                 );
                 return None;
@@ -79,6 +91,9 @@ impl Options {
 
             Some("-t") => r.do_typeof = true,
             Some("-l") => r.do_lookup = true,
+            Some(fmt) if fmt.starts_with("--fmt=") => {
+                r.do_fmt = Some(fmt.strip_prefix("--fmt=").unwrap().to_string());
+            }
             None => r.do_repl = true,
 
             _ => skip = false,

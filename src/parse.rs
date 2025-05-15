@@ -75,6 +75,16 @@ pub enum Pattern {
     Name(Location, String),
     Pair(Box<Pattern>, Box<Pattern>),
 }
+
+impl Pattern {
+    pub fn is_irrefutable(&self) -> bool {
+        match self {
+            Pattern::Number(_) | Pattern::Bytes(_) | Pattern::List(_, _) => false,
+            Pattern::Name(_, _) => true,
+            Pattern::Pair(fst, snd) => fst.is_irrefutable() && snd.is_irrefutable(),
+        }
+    }
+}
 // }}}
 
 // lexing into tokens {{{
@@ -849,16 +859,8 @@ impl<I: Iterator<Item = u8>> Parser<'_, I> {
                 let result = self.parse_value();
                 let res_ty = result.ty;
 
-                fn is_irrefutable(pattern: &Pattern) -> bool {
-                    match pattern {
-                        Pattern::Number(_) | Pattern::Bytes(_) | Pattern::List(_, _) => false,
-                        Pattern::Name(_, _) => true,
-                        Pattern::Pair(fst, snd) => is_irrefutable(fst) && is_irrefutable(snd),
-                    }
-                }
-
                 // if irrefutable, no fallback
-                let fallback = if is_irrefutable(&pattern) {
+                let fallback = if pattern.is_irrefutable() {
                     Tree {
                         loc: Location(0, 0..0),
                         ty: 0,

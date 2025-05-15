@@ -387,6 +387,14 @@ fn lookup_builtin(name: &str) -> Value {
             Value::Number(Box::new(move || n), Rc::new(move || Box::new(move || n)))
         })),
 
+        // XXX: completely incorrect but just for messing around for now
+        "graphemes" => curried_value!(|s| -> List s.bytes().map(|b| {
+            Value::Bytes(Box::new(iter::once(b)), Rc::new(move || Box::new(iter::once(b))))
+        })),
+
+        // XXX: completely incorrect but just for messing around for now
+        "ungraphemes" => curried_value!(|l| -> Bytes l.list().map(|n| n.bytes()).flatten()),
+
         "cons" => curried_value!(|v, l| -> List iter::once(v).chain(l.list())),
 
         _ => Value::Name(name.into()),
