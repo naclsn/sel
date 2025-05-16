@@ -1,5 +1,10 @@
 #!
-# (wip placeholder prelude)
+## (wip placeholder prelude)
+## The prelude is the basic set of function shipped with the distribution
+## available at top-level. It may re-export from other things like idk
+## `use :: fs,` or something.
+## The implementation in this file are only provided for typing/doc/such
+## as well as last resort fallback for wip engine implementations.
 
 def unreachable:: [panic: entered unreachable code:],
 
@@ -40,9 +45,16 @@ def curry:
 #    [pair, f],
 
 def uncons::
-    [ let {h,, t} # breaks sy-hi
+    [ let {h,, t} # breaks sy-hi (? at least is some version of nvim)
         h=t
         [panic: empty list:] ],
+
+def snoc: [a] -> a -> [a]:
+    [ let {h,, t}
+        [let z {h,, snoc z t}]
+        singleton ],
+def prepend:: flip cons,
+def append:: snoc,
 
 def duple:
     returns a pair with twice the same value (essentially 'clone'):
@@ -85,8 +97,8 @@ def fold:
             [fold f [f v h] t]
             v ]]],
 
-def fst: retrieve the first element: [let a=b a unreachable],
-def snd: retrieve the second element: [let a=b b unreachable],
+def fst: retrieve the first element: [let a=b a],
+def snd: retrieve the second element: [let a=b b],
 
 def head: return the first item of the list: [let {h,, t} h [panic: empty list:]],
 def tail: return all after the first item: [let {h,, t} t [panic: empty list:]],
@@ -109,6 +121,12 @@ def iterate: (a -> a) -> a -> [a]+
     [ let f
     [ let v
         {v,, [f v, iterate f]} ]],
+
+def rev: [a] -> [a]
+    reverse a list, or string by coercion:
+    [ let {h,, t}
+        [snoc [rev t] h]
+        {} ],
 
 def len:
     computes the length of the list, or string by coercion:

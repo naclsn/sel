@@ -114,39 +114,44 @@ pub fn scope() -> Scope {
     r
 }
 
-/// The fundamental operations that cannot be implemented in the language itself.
+/// Fundamental operations that cannot be implemented in the language itself.
+///
+/// This does not mean everything else can be done within the language;
+/// eg OS-level interractions are to be implemented somewhere else. Likewise,
+/// not all maths may be accessible with that limited of a set (idk really).
+///
 /// It basically represent what an interpreter will in any way need to implement.
 /// Technically `pipe`, `tonum` and `tostr` _could_ be implemented in the prelude
-/// but are not for consistency with other coercion-like functions.
-const NAMES: [(&str, ScopeItem); 16] = [
+/// but are not for consistency with other syntax-level functions.
+const NAMES: [(&str, ScopeItem); 22] = [
     ("-"            , mkbin!(mkmkty!(1          ; Str+1                   ), "the input")),
-    ("bytes"        , mkbin!(mkmkty!(1          ; Str+1 -> [Num]+1        ), "make a list of numbers with the 8 bits bytes")),
-    ("codepoints"   , mkbin!(mkmkty!(1          ; Str+1 -> [Num]+1        ), "make a list of numbers with the 32 bits codepoints")),
     ("cons"         , mkbin!(mkmkty!(1, a       ; a -> [a]+1 -> [a]+1     ), "make a list with the head element first, then the rest as tail; 'cons val lst' is equivalent to the syntax '{val,, lst}'")),
-    ("graphemes"    , mkbin!(mkmkty!(1          ; Str+1 -> [Str]+1        ), "make a list of strings with the potentially multi-codepoints graphemes")),
     ("panic"        , mkbin!(mkmkty!(0, a       ; Str -> a                ), "panics; this is different from fatal: fatal is a parse-time abort, panic is a runtime abort")),
     ("pipe"         , mkbin!(mkmkty!(0, a, b, c ; (a->b) -> (b->c) -> a->c), "pipe two function; 'pipe one two' is equivalent to the syntax 'one, two' ie 'two(one(..))' (see also 'compose')")),
     ("tonum"        , mkbin!(mkmkty!(1          ; Str+1 -> Num            ), "convert a string into number; accept an infinite string for convenience but stop on the first invalid byte")),
     ("tostr"        , mkbin!(mkmkty!(0          ; Num -> Str              ), "convert a number into string")),
+
+    ("bytes"        , mkbin!(mkmkty!(1          ; Str+1 -> [Num]+1        ), "make a list of numbers with the 8 bits bytes")),
+    ("codepoints"   , mkbin!(mkmkty!(1          ; Str+1 -> [Num]+1        ), "make a list of numbers with the 32 bits codepoints")),
+    ("graphemes"    , mkbin!(mkmkty!(1          ; Str+1 -> [Str]+1        ), "make a list of strings with the potentially multi-codepoints graphemes")),
     ("unbytes"      , mkbin!(mkmkty!(1          ; [Num]+1 -> Str+1        ), "make a string from the 8 bits bytes")),
     ("uncodepoints" , mkbin!(mkmkty!(1          ; [Num]+1 -> Str+1        ), "make a string from the 32 bits codepoints")),
     ("ungraphemes"  , mkbin!(mkmkty!(1          ; [Str]+1 -> Str+1        ), "make a string from the potentially multi-codepoints graphemes")),
 
     ("add"          , mkbin!(mkmkty!(0          ; Num -> Num -> Num       ), "add two numbers")),
+    ("invert"       , mkbin!(mkmkty!(0          ; Num -> Num              ), "invert a number")),
     ("mul"          , mkbin!(mkmkty!(0          ; Num -> Num -> Num       ), "multiply two numbers")),
-    // that or negate :: Num -> Num
-    ("sub"          , mkbin!(mkmkty!(0          ; Num -> Num -> Num       ), "substract the second numbers --or the other way around? idk")),
-    // that or invert :: Num -> Num
-    ("div"          , mkbin!(mkmkty!(0          ; Num -> Num -> Num       ), "divide by the second numbers --or the other way around? idk")),
-    // floor/ceil
-    // pow/exp
-    // ln/log
+    ("negate"       , mkbin!(mkmkty!(0          ; Num -> Num              ), "negate a number")),
+    ("signum"       , mkbin!(mkmkty!(0          ; Num -> Num              ), "sign of a number, in {-1, 0, 1}")),
+    ("trunc"        , mkbin!(mkmkty!(0          ; Num -> Num              ), "truncation (rounding toward zero)")),
+
+    ("asin"         , mkbin!(mkmkty!(0          ; Num -> Num              ), "the inverse sine function")),
+    ("exp"          , mkbin!(mkmkty!(0          ; Num -> Num              ), "the exponent function")),
+    ("log"          , mkbin!(mkmkty!(0          ; Num -> Num              ), "the natural logarithm function")),
+    ("sin"          , mkbin!(mkmkty!(0          ; Num -> Num              ), "the sine function")),
 ];
 
 /*
-    ("add"          , mkbin!(mkmkty!(0          ; Num -> Num -> Num                          ), "add two numbers")),
-    ("div"          , mkbin!(mkmkty!(0          ; Num -> Num -> Num                          ), "divide by the second numbers")),
-
     ("join"         , mkbin!(mkmkty!(2          ; Str -> [Str+1]+2 -> Str+1&2                ), "join a list of string with a separator between entries")),
     ("split"        , mkbin!(mkmkty!(1          ; Str -> Str+1 -> [Str+1]+1                  ), "break a string into pieces separated by the argument, consuming the delimiter; note that an empty delimiter does not split the input on every character, but rather is equivalent to `const [repeat ::]`, for this see `graphemes`")),
 

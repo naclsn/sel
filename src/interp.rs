@@ -195,15 +195,84 @@ impl Matcher {
 // lookup and interp {{{
 fn lookup_builtin(name: &str) -> Value {
     match name {
-        "pipe" => curried_value!(|f, g| -> Func |v| g.func()(f.func()(v))),
-
+        "-" => curried_value!(|| -> Bytes {
+            static SHARED: OnceLock<RwLock<(Stdin, Vec<u8>)>> = OnceLock::new();
+            let mut at = 0;
+            iter::from_fn(move || {
+                let iv = SHARED
+                    .get_or_init(|| RwLock::new((io::stdin(), Vec::new())))
+                    .try_read()
+                    .unwrap();
+                if at < iv.1.len() {
+                    at += 1;
+                    Some(iv.1[at - 1])
+                } else {
+                    drop(iv);
+                    let mut iv = SHARED.get().unwrap().try_write().unwrap();
+                    let mut r = [0u8; 1];
+                    iv.0.read_exact(&mut r).ok().map(|()| {
+                        iv.1.push(r[0]);
+                        at += 1;
+                        r[0]
+                    })
+                }
+            })
+        }),
+        "cons" => curried_value!(|v, l| -> List iter::once(v).chain(l.list())),
         "panic" => {
             curried_value!(|| -> Func |t: Value| panic!("{}", String::from_utf8_lossy(&t.bytes().collect::<Vec<u8>>())))
         }
+        "pipe" => curried_value!(|f, g| -> Func |v| g.func()(f.func()(v))),
+        "tonum" => curried_value!(|s| -> Number || {
+            let mut r = 0;
+            let mut s = s.bytes();
+            for n in s.by_ref() {
+                if n.is_ascii_digit() {
+                    r = 10 * r + (n - b'0') as usize;
+                } else if b'.' == n {
+                    let mut d = 0;
+                    let mut w = 0;
+                    for n in s.take_while(u8::is_ascii_digit) {
+                        d = 10 * d + (n - b'0') as usize;
+                        w *= 10;
+                    }
+                    return r as f64 + (d as f64 / w as f64);
+                } else {
+                    break;
+                }
+            }
+            r as f64
+        }),
+        "tostr" => curried_value!(|n| -> Bytes n.number()().to_string().into_bytes().into_iter()),
 
-        "apply" => curried_value!(|f| -> Func |v| f.func()(v)),
+        // XXX: completely incorrect but just for messing around for now
+        "bytes" => todo!(),
+        "codepoints" => curried_value!(|s| -> List s.bytes().map(|b| {
+            let n = b as f64;
+            Value::Number(Box::new(move || n), Rc::new(move || Box::new(move || n)))
+        })),
+        "graphemes" => curried_value!(|s| -> List s.bytes().map(|b| {
+            Value::Bytes(Box::new(iter::once(b)), Rc::new(move || Box::new(iter::once(b))))
+        })),
+        "unbytes" => todo!(),
+        "uncodepoints" => curried_value!(|l| -> Bytes l.list().map(|n| n.number()() as u8)),
+        "ungraphemes" => curried_value!(|l| -> Bytes l.list().map(|n| n.bytes()).flatten()),
 
         "add" => curried_value!(|a, b| -> Number || a.number()() + b.number()()),
+        "invert" => todo!(),
+        "mul" => todo!(),
+        "negate" => todo!(),
+        "signum" => todo!(),
+        "trunc" => todo!(),
+
+        "asin" => todo!(),
+        "exp" => todo!(),
+        "log" => todo!(),
+        "sin" => todo!(),
+
+        // above: fundamental set (from builtin)
+        // below: soup
+        "apply" => curried_value!(|f| -> Func |v| f.func()(v)),
 
         "const" => curried_value!(|a| -> Func |_| a),
 
@@ -234,30 +303,6 @@ fn lookup_builtin(name: &str) -> Value {
             iter::from_fn(move || {
                 p.peek()?;
                 mem::replace(&mut c, p.next())
-            })
-        }),
-
-        "-" => curried_value!(|| -> Bytes {
-            static SHARED: OnceLock<RwLock<(Stdin, Vec<u8>)>> = OnceLock::new();
-            let mut at = 0;
-            iter::from_fn(move || {
-                let iv = SHARED
-                    .get_or_init(|| RwLock::new((io::stdin(), Vec::new())))
-                    .try_read()
-                    .unwrap();
-                if at < iv.1.len() {
-                    at += 1;
-                    Some(iv.1[at - 1])
-                } else {
-                    drop(iv);
-                    let mut iv = SHARED.get().unwrap().try_write().unwrap();
-                    let mut r = [0u8; 1];
-                    iv.0.read_exact(&mut r).ok().map(|()| {
-                        iv.1.push(r[0]);
-                        at += 1;
-                        r[0]
-                    })
-                }
             })
         }),
 
@@ -351,51 +396,9 @@ fn lookup_builtin(name: &str) -> Value {
 
         "take" => curried_value!(|n, l| -> List l.list().take(n.number()() as usize)),
 
-        "tonum" => curried_value!(|s| -> Number || {
-            let mut r = 0;
-            let mut s = s.bytes();
-            for n in s.by_ref() {
-                if n.is_ascii_digit() {
-                    r = 10 * r + (n - b'0') as usize;
-                } else if b'.' == n {
-                    let mut d = 0;
-                    let mut w = 0;
-                    for n in s.take_while(u8::is_ascii_digit) {
-                        d = 10 * d + (n - b'0') as usize;
-                        w *= 10;
-                    }
-                    return r as f64 + (d as f64 / w as f64);
-                } else {
-                    break;
-                }
-            }
-            r as f64
-        }),
-
-        "tostr" => curried_value!(|n| -> Bytes n.number()().to_string().into_bytes().into_iter()),
-
         "zipwith" => {
             curried_value!(|f, la, lb| -> List la.list().zip(lb.list()).map(move |(a, b)| f.clone().func()(a).func()(b)))
         }
-
-        // XXX: completely incorrect but just for messing around for now
-        "uncodepoints" => curried_value!(|l| -> Bytes l.list().map(|n| n.number()() as u8)),
-
-        // XXX: completely incorrect but just for messing around for now
-        "codepoints" => curried_value!(|s| -> List s.bytes().map(|b| {
-            let n = b as f64;
-            Value::Number(Box::new(move || n), Rc::new(move || Box::new(move || n)))
-        })),
-
-        // XXX: completely incorrect but just for messing around for now
-        "graphemes" => curried_value!(|s| -> List s.bytes().map(|b| {
-            Value::Bytes(Box::new(iter::once(b)), Rc::new(move || Box::new(iter::once(b))))
-        })),
-
-        // XXX: completely incorrect but just for messing around for now
-        "ungraphemes" => curried_value!(|l| -> Bytes l.list().map(|n| n.bytes()).flatten()),
-
-        "cons" => curried_value!(|v, l| -> List iter::once(v).chain(l.list())),
 
         _ => Value::Name(name.into()),
     }

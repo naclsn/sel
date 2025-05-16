@@ -232,7 +232,7 @@ impl Default for TypeList {
     }
 }
 
-// types vec with holes, also factory and such {{{
+// types vec, also factory and such {{{
 impl TypeList {
     pub fn transaction_group(&self, _hi: String) {
         #[cfg(feature = "types-snapshots")]
@@ -358,8 +358,9 @@ impl TypeList {
     }
 
     // (ofc does not support pseudo-notations)
+    // TODO: could be made into supporting +1, +2.. notation
+    // TODO: maybe moved to parse.rs
     pub fn parse_str(&mut self, s: &str) -> Option<TypeRef> {
-        // janky implementation with technical limitation of 20 named types
         let mut nameds = HashMap::new();
 
         let mut s = s.bytes().peekable();
