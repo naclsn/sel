@@ -1,4 +1,5 @@
-/// parsing into a CST
+//! parsing into a CST
+
 use std::iter::Peekable;
 
 use crate::error::{self, Error, ErrorKind};
@@ -18,13 +19,13 @@ macro_rules! TermToken {
 /// `top ::= {'use' <bytes> <word> ','} {'def' <word> <bytes> <value> ','} [<script>]`
 #[derive(Debug, Clone)]
 pub struct Top {
-    pub uses: Vec<Use>,
-    pub defs: Vec<Def>,
+    pub uses: Box<[Use]>,
+    pub defs: Box<[Def]>,
     pub script: Option<Script>,
 }
 #[derive(Debug, Clone)]
 pub struct Use {
-    pub path: Vec<u8>,
+    pub path: Box<[u8]>,
     pub name: String,
 }
 #[derive(Debug, Clone)]
@@ -38,14 +39,14 @@ pub struct Def {
 #[derive(Debug, Clone)]
 pub struct Script {
     pub head: Apply,
-    pub tail: Vec<Apply>,
+    pub tail: Box<[Apply]>,
 }
 
 /// `apply ::= (<binding> | <value>) {<value>}`
 #[derive(Debug, Clone)]
 pub struct Apply {
     pub base: ApplyBase,
-    pub args: Vec<Value>,
+    pub args: Box<[Value]>,
 }
 #[derive(Debug, Clone)]
 pub enum ApplyBase {
@@ -58,23 +59,23 @@ pub enum ApplyBase {
 /// `value ::= <atom> | <subscr> | <list> | <pair>`
 #[derive(Debug, Clone)]
 pub enum Value {
+    /// `atom ::= <word> | <bytes> | <number>`
+    /// `number ::= /0b[01]+/ | /0o[0-7]+/ | /0x[0-9A-Fa-f]+/ | /[0-9]+(\.[0-9]+)?/`
+    Number(f64),
+    /// `atom ::= <word> | <bytes> | <number>`
+    /// `bytes ::= /:([^:]|::)*:/`
+    Bytes(Box<[u8]>),
+    /// `atom ::= <word> | <bytes> | <number>`
+    /// `word ::= /[-a-z]+/ | '_'`
+    Word(String),
+
     /// `subscr ::= '[' <script> ']'`
     Subscr(Script),
 
     /// `list ::= '{' [<apply> {',' <apply>} [',' [',' <apply>]]] '}'`
-    List(Vec<Apply>, Option<Box<Apply>>),
+    List(Box<[Apply]>, Option<Box<Apply>>),
     /// `pair ::= (<atom> | <subscr> | <list>) '=' <value>`
     Pair(Box<Value>, Box<Value>),
-
-    /// `atom ::= <word> | <bytes> | <number>`
-    /// `word ::= /[-a-z]+/ | '_'`
-    Word(String),
-    /// `atom ::= <word> | <bytes> | <number>`
-    /// `bytes ::= /:([^:]|::)*:/`
-    Bytes(Vec<u8>),
-    /// `atom ::= <word> | <bytes> | <number>`
-    /// `number ::= /0b[01]+/ | /0o[0-7]+/ | /0x[0-9A-Fa-f]+/ | /[0-9]+(\.[0-9]+)?/`
-    Number(f64),
 }
 
 /// `irrefut ::= <word> | <irrefut> '=' <irrefut>`
@@ -82,17 +83,17 @@ pub enum Value {
 #[derive(Debug, Clone)]
 pub enum Pattern {
     /// `atom ::= <word> | <bytes> | <number>`
-    /// `word ::= /[-a-z]+/ | '_'`
-    Word(String),
-    /// `atom ::= <word> | <bytes> | <number>`
-    /// `bytes ::= /:([^:]|::)*:/`
-    Bytes(Vec<u8>),
-    /// `atom ::= <word> | <bytes> | <number>`
     /// `number ::= /0b[01]+/ | /0o[0-7]+/ | /0x[0-9A-Fa-f]+/ | /[0-9]+(\.[0-9]+)?/`
     Number(f64),
+    /// `atom ::= <word> | <bytes> | <number>`
+    /// `bytes ::= /:([^:]|::)*:/`
+    Bytes(Box<[u8]>),
+    /// `atom ::= <word> | <bytes> | <number>`
+    /// `word ::= /[-a-z]+/ | '_'`
+    Word(String),
 
     /// `patlist ::= '{' [<pattern> {',' <pattern>} [',' [',' <word>]]] '}'`
-    List(Vec<Pattern>, Option<String>),
+    List(Box<[Pattern]>, Option<String>),
     /// `patpair ::= (<atom> | <patlist>) '=' <pattern>`
     Pair(Box<Pattern>, Box<Pattern>),
 }
@@ -147,7 +148,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         }
     }
 
-    pub fn parse_uses(&mut self) -> Vec<Use> {
+    pub fn parse_uses(&mut self) -> Box<[Use]> {
         let mut r = Vec::new();
         while let Token(_, TokenKind::Use) = self.peek_tok() {
             self.skip_tok();
@@ -184,10 +185,10 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 }
             }
         }
-        r
+        r.into()
     }
 
-    pub fn parse_defs(&mut self) -> Vec<Def> {
+    pub fn parse_defs(&mut self) -> Box<[Def]> {
         let mut r = Vec::new();
         while let Token(_, TokenKind::Def) = self.peek_tok() {
             self.skip_tok();
@@ -227,7 +228,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 }
             }
         }
-        r
+        r.into()
     }
 
     pub fn parse_script(&mut self) -> Script {
@@ -237,7 +238,10 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             self.skip_tok();
             tail.push(self.parse_apply());
         }
-        Script { head, tail }
+        Script {
+            head,
+            tail: tail.into(),
+        }
     }
 
     pub fn parse_apply(&mut self) -> Apply {
@@ -280,7 +284,10 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             args.push(self.parse_value());
         }
 
-        Apply { base, args }
+        Apply {
+            base,
+            args: args.into(),
+        }
     }
 
     fn parse_subscr_content(&mut self, first_token: &Token) -> Script {
@@ -305,7 +312,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         subscr
     }
 
-    fn parse_list_content(&mut self, first_token: &Token) -> (Vec<Apply>, Option<Box<Apply>>) {
+    fn parse_list_content(&mut self, first_token: &Token) -> (Box<[Apply]>, Option<Box<Apply>>) {
         let mut items = Vec::new();
         let mut rest = None;
 
@@ -356,7 +363,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             } // if ','
         } // while
 
-        (items, rest)
+        (items.into(), rest)
     }
 
     pub fn parse_value(&mut self) -> Value {
@@ -381,9 +388,9 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 Value::List(items, rest)
             }
 
-            TokenKind::Word(w) => Value::Word(w),
-            TokenKind::Bytes(b) => Value::Bytes(b),
             TokenKind::Number(n) => Value::Number(n),
+            TokenKind::Bytes(b) => Value::Bytes(b),
+            TokenKind::Word(w) => Value::Word(w),
 
             TokenKind::Def | TokenKind::Let | TokenKind::Use | TokenKind::Unknown(_) => {
                 self.errors
@@ -510,12 +517,12 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     } // if ',', then !!','
                 } // loop
 
-                Pattern::List(items, rest)
+                Pattern::List(items.into(), rest)
             }
 
-            TokenKind::Word(w) => Pattern::Word(w),
-            TokenKind::Bytes(b) => Pattern::Bytes(b),
             TokenKind::Number(n) => Pattern::Number(n),
+            TokenKind::Bytes(b) => Pattern::Bytes(b),
+            TokenKind::Word(w) => Pattern::Word(w),
 
             TokenKind::Def | TokenKind::Let | TokenKind::Use | TokenKind::Unknown(_) => {
                 self.errors
@@ -554,7 +561,7 @@ fn test() {
         let source = registry.add_bytes("<test>", script.iter().copied());
         let bytes = &registry.get(source).bytes;
         let mut parser = Parser::new(source, bytes.iter().copied());
-        (parser.parse_top(), parser.errors.into_boxed_slice())
+        (parser.parse_top(), parser.errors.into())
     }
 
     assert_debug_snapshot!(t(b""));

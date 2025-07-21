@@ -12,7 +12,7 @@ pub type TypeRef = usize;
 pub type Boundedness = usize;
 
 #[derive(Debug, Clone)]
-pub(crate) enum Type {
+pub enum Type {
     Number,
     Bytes(Boundedness),
     List(Boundedness, TypeRef),
@@ -250,7 +250,7 @@ impl TypeList {
         k
     }
 
-    pub(crate) fn get(&self, at: TypeRef) -> &Type {
+    pub fn get(&self, at: TypeRef) -> &Type {
         match &self.0[at] {
             &Transparent(u) => self.get(u),
             r => r,
@@ -275,7 +275,7 @@ impl TypeList {
         assert!(
             matches!(self.0[at], Named(_)),
             "assertion failed: should only be assigning to variable types, not constant {:?}",
-            self.0[at]
+            self.0[at],
         );
 
         let ty = match ty {
@@ -359,7 +359,6 @@ impl TypeList {
 
     // (ofc does not support pseudo-notations)
     // TODO: could be made into supporting +1, +2.. notation
-    // TODO: maybe moved to parse.rs
     pub fn parse_str(&mut self, s: &str) -> Option<TypeRef> {
         let mut nameds = HashMap::new();
 
@@ -441,7 +440,10 @@ impl TypeList {
         _impl(self, &mut tokens.into_iter().peekable())
     }
 
+    // TODO(maybe): fn flatten(&mut);
+
     /// note: a duplicate is always a tr-free subgraph
+    // TODO(maybe): fn duplicate_from(&mut, &, at);
     pub(crate) fn duplicate(
         &mut self,
         at: TypeRef,
@@ -538,7 +540,7 @@ impl TypeList {
         }
     }
 
-    pub(crate) fn frozen(&self, at: TypeRef) -> FrozenType {
+    pub fn frozen(&self, at: TypeRef) -> FrozenType {
         match self.get(at) {
             Number => FrozenType::Number,
             Bytes(b) => FrozenType::Bytes(self.freeze_finite(*b)),

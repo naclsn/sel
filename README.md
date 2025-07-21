@@ -118,7 +118,7 @@ Type notations are inspired by Haskell:
 
 Lists and bytestring can take a `+` suffix (eg. `Str+`
 and `[Num]+`) which represent a potentially unbounded
-object (simplest example is `repeat 1 :: [Num]+`, an
+value (simplest example is `repeat 1 :: [Num]+`, an
 infinite list of 1s).
 
 The item type of a literal list is inferred as the list
@@ -168,7 +168,7 @@ $ sel -l :: 'a -> Num'
 [... list of matching functions ...]
 ```
 
-There is also an undocumented word that completely aborts the parsing: `fatal`.
+<!-- There is also an undocumented word that completely aborts the parsing: `fatal`. -->
 
 ## Ack & Unrelated
 

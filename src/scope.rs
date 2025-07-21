@@ -1,7 +1,11 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Result as IoResult};
 use std::ops::Range;
 use std::path::{Path, PathBuf};
+
+use crate::fund::Fund;
+use crate::types::{TypeList, TypeRef};
 
 /*
 use crate::builtin;
@@ -27,6 +31,91 @@ pub struct Scope {
     names: HashMap<String, ScopeItem>,
 }
 */
+
+// scope {{{
+#[derive(Debug, Default)]
+pub struct Scoping {
+    bindings: Vec<HashMap<String, Binding>>,
+    defineds: HashMap<String, Defined>,
+    missings: HashMap<String, TypeRef>,
+}
+
+#[derive(Debug)]
+pub enum Entry<'a> {
+    Binding(&'a Binding),
+    Defined(&'a Defined),
+    Fundamental(Fund),
+}
+
+#[derive(Debug)]
+pub struct Binding {
+    pub loc: Location,
+    pub word: String,
+    pub ty: TypeRef,
+}
+
+#[derive(Debug)]
+pub struct Defined {
+    pub loc: Location,
+    pub desc: String,
+    pub ty: TypeRef,
+}
+
+impl Scoping {
+    pub fn push(&mut self, entries: HashMap<String, (Location, TypeRef)>) {
+        self.bindings.push(
+            entries
+                .into_iter()
+                .map(|(word, (loc, ty))| (word.clone(), Binding { loc, word, ty }))
+                .collect(),
+        );
+    }
+
+    pub fn pop(&mut self) {
+        self.bindings
+            .pop()
+            .expect("unbalanced scoping pop with no push");
+    }
+
+    /// returns previous
+    pub fn define(
+        &mut self,
+        name: String,
+        loc: Location,
+        desc: String,
+        ty: TypeRef,
+    ) -> Option<(Location, TypeRef)> {
+        self.defineds
+            .insert(name, Defined { loc, desc, ty })
+            .map(|Defined { loc, ty, .. }| (loc, ty))
+    }
+
+    pub fn missing(&mut self, name: String, ty: TypeRef) {
+        assert!(
+            self.missings.insert(name, ty).is_none(),
+            "was not actually missing",
+        );
+    }
+
+    /// lookup order is always:
+    /// - fundamentals
+    /// - bindings (closest to furthest)
+    /// - defineds
+    /// - missing
+    pub fn lookup(&self, name: &str) -> Option<Entry> {
+        Fund::try_from_name(name)
+            .map(Entry::Fundamental)
+            .or_else(|| {
+                self.bindings
+                    .iter()
+                    .rev()
+                    .find_map(|it| it.get(name))
+                    .map(Entry::Binding)
+            })
+            .or_else(|| self.defineds.get(name).map(Entry::Defined))
+    }
+}
+// }}}
 
 // source registry {{{
 pub type SourceRef = usize;

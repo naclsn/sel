@@ -1,30 +1,29 @@
-mod builtin;
+//mod builtin;
 mod error;
 //mod format;
 //mod interp;
+mod check;
+mod fund;
 mod lex;
 mod parse;
 mod scope;
 mod types;
-mod lower;
 
-//#[cfg(test)]
-//mod tests;
-
+use crate::check::Checker;
 use crate::parse::Parser;
+use crate::scope::Scoping;
 use crate::scope::SourceRegistry;
+use crate::types::TypeList;
 
 fn main() {
     let mut registry = SourceRegistry::default();
 
-    let source = registry.add_bytes(
-        "<args>",
-        std::env::args().skip(1).flat_map(|a| {
-            let mut a = a.into_bytes();
-            a.push(b' ');
-            a
-        }),
-    );
+    let text = std::env::args().skip(1).flat_map(|a| {
+        let mut a = a.into_bytes();
+        a.push(b' ');
+        a
+    });
+    let source = registry.add_bytes("<args>", text);
     let bytes = &registry.get(source).bytes;
 
     let mut parser = Parser::new(source, bytes.iter().copied());
@@ -34,8 +33,21 @@ fn main() {
     if !errors.is_empty() {
         crate::error::report_many_stderr(errors, &registry, &None, false);
     }
+    eprintln!("CST: {top:#?}");
 
-    eprintln!("{top:#?}");
+    if let Some(script) = top.script {
+        let mut types = TypeList::default();
+        let mut scope = Scoping::default();
+        let mut checker = Checker::new(&mut types, &mut scope);
+        let ast = checker.check_script(&script);
+        let errors = checker.errors();
+
+        if !errors.is_empty() {
+            crate::error::report_many_stderr(errors, &registry, &None, false);
+        }
+        eprintln!("AST: {ast:#?}");
+        eprintln!("type: {:?}", types.frozen(ast.ty));
+    }
 }
 
 /*

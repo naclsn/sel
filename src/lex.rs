@@ -1,4 +1,5 @@
-/// lexing
+//! lexing
+
 use std::iter::{self, Enumerate, Peekable};
 
 use crate::scope::{Location, SourceRef};
@@ -6,9 +7,9 @@ use crate::scope::{Location, SourceRef};
 #[derive(PartialEq, Debug, Clone)]
 pub enum TokenKind {
     Unknown(String),
-    Word(String),
-    Bytes(Vec<u8>),
     Number(f64),
+    Bytes(Box<[u8]>),
+    Word(String),
     Comma,
     OpenBracket,
     CloseBracket,
@@ -57,16 +58,17 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
         let (len, tok) = match byte {
             b':' => {
                 let mut doubles = 2;
-                let b: Vec<u8> = iter::from_fn(|| match (self.stream.next(), self.stream.peek()) {
-                    (Some((_, b':')), Some((_, b':'))) => {
-                        doubles += 1;
-                        self.stream.next();
-                        Some(b':')
-                    }
-                    (Some((_, b':')), _) => None,
-                    (pair, _) => pair.map(|c| c.1),
-                })
-                .collect();
+                let b: Box<[u8]> =
+                    iter::from_fn(|| match (self.stream.next(), self.stream.peek()) {
+                        (Some((_, b':')), Some((_, b':'))) => {
+                            doubles += 1;
+                            self.stream.next();
+                            Some(b':')
+                        }
+                        (Some((_, b':')), _) => None,
+                        (pair, _) => pair.map(|c| c.1),
+                    })
+                    .collect();
                 (b.len() + doubles, Bytes(b))
             }
 

@@ -16,6 +16,8 @@ other potential evolution (as in which would become somewhat more plausible)
     - better broken syntax recovery
     - formatter(s) (debug ast, actual `sel fmt`, maybe a version that normalizes or denoromalize, maybe a version that inlines, ...)
 
+FiniteBoth? FiniteEither?
+
 
 
 
