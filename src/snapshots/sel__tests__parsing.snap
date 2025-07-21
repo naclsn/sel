@@ -1,9 +1,0 @@
----
-source: src/tests.rs
-expression: "t(b\"\")"
----
-Err(
-    ErrorList(
-        [],
-    ),
-)

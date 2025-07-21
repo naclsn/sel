@@ -1,0 +1,53 @@
+---
+source: src/parse.rs
+expression: "t(b\"tonum, add234121, tostr, ln\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Value(
+                        Word(
+                            "tonum",
+                        ),
+                    ),
+                    args: [],
+                },
+                tail: [
+                    Apply {
+                        base: Value(
+                            Word(
+                                "add",
+                            ),
+                        ),
+                        args: [
+                            Number(
+                                234121.0,
+                            ),
+                        ],
+                    },
+                    Apply {
+                        base: Value(
+                            Word(
+                                "tostr",
+                            ),
+                        ),
+                        args: [],
+                    },
+                    Apply {
+                        base: Value(
+                            Word(
+                                "ln",
+                            ),
+                        ),
+                        args: [],
+                    },
+                ],
+            },
+        ),
+    },
+    [],
+)

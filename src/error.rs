@@ -1,12 +1,13 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::io::IsTerminal;
 
-use crate::parse::{Applicable, TokenKind};
-use crate::parse::{Token, Tree, TreeKind};
-use crate::scope::{Location, ScopeItem, SourceRegistry};
-use crate::types::{FrozenType, TypeList, TypeRef};
+use crate::lex::{Token, TokenKind};
+use crate::parse::ApplyBase;
+use crate::scope::{Location, SourceRegistry};
+use crate::types::FrozenType;
 
 // error types {{{
-#[derive(PartialEq, Debug)]
+#[derive(Debug)]
 pub enum ErrorContext {
     Unmatched {
         open_token: TokenKind,
@@ -19,13 +20,13 @@ pub enum ErrorContext {
     },
     AsNthArgToNowTyped {
         nth_arg: usize,
-        func: Applicable,
+        func: ApplyBase,
         type_with_curr_args: FrozenType,
     },
     ChainedFromAsNthArgToNowTyped {
         comma_loc: Location,
         nth_arg: usize,
-        func: Applicable,
+        func: ApplyBase,
         type_with_curr_args: FrozenType,
     },
     ChainedFromToNotFunc {
@@ -45,7 +46,7 @@ pub enum ErrorContext {
     LetFallbackRequired,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Debug)]
 pub enum ErrorKind {
     ContextCaused {
         error: Box<Error>,
@@ -64,7 +65,7 @@ pub enum ErrorKind {
     },
     TooManyArgs {
         nth_arg: usize,
-        func: Applicable,
+        func: ApplyBase,
     },
     ExpectedButGot {
         expected: FrozenType,
@@ -82,34 +83,8 @@ pub enum ErrorKind {
     },
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Debug)]
 pub struct Error(pub Location, pub ErrorKind);
-
-#[derive(Default, PartialEq, Debug)]
-pub struct ErrorList(pub(crate) Vec<Error>);
-
-impl IntoIterator for ErrorList {
-    type Item = Error;
-    type IntoIter = <Vec<Error> as IntoIterator>::IntoIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-impl ErrorList {
-    pub(crate) fn push(&mut self, err: Error) {
-        self.0.push(err);
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    pub fn iter(&self) -> <&Vec<Error> as IntoIterator>::IntoIter {
-        self.0.iter()
-    }
-}
 // }}}
 
 pub struct Report<'a> {
@@ -120,6 +95,36 @@ pub struct Report<'a> {
 }
 
 // error reportig helpers {{{
+pub fn unexpected(token: &Token, expected: &'static str, unmatched: Option<&Token>) -> Error {
+    let Token(here, token) = token.clone();
+    let mut err = Error(here, ErrorKind::Unexpected { token, expected });
+    if let Some(unmatched) = unmatched {
+        let Token(from, open_token) = unmatched.clone();
+        err = Error(
+            from,
+            ErrorKind::ContextCaused {
+                error: Box::new(err),
+                because: ErrorContext::Unmatched { open_token },
+            },
+        );
+    }
+    err
+}
+
+pub fn context_fallback_required(
+    let_loc: Location, // TODO: change it to pat_loc, makes more sense
+    err: Error,
+) -> Error {
+    Error(
+        let_loc,
+        ErrorKind::ContextCaused {
+            error: Box::new(err),
+            because: ErrorContext::LetFallbackRequired,
+        },
+    )
+}
+
+/*
 pub fn context_complete_type(
     types: &TypeList,
     loc: Location,
@@ -199,22 +204,6 @@ pub fn not_func(types: &TypeList, func: &Tree) -> ErrorKind {
     }
 }
 
-pub fn unexpected(token: &Token, expected: &'static str, unmatched: Option<&Token>) -> Error {
-    let Token(here, token) = token.clone();
-    let mut err = Error(here, ErrorKind::Unexpected { token, expected });
-    if let Some(unmatched) = unmatched {
-        let Token(from, open_token) = unmatched.clone();
-        err = Error(
-            from,
-            ErrorKind::ContextCaused {
-                error: Box::new(err),
-                because: ErrorContext::Unmatched { open_token },
-            },
-        );
-    }
-    err
-}
-
 pub fn list_type_mismatch(
     types: &TypeList,
     item_loc: Location,
@@ -264,6 +253,7 @@ pub fn already_declared(
         },
     )
 }
+*/
 // }}}
 
 // generate report {{{
@@ -304,10 +294,11 @@ impl Error {
                         3 => "rd",
                         _ => "th",
                     },
-                    match func {
-                        Applicable::Name(name) => name,
-                        Applicable::Bind(_, _, _) => "let binding",
-                    },
+                    todo!(),
+                    //match func {
+                    //    ApplyBase::Binding { .. } => "let binding",
+                    //    ApplyBase::Value(name) => name,
+                    //},
                 ),
             )],
             ChainedFromAsNthArgToNowTyped {
@@ -326,10 +317,11 @@ impl Error {
                             3 => "rd",
                             _ => "th",
                         },
-                        match func {
-                            Applicable::Name(name) => name,
-                            Applicable::Bind(_, _, _) => "let binding",
-                        },
+                        todo!(),
+                        //match func {
+                        //    Applicable::Name(name) => name,
+                        //    Applicable::Bind(_, _, _) => "let binding",
+                        //},
                     ),
                 ),
                 (comma_loc.clone(), "chained through here".into()),
@@ -431,10 +423,11 @@ impl Error {
                     loc,
                     format!(
                         "Too many argument to {}, expected only {}",
-                        match func {
-                            Applicable::Name(name) => name,
-                            Applicable::Bind(_, _, _) => "let binding",
-                        },
+                        todo!(),
+                        //match func {
+                        //    Applicable::Name(name) => name,
+                        //    Applicable::Bind(_, _, _) => "let binding",
+                        //},
                         nth_arg - 1
                     ),
                 )],
@@ -478,6 +471,31 @@ impl Error {
                     .collect(),
                 use_colors,
             },
+        }
+    }
+}
+
+pub fn report_many_stderr(
+    errors: &[Error],
+    registry: &SourceRegistry,
+    was_file: &Option<String>,
+    used_file: bool,
+) {
+    let use_colors = std::io::stderr().is_terminal();
+    for e in errors {
+        eprintln!("{}", e.report(&registry, use_colors));
+    }
+    eprintln!(
+        "({} error{})",
+        errors.len(),
+        if 1 == errors.len() { "" } else { "s" },
+    );
+
+    if let Some(name) = was_file {
+        if used_file {
+            eprintln!("Note: {name} was interpreted as a file name");
+        } else {
+            eprintln!("Note: {name} is also a file, but it did not start with '#!'");
         }
     }
 }

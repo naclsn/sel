@@ -1,0 +1,12 @@
+---
+source: src/parse.rs
+expression: "t(b\"\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [],
+        script: None,
+    },
+    [],
+)

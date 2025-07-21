@@ -1,4 +1,4 @@
-use crate::parse::{Applicable, Pattern, Tree, TreeKind};
+use crate::parse::{ApplyBase, Pattern, Tree, TreeKind};
 
 impl Tree {
     pub fn print_simple_ast(&self) {

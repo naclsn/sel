@@ -2,7 +2,8 @@ use insta::{assert_debug_snapshot, assert_snapshot};
 
 use crate::error::ErrorList;
 use crate::interp;
-use crate::parse::{self, Lexer, TokenKind, Tree};
+use crate::lex::{Lexer, TokenKind};
+use crate::parse::{self, Tree};
 use crate::scope::Global;
 use crate::scope::ScopeItem;
 use crate::types::FrozenType;

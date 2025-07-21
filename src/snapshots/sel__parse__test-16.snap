@@ -1,0 +1,84 @@
+---
+source: src/parse.rs
+expression: "t(b\"let {a b, c} 0\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Binding {
+                        pat: List(
+                            [
+                                Word(
+                                    "a",
+                                ),
+                                Word(
+                                    "b",
+                                ),
+                                Word(
+                                    "c",
+                                ),
+                            ],
+                            None,
+                        ),
+                        res: Number(
+                            0.0,
+                        ),
+                        alt: Word(
+                            "?",
+                        ),
+                    },
+                    args: [],
+                },
+                tail: [],
+            },
+        ),
+    },
+    [
+        Error(
+            Location(
+                0,
+                4..5,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        7..8,
+                    ),
+                    Unexpected {
+                        token: Word(
+                            "b",
+                        ),
+                        expected: "',' between items or closing '}'",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: OpenBrace,
+                },
+            },
+        ),
+        Error(
+            Location(
+                0,
+                0..3,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        14..14,
+                    ),
+                    Unexpected {
+                        token: End,
+                        expected: "a value",
+                    },
+                ),
+                because: LetFallbackRequired,
+            },
+        ),
+    ],
+)

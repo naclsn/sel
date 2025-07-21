@@ -1,0 +1,108 @@
+---
+source: src/parse.rs
+expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]\n    [panic: unreachable:]\n\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Binding {
+                        pat: Word(
+                            "a",
+                        ),
+                        res: Subscr(
+                            Script {
+                                head: Apply {
+                                    base: Binding {
+                                        pat: Word(
+                                            "b",
+                                        ),
+                                        res: Word(
+                                            "a",
+                                        ),
+                                        alt: Number(
+                                            0.0,
+                                        ),
+                                    },
+                                    args: [
+                                        Subscr(
+                                            Script {
+                                                head: Apply {
+                                                    base: Value(
+                                                        Word(
+                                                            "panic",
+                                                        ),
+                                                    ),
+                                                    args: [
+                                                        Bytes(
+                                                            [
+                                                                32,
+                                                                117,
+                                                                110,
+                                                                114,
+                                                                101,
+                                                                97,
+                                                                99,
+                                                                104,
+                                                                97,
+                                                                98,
+                                                                108,
+                                                                101,
+                                                            ],
+                                                        ),
+                                                    ],
+                                                },
+                                                tail: [],
+                                            },
+                                        ),
+                                    ],
+                                },
+                                tail: [],
+                            },
+                        ),
+                        alt: Number(
+                            0.0,
+                        ),
+                    },
+                    args: [
+                        Subscr(
+                            Script {
+                                head: Apply {
+                                    base: Value(
+                                        Word(
+                                            "panic",
+                                        ),
+                                    ),
+                                    args: [
+                                        Bytes(
+                                            [
+                                                32,
+                                                117,
+                                                110,
+                                                114,
+                                                101,
+                                                97,
+                                                99,
+                                                104,
+                                                97,
+                                                98,
+                                                108,
+                                                101,
+                                            ],
+                                        ),
+                                    ],
+                                },
+                                tail: [],
+                            },
+                        ),
+                    ],
+                },
+                tail: [],
+            },
+        ),
+    },
+    [],
+)

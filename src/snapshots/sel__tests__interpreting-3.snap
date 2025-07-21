@@ -1,5 +1,0 @@
----
-source: src/tests.rs
-expression: "t(b\"let a [add a 1], flip apply 2\")"
----
-3

@@ -1,0 +1,10 @@
+---
+source: src/lex.rs
+expression: "t(b\":hay: :hey:: not hay: :: :::: fin\")"
+---
+Token(Location(0, 0..5), Bytes([104, 97, 121]))
+Token(Location(0, 6..21), Bytes([104, 101, 121, 58, 32, 110, 111, 116, 32, 104, 97, 121]))
+Token(Location(0, 22..24), Bytes([]))
+Token(Location(0, 25..29), Bytes([58]))
+Token(Location(0, 30..33), Word("fin"))
+Token(Location(0, 33..33), End)

@@ -1,0 +1,47 @@
+---
+source: src/parse.rs
+expression: "t(b\"{0,, repeat 1}\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Value(
+                        List(
+                            [
+                                Apply {
+                                    base: Value(
+                                        Number(
+                                            0.0,
+                                        ),
+                                    ),
+                                    args: [],
+                                },
+                            ],
+                            Some(
+                                Apply {
+                                    base: Value(
+                                        Word(
+                                            "repeat",
+                                        ),
+                                    ),
+                                    args: [
+                                        Number(
+                                            1.0,
+                                        ),
+                                    ],
+                                },
+                            ),
+                        ),
+                    ),
+                    args: [],
+                },
+                tail: [],
+            },
+        ),
+    },
+    [],
+)

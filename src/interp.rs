@@ -5,7 +5,7 @@ use std::mem;
 use std::rc::Rc;
 use std::sync::{OnceLock, RwLock};
 
-use crate::parse::{Applicable, Pattern, Tree, TreeKind};
+use crate::parse::{ApplyBase, Pattern, Tree, TreeKind};
 use crate::scope::{Global, ScopeItem};
 
 pub fn run_write(tree: &Tree, global: &Global, w: &mut impl Write) -> IoResult<()> {

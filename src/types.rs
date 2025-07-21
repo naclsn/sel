@@ -59,7 +59,7 @@ mod types_snapshots {
         <style> body { padding: 0; margin: 0; overflow: hidden; background: #333; color: #eee; } #currentSection { font-weight: bolder; } </style>
     </head>
     <body>
-        <div id="control">
+        <div id="control" style="overflow: auto;">
             <h2 style="text-align: center;">(use hjkl) <span id="shownIndex"></span><span id="showSection"></span></h2>
             <ul id="listSections"></ul>
         </div>

@@ -1,0 +1,96 @@
+---
+source: src/parse.rs
+expression: "t(b\"-, split:-:, map[tonum, add1, tostr], join:+:\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Value(
+                        Word(
+                            "-",
+                        ),
+                    ),
+                    args: [],
+                },
+                tail: [
+                    Apply {
+                        base: Value(
+                            Word(
+                                "split",
+                            ),
+                        ),
+                        args: [
+                            Bytes(
+                                [
+                                    45,
+                                ],
+                            ),
+                        ],
+                    },
+                    Apply {
+                        base: Value(
+                            Word(
+                                "map",
+                            ),
+                        ),
+                        args: [
+                            Subscr(
+                                Script {
+                                    head: Apply {
+                                        base: Value(
+                                            Word(
+                                                "tonum",
+                                            ),
+                                        ),
+                                        args: [],
+                                    },
+                                    tail: [
+                                        Apply {
+                                            base: Value(
+                                                Word(
+                                                    "add",
+                                                ),
+                                            ),
+                                            args: [
+                                                Number(
+                                                    1.0,
+                                                ),
+                                            ],
+                                        },
+                                        Apply {
+                                            base: Value(
+                                                Word(
+                                                    "tostr",
+                                                ),
+                                            ),
+                                            args: [],
+                                        },
+                                    ],
+                                },
+                            ),
+                        ],
+                    },
+                    Apply {
+                        base: Value(
+                            Word(
+                                "join",
+                            ),
+                        ),
+                        args: [
+                            Bytes(
+                                [
+                                    43,
+                                ],
+                            ),
+                        ],
+                    },
+                ],
+            },
+        ),
+    },
+    [],
+)

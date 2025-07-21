@@ -1,0 +1,44 @@
+---
+source: src/parse.rs
+expression: "t(b\"[a=b]=c\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Value(
+                        Pair(
+                            Subscr(
+                                Script {
+                                    head: Apply {
+                                        base: Value(
+                                            Pair(
+                                                Word(
+                                                    "a",
+                                                ),
+                                                Word(
+                                                    "b",
+                                                ),
+                                            ),
+                                        ),
+                                        args: [],
+                                    },
+                                    tail: [],
+                                },
+                            ),
+                            Word(
+                                "c",
+                            ),
+                        ),
+                    ),
+                    args: [],
+                },
+                tail: [],
+            },
+        ),
+    },
+    [],
+)

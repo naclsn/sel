@@ -1,0 +1,65 @@
+---
+source: src/parse.rs
+expression: "t(b\"[tonum, add234121, tostr] :13242:\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Value(
+                        Subscr(
+                            Script {
+                                head: Apply {
+                                    base: Value(
+                                        Word(
+                                            "tonum",
+                                        ),
+                                    ),
+                                    args: [],
+                                },
+                                tail: [
+                                    Apply {
+                                        base: Value(
+                                            Word(
+                                                "add",
+                                            ),
+                                        ),
+                                        args: [
+                                            Number(
+                                                234121.0,
+                                            ),
+                                        ],
+                                    },
+                                    Apply {
+                                        base: Value(
+                                            Word(
+                                                "tostr",
+                                            ),
+                                        ),
+                                        args: [],
+                                    },
+                                ],
+                            },
+                        ),
+                    ),
+                    args: [
+                        Bytes(
+                            [
+                                49,
+                                51,
+                                50,
+                                52,
+                                50,
+                            ],
+                        ),
+                    ],
+                },
+                tail: [],
+            },
+        ),
+    },
+    [],
+)

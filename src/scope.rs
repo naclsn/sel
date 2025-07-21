@@ -1,13 +1,9 @@
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Result as IoResult};
-use std::marker::PhantomPinned;
-use std::mem;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
-use std::pin::Pin;
-use std::ptr;
 
+/*
 use crate::builtin;
 use crate::parse::Tree;
 use crate::types::{TypeList, TypeRef};
@@ -30,6 +26,7 @@ pub struct Scope {
     parent: *const Scope,
     names: HashMap<String, ScopeItem>,
 }
+*/
 
 // source registry {{{
 pub type SourceRef = usize;
@@ -39,7 +36,7 @@ pub struct Location(pub SourceRef, pub Range<usize>);
 
 pub struct Source {
     pub path: PathBuf,
-    pub bytes: Vec<u8>,
+    pub bytes: Box<[u8]>,
     line_map: Vec<Range<usize>>,
 }
 
@@ -48,7 +45,12 @@ pub struct SourceRegistry(Vec<Source>);
 
 impl SourceRegistry {
     /// Note: the given path is taken as is (ie not canonicalize) and not checked for duplication
-    pub fn add_bytes(&mut self, name: impl AsRef<Path>, bytes: Vec<u8>) -> SourceRef {
+    pub fn add_bytes(
+        &mut self,
+        name: impl AsRef<Path>,
+        bytes: impl IntoIterator<Item = u8>,
+    ) -> SourceRef {
+        let bytes: Box<[u8]> = bytes.into_iter().collect();
         let line_map = Source::compute_line_map(&bytes);
         self.0.push(Source {
             path: name.as_ref().to_owned(),
@@ -108,6 +110,7 @@ impl Source {
 }
 // }}}
 
+/*
 impl Global {
     pub fn with_builtin() -> Global {
         Global {
@@ -252,3 +255,4 @@ impl<'a> IntoIterator for &'a Scope {
 }
 // }}}
 // }}}
+*/

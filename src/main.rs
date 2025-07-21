@@ -1,22 +1,44 @@
-use std::env::{self, Args};
-use std::fs::File;
-use std::io::{self, IsTerminal, Read, Write};
-use std::iter::Peekable;
-
 mod builtin;
 mod error;
-mod format;
-mod interp;
+//mod format;
+//mod interp;
+mod lex;
 mod parse;
 mod scope;
 mod types;
+mod lower;
 
-#[cfg(test)]
-mod tests;
+//#[cfg(test)]
+//mod tests;
 
-use crate::parse::Tree;
-use crate::scope::Global;
-use crate::types::FrozenType;
+use crate::parse::Parser;
+use crate::scope::SourceRegistry;
+
+fn main() {
+    let mut registry = SourceRegistry::default();
+
+    let source = registry.add_bytes(
+        "<args>",
+        std::env::args().skip(1).flat_map(|a| {
+            let mut a = a.into_bytes();
+            a.push(b' ');
+            a
+        }),
+    );
+    let bytes = &registry.get(source).bytes;
+
+    let mut parser = Parser::new(source, bytes.iter().copied());
+    let top = parser.parse_top();
+    let errors = parser.errors();
+
+    if !errors.is_empty() {
+        crate::error::report_many_stderr(errors, &registry, &None, false);
+    }
+
+    eprintln!("{top:#?}");
+}
+
+/*
 
 #[derive(Default)]
 struct Options {
@@ -275,3 +297,4 @@ fn do_the_thing(ty: &FrozenType, tree: &Tree, global: &Global) {
         Func(_, _) | Named(_) => unreachable!(),
     }
 }
+*/

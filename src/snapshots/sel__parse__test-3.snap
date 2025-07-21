@@ -1,0 +1,28 @@
+---
+source: src/parse.rs
+expression: "t(b\"- 2\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Value(
+                        Word(
+                            "-",
+                        ),
+                    ),
+                    args: [
+                        Number(
+                            2.0,
+                        ),
+                    ],
+                },
+                tail: [],
+            },
+        ),
+    },
+    [],
+)

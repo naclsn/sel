@@ -70,7 +70,7 @@ Here is the complete syntax:
 top ::= {'use' <bytes> <word> ','} {'def' <word> <bytes> <value> ','} [<script>]
 script ::= <apply> {',' <apply>}
 
-apply ::= <binding> | <value> {<value>}
+apply ::= (<binding> | <value>) {<value>}
 value ::= <atom> | <subscr> | <list> | <pair>
 
 binding ::= 'let' (<irrefut> <value> | <pattern> <value> <value>)
@@ -81,15 +81,17 @@ patpair ::= (<atom> | <patlist>) '=' <pattern>
 
 atom ::= <word> | <bytes> | <number>
 subscr ::= '[' <script> ']'
-list ::= '{' [<apply> {',' <apply>} [',']] '}'
+list ::= '{' [<apply> {',' <apply>} [',' [',' <apply>]]] '}'
 pair ::= (<atom> | <subscr> | <list>) '=' <value>
 
 word ::= /[-a-z]+/ | '_'
 bytes ::= /:([^:]|::)*:/
 number ::= /0b[01]+/ | /0o[0-7]+/ | /0x[0-9A-Fa-f]+/ | /[0-9]+(\.[0-9]+)?/
 
-comment ::= '#' /.*/ '\n'
+comment ::= '#-' <balanced> [','] | '#' /.*/ '\n'
+balanced ::= '[' <matched> ']' | '{' <matched> '}' | <bytes> | /[^\t\n\f\r ]+/
 ```
+<!-- should dash comments eat the ','? seems practical but idk -->
 
 The objective here was to make it possible to type the
 script plainly in any (most?) shell without worrying about
@@ -170,13 +172,14 @@ There is also an undocumented word that completely aborts the parsing: `fatal`.
 
 ## Ack & Unrelated
 
-Python,
-Haskell,
-Rust,
-[jq](https://github.com/jqlang/jq),
-[tree-sitter](https://github.com/tree-sitter/tree-sitter),
-[dt](https://github.com/so-dang-cool/dt),
-[Helix](https://github.com/helix-editor/helix)
+Python, <!-- for the frustration and motivation it provides -->
+Haskell, <!-- because . point . free . funny -->
+Rust, <!-- # blazingly fast -->
+[KDL](https://kdl.dev/), <!-- the "slashdash" comments! -->
+[jq](https://github.com/jqlang/jq), <!-- similar concept, great but unusable unintuitive imo -->
+[tree-sitter](https://github.com/tree-sitter/tree-sitter), <!-- idk, initial attempt used that -->
+[dt](https://github.com/so-dang-cool/dt), <!-- found way after `sel` was concretized, but that exactly the same thing! -->
+[Helix](https://github.com/helix-editor/helix) <!-- back then, made me need a script I can easily write unquoted and filter each cursor selection through.. and python isnt it, it would only make it painful -->
 
 ---
 

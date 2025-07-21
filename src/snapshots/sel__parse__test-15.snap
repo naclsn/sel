@@ -1,0 +1,54 @@
+---
+source: src/parse.rs
+expression: "t(b\"let a let b a b a # note: is syntax error\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Binding {
+                        pat: Word(
+                            "a",
+                        ),
+                        res: Word(
+                            "?let",
+                        ),
+                        alt: Number(
+                            0.0,
+                        ),
+                    },
+                    args: [
+                        Word(
+                            "b",
+                        ),
+                        Word(
+                            "a",
+                        ),
+                        Word(
+                            "b",
+                        ),
+                        Word(
+                            "a",
+                        ),
+                    ],
+                },
+                tail: [],
+            },
+        ),
+    },
+    [
+        Error(
+            Location(
+                0,
+                6..9,
+            ),
+            Unexpected {
+                token: Let,
+                expected: "a value",
+            },
+        ),
+    ],
+)

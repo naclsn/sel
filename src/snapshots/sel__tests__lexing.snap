@@ -1,5 +1,0 @@
----
-source: src/tests.rs
-expression: "t(b\"\")"
----
-Token(Location(0, 0..0), End)

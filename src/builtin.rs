@@ -1,5 +1,5 @@
 // TODO(wip): trim down, rename to fundamentals or something
-use crate::scope::{Scope, ScopeItem};
+//use crate::scope::{Scope, ScopeItem};
 use crate::types::{Boundedness, TypeList, TypeRef};
 
 // macro to generate the fn generating the type {{{
@@ -100,19 +100,11 @@ macro_rules! mkmkty {
 }
 
 macro_rules! mkbin {
-    ($mkty:expr, $desc:literal) => {
-        ScopeItem::Builtin($mkty, $desc)
+    ($name:literal :: $mkty:expr ; $desc:literal) => {
+        ($name, $mkty, $desc)
     };
 }
 // }}}
-
-pub fn scope() -> Scope {
-    let mut r = Scope::default();
-    for (k, v) in NAMES {
-        r.declare(k.into(), v);
-    }
-    r
-}
 
 /// Fundamental operations that cannot be implemented in the language itself.
 ///
@@ -123,32 +115,32 @@ pub fn scope() -> Scope {
 /// It basically represent what an interpreter will in any way need to implement.
 /// Technically `pipe`, `tonum` and `tostr` _could_ be implemented in the prelude
 /// but are not for consistency with other syntax-level functions.
-const NAMES: [(&str, ScopeItem); 22] = [
-    ("-"            , mkbin!(mkmkty!(1          ; Str+1                   ), "the input")),
-    ("cons"         , mkbin!(mkmkty!(1, a       ; a -> [a]+1 -> [a]+1     ), "make a list with the head element first, then the rest as tail; 'cons val lst' is equivalent to the syntax '{val,, lst}'")),
-    ("panic"        , mkbin!(mkmkty!(0, a       ; Str -> a                ), "panics; this is different from fatal: fatal is a parse-time abort, panic is a runtime abort")),
-    ("pipe"         , mkbin!(mkmkty!(0, a, b, c ; (a->b) -> (b->c) -> a->c), "pipe two function; 'pipe one two' is equivalent to the syntax 'one, two' ie 'two(one(..))' (see also 'compose')")),
-    ("tonum"        , mkbin!(mkmkty!(1          ; Str+1 -> Num            ), "convert a string into number; accept an infinite string for convenience but stop on the first invalid byte")),
-    ("tostr"        , mkbin!(mkmkty!(0          ; Num -> Str              ), "convert a number into string")),
+const NAMES: [(&str, fn(&mut TypeList) -> TypeRef, &str); 22] = [
+    mkbin!("-"            :: mkmkty!(1          ; Str+1                   ) ; "the input"),
+    mkbin!("cons"         :: mkmkty!(1, a       ; a -> [a]+1 -> [a]+1     ) ; "make a list with the head element first, then the rest as tail; 'cons val lst' is equivalent to the syntax '{val,, lst}'"),
+    mkbin!("panic"        :: mkmkty!(0, a       ; Str -> a                ) ; "panics; this is different from fatal: fatal is a parse-time abort, panic is a runtime abort"),
+    mkbin!("pipe"         :: mkmkty!(0, a, b, c ; (a->b) -> (b->c) -> a->c) ; "pipe two function; 'pipe one two' is equivalent to the syntax 'one, two' ie 'two(one(..))' (see also 'compose')"),
+    mkbin!("tonum"        :: mkmkty!(1          ; Str+1 -> Num            ) ; "convert a string into number; accept an infinite string for convenience but stop on the first invalid byte"),
+    mkbin!("tostr"        :: mkmkty!(0          ; Num -> Str              ) ; "convert a number into string"),
 
-    ("bytes"        , mkbin!(mkmkty!(1          ; Str+1 -> [Num]+1        ), "make a list of numbers with the 8 bits bytes")),
-    ("codepoints"   , mkbin!(mkmkty!(1          ; Str+1 -> [Num]+1        ), "make a list of numbers with the 32 bits codepoints")),
-    ("graphemes"    , mkbin!(mkmkty!(1          ; Str+1 -> [Str]+1        ), "make a list of strings with the potentially multi-codepoints graphemes")),
-    ("unbytes"      , mkbin!(mkmkty!(1          ; [Num]+1 -> Str+1        ), "make a string from the 8 bits bytes")),
-    ("uncodepoints" , mkbin!(mkmkty!(1          ; [Num]+1 -> Str+1        ), "make a string from the 32 bits codepoints")),
-    ("ungraphemes"  , mkbin!(mkmkty!(1          ; [Str]+1 -> Str+1        ), "make a string from the potentially multi-codepoints graphemes")),
+    mkbin!("bytes"        :: mkmkty!(1          ; Str+1 -> [Num]+1        ) ; "make a list of numbers with the 8 bits bytes"),
+    mkbin!("codepoints"   :: mkmkty!(1          ; Str+1 -> [Num]+1        ) ; "make a list of numbers with the 32 bits codepoints"),
+    mkbin!("graphemes"    :: mkmkty!(1          ; Str+1 -> [Str]+1        ) ; "make a list of strings with the potentially multi-codepoints graphemes"),
+    mkbin!("unbytes"      :: mkmkty!(1          ; [Num]+1 -> Str+1        ) ; "make a string from the 8 bits bytes"),
+    mkbin!("uncodepoints" :: mkmkty!(1          ; [Num]+1 -> Str+1        ) ; "make a string from the 32 bits codepoints"),
+    mkbin!("ungraphemes"  :: mkmkty!(1          ; [Str]+1 -> Str+1        ) ; "make a string from the potentially multi-codepoints graphemes"),
 
-    ("add"          , mkbin!(mkmkty!(0          ; Num -> Num -> Num       ), "add two numbers")),
-    ("invert"       , mkbin!(mkmkty!(0          ; Num -> Num              ), "invert a number")),
-    ("mul"          , mkbin!(mkmkty!(0          ; Num -> Num -> Num       ), "multiply two numbers")),
-    ("negate"       , mkbin!(mkmkty!(0          ; Num -> Num              ), "negate a number")),
-    ("signum"       , mkbin!(mkmkty!(0          ; Num -> Num              ), "sign of a number, in {-1, 0, 1}")),
-    ("trunc"        , mkbin!(mkmkty!(0          ; Num -> Num              ), "truncation (rounding toward zero)")),
+    mkbin!("add"          :: mkmkty!(0          ; Num -> Num -> Num       ) ; "add two numbers"),
+    mkbin!("invert"       :: mkmkty!(0          ; Num -> Num              ) ; "invert a number"),
+    mkbin!("mul"          :: mkmkty!(0          ; Num -> Num -> Num       ) ; "multiply two numbers"),
+    mkbin!("negate"       :: mkmkty!(0          ; Num -> Num              ) ; "negate a number"),
+    mkbin!("signum"       :: mkmkty!(0          ; Num -> Num              ) ; "sign of a number, in {-1, 0, 1}"),
+    mkbin!("trunc"        :: mkmkty!(0          ; Num -> Num              ) ; "truncation (rounding toward zero)"),
 
-    ("asin"         , mkbin!(mkmkty!(0          ; Num -> Num              ), "the inverse sine function")),
-    ("exp"          , mkbin!(mkmkty!(0          ; Num -> Num              ), "the exponent function")),
-    ("log"          , mkbin!(mkmkty!(0          ; Num -> Num              ), "the natural logarithm function")),
-    ("sin"          , mkbin!(mkmkty!(0          ; Num -> Num              ), "the sine function")),
+    mkbin!("asin"         :: mkmkty!(0          ; Num -> Num              ) ; "the inverse sine function"),
+    mkbin!("exp"          :: mkmkty!(0          ; Num -> Num              ) ; "the exponent function"),
+    mkbin!("log"          :: mkmkty!(0          ; Num -> Num              ) ; "the natural logarithm function"),
+    mkbin!("sin"          :: mkmkty!(0          ; Num -> Num              ) ; "the sine function"),
 ];
 
 /*
