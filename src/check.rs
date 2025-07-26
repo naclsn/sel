@@ -19,9 +19,9 @@ pub enum TreeVal {
     Number(f64),
     Bytes(Box<[u8]>),
     Word(String, Refers),
-    List(Box<[Tree]>),
+    List, // represents an empty list, as a cons-sequence starter (ie nil)
     Pair(Box<Tree>, Box<Tree>),
-    Apply(Box<Tree>, Vec<Tree>), // base can only be 'Word' or 'Binding'
+    Apply(Box<Tree>, Vec<Tree>), // base can only be 'Word', 'Binding' or 'Fundamental', or the error list isn't empty
     Binding(Pattern, Box<Tree>, Box<Tree>), // garbage if `pat.is_irrefutable()`
     Fundamental(Fund),
 }
@@ -55,7 +55,31 @@ impl<'t, 's> Checker<'t, 's> {
     }
 
     fn apply(&mut self, func: Tree, arg: Tree) -> Tree {
-        todo!("apply {func:?} {arg:?}")
+        let ty = Type::applied(func.ty, arg.ty, &mut self.types).unwrap_or_else(|err| {
+            self.errors.push(Error(
+                todo!("loc for {err:?} (from apply not applying)"),
+                err,
+            ));
+            match self.types.get(func.ty) {
+                Type::Func(_, ret) => *ret,
+                _ => self.types.named(format!("ret")),
+            }
+        });
+
+        let val = match func.val {
+            TreeVal::Apply(base, mut args) => {
+                args.push(arg);
+                TreeVal::Apply(base, args)
+            }
+            TreeVal::Word(_, _) | TreeVal::Binding(_, _, _) | TreeVal::Fundamental(_) => {
+                TreeVal::Apply(Box::new(func), vec![arg])
+            }
+            TreeVal::Number(_) | TreeVal::Bytes(_) | TreeVal::List | TreeVal::Pair(_, _) => {
+                TreeVal::Apply(Box::new(func), vec![arg])
+            }
+        };
+
+        Tree { ty, val }
     }
 
     fn fundamental(&mut self, op: Fund) -> Tree {
@@ -117,9 +141,17 @@ impl<'t, 's> Checker<'t, 's> {
                     .map(|it| self.check_pattern_type(it, names))
                     .collect();
 
-                let has = self.check_list_content(items);
-                let fin = self.types.finite(rest.is_none());
-                let ty = self.types.list(fin, has);
+                todo!("ty of Pattern::List\nitem types: {items:?}");
+                // i kept the commented code below that refers to check_list_content;
+                // i just rewrote Value::List handling in check_value in a way
+                // that's more regular: it's always checked as if {...,, {}} ie it
+                // always relies on `cons` which will dictate the behavior uniformly
+                // however i'm left with that one now which idk how to then
+
+                let ty = 0;
+                //let has = self.check_list_content(items);
+                //let fin = self.types.finite(rest.is_none());
+                //let ty = self.types.list(fin, has);
 
                 if let Some(w) = rest {
                     if let Some((loc, ty)) = names.get(w) {
@@ -198,6 +230,8 @@ impl<'t, 's> Checker<'t, 's> {
         })
     }
 
+    // not used, but kept for now because of the notes;
+    // see in check_pattern_type's Pattern::List branch too
     fn check_list_content(&mut self, items: impl IntoIterator<Item = TypeRef>) -> TypeRef {
         let ty = self.types.named("item".into());
         for it in items {
@@ -271,25 +305,25 @@ impl<'t, 's> Checker<'t, 's> {
             Value::List(items, rest) => {
                 let items: Vec<_> = items.iter().map(|it| self.check_apply(it)).collect();
 
-                if let Some(rest) = rest {
-                    let rest = self.check_apply(rest);
-                    // cons(items[0], .... cons(items[n-1], cons(items[n], rest)) .... )
-                    // note: reverse error order -- do we want not that?
-                    items.into_iter().rfold(rest, |acc, cur| {
-                        let cons = self.fundamental(Fund::Cons);
-                        let part = self.apply(cons, cur);
-                        self.apply(part, acc)
-                    })
+                let rest = if let Some(rest) = rest {
+                    self.check_apply(rest)
                 } else {
+                    // empty list, as if {...,, {}}
+                    let has = self.types.named("item".into());
+                    let fin = self.types.finite(true);
                     Tree {
-                        ty: {
-                            let has = self.check_list_content(items.iter().map(|it| it.ty));
-                            let fin = self.types.finite(true);
-                            self.types.list(fin, has)
-                        },
-                        val: TreeVal::List(items.into_boxed_slice()),
+                        ty: self.types.list(fin, has),
+                        val: TreeVal::List,
                     }
-                }
+                };
+
+                // cons(items[0], .... cons(items[n-1], cons(items[n], rest)) .... )
+                // note: reverse error order -- XXX: may not want that
+                items.into_iter().rfold(rest, |acc, cur| {
+                    let cons = self.fundamental(Fund::Cons);
+                    let part = self.apply(cons, cur);
+                    self.apply(part, acc)
+                })
             }
 
             Value::Pair(fst, snd) => {
