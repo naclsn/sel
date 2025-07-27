@@ -10,35 +10,75 @@ expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]
             Script {
                 head: Apply {
                     base: Binding {
-                        pat: Word(
-                            "a",
+                        loc_let: Location(
+                            0,
+                            1..4,
                         ),
-                        res: Subscr(
-                            Script {
+                        pat: Word {
+                            loc: Location(
+                                0,
+                                5..6,
+                            ),
+                            word: "a",
+                        },
+                        res: Subscr {
+                            loc_open: Location(
+                                0,
+                                11..12,
+                            ),
+                            subscr: Script {
                                 head: Apply {
                                     base: Binding {
-                                        pat: Word(
-                                            "b",
+                                        loc_let: Location(
+                                            0,
+                                            12..15,
                                         ),
-                                        res: Word(
-                                            "a",
-                                        ),
-                                        alt: Number(
-                                            0.0,
-                                        ),
+                                        pat: Word {
+                                            loc: Location(
+                                                0,
+                                                16..17,
+                                            ),
+                                            word: "b",
+                                        },
+                                        res: Word {
+                                            loc: Location(
+                                                0,
+                                                26..27,
+                                            ),
+                                            word: "a",
+                                        },
+                                        alt: Number {
+                                            loc: Location(
+                                                0,
+                                                0..0,
+                                            ),
+                                            number: 0.0,
+                                        },
                                     },
                                     args: [
-                                        Subscr(
-                                            Script {
+                                        Subscr {
+                                            loc_open: Location(
+                                                0,
+                                                36..37,
+                                            ),
+                                            subscr: Script {
                                                 head: Apply {
                                                     base: Value(
-                                                        Word(
-                                                            "panic",
-                                                        ),
+                                                        Word {
+                                                            loc: Location(
+                                                                0,
+                                                                37..42,
+                                                            ),
+                                                            word: "panic",
+                                                        },
                                                     ),
                                                     args: [
-                                                        Bytes(
-                                                            [
+                                                        Bytes {
+                                                            loc: Location(
+                                                                0,
+                                                                42..56,
+                                                            ),
+                                                            bytes: [
                                                                 32,
                                                                 117,
                                                                 110,
@@ -52,33 +92,57 @@ expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]
                                                                 108,
                                                                 101,
                                                             ],
-                                                        ),
+                                                        },
                                                     ],
                                                 },
                                                 tail: [],
                                             },
-                                        ),
+                                            loc_close: Location(
+                                                0,
+                                                56..57,
+                                            ),
+                                        },
                                     ],
                                 },
                                 tail: [],
                             },
-                        ),
-                        alt: Number(
-                            0.0,
-                        ),
+                            loc_close: Location(
+                                0,
+                                57..58,
+                            ),
+                        },
+                        alt: Number {
+                            loc: Location(
+                                0,
+                                0..0,
+                            ),
+                            number: 0.0,
+                        },
                     },
                     args: [
-                        Subscr(
-                            Script {
+                        Subscr {
+                            loc_open: Location(
+                                0,
+                                63..64,
+                            ),
+                            subscr: Script {
                                 head: Apply {
                                     base: Value(
-                                        Word(
-                                            "panic",
-                                        ),
+                                        Word {
+                                            loc: Location(
+                                                0,
+                                                64..69,
+                                            ),
+                                            word: "panic",
+                                        },
                                     ),
                                     args: [
-                                        Bytes(
-                                            [
+                                        Bytes {
+                                            loc: Location(
+                                                0,
+                                                69..83,
+                                            ),
+                                            bytes: [
                                                 32,
                                                 117,
                                                 110,
@@ -92,12 +156,16 @@ expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]
                                                 108,
                                                 101,
                                             ],
-                                        ),
+                                        },
                                     ],
                                 },
                                 tail: [],
                             },
-                        ),
+                            loc_close: Location(
+                                0,
+                                83..84,
+                            ),
+                        },
                     ],
                 },
                 tail: [],

@@ -10,32 +10,58 @@ expression: "t(b\"{0,, repeat 1}\")"
             Script {
                 head: Apply {
                     base: Value(
-                        List(
-                            [
+                        List {
+                            loc_open: Location(
+                                0,
+                                0..1,
+                            ),
+                            items: [
                                 Apply {
                                     base: Value(
-                                        Number(
-                                            0.0,
-                                        ),
+                                        Number {
+                                            loc: Location(
+                                                0,
+                                                1..2,
+                                            ),
+                                            number: 0.0,
+                                        },
                                     ),
                                     args: [],
                                 },
                             ],
-                            Some(
-                                Apply {
-                                    base: Value(
-                                        Word(
-                                            "repeat",
-                                        ),
+                            rest: Some(
+                                (
+                                    Location(
+                                        0,
+                                        3..4,
                                     ),
-                                    args: [
-                                        Number(
-                                            1.0,
+                                    Apply {
+                                        base: Value(
+                                            Word {
+                                                loc: Location(
+                                                    0,
+                                                    5..11,
+                                                ),
+                                                word: "repeat",
+                                            },
                                         ),
-                                    ],
-                                },
+                                        args: [
+                                            Number {
+                                                loc: Location(
+                                                    0,
+                                                    12..13,
+                                                ),
+                                                number: 1.0,
+                                            },
+                                        ],
+                                    },
+                                ),
                             ),
-                        ),
+                            loc_close: Location(
+                                0,
+                                13..14,
+                            ),
+                        },
                     ),
                     args: [],
                 },

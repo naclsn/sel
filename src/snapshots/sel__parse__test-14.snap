@@ -10,29 +10,57 @@ expression: "t(b\"[a=b]=c\")"
             Script {
                 head: Apply {
                     base: Value(
-                        Pair(
-                            Subscr(
-                                Script {
+                        Pair {
+                            fst: Subscr {
+                                loc_open: Location(
+                                    0,
+                                    0..1,
+                                ),
+                                subscr: Script {
                                     head: Apply {
                                         base: Value(
-                                            Pair(
-                                                Word(
-                                                    "a",
+                                            Pair {
+                                                fst: Word {
+                                                    loc: Location(
+                                                        0,
+                                                        1..2,
+                                                    ),
+                                                    word: "a",
+                                                },
+                                                loc_equal: Location(
+                                                    0,
+                                                    2..3,
                                                 ),
-                                                Word(
-                                                    "b",
-                                                ),
-                                            ),
+                                                snd: Word {
+                                                    loc: Location(
+                                                        0,
+                                                        3..4,
+                                                    ),
+                                                    word: "b",
+                                                },
+                                            },
                                         ),
                                         args: [],
                                     },
                                     tail: [],
                                 },
+                                loc_close: Location(
+                                    0,
+                                    4..5,
+                                ),
+                            },
+                            loc_equal: Location(
+                                0,
+                                5..6,
                             ),
-                            Word(
-                                "c",
-                            ),
-                        ),
+                            snd: Word {
+                                loc: Location(
+                                    0,
+                                    6..7,
+                                ),
+                                word: "c",
+                            },
+                        },
                     ),
                     args: [],
                 },

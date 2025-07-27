@@ -10,32 +10,56 @@ expression: "t(b\"{repeat 1, {}}\")"
             Script {
                 head: Apply {
                     base: Value(
-                        List(
-                            [
+                        List {
+                            loc_open: Location(
+                                0,
+                                0..1,
+                            ),
+                            items: [
                                 Apply {
                                     base: Value(
-                                        Word(
-                                            "repeat",
-                                        ),
+                                        Word {
+                                            loc: Location(
+                                                0,
+                                                1..7,
+                                            ),
+                                            word: "repeat",
+                                        },
                                     ),
                                     args: [
-                                        Number(
-                                            1.0,
-                                        ),
+                                        Number {
+                                            loc: Location(
+                                                0,
+                                                8..9,
+                                            ),
+                                            number: 1.0,
+                                        },
                                     ],
                                 },
                                 Apply {
                                     base: Value(
-                                        List(
-                                            [],
-                                            None,
-                                        ),
+                                        List {
+                                            loc_open: Location(
+                                                0,
+                                                11..12,
+                                            ),
+                                            items: [],
+                                            rest: None,
+                                            loc_close: Location(
+                                                0,
+                                                12..13,
+                                            ),
+                                        },
                                     ),
                                     args: [],
                                 },
                             ],
-                            None,
-                        ),
+                            rest: None,
+                            loc_close: Location(
+                                0,
+                                13..14,
+                            ),
+                        },
                     ),
                     args: [],
                 },

@@ -10,29 +10,61 @@ expression: "t(b\"let a let b a b a # note: is syntax error\")"
             Script {
                 head: Apply {
                     base: Binding {
-                        pat: Word(
-                            "a",
+                        loc_let: Location(
+                            0,
+                            0..3,
                         ),
-                        res: Word(
-                            "?let",
-                        ),
-                        alt: Number(
-                            0.0,
-                        ),
+                        pat: Word {
+                            loc: Location(
+                                0,
+                                4..5,
+                            ),
+                            word: "a",
+                        },
+                        res: Word {
+                            loc: Location(
+                                0,
+                                6..9,
+                            ),
+                            word: "?let",
+                        },
+                        alt: Number {
+                            loc: Location(
+                                0,
+                                0..0,
+                            ),
+                            number: 0.0,
+                        },
                     },
                     args: [
-                        Word(
-                            "b",
-                        ),
-                        Word(
-                            "a",
-                        ),
-                        Word(
-                            "b",
-                        ),
-                        Word(
-                            "a",
-                        ),
+                        Word {
+                            loc: Location(
+                                0,
+                                10..11,
+                            ),
+                            word: "b",
+                        },
+                        Word {
+                            loc: Location(
+                                0,
+                                12..13,
+                            ),
+                            word: "a",
+                        },
+                        Word {
+                            loc: Location(
+                                0,
+                                14..15,
+                            ),
+                            word: "b",
+                        },
+                        Word {
+                            loc: Location(
+                                0,
+                                16..17,
+                            ),
+                            word: "a",
+                        },
                     ],
                 },
                 tail: [],

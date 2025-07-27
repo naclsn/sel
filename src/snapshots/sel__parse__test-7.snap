@@ -10,51 +10,91 @@ expression: "t(b\"[tonum, add234121, tostr] :13242:\")"
             Script {
                 head: Apply {
                     base: Value(
-                        Subscr(
-                            Script {
+                        Subscr {
+                            loc_open: Location(
+                                0,
+                                0..1,
+                            ),
+                            subscr: Script {
                                 head: Apply {
                                     base: Value(
-                                        Word(
-                                            "tonum",
-                                        ),
+                                        Word {
+                                            loc: Location(
+                                                0,
+                                                1..6,
+                                            ),
+                                            word: "tonum",
+                                        },
                                     ),
                                     args: [],
                                 },
                                 tail: [
-                                    Apply {
-                                        base: Value(
-                                            Word(
-                                                "add",
-                                            ),
+                                    (
+                                        Location(
+                                            0,
+                                            6..7,
                                         ),
-                                        args: [
-                                            Number(
-                                                234121.0,
+                                        Apply {
+                                            base: Value(
+                                                Word {
+                                                    loc: Location(
+                                                        0,
+                                                        8..11,
+                                                    ),
+                                                    word: "add",
+                                                },
                                             ),
-                                        ],
-                                    },
-                                    Apply {
-                                        base: Value(
-                                            Word(
-                                                "tostr",
-                                            ),
+                                            args: [
+                                                Number {
+                                                    loc: Location(
+                                                        0,
+                                                        11..17,
+                                                    ),
+                                                    number: 234121.0,
+                                                },
+                                            ],
+                                        },
+                                    ),
+                                    (
+                                        Location(
+                                            0,
+                                            17..18,
                                         ),
-                                        args: [],
-                                    },
+                                        Apply {
+                                            base: Value(
+                                                Word {
+                                                    loc: Location(
+                                                        0,
+                                                        19..24,
+                                                    ),
+                                                    word: "tostr",
+                                                },
+                                            ),
+                                            args: [],
+                                        },
+                                    ),
                                 ],
                             },
-                        ),
+                            loc_close: Location(
+                                0,
+                                24..25,
+                            ),
+                        },
                     ),
                     args: [
-                        Bytes(
-                            [
+                        Bytes {
+                            loc: Location(
+                                0,
+                                26..33,
+                            ),
+                            bytes: [
                                 49,
                                 51,
                                 50,
                                 52,
                                 50,
                             ],
-                        ),
+                        },
                     ],
                 },
                 tail: [],

@@ -10,26 +10,58 @@ expression: "t(b\"let {a b, c} 0\")"
             Script {
                 head: Apply {
                     base: Binding {
-                        pat: List(
-                            [
-                                Word(
-                                    "a",
-                                ),
-                                Word(
-                                    "b",
-                                ),
-                                Word(
-                                    "c",
-                                ),
+                        loc_let: Location(
+                            0,
+                            0..3,
+                        ),
+                        pat: List {
+                            loc_open: Location(
+                                0,
+                                4..5,
+                            ),
+                            items: [
+                                Word {
+                                    loc: Location(
+                                        0,
+                                        5..6,
+                                    ),
+                                    word: "a",
+                                },
+                                Word {
+                                    loc: Location(
+                                        0,
+                                        7..8,
+                                    ),
+                                    word: "b",
+                                },
+                                Word {
+                                    loc: Location(
+                                        0,
+                                        10..11,
+                                    ),
+                                    word: "c",
+                                },
                             ],
-                            None,
-                        ),
-                        res: Number(
-                            0.0,
-                        ),
-                        alt: Word(
-                            "?",
-                        ),
+                            rest: None,
+                            loc_close: Location(
+                                0,
+                                11..12,
+                            ),
+                        },
+                        res: Number {
+                            loc: Location(
+                                0,
+                                13..14,
+                            ),
+                            number: 0.0,
+                        },
+                        alt: Word {
+                            loc: Location(
+                                0,
+                                14..14,
+                            ),
+                            word: "?",
+                        },
                     },
                     args: [],
                 },

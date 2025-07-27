@@ -10,33 +10,63 @@ expression: "t(b\"{repeat 1,, {}}\")"
             Script {
                 head: Apply {
                     base: Value(
-                        List(
-                            [
+                        List {
+                            loc_open: Location(
+                                0,
+                                0..1,
+                            ),
+                            items: [
                                 Apply {
                                     base: Value(
-                                        Word(
-                                            "repeat",
-                                        ),
+                                        Word {
+                                            loc: Location(
+                                                0,
+                                                1..7,
+                                            ),
+                                            word: "repeat",
+                                        },
                                     ),
                                     args: [
-                                        Number(
-                                            1.0,
-                                        ),
+                                        Number {
+                                            loc: Location(
+                                                0,
+                                                8..9,
+                                            ),
+                                            number: 1.0,
+                                        },
                                     ],
                                 },
                             ],
-                            Some(
-                                Apply {
-                                    base: Value(
-                                        List(
-                                            [],
-                                            None,
-                                        ),
+                            rest: Some(
+                                (
+                                    Location(
+                                        0,
+                                        10..11,
                                     ),
-                                    args: [],
-                                },
+                                    Apply {
+                                        base: Value(
+                                            List {
+                                                loc_open: Location(
+                                                    0,
+                                                    12..13,
+                                                ),
+                                                items: [],
+                                                rest: None,
+                                                loc_close: Location(
+                                                    0,
+                                                    13..14,
+                                                ),
+                                            },
+                                        ),
+                                        args: [],
+                                    },
+                                ),
                             ),
-                        ),
+                            loc_close: Location(
+                                0,
+                                14..15,
+                            ),
+                        },
                     ),
                     args: [],
                 },

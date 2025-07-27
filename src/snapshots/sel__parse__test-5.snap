@@ -10,84 +10,162 @@ expression: "t(b\"-, split:-:, map[tonum, add1, tostr], join:+:\")"
             Script {
                 head: Apply {
                     base: Value(
-                        Word(
-                            "-",
-                        ),
+                        Word {
+                            loc: Location(
+                                0,
+                                0..1,
+                            ),
+                            word: "-",
+                        },
                     ),
                     args: [],
                 },
                 tail: [
-                    Apply {
-                        base: Value(
-                            Word(
-                                "split",
-                            ),
+                    (
+                        Location(
+                            0,
+                            1..2,
                         ),
-                        args: [
-                            Bytes(
-                                [
-                                    45,
-                                ],
+                        Apply {
+                            base: Value(
+                                Word {
+                                    loc: Location(
+                                        0,
+                                        3..8,
+                                    ),
+                                    word: "split",
+                                },
                             ),
-                        ],
-                    },
-                    Apply {
-                        base: Value(
-                            Word(
-                                "map",
-                            ),
+                            args: [
+                                Bytes {
+                                    loc: Location(
+                                        0,
+                                        8..11,
+                                    ),
+                                    bytes: [
+                                        45,
+                                    ],
+                                },
+                            ],
+                        },
+                    ),
+                    (
+                        Location(
+                            0,
+                            11..12,
                         ),
-                        args: [
-                            Subscr(
-                                Script {
-                                    head: Apply {
-                                        base: Value(
-                                            Word(
-                                                "tonum",
-                                            ),
-                                        ),
-                                        args: [],
-                                    },
-                                    tail: [
-                                        Apply {
+                        Apply {
+                            base: Value(
+                                Word {
+                                    loc: Location(
+                                        0,
+                                        13..16,
+                                    ),
+                                    word: "map",
+                                },
+                            ),
+                            args: [
+                                Subscr {
+                                    loc_open: Location(
+                                        0,
+                                        16..17,
+                                    ),
+                                    subscr: Script {
+                                        head: Apply {
                                             base: Value(
-                                                Word(
-                                                    "add",
-                                                ),
-                                            ),
-                                            args: [
-                                                Number(
-                                                    1.0,
-                                                ),
-                                            ],
-                                        },
-                                        Apply {
-                                            base: Value(
-                                                Word(
-                                                    "tostr",
-                                                ),
+                                                Word {
+                                                    loc: Location(
+                                                        0,
+                                                        17..22,
+                                                    ),
+                                                    word: "tonum",
+                                                },
                                             ),
                                             args: [],
                                         },
-                                    ],
+                                        tail: [
+                                            (
+                                                Location(
+                                                    0,
+                                                    22..23,
+                                                ),
+                                                Apply {
+                                                    base: Value(
+                                                        Word {
+                                                            loc: Location(
+                                                                0,
+                                                                24..27,
+                                                            ),
+                                                            word: "add",
+                                                        },
+                                                    ),
+                                                    args: [
+                                                        Number {
+                                                            loc: Location(
+                                                                0,
+                                                                27..28,
+                                                            ),
+                                                            number: 1.0,
+                                                        },
+                                                    ],
+                                                },
+                                            ),
+                                            (
+                                                Location(
+                                                    0,
+                                                    28..29,
+                                                ),
+                                                Apply {
+                                                    base: Value(
+                                                        Word {
+                                                            loc: Location(
+                                                                0,
+                                                                30..35,
+                                                            ),
+                                                            word: "tostr",
+                                                        },
+                                                    ),
+                                                    args: [],
+                                                },
+                                            ),
+                                        ],
+                                    },
+                                    loc_close: Location(
+                                        0,
+                                        35..36,
+                                    ),
+                                },
+                            ],
+                        },
+                    ),
+                    (
+                        Location(
+                            0,
+                            36..37,
+                        ),
+                        Apply {
+                            base: Value(
+                                Word {
+                                    loc: Location(
+                                        0,
+                                        38..42,
+                                    ),
+                                    word: "join",
                                 },
                             ),
-                        ],
-                    },
-                    Apply {
-                        base: Value(
-                            Word(
-                                "join",
-                            ),
-                        ),
-                        args: [
-                            Bytes(
-                                [
-                                    43,
-                                ],
-                            ),
-                        ],
-                    },
+                            args: [
+                                Bytes {
+                                    loc: Location(
+                                        0,
+                                        42..45,
+                                    ),
+                                    bytes: [
+                                        43,
+                                    ],
+                                },
+                            ],
+                        },
+                    ),
                 ],
             },
         ),

@@ -10,14 +10,26 @@ expression: "t(b\"a=b\")"
             Script {
                 head: Apply {
                     base: Value(
-                        Pair(
-                            Word(
-                                "a",
+                        Pair {
+                            fst: Word {
+                                loc: Location(
+                                    0,
+                                    0..1,
+                                ),
+                                word: "a",
+                            },
+                            loc_equal: Location(
+                                0,
+                                1..2,
                             ),
-                            Word(
-                                "b",
-                            ),
-                        ),
+                            snd: Word {
+                                loc: Location(
+                                    0,
+                                    2..3,
+                                ),
+                                word: "b",
+                            },
+                        },
                     ),
                     args: [],
                 },

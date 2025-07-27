@@ -10,9 +10,13 @@ expression: "t(b\"-\")"
             Script {
                 head: Apply {
                     base: Value(
-                        Word(
-                            "-",
-                        ),
+                        Word {
+                            loc: Location(
+                                0,
+                                0..1,
+                            ),
+                            word: "-",
+                        },
                     ),
                     args: [],
                 },
