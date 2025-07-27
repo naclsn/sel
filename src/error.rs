@@ -266,12 +266,15 @@ impl Error {
             Unmatched { open_token } => &[(
                 loc,
                 format!(
-                    "open {} here",
+                    "{} here",
                     match open_token {
-                        OpenBracket => '[',
-                        OpenBrace => '{',
+                        OpenBracket => "open '['",
+                        OpenBrace => "open '{'",
+                        Def => "keyword 'def'",
+                        Let => "keyword 'let'",
+                        Use => "keyword 'use'",
                         Unknown(_) | Word(_) | Bytes(_) | Number(_) | Comma | CloseBracket
-                        | CloseBrace | Equal | Def | Let | Use | End => unreachable!(),
+                        | CloseBrace | Equal | End => unreachable!(),
                     }
                 ),
             )],
@@ -368,21 +371,21 @@ impl Error {
                 messages: vec![(
                     loc,
                     format!(
-                        "Unexpected '{}', expected {expected}",
+                        "Unexpected {}, expected {expected}",
                         match token {
                             Unknown(t) => t,
                             Word(v) => v,
                             Bytes(_) => "(bytes)",
                             Number(_) => "(number)",
-                            Comma => ",",
-                            OpenBracket => "[",
-                            CloseBracket => "]",
-                            OpenBrace => "{",
-                            CloseBrace => "}",
-                            Equal => "=",
-                            Def => "keyword def",
-                            Let => "keyword let",
-                            Use => "keyword use",
+                            Comma => "','",
+                            OpenBracket => "'['",
+                            CloseBracket => "']'",
+                            OpenBrace => "'{'",
+                            CloseBrace => "'}'",
+                            Equal => "'='",
+                            Def => "keyword 'def'",
+                            Let => "keyword 'let'",
+                            Use => "keyword 'use'",
                             End => "end of script",
                         }
                     ),

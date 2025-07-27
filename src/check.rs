@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::error::{self, Error};
+use crate::error::{self, Error, ErrorKind};
 use crate::fund::Fund;
 use crate::parse::{Apply, ApplyBase, Pattern, Script, Value};
 use crate::scope::{Entry, Location, Scoping, SourceRef};
@@ -94,7 +94,7 @@ impl<'t, 's> Checker<'t, 's> {
 
         if matches!(self.types.get(val.ty), Type::Func(_, _)) {
             // [f, g, h] -> [pipe f g, h] -> pipe [pipe f g] h
-            script.tail.iter().fold(val, |acc, cur| {
+            script.tail.iter().fold(val, |acc, (loc_comma, cur)| {
                 let then = self.check_apply(cur);
                 let pipe = self.fundamental(Fund::Pipe);
                 let part = self.apply(pipe, acc);
@@ -102,7 +102,7 @@ impl<'t, 's> Checker<'t, 's> {
             })
         } else {
             // [x, f, g, h] -> h [g [f x]]
-            script.tail.iter().fold(val, |acc, cur| {
+            script.tail.iter().fold(val, |acc, (loc_comma, cur)| {
                 let func = self.check_apply(cur);
                 self.apply(func, acc)
             })
@@ -115,27 +115,32 @@ impl<'t, 's> Checker<'t, 's> {
         names: &mut HashMap<String, (Location, TypeRef)>,
     ) -> TypeRef {
         match pat {
-            Pattern::Number(_) => self.types.number(),
+            Pattern::Number { .. } => self.types.number(),
 
-            Pattern::Bytes(_) => {
+            Pattern::Bytes { .. } => {
                 let fin = self.types.finite(true);
                 self.types.bytes(fin)
             }
 
-            Pattern::Word(w) => {
-                let ty = self.types.named(w.clone());
-                if let Some((loc, ty)) = names.get(w) {
+            Pattern::Word { loc, word } => {
+                let ty = self.types.named(word.clone());
+                if let Some((loc_already, ty)) = names.get(word) {
                     self.errors.push(todo!(
-                        "already declared in pattern at {loc:?} with :: &{ty}"
+                        "already declared in pattern at {loc_already:?} with :: &{ty}"
                     ));
                     *ty
                 } else {
-                    names.insert(w.clone(), (todo!("loc"), ty));
+                    names.insert(word.clone(), (todo!("loc"), ty));
                     ty
                 }
             }
 
-            Pattern::List(items, rest) => {
+            Pattern::List {
+                loc_open,
+                items,
+                rest,
+                loc_close,
+            } => {
                 let items: Box<_> = items
                     .iter()
                     .map(|it| self.check_pattern_type(it, names))
@@ -153,19 +158,23 @@ impl<'t, 's> Checker<'t, 's> {
                 //let fin = self.types.finite(rest.is_none());
                 //let ty = self.types.list(fin, has);
 
-                if let Some(w) = rest {
-                    if let Some((loc, ty)) = names.get(w) {
+                if let Some((loc_comma, loc, word)) = rest {
+                    if let Some((loc_already, ty)) = names.get(word) {
                         self.errors.push(todo!(
-                            "already declared in pattern at {loc:?} with :: &{ty}"
+                            "already declared in pattern at {loc_already:?} with :: &{ty}"
                         ));
                     } else {
-                        names.insert(w.clone(), (todo!("loc"), ty));
+                        names.insert(word.clone(), (todo!("loc"), ty));
                     }
                 }
                 ty
             }
 
-            Pattern::Pair(fst, snd) => {
+            Pattern::Pair {
+                fst,
+                loc_equal,
+                snd,
+            } => {
                 let fst = self.check_pattern_type(fst, names);
                 let snd = self.check_pattern_type(snd, names);
                 self.types.pair(fst, snd)
@@ -214,7 +223,12 @@ impl<'t, 's> Checker<'t, 's> {
 
     pub fn check_apply(&mut self, apply: &Apply) -> Tree {
         let base = match &apply.base {
-            ApplyBase::Binding(pat, res, alt) => {
+            ApplyBase::Binding {
+                loc_let,
+                pat,
+                res,
+                alt,
+            } => {
                 let (ty, res, alt) = self.check_binding_br(pat, &res, &alt);
                 Tree {
                     ty,
@@ -263,21 +277,21 @@ impl<'t, 's> Checker<'t, 's> {
 
     pub fn check_value(&mut self, value: &Value) -> Tree {
         match value {
-            Value::Number(n) => Tree {
+            Value::Number { loc, number } => Tree {
                 ty: self.types.number(),
-                val: TreeVal::Number(*n),
+                val: TreeVal::Number(*number),
             },
 
-            Value::Bytes(b) => Tree {
+            Value::Bytes { loc, bytes } => Tree {
                 ty: {
                     let fin = self.types.finite(true);
                     self.types.bytes(fin)
                 },
-                val: TreeVal::Bytes(b.clone()),
+                val: TreeVal::Bytes(bytes.clone()),
             },
 
-            Value::Word(w) => {
-                let (ty, prov) = match self.scope.lookup(w) {
+            Value::Word { loc, word } => {
+                let (ty, prov) = match self.scope.lookup(word) {
                     Some(Entry::Binding(binding)) => {
                         (binding.ty, Refers::Binding(binding.loc.clone()))
                     }
@@ -289,23 +303,39 @@ impl<'t, 's> Checker<'t, 's> {
                         (fund.make_type(self.types), Refers::Fundamental)
                     }
                     None => {
-                        let ty = self.types.named(w.clone());
-                        self.scope.missing(w.clone(), ty);
+                        let ty = self.types.named(word.clone());
+                        self.scope.missing(word.clone(), ty);
+                        self.errors.push(Error(
+                            loc.clone(),
+                            ErrorKind::UnknownName {
+                                name: word.clone(),
+                                expected_type: todo!("expected_type for unknown name {word}"),
+                            },
+                        ));
                         (ty, Refers::Missing)
                     }
                 };
                 Tree {
                     ty,
-                    val: TreeVal::Word(w.clone(), prov),
+                    val: TreeVal::Word(word.clone(), prov),
                 }
             }
 
-            Value::Subscr(script) => self.check_script(script),
+            Value::Subscr {
+                loc_open,
+                subscr,
+                loc_close,
+            } => self.check_script(subscr),
 
-            Value::List(items, rest) => {
+            Value::List {
+                loc_open,
+                items,
+                rest,
+                loc_close,
+            } => {
                 let items: Vec<_> = items.iter().map(|it| self.check_apply(it)).collect();
 
-                let rest = if let Some(rest) = rest {
+                let rest = if let Some((loc_comma, rest)) = rest {
                     self.check_apply(rest)
                 } else {
                     // empty list, as if {...,, {}}
@@ -326,7 +356,11 @@ impl<'t, 's> Checker<'t, 's> {
                 })
             }
 
-            Value::Pair(fst, snd) => {
+            Value::Pair {
+                fst,
+                loc_equal,
+                snd,
+            } => {
                 let fst = Box::new(self.check_value(fst));
                 let snd = Box::new(self.check_value(snd));
                 Tree {
