@@ -22,7 +22,7 @@ pub enum TreeVal {
     List, // represents an empty list, as a cons-sequence starter (ie nil)
     Pair(Box<Tree>, Box<Tree>),
     Apply(Box<Tree>, Vec<Tree>), // base can only be 'Word', 'Binding' or 'Fundamental', or the error list isn't empty
-    Binding(Pattern, Box<Tree>, Box<Tree>), // garbage if `pat.is_irrefutable()`
+    Binding(Pattern, Box<Tree>, Option<Box<Tree>>), // Some(.) iff `pat.is_refutable()`
     Fundamental(Fund),
 }
 
@@ -187,37 +187,31 @@ impl<'t, 's> Checker<'t, 's> {
         pat: &Pattern,
         res: &Value,
         alt: Option<&Value>,
-    ) -> (TypeRef, Tree, Tree) {
+    ) -> (TypeRef, Tree, Option<Tree>) {
         let mut names = HashMap::new();
         let param = self.check_pattern_type(pat, &mut names);
         self.scope.push(names);
 
         let res = self.check_value(res);
 
-        let alt = match alt {
-            None => Tree {
-                ty: self.types.number(),
-                val: TreeVal::Number(0.0),
-            },
-            Some(alt) => {
-                assert!(!pat.is_irrefutable());
-                let alt = self.check_value(alt);
-                if let Err(err) = Type::harmonize(res.ty, alt.ty, self.types) {
-                    self.errors.push(Error(
-                        todo!("loc for {err:?} (from harmonize res&alt)"),
-                        err,
-                        //ErrorKind::ContextCaused {
-                        //    error: Box::new(Error(result.loc.clone(), e)),
-                        //    because: ErrorContext::LetFallbackTypeMismatch {
-                        //        result_type: snapshot.frozen(res_ty),
-                        //        fallback_type: snapshot.frozen(fallback.ty),
-                        //    },
-                        //},
-                    ));
-                }
-                alt
+        let alt = alt.map(|alt| {
+            assert!(pat.is_refutable());
+            let alt = self.check_value(alt);
+            if let Err(err) = Type::harmonize(res.ty, alt.ty, self.types) {
+                self.errors.push(Error(
+                    todo!("loc for {err:?} (from harmonize res&alt)"),
+                    err,
+                    //ErrorKind::ContextCaused {
+                    //    error: Box::new(Error(result.loc.clone(), e)),
+                    //    because: ErrorContext::LetFallbackTypeMismatch {
+                    //        result_type: snapshot.frozen(res_ty),
+                    //        fallback_type: snapshot.frozen(fallback.ty),
+                    //    },
+                    //},
+                ));
             }
-        };
+            alt
+        });
 
         self.scope.pop();
         (self.types.func(param, res.ty), res, alt)
@@ -234,7 +228,7 @@ impl<'t, 's> Checker<'t, 's> {
                 let (ty, res, alt) = self.check_binding_br(pat, &res, alt.as_deref());
                 Tree {
                     ty,
-                    val: TreeVal::Binding(pat.clone(), Box::new(res), Box::new(alt)),
+                    val: TreeVal::Binding(pat.clone(), Box::new(res), alt.map(Box::new)),
                 }
             }
             ApplyBase::Value(val) => self.check_value(val),

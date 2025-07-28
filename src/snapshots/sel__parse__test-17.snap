@@ -1,6 +1,6 @@
 ---
 source: src/parse.rs
-expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]\n    [panic: unreachable:]\n\")"
+expression: "t(b\"let 0=a a :ok:\")"
 ---
 (
     Top {
@@ -12,147 +12,47 @@ expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]
                     base: Binding {
                         loc_let: Location(
                             0,
-                            1..4,
+                            0..3,
                         ),
-                        pat: Word {
-                            loc: Location(
+                        pat: Pair {
+                            fst: Number {
+                                loc: Location(
+                                    0,
+                                    4..5,
+                                ),
+                                number: 0.0,
+                            },
+                            loc_equal: Location(
                                 0,
                                 5..6,
                             ),
-                            word: "a",
-                        },
-                        res: Subscr {
-                            loc_open: Location(
-                                0,
-                                11..12,
-                            ),
-                            subscr: Script {
-                                head: Apply {
-                                    base: Binding {
-                                        loc_let: Location(
-                                            0,
-                                            12..15,
-                                        ),
-                                        pat: Word {
-                                            loc: Location(
-                                                0,
-                                                16..17,
-                                            ),
-                                            word: "b",
-                                        },
-                                        res: Word {
-                                            loc: Location(
-                                                0,
-                                                26..27,
-                                            ),
-                                            word: "a",
-                                        },
-                                        alt: None,
-                                    },
-                                    args: [
-                                        Subscr {
-                                            loc_open: Location(
-                                                0,
-                                                36..37,
-                                            ),
-                                            subscr: Script {
-                                                head: Apply {
-                                                    base: Value(
-                                                        Word {
-                                                            loc: Location(
-                                                                0,
-                                                                37..42,
-                                                            ),
-                                                            word: "panic",
-                                                        },
-                                                    ),
-                                                    args: [
-                                                        Bytes {
-                                                            loc: Location(
-                                                                0,
-                                                                42..56,
-                                                            ),
-                                                            bytes: [
-                                                                32,
-                                                                117,
-                                                                110,
-                                                                114,
-                                                                101,
-                                                                97,
-                                                                99,
-                                                                104,
-                                                                97,
-                                                                98,
-                                                                108,
-                                                                101,
-                                                            ],
-                                                        },
-                                                    ],
-                                                },
-                                                tail: [],
-                                            },
-                                            loc_close: Location(
-                                                0,
-                                                56..57,
-                                            ),
-                                        },
-                                    ],
-                                },
-                                tail: [],
+                            snd: Word {
+                                loc: Location(
+                                    0,
+                                    6..7,
+                                ),
+                                word: "a",
                             },
-                            loc_close: Location(
+                        },
+                        res: Word {
+                            loc: Location(
                                 0,
-                                57..58,
+                                8..9,
                             ),
+                            word: "a",
                         },
                         alt: None,
                     },
                     args: [
-                        Subscr {
-                            loc_open: Location(
+                        Bytes {
+                            loc: Location(
                                 0,
-                                63..64,
+                                10..14,
                             ),
-                            subscr: Script {
-                                head: Apply {
-                                    base: Value(
-                                        Word {
-                                            loc: Location(
-                                                0,
-                                                64..69,
-                                            ),
-                                            word: "panic",
-                                        },
-                                    ),
-                                    args: [
-                                        Bytes {
-                                            loc: Location(
-                                                0,
-                                                69..83,
-                                            ),
-                                            bytes: [
-                                                32,
-                                                117,
-                                                110,
-                                                114,
-                                                101,
-                                                97,
-                                                99,
-                                                104,
-                                                97,
-                                                98,
-                                                108,
-                                                101,
-                                            ],
-                                        },
-                                    ],
-                                },
-                                tail: [],
-                            },
-                            loc_close: Location(
-                                0,
-                                83..84,
-                            ),
+                            bytes: [
+                                111,
+                                107,
+                            ],
                         },
                     ],
                 },

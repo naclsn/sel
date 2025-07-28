@@ -61,7 +61,7 @@ pub enum ApplyBase {
         loc_let: Location,
         pat: Pattern,
         res: Box<Value>,
-        alt: Option<Box<Value>>, // None iff `pat.is_irrefutable()`
+        alt: Option<Box<Value>>, // Some(.) iff `pat.is_refutable()`
     },
     /// `value ::= <atom> | <subscr> | <list> | <pair>`
     Value(Box<Value>),
@@ -132,11 +132,11 @@ pub enum Pattern {
 }
 
 impl Pattern {
-    pub fn is_irrefutable(&self) -> bool {
+    pub fn is_refutable(&self) -> bool {
         match self {
-            Pattern::Word { .. } => true,
-            Pattern::Pair { fst, snd, .. } => fst.is_irrefutable() && snd.is_irrefutable(),
-            Pattern::Number { .. } | Pattern::Bytes { .. } | Pattern::List { .. } => false,
+            Pattern::Word { .. } => false,
+            Pattern::Pair { fst, snd, .. } => fst.is_refutable() && snd.is_refutable(),
+            Pattern::Number { .. } | Pattern::Bytes { .. } | Pattern::List { .. } => true,
         }
     }
 }
@@ -307,9 +307,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 let res = Box::new(self.parse_value());
 
                 // if irrefutable, no fallback
-                let alt = if pat.is_irrefutable() {
-                    None
-                } else {
+                let alt = pat.is_refutable().then(|| {
                     let plen = self.errors.len();
                     let value = self.parse_value();
 
@@ -323,8 +321,8 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                         }
                     }
 
-                    Some(Box::new(value))
-                };
+                    Box::new(value)
+                });
 
                 ApplyBase::Binding {
                     loc_let: tok_let.0,
@@ -738,6 +736,7 @@ fn test() {
     assert_debug_snapshot!(t(b"[a=b]=c"));
     assert_debug_snapshot!(t(b"let a let b a b a # note: is syntax error"));
     assert_debug_snapshot!(t(b"let {a b, c} 0"));
+    assert_debug_snapshot!(t(b"let 0=a a :ok:"));
     // not quite a syntax error but only out of luck:
     // ```sel
     // [let a
