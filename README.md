@@ -1,13 +1,35 @@
 A versatile command line tool to deal with streams, with a
 (mostly point-free) functional approach.
 
+<!--
+
+cargo install insta
+cargo install grcov
+rustup component add llvm-tools
+
+
+
+CARGO_INCREMENTAL=0 RUSTFLAGS=-Cinstrument-coverage cargo test
+grcov . -s . --binary-path ./target/debug/ -t html --branch --ignore-not-existing -o ./target/debug/coverage/
+xo target/debug/coverage/index.html
+
+grcov . -s . --binary-path ./target/debug/deps/ -t html --branch --ignore-not-existing -o ./target/debug/coverage/
+
+
+
+
+
+grcov --source-dir src/ --binary-path target/debug/deps/ --output-types html --branch --ignore-not-existing --output-path target/debug/coverage/ default_7193634055680149699_0_16794.profraw
+
+-->
+
 ---
 
 #### State of Development
 
-State: working and usable _but_ I want to 'compile', that
+State: ~~working and usable _but_ I want to 'compile', that
 is, down to a linear sequence of instructions. Current way
-of interpreting is very wasteful.
+of interpreting is very wasteful.~~ broken every other day!
 
 Also see the 'wip and such' below.
 
@@ -129,6 +151,7 @@ is parsed:
 - `{{1}, repeat 1}` not ok because inferred as `[[Num]]`
   at the first item and `repeat 1` can never 'lose' its
   unbounded charateristic safely
+TODO: idk if this still the case
 
 The CLI `-t` option will give the type of the expression.
 

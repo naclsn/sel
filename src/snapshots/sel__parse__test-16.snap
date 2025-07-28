@@ -55,13 +55,15 @@ expression: "t(b\"let {a b, c} 0\")"
                             ),
                             number: 0.0,
                         },
-                        alt: Word {
-                            loc: Location(
-                                0,
-                                14..14,
-                            ),
-                            word: "?",
-                        },
+                        alt: Some(
+                            Word {
+                                loc: Location(
+                                    0,
+                                    14..14,
+                                ),
+                                word: "?",
+                            },
+                        ),
                     },
                     args: [],
                 },
@@ -96,7 +98,7 @@ expression: "t(b\"let {a b, c} 0\")"
         Error(
             Location(
                 0,
-                0..3,
+                4..12,
             ),
             ContextCaused {
                 error: Error(

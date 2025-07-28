@@ -47,13 +47,7 @@ expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]
                                             ),
                                             word: "a",
                                         },
-                                        alt: Number {
-                                            loc: Location(
-                                                0,
-                                                0..0,
-                                            ),
-                                            number: 0.0,
-                                        },
+                                        alt: None,
                                     },
                                     args: [
                                         Subscr {
@@ -111,13 +105,7 @@ expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]
                                 57..58,
                             ),
                         },
-                        alt: Number {
-                            loc: Location(
-                                0,
-                                0..0,
-                            ),
-                            number: 0.0,
-                        },
+                        alt: None,
                     },
                     args: [
                         Subscr {

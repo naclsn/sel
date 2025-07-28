@@ -28,13 +28,7 @@ expression: "t(b\"let a let b a b a # note: is syntax error\")"
                             ),
                             word: "?let",
                         },
-                        alt: Number {
-                            loc: Location(
-                                0,
-                                0..0,
-                            ),
-                            number: 0.0,
-                        },
+                        alt: None,
                     },
                     args: [
                         Word {
