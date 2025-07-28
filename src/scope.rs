@@ -199,6 +199,119 @@ impl Source {
 }
 // }}}
 
+// loc trait and impls {{{
+pub trait Located {
+    fn loc(&self) -> Location;
+}
+
+fn loc_span(start: &Location, end: &Location) -> Location {
+    assert_eq!(
+        start.0, end.0,
+        "loc_span crosses source boundary..? {start:?} - {end:?}",
+    );
+    Location(start.0, start.1.start..end.1.end)
+}
+
+use crate::parse::{Apply, ApplyBase, Def, Pattern, Script, Top, Use, Value};
+
+impl Located for Top {
+    fn loc(&self) -> Location {
+        let scr = self.script.as_ref().map(|s| s.loc());
+        let start = None
+            .or_else(|| self.uses.first().map(|u| u.loc()))
+            .or_else(|| self.defs.first().map(|d| d.loc()))
+            .or(scr.clone());
+        let end = scr
+            .or_else(|| self.defs.last().map(|d| d.loc()))
+            .or_else(|| self.uses.last().map(|u| u.loc()));
+        match (start, end) {
+            (Some(start), Some(end)) => loc_span(&start, &end),
+            (Some(one), None) | (None, Some(one)) => one,
+            (None, None) => Location(0, 0..0),
+        }
+    }
+}
+impl Located for Use {
+    fn loc(&self) -> Location {
+        loc_span(&self.loc_use, &self.loc_name)
+    }
+}
+impl Located for Def {
+    fn loc(&self) -> Location {
+        loc_span(&self.loc_def, &self.to.loc())
+    }
+}
+impl Located for Script {
+    fn loc(&self) -> Location {
+        let head = self.head.loc();
+        match self.tail.last() {
+            Some((_, app)) => loc_span(&head, &app.loc()),
+            None => head,
+        }
+    }
+}
+impl Located for Apply {
+    fn loc(&self) -> Location {
+        let base = self.base.loc();
+        match self.args.last() {
+            Some(arg) => loc_span(&base, &arg.loc()),
+            None => base,
+        }
+    }
+}
+impl Located for ApplyBase {
+    fn loc(&self) -> Location {
+        match self {
+            ApplyBase::Binding {
+                loc_let, res, alt, ..
+            } => loc_span(
+                loc_let,
+                &match alt {
+                    Some(alt) => alt.loc(),
+                    None => res.loc(),
+                },
+            ),
+            ApplyBase::Value(value) => value.loc(),
+        }
+    }
+}
+impl Located for Value {
+    fn loc(&self) -> Location {
+        match self {
+            Value::Number { loc, .. } => loc.clone(),
+            Value::Bytes { loc, .. } => loc.clone(),
+            Value::Word { loc, .. } => loc.clone(),
+            Value::Subscr {
+                loc_open,
+                loc_close,
+                ..
+            } => loc_span(loc_open, loc_close),
+            Value::List {
+                loc_open,
+                loc_close,
+                ..
+            } => loc_span(loc_open, loc_close),
+            Value::Pair { fst, snd, .. } => loc_span(&fst.loc(), &snd.loc()),
+        }
+    }
+}
+impl Located for Pattern {
+    fn loc(&self) -> Location {
+        match self {
+            Pattern::Number { loc, .. } => loc.clone(),
+            Pattern::Bytes { loc, .. } => loc.clone(),
+            Pattern::Word { loc, .. } => loc.clone(),
+            Pattern::List {
+                loc_open,
+                loc_close,
+                ..
+            } => loc_span(loc_open, loc_close),
+            Pattern::Pair { fst, snd, .. } => loc_span(&fst.loc(), &snd.loc()),
+        }
+    }
+}
+// }}}
+
 /*
 impl Global {
     pub fn with_builtin() -> Global {

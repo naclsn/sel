@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::error::{self, Error, ErrorKind};
+use crate::error::{self, Error};
 use crate::fund::Fund;
 use crate::parse::{Apply, ApplyBase, Pattern, Script, Value};
 use crate::scope::{Entry, Location, Scoping, SourceRef};
@@ -186,7 +186,7 @@ impl<'t, 's> Checker<'t, 's> {
         &mut self,
         pat: &Pattern,
         res: &Value,
-        alt: &Value,
+        alt: Option<&Value>,
     ) -> (TypeRef, Tree, Tree) {
         let mut names = HashMap::new();
         let param = self.check_pattern_type(pat, &mut names);
@@ -194,27 +194,29 @@ impl<'t, 's> Checker<'t, 's> {
 
         let res = self.check_value(res);
 
-        let alt = if pat.is_irrefutable() {
-            Tree {
+        let alt = match alt {
+            None => Tree {
                 ty: self.types.number(),
                 val: TreeVal::Number(0.0),
+            },
+            Some(alt) => {
+                assert!(!pat.is_irrefutable());
+                let alt = self.check_value(alt);
+                if let Err(err) = Type::harmonize(res.ty, alt.ty, self.types) {
+                    self.errors.push(Error(
+                        todo!("loc for {err:?} (from harmonize res&alt)"),
+                        err,
+                        //ErrorKind::ContextCaused {
+                        //    error: Box::new(Error(result.loc.clone(), e)),
+                        //    because: ErrorContext::LetFallbackTypeMismatch {
+                        //        result_type: snapshot.frozen(res_ty),
+                        //        fallback_type: snapshot.frozen(fallback.ty),
+                        //    },
+                        //},
+                    ));
+                }
+                alt
             }
-        } else {
-            let alt = self.check_value(alt);
-            if let Err(err) = Type::harmonize(res.ty, alt.ty, self.types) {
-                self.errors.push(Error(
-                    todo!("loc for {err:?} (from harmonize res&alt)"),
-                    err,
-                    //ErrorKind::ContextCaused {
-                    //    error: Box::new(Error(result.loc.clone(), e)),
-                    //    because: ErrorContext::LetFallbackTypeMismatch {
-                    //        result_type: snapshot.frozen(res_ty),
-                    //        fallback_type: snapshot.frozen(fallback.ty),
-                    //    },
-                    //},
-                ));
-            }
-            alt
         };
 
         self.scope.pop();
@@ -229,7 +231,7 @@ impl<'t, 's> Checker<'t, 's> {
                 res,
                 alt,
             } => {
-                let (ty, res, alt) = self.check_binding_br(pat, &res, &alt);
+                let (ty, res, alt) = self.check_binding_br(pat, &res, alt.as_deref());
                 Tree {
                     ty,
                     val: TreeVal::Binding(pat.clone(), Box::new(res), Box::new(alt)),
@@ -305,13 +307,8 @@ impl<'t, 's> Checker<'t, 's> {
                     None => {
                         let ty = self.types.named(word.clone());
                         self.scope.missing(word.clone(), ty);
-                        self.errors.push(Error(
-                            loc.clone(),
-                            ErrorKind::UnknownName {
-                                name: word.clone(),
-                                expected_type: todo!("expected_type for unknown name {word}"),
-                            },
-                        ));
+                        self.errors
+                            .push(error::unknown_name(loc.clone(), word.clone()));
                         (ty, Refers::Missing)
                     }
                 };

@@ -10,7 +10,7 @@ use crate::types::FrozenType;
 #[derive(Debug)]
 pub enum ErrorContext {
     Unmatched {
-        open_token: TokenKind,
+        open_token: TokenKind, // may be 'use'/'def'/'let' ('let'?)
     },
     CompleteType {
         complete_type: FrozenType,
@@ -95,11 +95,10 @@ pub struct Report<'a> {
 }
 
 // error reportig helpers {{{
-pub fn unexpected(token: &Token, expected: &'static str, unmatched: Option<&Token>) -> Error {
-    let Token(here, token) = token.clone();
+pub fn unexpected(token: Token, expected: &'static str, unmatched: Option<Token>) -> Error {
+    let Token(here, token) = token;
     let mut err = Error(here, ErrorKind::Unexpected { token, expected });
-    if let Some(unmatched) = unmatched {
-        let Token(from, open_token) = unmatched.clone();
+    if let Some(Token(from, open_token)) = unmatched {
         err = Error(
             from,
             ErrorKind::ContextCaused {
@@ -111,12 +110,19 @@ pub fn unexpected(token: &Token, expected: &'static str, unmatched: Option<&Toke
     err
 }
 
-pub fn context_fallback_required(
-    let_loc: Location, // TODO: change it to pat_loc, makes more sense
-    err: Error,
-) -> Error {
+pub fn unknown_name(loc: Location, name: String) -> Error {
     Error(
-        let_loc,
+        loc,
+        ErrorKind::UnknownName {
+            name,
+            expected_type: todo!("expected_type for unknown name"),
+        },
+    )
+}
+
+pub fn context_fallback_required(loc_pat: Location, err: Error) -> Error {
+    Error(
+        loc_pat,
         ErrorKind::ContextCaused {
             error: Box::new(err),
             because: ErrorContext::LetFallbackRequired,
