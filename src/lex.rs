@@ -227,9 +227,9 @@ fn test() {
 
     assert_snapshot!(t(b""));
     assert_snapshot!(t(b"coucou"));
-    assert_snapshot!(t(b"[a 1 b, {w, x, y, z}, 0.5]"));
-    assert_snapshot!(t(b":hay: :hey:: not hay: :: :::: fin"));
-    assert_snapshot!(t(b"42 :*: 0x2a 0b101010 0o52"));
+    assert_snapshot!(t(b"[a 1 b, {w, x, y, z}, === 0.5]"));
+    assert_snapshot!(t(b":hay: :hey:: not hay: ::_:::: fin"));
+    assert_snapshot!(t(b"42 :*: 0x2a 0b101010 0o52 2974382.92438732 1."));
     assert_snapshot!(t(b"oh-no; don't let use be the def of cat!"));
     assert_snapshot!(t(b"
 normal
@@ -244,5 +244,6 @@ a #- {one, [two], [{three}]} b
 a #- {one, #-[two], [{three}]} b
 {heyo, #-baba, owieur} # the ',' is also commented
 {heyo, baba, #-owieur} # the '}' isn't
+#-{ unclosed!..
 "));
 }

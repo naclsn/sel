@@ -1,6 +1,6 @@
 ---
 source: src/lex.rs
-expression: "t(b\"\nnormal\n# comment\nnormal again\n#-comment not comment\n#- comment again not comment\na #- [ba ba ba] b\na #- 239084 b\na #- :yeeesldkfj: b\na #- {one, [two], [{three}]} b\na #- {one, #-[two], [{three}]} b\n{heyo, #-baba, owieur} # the ',' is also commented\n{heyo, baba, #-owieur} # the '}' isn't\n\")"
+expression: "t(b\"\nnormal\n# comment\nnormal again\n#-comment not comment\n#- comment again not comment\na #- [ba ba ba] b\na #- 239084 b\na #- :yeeesldkfj: b\na #- {one, [two], [{three}]} b\na #- {one, #-[two], [{three}]} b\n{heyo, #-baba, owieur} # the ',' is also commented\n{heyo, baba, #-owieur} # the '}' isn't\n#-{ unclosed!..\n\")"
 ---
 Token(Location(0, 1..7), Word("normal"))
 Token(Location(0, 18..24), Word("normal"))
@@ -31,4 +31,4 @@ Token(Location(0, 254..255), Comma)
 Token(Location(0, 256..260), Word("baba"))
 Token(Location(0, 260..261), Comma)
 Token(Location(0, 270..271), CloseBrace)
-Token(Location(0, 287..287), End)
+Token(Location(0, 303..303), End)

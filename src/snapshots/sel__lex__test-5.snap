@@ -1,10 +1,12 @@
 ---
 source: src/lex.rs
-expression: "t(b\"42 :*: 0x2a 0b101010 0o52\")"
+expression: "t(b\"42 :*: 0x2a 0b101010 0o52 2974382.92438732 1.\")"
 ---
 Token(Location(0, 0..2), Number(42.0))
 Token(Location(0, 3..6), Bytes([42]))
 Token(Location(0, 7..11), Number(42.0))
 Token(Location(0, 12..20), Number(42.0))
 Token(Location(0, 21..25), Number(42.0))
-Token(Location(0, 25..25), End)
+Token(Location(0, 26..42), Number(2974382.92438732))
+Token(Location(0, 43..46), Unknown("1."))
+Token(Location(0, 46..46), End)

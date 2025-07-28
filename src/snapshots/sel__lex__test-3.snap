@@ -1,6 +1,6 @@
 ---
 source: src/lex.rs
-expression: "t(b\"[a 1 b, {w, x, y, z}, 0.5]\")"
+expression: "t(b\"[a 1 b, {w, x, y, z}, === 0.5]\")"
 ---
 Token(Location(0, 0..1), OpenBracket)
 Token(Location(0, 1..2), Word("a"))
@@ -17,6 +17,9 @@ Token(Location(0, 16..17), Comma)
 Token(Location(0, 18..19), Word("z"))
 Token(Location(0, 19..20), CloseBrace)
 Token(Location(0, 20..21), Comma)
-Token(Location(0, 22..25), Number(0.5))
-Token(Location(0, 25..26), CloseBracket)
-Token(Location(0, 26..26), End)
+Token(Location(0, 22..23), Equal)
+Token(Location(0, 23..24), Equal)
+Token(Location(0, 24..25), Equal)
+Token(Location(0, 26..29), Number(0.5))
+Token(Location(0, 29..30), CloseBracket)
+Token(Location(0, 30..30), End)
