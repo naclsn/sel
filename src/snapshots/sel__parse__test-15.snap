@@ -26,7 +26,7 @@ expression: "t(b\"let a let b a b a # note: is syntax error\")"
                                 0,
                                 6..9,
                             ),
-                            word: "?let",
+                            word: "keyword 'let'",
                         },
                         alt: None,
                     },

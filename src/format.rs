@@ -1,3 +1,16 @@
+use std::fmt::{Display, Formatter, Result as FmtResult};
+
+pub fn display_bytes(f: &mut Formatter, bytes: &[u8]) -> FmtResult {
+    write!(f, ":")?;
+    let mut h = bytes;
+    while let Some(c) = h.iter().position(|b| b':' == *b) {
+        write!(f, "{}::", String::from_utf8_lossy(&h[..c]))?;
+        h = &h[c..];
+    }
+    write!(f, "{}:", String::from_utf8_lossy(h))
+}
+
+/*
 use crate::parse::{ApplyBase, Pattern, Tree, TreeKind};
 
 impl Tree {
@@ -156,3 +169,4 @@ impl Tree {
         println!();
     }
 }
+*/

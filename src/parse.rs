@@ -6,13 +6,15 @@ use crate::error::{self, Error, ErrorKind};
 use crate::lex::{Lexer, Token, TokenKind};
 use crate::scope::{Located, Location, SourceRef};
 
+macro_rules! TermTokenNoEnd {
+    () => {
+        TokenKind::Comma | TokenKind::CloseBracket | TokenKind::CloseBrace | TokenKind::Equal
+        // in practice '=' is always consumed by `parse_value`
+    };
+}
 macro_rules! TermToken {
     () => {
-        TokenKind::Comma
-            | TokenKind::CloseBracket
-            | TokenKind::CloseBrace
-            | TokenKind::Equal // in practice it is always consumed by `parse_value`
-            | TokenKind::End
+        TermTokenNoEnd!() | TokenKind::End
     };
 }
 
@@ -28,8 +30,8 @@ pub struct Use {
     pub loc_use: Location,
     pub loc_path: Location,
     pub path: Box<[u8]>,
-    pub loc_name: Location,
-    pub name: String,
+    pub loc_prefix: Location,
+    pub prefix: String,
 }
 #[derive(Debug, Clone)]
 pub struct Def {
@@ -170,9 +172,27 @@ impl<I: Iterator<Item = u8>> Parser<I> {
     }
 
     pub fn parse_top(&mut self) -> Top {
+        // after either of `parse_uses` and `parse_defs` we could be on a syntax error
+        // that matches TermToken; in which case it would fall all the way until
+        // `parse_value` which will not consume it and make the whole parser give up
+        // right away, hence the skip loops after each (and also before while at it..)
+        while matches!(self.peek_tok().1, TermTokenNoEnd!()) {
+            self.skip_tok();
+        }
+
+        let uses = self.parse_uses();
+        while matches!(self.peek_tok().1, TermTokenNoEnd!()) {
+            self.skip_tok();
+        }
+
+        let defs = self.parse_defs();
+        while matches!(self.peek_tok().1, TermTokenNoEnd!()) {
+            self.skip_tok();
+        }
+
         Top {
-            uses: self.parse_uses(),
-            defs: self.parse_defs(),
+            uses,
+            defs,
             script: if let Token(_, TokenKind::End) = self.peek_tok() {
                 None
             } else {
@@ -183,12 +203,28 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
     pub fn parse_uses(&mut self) -> Box<[Use]> {
         let mut r = Vec::new();
-        while let Token(_, TokenKind::Use) = self.peek_tok() {
+        while match self.peek_tok() {
+            Token(_, TokenKind::Use) => true,
+            other @ Token(_, TokenKind::Comma) => {
+                let other = other.clone();
+                self.errors.push(error::unexpected(
+                    other,
+                    "a single ',' between 'use's",
+                    None,
+                ));
+                // skip any TermToken but still accept to continue
+                while matches!(self.peek_tok().1, TermTokenNoEnd!()) {
+                    self.skip_tok();
+                }
+                matches!(self.peek_tok().1, TokenKind::Use)
+            }
+            _ => false,
+        } {
             let tok_use = self.next_tok();
 
             let (loc_path, path, loc_name, name) = match (self.next_tok(), self.next_tok()) {
                 (
-                    Token(loc_path, TokenKind::Bytes(file)),
+                    Token(loc_path, TokenKind::Bytes(path)),
                     Token(loc_name, TokenKind::Word(mut name)),
                 ) => {
                     if "_" == name {
@@ -196,30 +232,53 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     } else {
                         name.push('-');
                     }
-                    (loc_path, file, loc_name, name)
+                    (loc_path, path, loc_name, name)
                 }
-                (Token(_, TokenKind::Bytes(_)), other) | (other, _) => {
+                (Token(loc_path, TokenKind::Bytes(path)), other) => {
+                    self.errors.push(error::unexpected(
+                        other.clone(),
+                        "file path then identifier after 'use' keyword",
+                        Some(tok_use.clone()),
+                    ));
+                    if matches!(other.1, TokenKind::Comma | TokenKind::End) {
+                        continue;
+                    }
+                    (loc_path, path, other.0.clone(), other.1.to_string())
+                }
+                (other, Token(loc_name, TokenKind::Word(name))) => {
+                    let somewhat_loc_path = other.0.clone();
+                    let not_path = other.1.to_string().as_bytes().into();
+                    self.errors.push(error::unexpected(
+                        other,
+                        "file path then identifier after 'use' keyword",
+                        Some(tok_use.clone()),
+                    ));
+                    (somewhat_loc_path, not_path, loc_name, name)
+                }
+                (other, Token(_, maybe_term)) => {
                     self.errors.push(error::unexpected(
                         other,
                         "file path then identifier after 'use' keyword",
                         Some(tok_use),
                     ));
+                    if !matches!(maybe_term, TokenKind::Comma | TokenKind::End)
+                        && matches!(self.peek_tok().1, TokenKind::Comma | TokenKind::End)
+                    {
+                        self.skip_tok();
+                    }
                     continue;
                 }
             };
 
             match self.peek_tok() {
                 Token(_, TokenKind::Comma | TokenKind::End) => self.skip_tok(),
-                other @ Token(_, kind) => {
-                    let err = error::unexpected(
-                        other.clone(),
+                other => {
+                    let other = other.clone();
+                    self.errors.push(error::unexpected(
+                        other,
                         "a ',' (because of prior 'use')",
                         Some(tok_use.clone()),
-                    );
-                    if matches!(kind, TermToken!()) {
-                        self.skip_tok();
-                    }
-                    self.errors.push(err);
+                    ))
                 }
             }
 
@@ -227,8 +286,8 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 loc_use: tok_use.0,
                 loc_path,
                 path,
-                loc_name,
-                name,
+                loc_prefix: loc_name,
+                prefix: name,
             });
         }
         r.into()
@@ -236,7 +295,33 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
     pub fn parse_defs(&mut self) -> Box<[Def]> {
         let mut r = Vec::new();
-        while let Token(_, TokenKind::Def) = self.peek_tok() {
+        while match self.peek_tok() {
+            Token(_, TokenKind::Def) => true,
+            other @ Token(_, TokenKind::Comma) => {
+                let other = other.clone();
+                self.errors.push(error::unexpected(
+                    other,
+                    "a single ',' between 'def's",
+                    None,
+                ));
+                // skip any TermToken but still accept to continue
+                while matches!(self.peek_tok().1, TermTokenNoEnd!()) {
+                    self.skip_tok();
+                }
+                // (we only go so far, if this a 'use' then whever-)
+                matches!(self.peek_tok().1, TokenKind::Def)
+            }
+            other @ Token(_, TokenKind::Use) => {
+                let other = other.clone();
+                self.errors.push(error::unexpected(
+                    other,
+                    "'use's to all be before the first 'def'",
+                    None,
+                ));
+                false
+            }
+            _ => false,
+        } {
             let tok_def = self.next_tok();
 
             let (loc_name, name, loc_desc, desc) = match (self.next_tok(), self.next_tok()) {
@@ -244,32 +329,59 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     Token(loc_name, TokenKind::Word(name)),
                     Token(loc_desc, TokenKind::Bytes(desc)),
                 ) => (loc_name, name, loc_desc, desc),
-                (Token(_, TokenKind::Word(_)), other) | (other, _) => {
+                (Token(loc_name, TokenKind::Word(name)), other) => {
+                    let somewhat_loc_desc = other.0.clone();
+                    let not_desc = other.1.to_string().as_bytes().into();
                     self.errors.push(error::unexpected(
-                        other,
+                        other.clone(),
                         "name then description after 'def' keyword",
-                        Some(tok_def),
+                        Some(tok_def.clone()),
                     ));
-                    continue;
+                    if matches!(other.1, TokenKind::Comma | TokenKind::End) {
+                        continue;
+                    }
+                    (loc_name, name, somewhat_loc_desc, not_desc)
+                }
+                (other, Token(loc_desc, TokenKind::Bytes(desc))) => {
+                    self.errors.push(error::unexpected(
+                        other.clone(),
+                        "name then description after 'def' keyword",
+                        Some(tok_def.clone()),
+                    ));
+                    (other.0.clone(), other.1.to_string(), loc_desc, desc)
+                }
+                (other, other2) => {
+                    self.errors.push(error::unexpected(
+                        other.clone(),
+                        "name then description after 'def' keyword",
+                        Some(tok_def.clone()),
+                    ));
+                    if matches!(other2.1, TokenKind::Comma | TokenKind::End) {
+                        continue;
+                    }
+                    (
+                        other.0,
+                        other.1.to_string(),
+                        other2.0,
+                        other2.1.to_string().as_bytes().into(),
+                    )
                 }
             };
 
-            // TODO(wrong todo location): maybe use description to provide more meaningfull var type names
+            let to = self.parse_apply();
 
+            // TODO(wrong todo location): maybe use description to provide more meaningfull var type names
             // TODO: https://peps.python.org/pep-0257/#handling-docstring-indentation
 
             match self.peek_tok() {
                 Token(_, TokenKind::Comma | TokenKind::End) => self.skip_tok(),
-                other @ Token(_, kind) => {
-                    let err = error::unexpected(
-                        other.clone(),
+                other => {
+                    let other = other.clone();
+                    self.errors.push(error::unexpected(
+                        other,
                         "a ',' (because of prior 'def')",
                         Some(tok_def.clone()),
-                    );
-                    if matches!(kind, TermToken!()) {
-                        self.skip_tok();
-                    }
-                    self.errors.push(err);
+                    ))
                 }
             }
 
@@ -279,7 +391,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 name,
                 loc_desc,
                 desc: String::from_utf8_lossy(&desc).trim().into(),
-                to: self.parse_apply(),
+                to,
             });
         }
         r.into()
@@ -336,7 +448,8 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         };
 
         let mut args = Vec::new();
-        while !matches!(self.peek_tok(), Token(_, TermToken!())) {
+        // don't eat a 'def' so we can recover from a missing ',' after a full def
+        while !matches!(self.peek_tok(), Token(_, TermToken!() | TokenKind::Def)) {
             args.push(self.parse_value());
         }
 
@@ -611,14 +724,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     .push(error::unexpected(first_token.clone(), "a value", None));
                 Value::Word {
                     loc: first_token.0,
-                    word: match &first_token.1 {
-                        TokenKind::Def => "?def",
-                        TokenKind::Let => "?let",
-                        TokenKind::Use => "?use",
-                        TokenKind::Unknown(t) => t,
-                        _ => unreachable!(),
-                    }
-                    .into(),
+                    word: first_token.1.to_string(),
                 }
             }
 
@@ -754,4 +860,27 @@ let a
         [panic: unreachable:]]
     [panic: unreachable:]
 "));
+    assert_debug_snapshot!(t(b"use :path: name"));
+    assert_debug_snapshot!(t(b"
+use :path/a: a,, # extra comma
+use :path/b: b # missing comma
+use :path/c: _,
+use path name,
+use :actual path:, # not even registered
+use :again path: 42, # registered with a bad name
+use not-bytes, # not even registered
+use not-bytes 123123 # not even registered
+"));
+    assert_debug_snapshot!(t(b"def succ: y, maths ppl, just y?: add 1,"));
+    assert_debug_snapshot!(t(b"
+def a :: b,, # extra comma
+def b :: a # missing comma
+def :wrong: way around,
+hello
+"));
+    //assert_debug_snapshot!(t(b"use :a: a, def b:: b, use :c: c, d")) // loose 'use' after 'def'
+    //assert_debug_snapshot!(t(b"]}] 42")); // loose TermTokenNoEnd before
+    //assert_debug_snapshot!(t(b"use :path: name]}] 42")); // 'use' with loose TermTokenNoEnd after
+    //assert_debug_snapshot!(t(b"def name :desc: 12]}] 42")); // 'def' with loose TermTokenNoEnd after
+    //assert_debug_snapshot!(t(b"use :path: name]}] def name :desc: 12]}] 42"));
 }

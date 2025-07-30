@@ -1,0 +1,49 @@
+---
+source: src/parse.rs
+expression: "t(b\"def succ: y, maths ppl, just y?: add 1,\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [
+            Def {
+                loc_def: Location(
+                    0,
+                    0..3,
+                ),
+                loc_name: Location(
+                    0,
+                    4..8,
+                ),
+                name: "succ",
+                loc_desc: Location(
+                    0,
+                    8..32,
+                ),
+                desc: "y, maths ppl, just y?",
+                to: Apply {
+                    base: Value(
+                        Word {
+                            loc: Location(
+                                0,
+                                33..36,
+                            ),
+                            word: "add",
+                        },
+                    ),
+                    args: [
+                        Number {
+                            loc: Location(
+                                0,
+                                37..38,
+                            ),
+                            number: 1.0,
+                        },
+                    ],
+                },
+            },
+        ],
+        script: None,
+    },
+    [],
+)

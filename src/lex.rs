@@ -1,7 +1,9 @@
 //! lexing
 
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::iter::{self, Enumerate, Peekable};
 
+use crate::format;
 use crate::scope::{Location, SourceRef};
 
 #[derive(PartialEq, Debug, Clone)]
@@ -22,6 +24,37 @@ pub enum TokenKind {
     //LineComment(String),
     //DashComment(String),
     End,
+}
+
+impl Display for TokenKind {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        match self {
+            TokenKind::Unknown(tok) => write!(f, "token '{tok}'"),
+            TokenKind::Number(n) => write!(f, "number '{n}'"),
+            TokenKind::Bytes(s) => {
+                if s.is_empty() {
+                    write!(f, "empty string")
+                } else if s.len() < 16 {
+                    write!(f, "string '")?;
+                    format::display_bytes(f, s)?;
+                    write!(f, "'")
+                } else {
+                    write!(f, "string of {} bytes", s.len())
+                }
+            }
+            TokenKind::Word(w) => write!(f, "word '{w}'"),
+            TokenKind::Comma => write!(f, "operator ','"),
+            TokenKind::OpenBracket => write!(f, "open '['"),
+            TokenKind::CloseBracket => write!(f, "close ']'"),
+            TokenKind::OpenBrace => write!(f, "open '{{'"),
+            TokenKind::CloseBrace => write!(f, "close '}}'"),
+            TokenKind::Equal => write!(f, "operator '='"),
+            TokenKind::Def => write!(f, "keyword 'def'"),
+            TokenKind::Let => write!(f, "keyword 'let'"),
+            TokenKind::Use => write!(f, "keyword 'use'"),
+            TokenKind::End => write!(f, "end of file"),
+        }
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]

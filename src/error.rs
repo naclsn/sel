@@ -10,7 +10,7 @@ use crate::types::FrozenType;
 #[derive(Debug)]
 pub enum ErrorContext {
     Unmatched {
-        open_token: TokenKind, // may be 'use'/'def'/'let' ('let'?)
+        open_token: TokenKind,
     },
     CompleteType {
         complete_type: FrozenType,
@@ -266,24 +266,9 @@ pub fn already_declared(
 impl Error {
     fn ctx_messages(loc: Location, because: &ErrorContext, report: &mut Report) {
         use ErrorContext::*;
-        use TokenKind::*;
 
         let msgs: &[_] = match because {
-            Unmatched { open_token } => &[(
-                loc,
-                format!(
-                    "{} here",
-                    match open_token {
-                        OpenBracket => "open '['",
-                        OpenBrace => "open '{'",
-                        Def => "keyword 'def'",
-                        Let => "keyword 'let'",
-                        Use => "keyword 'use'",
-                        Unknown(_) | Word(_) | Bytes(_) | Number(_) | Comma | CloseBracket
-                        | CloseBrace | Equal | End => unreachable!(),
-                    }
-                ),
-            )],
+            Unmatched { open_token } => &[(loc, format!("{open_token} here"))],
             CompleteType { complete_type } => &[(loc, format!("complete type: {complete_type}"))],
             TypeListInferredItemType { list_item_type } => &[(
                 loc,
@@ -361,7 +346,6 @@ impl Error {
 
     pub fn report<'a>(&self, registry: &'a SourceRegistry, use_colors: bool) -> Report<'a> {
         use ErrorKind::*;
-        use TokenKind::*;
 
         let loc = self.0.clone();
 
@@ -374,28 +358,7 @@ impl Error {
             Unexpected { token, expected } => Report {
                 registry,
                 title: "Unexpected token".into(),
-                messages: vec![(
-                    loc,
-                    format!(
-                        "Unexpected {}, expected {expected}",
-                        match token {
-                            Unknown(t) => t,
-                            Word(v) => v,
-                            Bytes(_) => "(bytes)",
-                            Number(_) => "(number)",
-                            Comma => "','",
-                            OpenBracket => "'['",
-                            CloseBracket => "']'",
-                            OpenBrace => "'{'",
-                            CloseBrace => "'}'",
-                            Equal => "'='",
-                            Def => "keyword 'def'",
-                            Let => "keyword 'let'",
-                            Use => "keyword 'use'",
-                            End => "end of script",
-                        }
-                    ),
-                )],
+                messages: vec![(loc, format!("Unexpected {token}, expected {expected}"))],
                 use_colors,
             },
             UnknownName {

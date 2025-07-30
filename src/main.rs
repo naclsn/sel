@@ -1,6 +1,6 @@
 //mod builtin;
 mod error;
-//mod format;
+mod format;
 //mod interp;
 mod check;
 mod fund;

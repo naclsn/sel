@@ -1,0 +1,174 @@
+---
+source: src/parse.rs
+expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef :wrong: way around,\nhello\n\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [
+            Def {
+                loc_def: Location(
+                    0,
+                    1..4,
+                ),
+                loc_name: Location(
+                    0,
+                    5..6,
+                ),
+                name: "a",
+                loc_desc: Location(
+                    0,
+                    7..9,
+                ),
+                desc: "",
+                to: Apply {
+                    base: Value(
+                        Word {
+                            loc: Location(
+                                0,
+                                10..11,
+                            ),
+                            word: "b",
+                        },
+                    ),
+                    args: [],
+                },
+            },
+            Def {
+                loc_def: Location(
+                    0,
+                    28..31,
+                ),
+                loc_name: Location(
+                    0,
+                    32..33,
+                ),
+                name: "b",
+                loc_desc: Location(
+                    0,
+                    34..36,
+                ),
+                desc: "",
+                to: Apply {
+                    base: Value(
+                        Word {
+                            loc: Location(
+                                0,
+                                37..38,
+                            ),
+                            word: "a",
+                        },
+                    ),
+                    args: [],
+                },
+            },
+            Def {
+                loc_def: Location(
+                    0,
+                    55..58,
+                ),
+                loc_name: Location(
+                    0,
+                    59..66,
+                ),
+                name: "string ':wrong:'",
+                loc_desc: Location(
+                    0,
+                    67..70,
+                ),
+                desc: "word 'way'",
+                to: Apply {
+                    base: Value(
+                        Word {
+                            loc: Location(
+                                0,
+                                71..77,
+                            ),
+                            word: "around",
+                        },
+                    ),
+                    args: [],
+                },
+            },
+        ],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Value(
+                        Word {
+                            loc: Location(
+                                0,
+                                79..84,
+                            ),
+                            word: "hello",
+                        },
+                    ),
+                    args: [],
+                },
+                tail: [],
+            },
+        ),
+    },
+    [
+        Error(
+            Location(
+                0,
+                12..13,
+            ),
+            Unexpected {
+                token: Comma,
+                expected: "a single ',' between 'def's",
+            },
+        ),
+        Error(
+            Location(
+                0,
+                28..31,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        55..58,
+                    ),
+                    Unexpected {
+                        token: Def,
+                        expected: "a ',' (because of prior 'def')",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Def,
+                },
+            },
+        ),
+        Error(
+            Location(
+                0,
+                55..58,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        59..66,
+                    ),
+                    Unexpected {
+                        token: Bytes(
+                            [
+                                119,
+                                114,
+                                111,
+                                110,
+                                103,
+                            ],
+                        ),
+                        expected: "name then description after 'def' keyword",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Def,
+                },
+            },
+        ),
+    ],
+)

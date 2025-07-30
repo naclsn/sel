@@ -233,7 +233,7 @@ impl Located for Top {
 }
 impl Located for Use {
     fn loc(&self) -> Location {
-        loc_span(&self.loc_use, &self.loc_name)
+        loc_span(&self.loc_use, &self.loc_prefix)
     }
 }
 impl Located for Def {

@@ -1,0 +1,282 @@
+---
+source: src/parse.rs
+expression: "t(b\"\nuse :path/a: a,, # extra comma\nuse :path/b: b # missing comma\nuse :path/c: _,\nuse path name,\nuse :actual path:, # not even registered\nuse :again path: 42, # registered with a bad name\nuse not-bytes, # not even registered\nuse not-bytes 123123 # not even registered\n\")"
+---
+(
+    Top {
+        uses: [
+            Use {
+                loc_use: Location(
+                    0,
+                    1..4,
+                ),
+                loc_path: Location(
+                    0,
+                    5..13,
+                ),
+                path: [
+                    112,
+                    97,
+                    116,
+                    104,
+                    47,
+                    97,
+                ],
+                loc_prefix: Location(
+                    0,
+                    14..15,
+                ),
+                prefix: "a-",
+            },
+            Use {
+                loc_use: Location(
+                    0,
+                    32..35,
+                ),
+                loc_path: Location(
+                    0,
+                    36..44,
+                ),
+                path: [
+                    112,
+                    97,
+                    116,
+                    104,
+                    47,
+                    98,
+                ],
+                loc_prefix: Location(
+                    0,
+                    45..46,
+                ),
+                prefix: "b-",
+            },
+            Use {
+                loc_use: Location(
+                    0,
+                    63..66,
+                ),
+                loc_path: Location(
+                    0,
+                    67..75,
+                ),
+                path: [
+                    112,
+                    97,
+                    116,
+                    104,
+                    47,
+                    99,
+                ],
+                loc_prefix: Location(
+                    0,
+                    76..77,
+                ),
+                prefix: "",
+            },
+            Use {
+                loc_use: Location(
+                    0,
+                    79..82,
+                ),
+                loc_path: Location(
+                    0,
+                    83..87,
+                ),
+                path: [
+                    119,
+                    111,
+                    114,
+                    100,
+                    32,
+                    39,
+                    112,
+                    97,
+                    116,
+                    104,
+                    39,
+                ],
+                loc_prefix: Location(
+                    0,
+                    88..92,
+                ),
+                prefix: "name",
+            },
+            Use {
+                loc_use: Location(
+                    0,
+                    135..138,
+                ),
+                loc_path: Location(
+                    0,
+                    139..151,
+                ),
+                path: [
+                    97,
+                    103,
+                    97,
+                    105,
+                    110,
+                    32,
+                    112,
+                    97,
+                    116,
+                    104,
+                ],
+                loc_prefix: Location(
+                    0,
+                    152..154,
+                ),
+                prefix: "number '42'",
+            },
+        ],
+        defs: [],
+        script: None,
+    },
+    [
+        Error(
+            Location(
+                0,
+                16..17,
+            ),
+            Unexpected {
+                token: Comma,
+                expected: "a single ',' between 'use's",
+            },
+        ),
+        Error(
+            Location(
+                0,
+                32..35,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        63..66,
+                    ),
+                    Unexpected {
+                        token: Use,
+                        expected: "a ',' (because of prior 'use')",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Use,
+                },
+            },
+        ),
+        Error(
+            Location(
+                0,
+                79..82,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        83..87,
+                    ),
+                    Unexpected {
+                        token: Word(
+                            "path",
+                        ),
+                        expected: "file path then identifier after 'use' keyword",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Use,
+                },
+            },
+        ),
+        Error(
+            Location(
+                0,
+                94..97,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        111..112,
+                    ),
+                    Unexpected {
+                        token: Comma,
+                        expected: "file path then identifier after 'use' keyword",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Use,
+                },
+            },
+        ),
+        Error(
+            Location(
+                0,
+                135..138,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        152..154,
+                    ),
+                    Unexpected {
+                        token: Number(
+                            42.0,
+                        ),
+                        expected: "file path then identifier after 'use' keyword",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Use,
+                },
+            },
+        ),
+        Error(
+            Location(
+                0,
+                185..188,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        189..198,
+                    ),
+                    Unexpected {
+                        token: Word(
+                            "not-bytes",
+                        ),
+                        expected: "file path then identifier after 'use' keyword",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Use,
+                },
+            },
+        ),
+        Error(
+            Location(
+                0,
+                222..225,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        226..235,
+                    ),
+                    Unexpected {
+                        token: Word(
+                            "not-bytes",
+                        ),
+                        expected: "file path then identifier after 'use' keyword",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Use,
+                },
+            },
+        ),
+    ],
+)
