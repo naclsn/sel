@@ -137,7 +137,7 @@ impl Pattern {
     pub fn is_refutable(&self) -> bool {
         match self {
             Pattern::Word { .. } => false,
-            Pattern::Pair { fst, snd, .. } => fst.is_refutable() && snd.is_refutable(),
+            Pattern::Pair { fst, snd, .. } => fst.is_refutable() || snd.is_refutable(),
             Pattern::Number { .. } | Pattern::Bytes { .. } | Pattern::List { .. } => true,
         }
     }
@@ -176,8 +176,16 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         // that matches TermToken; in which case it would fall all the way until
         // `parse_value` which will not consume it and make the whole parser give up
         // right away, hence the skip loops after each (and also before while at it..)
-        while matches!(self.peek_tok().1, TermTokenNoEnd!()) {
-            self.skip_tok();
+        if matches!(self.peek_tok().1, TermTokenNoEnd!()) {
+            let wrong = self.next_tok();
+            self.errors.push(error::unexpected(
+                wrong,
+                "'use', 'def' or something, but not that",
+                None,
+            ));
+            while matches!(self.peek_tok().1, TermTokenNoEnd!()) {
+                self.skip_tok();
+            }
         }
 
         let uses = self.parse_uses();
@@ -368,6 +376,14 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 }
             };
 
+            if "_" == name {
+                self.errors.push(error::unexpected(
+                    Token(loc_name.clone(), TokenKind::Word(name.clone())),
+                    "name ('_' cannot be used here)",
+                    Some(tok_def.clone()),
+                ))
+            }
+
             let to = self.parse_apply();
 
             // TODO(wrong todo location): maybe use description to provide more meaningfull var type names
@@ -470,18 +486,14 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 self.skip_tok();
                 loc_close
             }
-            other @ Token(somewhat_loc_close, kind) => {
+            other @ Token(somewhat_loc_close, _) => {
                 let somewhat_loc_close = somewhat_loc_close.clone();
-                let skip = TokenKind::Comma == *kind;
                 let err = error::unexpected(
                     other.clone(),
                     "next argument or closing ']'",
                     Some(tok_open.clone()),
                 );
                 self.errors.push(err);
-                if skip {
-                    self.skip_tok();
-                }
                 somewhat_loc_close
             }
         };
@@ -513,7 +525,17 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 false
             }
 
-            #[allow(unreachable_patterns, reason = "because of 'CloseBrace'")]
+            comma @ Token(_, TokenKind::Comma) => {
+                let err = error::unexpected(
+                    comma.clone(),
+                    "no extra comma at this point",
+                    Some(tok_open.clone()),
+                );
+                self.errors.push(err);
+                true
+            }
+
+            #[allow(unreachable_patterns, reason = "because of 'Comma' and 'CloseBrace'")]
             term @ Token(somewhat_loc_close, TermToken!()) => {
                 loc_close = somewhat_loc_close.clone();
                 let err = error::unexpected(
@@ -575,9 +597,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         let mut items = Vec::new();
         let mut rest = None;
 
-        // logic below is too unreadable for the compiler to notice;
-        // but loc_close could be left uninit and immute..
-        let mut loc_close = Location(0, 0..0);
+        let loc_close;
 
         loop {
             match self.peek_tok() {
@@ -586,7 +606,16 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     break;
                 }
 
-                #[allow(unreachable_patterns, reason = "because of 'CloseBrace'")]
+                comma @ Token(_, TokenKind::Comma) => {
+                    let err = error::unexpected(
+                        comma.clone(),
+                        "no extra comma at this point",
+                        Some(tok_open.clone()),
+                    );
+                    self.errors.push(err);
+                }
+
+                #[allow(unreachable_patterns, reason = "because of 'Comma' and 'CloseBrace'")]
                 term @ Token(somewhat_loc_close, TermToken!()) => {
                     loc_close = somewhat_loc_close.clone();
                     let err = error::unexpected(
@@ -632,19 +661,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                             "a word then closing '}' after ',,'",
                             Some(tok_open.clone()),
                         ));
-                        (
-                            loc_comma,
-                            other.0,
-                            match &other.1 {
-                                TokenKind::CloseBrace => break,
-                                TokenKind::Def => "?def",
-                                TokenKind::Let => "?let",
-                                TokenKind::Use => "?use",
-                                TokenKind::Unknown(t) => t,
-                                _ => "?",
-                            }
-                            .to_string(),
-                        )
+                        (loc_comma, other.0, other.1.to_string())
                     }
                 });
 
@@ -673,22 +690,12 @@ impl<I: Iterator<Item = u8>> Parser<I> {
     }
 
     pub fn parse_value(&mut self) -> Value {
-        // don't consume a TermToken at this point
-        if let term @ Token(loc, TermToken!()) = self.peek_tok() {
-            let loc = loc.clone();
-            let err = error::unexpected(term.clone(), "a value", None);
-            self.errors.push(err);
-            return Value::Word {
-                loc,
-                word: "?".into(),
-            };
-        }
-
-        let first_token = self.next_tok();
-
-        let value = match first_token.1 {
+        // the TermToken branch needs to not consume; hence the peek here and the individual nexts
+        let first_tok = self.peek_tok();
+        let value = match &first_tok.1 {
             TokenKind::OpenBracket => {
-                let (loc_open, subscr, loc_close) = self.parse_subscr_content(&first_token);
+                let open = self.next_tok();
+                let (loc_open, subscr, loc_close) = self.parse_subscr_content(&open);
                 Value::Subscr {
                     loc_open,
                     subscr,
@@ -697,7 +704,8 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             }
 
             TokenKind::OpenBrace => {
-                let (loc_open, items, rest, loc_close) = self.parse_list_content(&first_token);
+                let open = self.next_tok();
+                let (loc_open, items, rest, loc_close) = self.parse_list_content(&open);
                 Value::List {
                     loc_open,
                     items,
@@ -707,28 +715,33 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             }
 
             TokenKind::Number(n) => Value::Number {
-                loc: first_token.0,
-                number: n,
+                number: *n,
+                loc: self.next_tok().0,
             },
             TokenKind::Bytes(b) => Value::Bytes {
-                loc: first_token.0,
-                bytes: b,
+                bytes: b.clone(),
+                loc: self.next_tok().0,
             },
             TokenKind::Word(w) => Value::Word {
-                loc: first_token.0,
-                word: w,
+                word: w.clone(),
+                loc: self.next_tok().0,
             },
 
             TokenKind::Def | TokenKind::Let | TokenKind::Use | TokenKind::Unknown(_) => {
-                self.errors
-                    .push(error::unexpected(first_token.clone(), "a value", None));
-                Value::Word {
-                    loc: first_token.0,
-                    word: first_token.1.to_string(),
-                }
+                let other = self.next_tok();
+                let loc = other.0.clone();
+                let word = other.1.to_string();
+                self.errors.push(error::unexpected(other, "a value", None));
+                Value::Word { loc, word }
             }
 
-            TermToken!() => unreachable!(),
+            TermToken!() => {
+                let loc = first_tok.0.clone();
+                let word = "?".into();
+                let err = error::unexpected(first_tok.clone(), "a value", None);
+                self.errors.push(err);
+                return Value::Word { loc, word };
+            }
         };
 
         if let Token(_, TokenKind::Equal) = self.peek_tok() {
@@ -744,22 +757,12 @@ impl<I: Iterator<Item = u8>> Parser<I> {
     }
 
     pub fn parse_pattern(&mut self) -> Pattern {
-        // don't consume a TermToken at this point
-        if let term @ Token(loc, TokenKind::OpenBracket | TermToken!()) = self.peek_tok() {
-            let loc = loc.clone();
-            let err = error::unexpected(term.clone(), "a pattern", None);
-            self.errors.push(err);
-            return Pattern::Word {
-                loc,
-                word: "?".into(),
-            };
-        }
-
-        let first_token = self.next_tok();
-
-        let pattern = match first_token.1 {
+        // the TermToken branch needs to not consume; hence the peek here and the individual nexts
+        let first_tok = self.peek_tok();
+        let pattern = match &first_tok.1 {
             TokenKind::OpenBrace => {
-                let (loc_open, items, rest, loc_close) = self.parse_patlist_content(&first_token);
+                let open = self.next_tok();
+                let (loc_open, items, rest, loc_close) = self.parse_patlist_content(&open);
                 Pattern::List {
                     loc_open,
                     items,
@@ -769,35 +772,34 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             }
 
             TokenKind::Number(n) => Pattern::Number {
-                loc: first_token.0,
-                number: n,
+                number: *n,
+                loc: self.next_tok().0,
             },
             TokenKind::Bytes(b) => Pattern::Bytes {
-                loc: first_token.0,
-                bytes: b,
+                bytes: b.clone(),
+                loc: self.next_tok().0,
             },
             TokenKind::Word(w) => Pattern::Word {
-                loc: first_token.0,
-                word: w,
+                word: w.clone(),
+                loc: self.next_tok().0,
             },
 
             TokenKind::Def | TokenKind::Let | TokenKind::Use | TokenKind::Unknown(_) => {
+                let other = self.next_tok();
+                let loc = other.0.clone();
+                let word = other.1.to_string();
                 self.errors
-                    .push(error::unexpected(first_token.clone(), "a pattern", None));
-                Pattern::Word {
-                    loc: first_token.0,
-                    word: match &first_token.1 {
-                        TokenKind::Def => "?def",
-                        TokenKind::Let => "?let",
-                        TokenKind::Use => "?use",
-                        TokenKind::Unknown(t) => t,
-                        _ => unreachable!(),
-                    }
-                    .into(),
-                }
+                    .push(error::unexpected(other.clone(), "a pattern", None));
+                Pattern::Word { loc, word }
             }
 
-            TokenKind::OpenBracket | TermToken!() => unreachable!(),
+            TokenKind::OpenBracket | TermToken!() => {
+                let loc = first_tok.0.clone();
+                let word = "?".into();
+                let err = error::unexpected(first_tok.clone(), "a pattern", None);
+                self.errors.push(err);
+                return Pattern::Word { loc, word };
+            }
         };
 
         if let Token(_, TokenKind::Equal) = self.peek_tok() {
@@ -875,12 +877,27 @@ use not-bytes 123123 # not even registered
     assert_debug_snapshot!(t(b"
 def a :: b,, # extra comma
 def b :: a # missing comma
+def x y z,
+def 42 :: 42,
 def :wrong: way around,
+def _XOPEN_SOURCE, # seen as `def _ XOPEN _ SOURCE` anyways
+def 1, # does not eat the ',' (does not define anything)
+def z, # does not eat the ',' (does not define anything)
 hello
 "));
-    //assert_debug_snapshot!(t(b"use :a: a, def b:: b, use :c: c, d")) // loose 'use' after 'def'
-    //assert_debug_snapshot!(t(b"]}] 42")); // loose TermTokenNoEnd before
-    //assert_debug_snapshot!(t(b"use :path: name]}] 42")); // 'use' with loose TermTokenNoEnd after
-    //assert_debug_snapshot!(t(b"def name :desc: 12]}] 42")); // 'def' with loose TermTokenNoEnd after
-    //assert_debug_snapshot!(t(b"use :path: name]}] def name :desc: 12]}] 42"));
+    assert_debug_snapshot!(t(b"use :a: a, def b:: b, use :c: c, d")); // loose 'use' after 'def'
+    assert_debug_snapshot!(t(b"]}] 42")); // loose TermTokenNoEnd before
+    assert_debug_snapshot!(t(b"use :path: name]}] 42")); // 'use' with loose TermTokenNoEnd after
+    assert_debug_snapshot!(t(b"def name :desc: 12]}] 42")); // 'def' with loose TermTokenNoEnd after
+    assert_debug_snapshot!(t(b"use :path: name]}] def name :desc: 12]}] 42"));
+    assert_debug_snapshot!(t(b"x[x {a b,, c d, y]y"));
+    assert_debug_snapshot!(t(b"
+use :p: n,
+def f: d: v,
+[let a={h,, t] 1 0
+"));
+    assert_debug_snapshot!(t(b"let let={:let:,,LET} 3 3"));
+    assert_debug_snapshot!(t(b"[subscr without closing"));
+    assert_debug_snapshot!(t(b"x {, let {,}} y"));
+    assert_debug_snapshot!(t(b"x [  {  ] [  let { ] y"));
 }

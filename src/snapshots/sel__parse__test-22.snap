@@ -1,6 +1,6 @@
 ---
 source: src/parse.rs
-expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef :wrong: way around,\nhello\n\")"
+expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef x y z,\ndef 42 :: 42,\ndef :wrong: way around,\ndef _XOPEN_SOURCE, # seen as `def _ XOPEN _ SOURCE` anyways\ndef 1, # does not eat the ',' (does not define anything)\ndef z, # does not eat the ',' (does not define anything)\nhello\n\")"
 ---
 (
     Top {
@@ -69,12 +69,68 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
                 ),
                 loc_name: Location(
                     0,
-                    59..66,
+                    59..60,
+                ),
+                name: "x",
+                loc_desc: Location(
+                    0,
+                    61..62,
+                ),
+                desc: "word 'y'",
+                to: Apply {
+                    base: Value(
+                        Word {
+                            loc: Location(
+                                0,
+                                63..64,
+                            ),
+                            word: "z",
+                        },
+                    ),
+                    args: [],
+                },
+            },
+            Def {
+                loc_def: Location(
+                    0,
+                    66..69,
+                ),
+                loc_name: Location(
+                    0,
+                    70..72,
+                ),
+                name: "number '42'",
+                loc_desc: Location(
+                    0,
+                    73..75,
+                ),
+                desc: "",
+                to: Apply {
+                    base: Value(
+                        Number {
+                            loc: Location(
+                                0,
+                                76..78,
+                            ),
+                            number: 42.0,
+                        },
+                    ),
+                    args: [],
+                },
+            },
+            Def {
+                loc_def: Location(
+                    0,
+                    80..83,
+                ),
+                loc_name: Location(
+                    0,
+                    84..91,
                 ),
                 name: "string ':wrong:'",
                 loc_desc: Location(
                     0,
-                    67..70,
+                    92..95,
                 ),
                 desc: "word 'way'",
                 to: Apply {
@@ -82,12 +138,48 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
                         Word {
                             loc: Location(
                                 0,
-                                71..77,
+                                96..102,
                             ),
                             word: "around",
                         },
                     ),
                     args: [],
+                },
+            },
+            Def {
+                loc_def: Location(
+                    0,
+                    104..107,
+                ),
+                loc_name: Location(
+                    0,
+                    108..109,
+                ),
+                name: "_",
+                loc_desc: Location(
+                    0,
+                    109..114,
+                ),
+                desc: "token 'XOPEN'",
+                to: Apply {
+                    base: Value(
+                        Word {
+                            loc: Location(
+                                0,
+                                114..115,
+                            ),
+                            word: "_",
+                        },
+                    ),
+                    args: [
+                        Word {
+                            loc: Location(
+                                0,
+                                115..121,
+                            ),
+                            word: "token 'SOURCE'",
+                        },
+                    ],
                 },
             },
         ],
@@ -98,7 +190,7 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
                         Word {
                             loc: Location(
                                 0,
-                                79..84,
+                                278..283,
                             ),
                             word: "hello",
                         },
@@ -150,7 +242,53 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
                 error: Error(
                     Location(
                         0,
-                        59..66,
+                        61..62,
+                    ),
+                    Unexpected {
+                        token: Word(
+                            "y",
+                        ),
+                        expected: "name then description after 'def' keyword",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Def,
+                },
+            },
+        ),
+        Error(
+            Location(
+                0,
+                66..69,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        70..72,
+                    ),
+                    Unexpected {
+                        token: Number(
+                            42.0,
+                        ),
+                        expected: "name then description after 'def' keyword",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Def,
+                },
+            },
+        ),
+        Error(
+            Location(
+                0,
+                80..83,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        84..91,
                     ),
                     Unexpected {
                         token: Bytes(
@@ -162,6 +300,108 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
                                 103,
                             ],
                         ),
+                        expected: "name then description after 'def' keyword",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Def,
+                },
+            },
+        ),
+        Error(
+            Location(
+                0,
+                104..107,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        109..114,
+                    ),
+                    Unexpected {
+                        token: Unknown(
+                            "XOPEN",
+                        ),
+                        expected: "name then description after 'def' keyword",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Def,
+                },
+            },
+        ),
+        Error(
+            Location(
+                0,
+                104..107,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        108..109,
+                    ),
+                    Unexpected {
+                        token: Word(
+                            "_",
+                        ),
+                        expected: "name ('_' cannot be used here)",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Def,
+                },
+            },
+        ),
+        Error(
+            Location(
+                0,
+                115..121,
+            ),
+            Unexpected {
+                token: Unknown(
+                    "SOURCE",
+                ),
+                expected: "a value",
+            },
+        ),
+        Error(
+            Location(
+                0,
+                164..167,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        168..169,
+                    ),
+                    Unexpected {
+                        token: Number(
+                            1.0,
+                        ),
+                        expected: "name then description after 'def' keyword",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Def,
+                },
+            },
+        ),
+        Error(
+            Location(
+                0,
+                221..224,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        226..227,
+                    ),
+                    Unexpected {
+                        token: Comma,
                         expected: "name then description after 'def' keyword",
                     },
                 ),

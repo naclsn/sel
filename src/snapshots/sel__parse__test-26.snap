@@ -1,0 +1,79 @@
+---
+source: src/parse.rs
+expression: "t(b\"def name :desc: 12]}] 42\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [
+            Def {
+                loc_def: Location(
+                    0,
+                    0..3,
+                ),
+                loc_name: Location(
+                    0,
+                    4..8,
+                ),
+                name: "name",
+                loc_desc: Location(
+                    0,
+                    9..15,
+                ),
+                desc: "desc",
+                to: Apply {
+                    base: Value(
+                        Number {
+                            loc: Location(
+                                0,
+                                16..18,
+                            ),
+                            number: 12.0,
+                        },
+                    ),
+                    args: [],
+                },
+            },
+        ],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Value(
+                        Number {
+                            loc: Location(
+                                0,
+                                22..24,
+                            ),
+                            number: 42.0,
+                        },
+                    ),
+                    args: [],
+                },
+                tail: [],
+            },
+        ),
+    },
+    [
+        Error(
+            Location(
+                0,
+                0..3,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        18..19,
+                    ),
+                    Unexpected {
+                        token: CloseBracket,
+                        expected: "a ',' (because of prior 'def')",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Def,
+                },
+            },
+        ),
+    ],
+)

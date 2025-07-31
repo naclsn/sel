@@ -1,0 +1,218 @@
+---
+source: src/parse.rs
+expression: "t(b\"\nuse :p: n,\ndef f: d: v,\n[let a={h,, t] 1 0\n\")"
+---
+(
+    Top {
+        uses: [
+            Use {
+                loc_use: Location(
+                    0,
+                    1..4,
+                ),
+                loc_path: Location(
+                    0,
+                    5..8,
+                ),
+                path: [
+                    112,
+                ],
+                loc_prefix: Location(
+                    0,
+                    9..10,
+                ),
+                prefix: "n-",
+            },
+        ],
+        defs: [
+            Def {
+                loc_def: Location(
+                    0,
+                    12..15,
+                ),
+                loc_name: Location(
+                    0,
+                    16..17,
+                ),
+                name: "f",
+                loc_desc: Location(
+                    0,
+                    17..21,
+                ),
+                desc: "d",
+                to: Apply {
+                    base: Value(
+                        Word {
+                            loc: Location(
+                                0,
+                                22..23,
+                            ),
+                            word: "v",
+                        },
+                    ),
+                    args: [],
+                },
+            },
+        ],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Value(
+                        Subscr {
+                            loc_open: Location(
+                                0,
+                                25..26,
+                            ),
+                            subscr: Script {
+                                head: Apply {
+                                    base: Binding {
+                                        loc_let: Location(
+                                            0,
+                                            26..29,
+                                        ),
+                                        pat: Pair {
+                                            fst: Word {
+                                                loc: Location(
+                                                    0,
+                                                    30..31,
+                                                ),
+                                                word: "a",
+                                            },
+                                            loc_equal: Location(
+                                                0,
+                                                31..32,
+                                            ),
+                                            snd: List {
+                                                loc_open: Location(
+                                                    0,
+                                                    32..33,
+                                                ),
+                                                items: [
+                                                    Word {
+                                                        loc: Location(
+                                                            0,
+                                                            33..34,
+                                                        ),
+                                                        word: "h",
+                                                    },
+                                                ],
+                                                rest: Some(
+                                                    (
+                                                        Location(
+                                                            0,
+                                                            35..36,
+                                                        ),
+                                                        Location(
+                                                            0,
+                                                            37..38,
+                                                        ),
+                                                        "t",
+                                                    ),
+                                                ),
+                                                loc_close: Location(
+                                                    0,
+                                                    38..39,
+                                                ),
+                                            },
+                                        },
+                                        res: Word {
+                                            loc: Location(
+                                                0,
+                                                38..39,
+                                            ),
+                                            word: "?",
+                                        },
+                                        alt: Some(
+                                            Word {
+                                                loc: Location(
+                                                    0,
+                                                    38..39,
+                                                ),
+                                                word: "?",
+                                            },
+                                        ),
+                                    },
+                                    args: [],
+                                },
+                                tail: [],
+                            },
+                            loc_close: Location(
+                                0,
+                                38..39,
+                            ),
+                        },
+                    ),
+                    args: [
+                        Number {
+                            loc: Location(
+                                0,
+                                40..41,
+                            ),
+                            number: 1.0,
+                        },
+                        Number {
+                            loc: Location(
+                                0,
+                                42..43,
+                            ),
+                            number: 0.0,
+                        },
+                    ],
+                },
+                tail: [],
+            },
+        ),
+    },
+    [
+        Error(
+            Location(
+                0,
+                32..33,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        38..39,
+                    ),
+                    Unexpected {
+                        token: CloseBracket,
+                        expected: "closing '}' after ',,'",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: OpenBrace,
+                },
+            },
+        ),
+        Error(
+            Location(
+                0,
+                38..39,
+            ),
+            Unexpected {
+                token: CloseBracket,
+                expected: "a value",
+            },
+        ),
+        Error(
+            Location(
+                0,
+                30..39,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        38..39,
+                    ),
+                    Unexpected {
+                        token: CloseBracket,
+                        expected: "a value",
+                    },
+                ),
+                because: LetFallbackRequired,
+            },
+        ),
+    ],
+)

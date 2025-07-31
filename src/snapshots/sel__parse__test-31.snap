@@ -1,0 +1,83 @@
+---
+source: src/parse.rs
+expression: "t(b\"[subscr without closing\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Value(
+                        Subscr {
+                            loc_open: Location(
+                                0,
+                                0..1,
+                            ),
+                            subscr: Script {
+                                head: Apply {
+                                    base: Value(
+                                        Word {
+                                            loc: Location(
+                                                0,
+                                                1..7,
+                                            ),
+                                            word: "subscr",
+                                        },
+                                    ),
+                                    args: [
+                                        Word {
+                                            loc: Location(
+                                                0,
+                                                8..15,
+                                            ),
+                                            word: "without",
+                                        },
+                                        Word {
+                                            loc: Location(
+                                                0,
+                                                16..23,
+                                            ),
+                                            word: "closing",
+                                        },
+                                    ],
+                                },
+                                tail: [],
+                            },
+                            loc_close: Location(
+                                0,
+                                23..23,
+                            ),
+                        },
+                    ),
+                    args: [],
+                },
+                tail: [],
+            },
+        ),
+    },
+    [
+        Error(
+            Location(
+                0,
+                0..1,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        23..23,
+                    ),
+                    Unexpected {
+                        token: End,
+                        expected: "next argument or closing ']'",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: OpenBracket,
+                },
+            },
+        ),
+    ],
+)

@@ -1,0 +1,122 @@
+---
+source: src/parse.rs
+expression: "t(b\"use :path: name]}] def name :desc: 12]}] 42\")"
+---
+(
+    Top {
+        uses: [
+            Use {
+                loc_use: Location(
+                    0,
+                    0..3,
+                ),
+                loc_path: Location(
+                    0,
+                    4..10,
+                ),
+                path: [
+                    112,
+                    97,
+                    116,
+                    104,
+                ],
+                loc_prefix: Location(
+                    0,
+                    11..15,
+                ),
+                prefix: "name-",
+            },
+        ],
+        defs: [
+            Def {
+                loc_def: Location(
+                    0,
+                    19..22,
+                ),
+                loc_name: Location(
+                    0,
+                    23..27,
+                ),
+                name: "name",
+                loc_desc: Location(
+                    0,
+                    28..34,
+                ),
+                desc: "desc",
+                to: Apply {
+                    base: Value(
+                        Number {
+                            loc: Location(
+                                0,
+                                35..37,
+                            ),
+                            number: 12.0,
+                        },
+                    ),
+                    args: [],
+                },
+            },
+        ],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Value(
+                        Number {
+                            loc: Location(
+                                0,
+                                41..43,
+                            ),
+                            number: 42.0,
+                        },
+                    ),
+                    args: [],
+                },
+                tail: [],
+            },
+        ),
+    },
+    [
+        Error(
+            Location(
+                0,
+                0..3,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        15..16,
+                    ),
+                    Unexpected {
+                        token: CloseBracket,
+                        expected: "a ',' (because of prior 'use')",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Use,
+                },
+            },
+        ),
+        Error(
+            Location(
+                0,
+                19..22,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        37..38,
+                    ),
+                    Unexpected {
+                        token: CloseBracket,
+                        expected: "a ',' (because of prior 'def')",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Def,
+                },
+            },
+        ),
+    ],
+)

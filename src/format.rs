@@ -1,4 +1,4 @@
-use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::fmt::{Formatter, Result as FmtResult};
 
 pub fn display_bytes(f: &mut Formatter, bytes: &[u8]) -> FmtResult {
     write!(f, ":")?;

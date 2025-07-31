@@ -1,0 +1,39 @@
+---
+source: src/parse.rs
+expression: "t(b\"]}] 42\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Value(
+                        Number {
+                            loc: Location(
+                                0,
+                                4..6,
+                            ),
+                            number: 42.0,
+                        },
+                    ),
+                    args: [],
+                },
+                tail: [],
+            },
+        ),
+    },
+    [
+        Error(
+            Location(
+                0,
+                0..1,
+            ),
+            Unexpected {
+                token: CloseBracket,
+                expected: "'use', 'def' or something, but not that",
+            },
+        ),
+    ],
+)

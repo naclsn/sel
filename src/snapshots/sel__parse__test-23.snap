@@ -1,0 +1,133 @@
+---
+source: src/parse.rs
+expression: "t(b\"use :a: a, def b:: b, use :c: c, d\")"
+---
+(
+    Top {
+        uses: [
+            Use {
+                loc_use: Location(
+                    0,
+                    0..3,
+                ),
+                loc_path: Location(
+                    0,
+                    4..7,
+                ),
+                path: [
+                    97,
+                ],
+                loc_prefix: Location(
+                    0,
+                    8..9,
+                ),
+                prefix: "a-",
+            },
+        ],
+        defs: [
+            Def {
+                loc_def: Location(
+                    0,
+                    11..14,
+                ),
+                loc_name: Location(
+                    0,
+                    15..16,
+                ),
+                name: "b",
+                loc_desc: Location(
+                    0,
+                    16..18,
+                ),
+                desc: "",
+                to: Apply {
+                    base: Value(
+                        Word {
+                            loc: Location(
+                                0,
+                                19..20,
+                            ),
+                            word: "b",
+                        },
+                    ),
+                    args: [],
+                },
+            },
+        ],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Value(
+                        Word {
+                            loc: Location(
+                                0,
+                                22..25,
+                            ),
+                            word: "keyword 'use'",
+                        },
+                    ),
+                    args: [
+                        Bytes {
+                            loc: Location(
+                                0,
+                                26..29,
+                            ),
+                            bytes: [
+                                99,
+                            ],
+                        },
+                        Word {
+                            loc: Location(
+                                0,
+                                30..31,
+                            ),
+                            word: "c",
+                        },
+                    ],
+                },
+                tail: [
+                    (
+                        Location(
+                            0,
+                            31..32,
+                        ),
+                        Apply {
+                            base: Value(
+                                Word {
+                                    loc: Location(
+                                        0,
+                                        33..34,
+                                    ),
+                                    word: "d",
+                                },
+                            ),
+                            args: [],
+                        },
+                    ),
+                ],
+            },
+        ),
+    },
+    [
+        Error(
+            Location(
+                0,
+                22..25,
+            ),
+            Unexpected {
+                token: Use,
+                expected: "'use's to all be before the first 'def'",
+            },
+        ),
+        Error(
+            Location(
+                0,
+                22..25,
+            ),
+            Unexpected {
+                token: Use,
+                expected: "a value",
+            },
+        ),
+    ],
+)

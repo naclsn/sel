@@ -1,0 +1,124 @@
+---
+source: src/parse.rs
+expression: "t(b\"let let={:let:,,LET} 3 3\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Binding {
+                        loc_let: Location(
+                            0,
+                            0..3,
+                        ),
+                        pat: Pair {
+                            fst: Word {
+                                loc: Location(
+                                    0,
+                                    4..7,
+                                ),
+                                word: "keyword 'let'",
+                            },
+                            loc_equal: Location(
+                                0,
+                                7..8,
+                            ),
+                            snd: List {
+                                loc_open: Location(
+                                    0,
+                                    8..9,
+                                ),
+                                items: [
+                                    Bytes {
+                                        loc: Location(
+                                            0,
+                                            9..14,
+                                        ),
+                                        bytes: [
+                                            108,
+                                            101,
+                                            116,
+                                        ],
+                                    },
+                                ],
+                                rest: Some(
+                                    (
+                                        Location(
+                                            0,
+                                            15..16,
+                                        ),
+                                        Location(
+                                            0,
+                                            16..19,
+                                        ),
+                                        "token 'LET'",
+                                    ),
+                                ),
+                                loc_close: Location(
+                                    0,
+                                    19..20,
+                                ),
+                            },
+                        },
+                        res: Number {
+                            loc: Location(
+                                0,
+                                21..22,
+                            ),
+                            number: 3.0,
+                        },
+                        alt: Some(
+                            Number {
+                                loc: Location(
+                                    0,
+                                    23..24,
+                                ),
+                                number: 3.0,
+                            },
+                        ),
+                    },
+                    args: [],
+                },
+                tail: [],
+            },
+        ),
+    },
+    [
+        Error(
+            Location(
+                0,
+                4..7,
+            ),
+            Unexpected {
+                token: Let,
+                expected: "a pattern",
+            },
+        ),
+        Error(
+            Location(
+                0,
+                8..9,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        16..19,
+                    ),
+                    Unexpected {
+                        token: Unknown(
+                            "LET",
+                        ),
+                        expected: "a word then closing '}' after ',,'",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: OpenBrace,
+                },
+            },
+        ),
+    ],
+)

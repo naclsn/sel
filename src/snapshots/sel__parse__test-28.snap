@@ -1,0 +1,163 @@
+---
+source: src/parse.rs
+expression: "t(b\"x[x {a b,, c d, y]y\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Value(
+                        Word {
+                            loc: Location(
+                                0,
+                                0..1,
+                            ),
+                            word: "x",
+                        },
+                    ),
+                    args: [
+                        Subscr {
+                            loc_open: Location(
+                                0,
+                                1..2,
+                            ),
+                            subscr: Script {
+                                head: Apply {
+                                    base: Value(
+                                        Word {
+                                            loc: Location(
+                                                0,
+                                                2..3,
+                                            ),
+                                            word: "x",
+                                        },
+                                    ),
+                                    args: [
+                                        List {
+                                            loc_open: Location(
+                                                0,
+                                                4..5,
+                                            ),
+                                            items: [
+                                                Apply {
+                                                    base: Value(
+                                                        Word {
+                                                            loc: Location(
+                                                                0,
+                                                                5..6,
+                                                            ),
+                                                            word: "a",
+                                                        },
+                                                    ),
+                                                    args: [
+                                                        Word {
+                                                            loc: Location(
+                                                                0,
+                                                                7..8,
+                                                            ),
+                                                            word: "b",
+                                                        },
+                                                    ],
+                                                },
+                                            ],
+                                            rest: Some(
+                                                (
+                                                    Location(
+                                                        0,
+                                                        9..10,
+                                                    ),
+                                                    Apply {
+                                                        base: Value(
+                                                            Word {
+                                                                loc: Location(
+                                                                    0,
+                                                                    11..12,
+                                                                ),
+                                                                word: "c",
+                                                            },
+                                                        ),
+                                                        args: [
+                                                            Word {
+                                                                loc: Location(
+                                                                    0,
+                                                                    13..14,
+                                                                ),
+                                                                word: "d",
+                                                            },
+                                                        ],
+                                                    },
+                                                ),
+                                            ),
+                                            loc_close: Location(
+                                                0,
+                                                14..15,
+                                            ),
+                                        },
+                                    ],
+                                },
+                                tail: [
+                                    (
+                                        Location(
+                                            0,
+                                            14..15,
+                                        ),
+                                        Apply {
+                                            base: Value(
+                                                Word {
+                                                    loc: Location(
+                                                        0,
+                                                        16..17,
+                                                    ),
+                                                    word: "y",
+                                                },
+                                            ),
+                                            args: [],
+                                        },
+                                    ),
+                                ],
+                            },
+                            loc_close: Location(
+                                0,
+                                17..18,
+                            ),
+                        },
+                        Word {
+                            loc: Location(
+                                0,
+                                18..19,
+                            ),
+                            word: "y",
+                        },
+                    ],
+                },
+                tail: [],
+            },
+        ),
+    },
+    [
+        Error(
+            Location(
+                0,
+                4..5,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        14..15,
+                    ),
+                    Unexpected {
+                        token: Comma,
+                        expected: "closing '}' after ',,'",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: OpenBrace,
+                },
+            },
+        ),
+    ],
+)

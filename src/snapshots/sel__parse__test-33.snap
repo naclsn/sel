@@ -1,0 +1,188 @@
+---
+source: src/parse.rs
+expression: "t(b\"x [  {  ] [  let { ] y\")"
+---
+(
+    Top {
+        uses: [],
+        defs: [],
+        script: Some(
+            Script {
+                head: Apply {
+                    base: Value(
+                        Word {
+                            loc: Location(
+                                0,
+                                0..1,
+                            ),
+                            word: "x",
+                        },
+                    ),
+                    args: [
+                        Subscr {
+                            loc_open: Location(
+                                0,
+                                2..3,
+                            ),
+                            subscr: Script {
+                                head: Apply {
+                                    base: Value(
+                                        List {
+                                            loc_open: Location(
+                                                0,
+                                                5..6,
+                                            ),
+                                            items: [],
+                                            rest: None,
+                                            loc_close: Location(
+                                                0,
+                                                8..9,
+                                            ),
+                                        },
+                                    ),
+                                    args: [],
+                                },
+                                tail: [],
+                            },
+                            loc_close: Location(
+                                0,
+                                8..9,
+                            ),
+                        },
+                        Subscr {
+                            loc_open: Location(
+                                0,
+                                10..11,
+                            ),
+                            subscr: Script {
+                                head: Apply {
+                                    base: Binding {
+                                        loc_let: Location(
+                                            0,
+                                            13..16,
+                                        ),
+                                        pat: List {
+                                            loc_open: Location(
+                                                0,
+                                                17..18,
+                                            ),
+                                            items: [],
+                                            rest: None,
+                                            loc_close: Location(
+                                                0,
+                                                19..20,
+                                            ),
+                                        },
+                                        res: Word {
+                                            loc: Location(
+                                                0,
+                                                19..20,
+                                            ),
+                                            word: "?",
+                                        },
+                                        alt: Some(
+                                            Word {
+                                                loc: Location(
+                                                    0,
+                                                    19..20,
+                                                ),
+                                                word: "?",
+                                            },
+                                        ),
+                                    },
+                                    args: [],
+                                },
+                                tail: [],
+                            },
+                            loc_close: Location(
+                                0,
+                                19..20,
+                            ),
+                        },
+                        Word {
+                            loc: Location(
+                                0,
+                                21..22,
+                            ),
+                            word: "y",
+                        },
+                    ],
+                },
+                tail: [],
+            },
+        ),
+    },
+    [
+        Error(
+            Location(
+                0,
+                5..6,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        8..9,
+                    ),
+                    Unexpected {
+                        token: CloseBracket,
+                        expected: "next item or closing '}'",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: OpenBrace,
+                },
+            },
+        ),
+        Error(
+            Location(
+                0,
+                17..18,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        19..20,
+                    ),
+                    Unexpected {
+                        token: CloseBracket,
+                        expected: "next item or closing '}'",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: OpenBrace,
+                },
+            },
+        ),
+        Error(
+            Location(
+                0,
+                19..20,
+            ),
+            Unexpected {
+                token: CloseBracket,
+                expected: "a value",
+            },
+        ),
+        Error(
+            Location(
+                0,
+                17..20,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        0,
+                        19..20,
+                    ),
+                    Unexpected {
+                        token: CloseBracket,
+                        expected: "a value",
+                    },
+                ),
+                because: LetFallbackRequired,
+            },
+        ),
+    ],
+)

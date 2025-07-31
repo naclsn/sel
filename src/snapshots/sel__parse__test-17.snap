@@ -41,20 +41,20 @@ expression: "t(b\"let 0=a a :ok:\")"
                             ),
                             word: "a",
                         },
-                        alt: None,
+                        alt: Some(
+                            Bytes {
+                                loc: Location(
+                                    0,
+                                    10..14,
+                                ),
+                                bytes: [
+                                    111,
+                                    107,
+                                ],
+                            },
+                        ),
                     },
-                    args: [
-                        Bytes {
-                            loc: Location(
-                                0,
-                                10..14,
-                            ),
-                            bytes: [
-                                111,
-                                107,
-                            ],
-                        },
-                    ],
+                    args: [],
                 },
                 tail: [],
             },
