@@ -19,7 +19,7 @@ pub enum TreeVal {
     Number(f64),
     Bytes(Box<[u8]>),
     Word(String, Refers),
-    List, // represents an empty list, as a cons-sequence starter (ie nil)
+    List, // represents an empty list, as a cons-sequence sentinel (ie nil)
     Pair(Box<Tree>, Box<Tree>),
     Apply(Box<Tree>, Vec<Tree>), // base can only be 'Word', 'Binding' or 'Fundamental', or the error list isn't empty
     Binding(Pattern, Box<Tree>, Option<Box<Tree>>), // Some(.) iff `pat.is_refutable()`
@@ -300,9 +300,9 @@ impl<'t, 's> Checker<'t, 's> {
                     }
                     None => {
                         let ty = self.types.named(word.clone());
-                        self.scope.missing(word.clone(), ty);
-                        self.errors
-                            .push(error::unknown_name(loc.clone(), word.clone()));
+                        self.scope.missing(loc.clone(), word.clone(), ty);
+                        //self.errors
+                        //    .push(error::unknown_name(loc.clone(), word.clone()));
                         (ty, Refers::Missing)
                     }
                 };

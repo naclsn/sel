@@ -35,11 +35,39 @@ fn main() {
     }
     eprintln!("CST: {top:#?}");
 
-    if let Some(script) = top.script {
-        let mut types = TypeList::default();
-        let mut scope = Scoping::default();
+    let mut types = TypeList::default();
+    //let mut scope = Scoping::default();
+    let mut scope = Scoping::new(&top.uses, &top.defs);
+
+    /*
+    // there would be an implicit 'use' for the prelude
+    for u in top.uses {
+        // resolve path; for now only fs anyways
+        // TODO: havin registry check if it already red that file is meaningless here
+        // as we'd rather not re-parse it, we need to store the CST in relation to the source id..
+        match registry.add(String::from_utf8(u.path.to_vec()).expect("uuugh")) {
+            Ok(source) => {
+                let mut parser = Parser::new(source, bytes.iter().copied());
+                let top = parser.parse_top();
+                panic!("lolilol");
+                // this is to be properly recursive; only differences with top level are:
+                // - do or do not we want error reporting?
+                // - script section isn't relevant and never inspected
+                // - only 'def's are exposed, and these could be type-checked lazily
+                // - same laziness with the 'use' that would only be req
+            }
+        }
+        u.prefix;
+    }
+    for d in top.defs {
+        let ty = 0;
+        scope.define(d.name, d.loc_name, d.desc, ty);
+    }
+    */
+
+    if let Some(script) = &top.script {
         let mut checker = Checker::new(&mut types, &mut scope);
-        let ast = checker.check_script(&script);
+        let ast = checker.check_script(script);
         let errors = checker.errors();
 
         if !errors.is_empty() {

@@ -1,3 +1,5 @@
+//! file-level scoping and resolving
+
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Result as IoResult};
@@ -5,6 +7,7 @@ use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 use crate::fund::Fund;
+use crate::parse::{Def, Use};
 use crate::types::{TypeList, TypeRef};
 
 /*
@@ -34,17 +37,20 @@ pub struct Scope {
 
 // scope {{{
 #[derive(Debug, Default)]
-pub struct Scoping {
+pub struct Scoping<'top> {
+    uses: &'top [Use],
+    defs: &'top [Def],
     bindings: Vec<HashMap<String, Binding>>,
     defineds: HashMap<String, Defined>,
     missings: HashMap<String, TypeRef>,
 }
 
 #[derive(Debug)]
-pub enum Entry<'a> {
-    Binding(&'a Binding),
-    Defined(&'a Defined),
+pub enum Entry<'scope> {
+    Binding(&'scope Binding),
+    Defined(&'scope Defined),
     Fundamental(Fund),
+    ToBeDefined(&'scope Def),
 }
 
 #[derive(Debug)]
@@ -61,7 +67,15 @@ pub struct Defined {
     pub ty: TypeRef,
 }
 
-impl Scoping {
+impl Scoping<'_> {
+    pub fn new<'top>(uses: &'top [Use], defs: &'top [Def]) -> Scoping<'top> {
+        Scoping {
+            uses,
+            defs,
+            ..Self::default()
+        }
+    }
+
     pub fn push(&mut self, entries: HashMap<String, (Location, TypeRef)>) {
         self.bindings.push(
             entries
@@ -77,17 +91,10 @@ impl Scoping {
             .expect("unbalanced scoping pop with no push");
     }
 
-    /// returns previous
-    pub fn define(
-        &mut self,
-        name: String,
-        loc: Location,
-        desc: String,
-        ty: TypeRef,
-    ) -> Option<(Location, TypeRef)> {
+    pub fn define(&mut self, name: String, loc: Location, desc: String, ty: TypeRef) -> &Defined {
         self.defineds
-            .insert(name, Defined { loc, desc, ty })
-            .map(|Defined { loc, ty, .. }| (loc, ty))
+            .insert(name.clone(), Defined { loc, desc, ty });
+        self.defineds.get(&name).unwrap()
     }
 
     pub fn missing(&mut self, name: String, ty: TypeRef) {
@@ -100,19 +107,29 @@ impl Scoping {
     /// lookup order is always:
     /// - fundamentals
     /// - bindings (closest to furthest)
-    /// - defineds
+    /// - defineds (latest to earliest in file)
+    /// - uses (same order)
     /// - missing
-    pub fn lookup(&self, name: &str) -> Option<Entry> {
-        Fund::try_from_name(name)
-            .map(Entry::Fundamental)
-            .or_else(|| {
-                self.bindings
-                    .iter()
-                    .rev()
-                    .find_map(|it| it.get(name))
-                    .map(Entry::Binding)
-            })
-            .or_else(|| self.defineds.get(name).map(Entry::Defined))
+    ///
+    /// when None, likely want to call `missing()`
+    /// when ToBeDefined, likely want to call `define()`
+    pub fn lookup(&mut self, name: &str) -> Option<Entry> {
+        if let Some(found) = Fund::try_from_name(name) {
+            return Some(Entry::Fundamental(found));
+        }
+        if let Some(found) = self.bindings.iter().rev().find_map(|it| it.get(name)) {
+            return Some(Entry::Binding(found));
+        }
+        if let Some(found) = self.defineds.get(name) {
+            return Some(Entry::Defined(found));
+        }
+        if let Some(found) = self.defs.iter().rev().find(|it| name == it.name) {
+            return Some(Entry::ToBeDefined(found));
+        }
+        if let Some(found) = self.uses.iter().rev().find(|it| name == it.prefix) {
+            todo!()
+        }
+        None
     }
 }
 // }}}
