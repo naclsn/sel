@@ -1,10 +1,11 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::io::IsTerminal;
+use std::rc::Rc;
 
 use crate::lex::{Token, TokenKind};
 use crate::module::{Location, ModuleRegistry};
 use crate::parse::ApplyBase;
-use crate::types::FrozenType;
+use crate::types::Type;
 
 // error types {{{
 #[derive(Debug)]
@@ -260,6 +261,16 @@ pub fn already_declared(
     )
 }
 */
+
+pub fn not_function(ty: &Type) -> ErrorKind {
+    Type::deep_clone(ty)
+}
+
+pub fn type_mismatch(want: &Rc<Type>, give: &Rc<Type>) -> ErrorKind {
+    Type::deep_clone(want);
+    Type::deep_clone(give);
+    todo!()
+}
 // }}}
 
 // generate report {{{
