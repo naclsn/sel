@@ -1,28 +1,28 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::iter::{self, Peekable};
+use std::rc::Rc;
 
 use crate::error::ErrorKind;
 
-const NUMBER_TYPEREF: usize = 0;
-const STRFIN_TYPEREF: usize = 1;
-const FINITE_TYPEREF: usize = 2;
-
-pub type TypeRef = usize;
-pub type Boundedness = usize;
+pub type TypeRef = Rc<RefCell<Type>>;
+pub type BoundRef = Rc<RefCell<Type>>;
 
 #[derive(Debug, Clone)]
 pub enum Type {
     Number,
-    Bytes(Boundedness),
-    List(Boundedness, TypeRef),
+    Bytes(BoundRef),
+    List(BoundRef, TypeRef),
     Func(TypeRef, TypeRef),
     Pair(TypeRef, TypeRef),
     Named(String),
+}
+#[derive(Debug, Clone)]
+pub enum Bound {
     Finite(bool),
-    FiniteBoth(Boundedness, Boundedness),
-    FiniteEither(Boundedness, Boundedness),
-    Transparent(TypeRef),
+    FiniteBoth(BoundRef, BoundRef),
+    FiniteEither(BoundRef, BoundRef),
 }
 
 use Type::*;
@@ -35,187 +35,6 @@ pub enum FrozenType {
     Func(Box<FrozenType>, Box<FrozenType>),
     Pair(Box<FrozenType>, Box<FrozenType>),
     Named(String),
-}
-
-#[derive(Clone)]
-pub struct TypeList(Vec<Type>);
-
-#[cfg(feature = "types-snapshots")]
-mod types_snapshots {
-    use std::fs::File;
-    use std::io::Write;
-    use std::sync::atomic::{AtomicU32, Ordering};
-    use std::sync::{LazyLock, Mutex};
-
-    use super::*;
-
-    static DOTS: LazyLock<Mutex<File>> = LazyLock::new(|| {
-        const HTML: &str = r#"<!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="utf-8">
-        <script src="https://d3js.org/d3.v5.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-graphviz/5.6.0/d3-graphviz.min.js" integrity="sha512-Le8HpIpS2Tc7SDHLM6AOgAKq6ZR4uDwLhjPSR20DtXE5dFb9xECHRwgpc1nxxnU0Dv+j6FNMoSddky5gyvI3lQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-        <style> body { padding: 0; margin: 0; overflow: hidden; background: #333; color: #eee; } #currentSection { font-weight: bolder; } </style>
-    </head>
-    <body>
-        <div id="control" style="overflow: auto;">
-            <h2 style="text-align: center;">(use hjkl) <span id="shownIndex"></span><span id="showSection"></span></h2>
-            <ul id="listSections"></ul>
-        </div>
-        <div id="graph" style="text-align: center;"></div>
-        <script>/*-*/;onload=function(){
-            var useWidth = innerWidth, useHeight = innerHeight;
-            if (innerWidth < innerHeight) {
-                useHeight*= .6;
-                control.style.width = innerWidth+'px';
-                control.style.height = (innerHeight-useHeight-20)+'px';
-            } else {
-                useWidth*= .7;
-                control.style.width = (innerWidth-useWidth-20)+'px';
-                control.style.height = innerHeight+'px';
-                control.style.float = 'left';
-                graph.style.float = 'right';
-            }
-            graph.style.height = useHeight+'px';
-            graph.style.width = useWidth+'px';
-            var dots = dotLines.textContent.trim().split('\n').map(l => '#' === l[0] ? ['#', l.slice(2), 0] : 'digraph{edge[color="gray93"]node[color="gray93"fontcolor="gray93"]fontcolor="gray93"bgcolor="gray20"'+l+'}');
-            for (var k = 0; k < dots.length; ++k) if ('#' === dots[k][0]) {
-                dots[k][2] = listSections.childNodes.length;
-                var li = listSections.appendChild(document.createElement('li'));
-                li.textContent = dots[k][1];
-                if (k+1 === dots.length || '#' === dots[k+1][0]) li.style.fontStyle = 'italic';
-            }
-            listSections.firstChild.id = 'currentSection';
-            var dotIndex = 0;
-            var graphviz = d3.select('#graph').graphviz().zoom(false).width(useWidth).height(useHeight).fit(true).transition(() => d3.transition('main').ease(d3.easeLinear).duration(125)).on('initEnd', show);
-            function show() {
-                if (dotIndex < 1) flash(), dotIndex = 1; else if (dots.length-1 < dotIndex) flash(), dotIndex = dots.length-1;
-                for (var k = dotIndex; 0 < k;) if ('#' === dots[--k][0]) {
-                    showSection.textContent = '/'+(dots.length-1)+' '+dots[k][1];
-                    currentSection.removeAttribute('id');
-                    listSections.childNodes[dots[k][2]].id = 'currentSection';
-                    break;
-                }
-                graphviz.renderDot(dots[shownIndex.textContent = dotIndex]);
-            }
-            function next() { while (dots[++dotIndex] && '#' === dots[dotIndex][0]); show(); }
-            function prev() { while (dots[--dotIndex] && '#' === dots[dotIndex][0]); show(); }
-            function jumpnext() { while (dots[++dotIndex] && '#' !== dots[dotIndex][0]); while (dots[++dotIndex] && '#' === dots[dotIndex][0]); next(); }
-            function jumpprev() { while (dots[--dotIndex] && '#' !== dots[dotIndex][0]); prev(); }
-            function flash() { document.body.style.color = '#333'; setTimeout(() => document.body.style.color = '', 125); }
-            var num = 0;
-            onkeypress = (ev) => {
-                if (!isNaN(parseInt(ev.key))) { num = num*10 + parseInt(ev.key); shownIndex.textContent = dotIndex+' ('+num+')'; return; }
-                var f = { h: prev, j: jumpnext, k: jumpprev, l: next, g() { dotIndex = Math.min(num, dots.length-1); show(); } }[ev.key];
-                if (f) f(); num = 0;
-            }
-        };</script>
-        <span id="dotLines" style="display: none;">"#;
-        let mut f = File::create("types-snapshots.html").unwrap();
-        writeln!(f, "{HTML}").unwrap();
-        Mutex::new(f)
-    });
-    static DEPTH: AtomicU32 = AtomicU32::new(0);
-
-    pub(super) fn group_dot_lines(hi: String) {
-        writeln!(DOTS.lock().unwrap(), "# {hi}").unwrap();
-    }
-
-    pub(super) fn update_dot(types: &TypeList, title: String) {
-        let mut f = DOTS.lock().unwrap();
-        write!(f, "label=\"{title}\"").unwrap();
-        types
-            .0
-            .iter()
-            .enumerate()
-            .try_for_each(|(k, slot)| {
-                use Type::*;
-                for at in match *slot {
-                    Number => vec![],
-                    Bytes(fin) => vec![fin],
-                    List(fin, has) => vec![fin, has],
-                    Func(par, ret) => vec![par, ret],
-                    Pair(fst, snd) => vec![fst, snd],
-                    Named(_) => vec![],
-                    Finite(_) => vec![],
-                    FiniteBoth(lhs, rhs) => vec![lhs, rhs],
-                    FiniteEither(lhs, rhs) => vec![lhs, rhs],
-                    Transparent(u) => vec![u],
-                } {
-                    write!(
-                        f,
-                        " \"{k} :: {}\" -> \"{at} :: {}\" ",
-                        string_any_type(types, k),
-                        string_any_type(types, at)
-                    )?;
-                }
-                write!(f, " \"{k} :: {}\" ", string_any_type(types, k))
-            })
-            .unwrap();
-        writeln!(f).unwrap();
-    }
-
-    pub(super) fn string_any_type(types: &TypeList, at: TypeRef) -> String {
-        DEPTH.store(0, Ordering::Relaxed);
-        string_any_type_impl(types, at)
-    }
-
-    fn string_any_type_impl(types: &TypeList, at: TypeRef) -> String {
-        use Type::*;
-        if 12 < DEPTH.fetch_add(1, Ordering::Relaxed) {
-            return "...".into();
-        }
-        match &types.0[at] {
-            Number => "Num".into(),
-            &Bytes(fin) => if types.freeze_finite(fin) {
-                "Str"
-            } else {
-                "Str+"
-            }
-            .into(),
-            &List(fin, has) => {
-                let fin = if types.freeze_finite(fin) { "" } else { "+" };
-                format!("[{}]{fin}", string_any_type_impl(types, has))
-            }
-            &Func(par, ret) => {
-                let (op, cl) = if matches!(types.get(par), Func(_, _)) {
-                    ("(", ")")
-                } else {
-                    ("", "")
-                };
-                format!(
-                    "{op}{}{cl} -> {}",
-                    string_any_type_impl(types, par),
-                    string_any_type_impl(types, ret)
-                )
-            }
-            &Pair(fst, snd) => format!(
-                "({}, {})",
-                string_any_type_impl(types, fst),
-                string_any_type_impl(types, snd)
-            ),
-            Named(name) => name.clone(),
-            &Finite(is) => {
-                if is {
-                    format!("{at}")
-                } else {
-                    "+".into()
-                }
-            }
-            &FiniteBoth(l, r) => format!(
-                "<{}&{}>",
-                string_any_type_impl(types, l),
-                string_any_type_impl(types, r)
-            ),
-            &FiniteEither(l, r) => format!(
-                "<{}|{}>",
-                string_any_type_impl(types, l),
-                string_any_type_impl(types, r)
-            ),
-            &Transparent(u) => format!("({})", string_any_type_impl(types, u)),
-        }
-    }
 }
 
 impl Default for TypeList {
@@ -324,14 +143,14 @@ impl TypeList {
     pub fn number(&self) -> TypeRef {
         NUMBER_TYPEREF
     }
-    pub fn bytes(&mut self, finite: Boundedness) -> TypeRef {
+    pub fn bytes(&mut self, finite: Bound) -> TypeRef {
         if FINITE_TYPEREF == finite {
             STRFIN_TYPEREF
         } else {
             self.push(Bytes(finite))
         }
     }
-    pub fn list(&mut self, finite: Boundedness, item: TypeRef) -> TypeRef {
+    pub fn list(&mut self, finite: Bound, item: TypeRef) -> TypeRef {
         self.push(List(finite, item))
     }
     pub fn func(&mut self, par: TypeRef, ret: TypeRef) -> TypeRef {
@@ -343,17 +162,17 @@ impl TypeList {
     pub fn named(&mut self, name: String) -> TypeRef {
         self.push(Named(name.to_string()))
     }
-    pub fn finite(&mut self, finite: bool) -> Boundedness {
+    pub fn finite(&mut self, finite: bool) -> Bound {
         if finite {
             FINITE_TYPEREF
         } else {
             self.push(Finite(false))
         }
     }
-    pub fn either(&mut self, left: Boundedness, right: Boundedness) -> Boundedness {
+    pub fn either(&mut self, left: Bound, right: Bound) -> Bound {
         self.push(FiniteEither(left, right))
     }
-    pub fn both(&mut self, left: Boundedness, right: Boundedness) -> Boundedness {
+    pub fn both(&mut self, left: Bound, right: Bound) -> Bound {
         self.push(FiniteBoth(left, right))
     }
 
@@ -524,7 +343,7 @@ impl TypeList {
         r
     }
 
-    fn freeze_finite(&self, at: Boundedness) -> bool {
+    fn freeze_finite(&self, at: Bound) -> bool {
         match *self.get(at) {
             Finite(b) => b,
             FiniteBoth(l, r) => self.freeze_finite(l) && self.freeze_finite(r),
@@ -625,8 +444,8 @@ impl Type {
     ) -> Result<(), ErrorKind> {
         fn handle_finiteness(
             keep_inf: bool,
-            fw: Boundedness,
-            fg: Boundedness,
+            fw: Bound,
+            fg: Bound,
             types: &mut TypeList,
         ) -> Result<(), ErrorKind> {
             match (types.freeze_finite(fw), types.freeze_finite(fg)) {

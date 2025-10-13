@@ -2,7 +2,7 @@
 
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
-use crate::types::{Boundedness, TypeList, TypeRef};
+use crate::types::{Bound, TypeList, TypeRef};
 
 // macro to generate the fn generating the type {{{
 #[macro_export]

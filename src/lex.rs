@@ -2,9 +2,10 @@
 
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::iter::{self, Enumerate, Peekable};
+use std::ops::Range;
 
 use crate::format;
-use crate::scope::{Location, SourceRef};
+use crate::module::Location;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum TokenKind {
@@ -61,23 +62,27 @@ impl Display for TokenKind {
 pub struct Token(pub Location, pub TokenKind);
 
 /// note: this is an infinite iterator (`next()` is never `None`)
-pub struct Lexer<I: Iterator<Item = u8>> {
+pub struct Lexer<'parse, I: Iterator<Item = u8>> {
     stream: Peekable<Enumerate<I>>,
-    source: SourceRef,
+    path: &'parse str,
     last_at: usize,
 }
 
-impl<I: Iterator<Item = u8>> Lexer<I> {
-    pub(crate) fn new(source: SourceRef, iter: I) -> Self {
+impl<'parse, I: Iterator<Item = u8>> Lexer<'parse, I> {
+    pub(crate) fn new(path: &'parse str, iter: I) -> Self {
         Self {
             stream: iter.enumerate().peekable(),
-            source,
+            path,
             last_at: 0,
         }
     }
+
+    fn tok(&self, range: Range<usize>, k: TokenKind) -> Token {
+        Token(Location(self.path.to_string(), range), k)
+    }
 }
 
-impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
+impl<'parse, I: Iterator<Item = u8>> Iterator for Lexer<'parse, I> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -85,7 +90,7 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
 
         let Some((at, byte)) = self.stream.find(|c| !c.1.is_ascii_whitespace()) else {
             let range = self.last_at..self.last_at;
-            return Some(Token(Location(self.source, range), End));
+            return Some(self.tok(range, End));
         };
 
         let (len, tok) = match byte {
@@ -139,7 +144,6 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
                 }
                 return self.next();
             }
-            b'_' => (1, Word("_".into())),
 
             c if c.is_ascii_lowercase() || b'-' == c => {
                 let b: Vec<u8> = iter::once(c)
@@ -199,7 +203,7 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
                         _ => {
                             self.last_at = at + l;
                             let t = r.to_string() + ".";
-                            return Some(Token(Location(self.source, at..at + l), Unknown(t)));
+                            return Some(self.tok(at..at + l, Unknown(t)));
                         }
                     };
                     let mut w = 10;
@@ -218,12 +222,14 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
             }
 
             c => {
-                let chclass = c.is_ascii_alphanumeric();
+                let chclass = c.is_ascii_alphanumeric() || b'_' == c;
                 let b: Vec<u8> = iter::once(c)
                     .chain(iter::from_fn(|| {
                         self.stream
-                            .next_if(|c| {
-                                c.1.is_ascii_alphanumeric() == chclass && !c.1.is_ascii_whitespace()
+                            .next_if(|&(_, c)| {
+                                !b":,[]{}=#-".contains(&c)
+                                    && !c.is_ascii_whitespace()
+                                    && (c.is_ascii_alphanumeric() || b'_' == c) == chclass
                             })
                             .map(|c| c.1)
                     }))
@@ -233,7 +239,7 @@ impl<I: Iterator<Item = u8>> Iterator for Lexer<I> {
         };
 
         self.last_at = at + len;
-        Some(Token(Location(self.source, at..at + len), tok))
+        Some(self.tok(at..at + len, tok))
     }
 }
 
@@ -243,7 +249,7 @@ fn test() {
 
     fn t(script: &[u8]) -> String {
         let mut end = true;
-        Lexer::new(0, script.iter().copied())
+        Lexer::new("t", script.iter().copied())
             .take_while(|t| {
                 if !end {
                     false

@@ -4,7 +4,7 @@ use std::iter::Peekable;
 
 use crate::error::{self, Error, ErrorKind};
 use crate::lex::{Lexer, Token, TokenKind};
-use crate::scope::{Located, Location, SourceRef};
+use crate::module::{Location, ModuleRef};
 
 macro_rules! TermTokenNoEnd {
     () => {
@@ -79,7 +79,7 @@ pub enum Value {
     /// `bytes ::= /:([^:]|::)*:/`
     Bytes { loc: Location, bytes: Box<[u8]> },
     /// `atom ::= <word> | <bytes> | <number>`
-    /// `word ::= /[-a-z]+/ | '_'`
+    /// `word ::= /[-a-z]+/`
     Word { loc: Location, word: String },
 
     /// `subscr ::= '[' <script> ']'`
@@ -115,7 +115,7 @@ pub enum Pattern {
     /// `bytes ::= /:([^:]|::)*:/`
     Bytes { loc: Location, bytes: Box<[u8]> },
     /// `atom ::= <word> | <bytes> | <number>`
-    /// `word ::= /[-a-z]+/ | '_'`
+    /// `word ::= /[-a-z]+/`
     Word { loc: Location, word: String },
 
     /// `patlist ::= '{' [<pattern> {',' <pattern>} [',' [',' <word>]]] '}'`
@@ -143,6 +143,118 @@ impl Pattern {
     }
 }
 
+// loc trait and impls {{{
+// TODO: maybe overkill idk
+pub trait Located {
+    fn loc(&self) -> Location;
+}
+
+fn loc_span(start: &Location, end: &Location) -> Location {
+    assert_eq!(
+        start.0, end.0,
+        "loc_span crosses source boundary..? {start:?} - {end:?}",
+    );
+    Location(start.0, start.1.start..end.1.end)
+}
+
+impl Located for Top {
+    fn loc(&self) -> Location {
+        let scr = self.script.as_ref().map(|s| s.loc());
+        let start = None
+            .or_else(|| self.uses.first().map(|u| u.loc()))
+            .or_else(|| self.defs.first().map(|d| d.loc()))
+            .or(scr.clone());
+        let end = scr
+            .or_else(|| self.defs.last().map(|d| d.loc()))
+            .or_else(|| self.uses.last().map(|u| u.loc()));
+        match (start, end) {
+            (Some(start), Some(end)) => loc_span(&start, &end),
+            (Some(one), None) | (None, Some(one)) => one,
+            (None, None) => Location(0, 0..0),
+        }
+    }
+}
+impl Located for Use {
+    fn loc(&self) -> Location {
+        loc_span(&self.loc_use, &self.loc_prefix)
+    }
+}
+impl Located for Def {
+    fn loc(&self) -> Location {
+        loc_span(&self.loc_def, &self.to.loc())
+    }
+}
+impl Located for Script {
+    fn loc(&self) -> Location {
+        let head = self.head.loc();
+        match self.tail.last() {
+            Some((_, app)) => loc_span(&head, &app.loc()),
+            None => head,
+        }
+    }
+}
+impl Located for Apply {
+    fn loc(&self) -> Location {
+        let base = self.base.loc();
+        match self.args.last() {
+            Some(arg) => loc_span(&base, &arg.loc()),
+            None => base,
+        }
+    }
+}
+impl Located for ApplyBase {
+    fn loc(&self) -> Location {
+        match self {
+            ApplyBase::Binding {
+                loc_let, res, alt, ..
+            } => loc_span(
+                loc_let,
+                &match alt {
+                    Some(alt) => alt.loc(),
+                    None => res.loc(),
+                },
+            ),
+            ApplyBase::Value(value) => value.loc(),
+        }
+    }
+}
+impl Located for Value {
+    fn loc(&self) -> Location {
+        match self {
+            Value::Number { loc, .. } => loc.clone(),
+            Value::Bytes { loc, .. } => loc.clone(),
+            Value::Word { loc, .. } => loc.clone(),
+            Value::Subscr {
+                loc_open,
+                loc_close,
+                ..
+            } => loc_span(loc_open, loc_close),
+            Value::List {
+                loc_open,
+                loc_close,
+                ..
+            } => loc_span(loc_open, loc_close),
+            Value::Pair { fst, snd, .. } => loc_span(&fst.loc(), &snd.loc()),
+        }
+    }
+}
+impl Located for Pattern {
+    fn loc(&self) -> Location {
+        match self {
+            Pattern::Number { loc, .. } => loc.clone(),
+            Pattern::Bytes { loc, .. } => loc.clone(),
+            Pattern::Word { loc, .. } => loc.clone(),
+            Pattern::List {
+                loc_open,
+                loc_close,
+                ..
+            } => loc_span(loc_open, loc_close),
+            Pattern::Pair { fst, snd, .. } => loc_span(&fst.loc(), &snd.loc()),
+        }
+    }
+}
+// }}}
+
 pub struct Parser<I: Iterator<Item = u8>> {
     lex: Peekable<Lexer<I>>,
     //comments: Vec<..>,
@@ -150,7 +262,7 @@ pub struct Parser<I: Iterator<Item = u8>> {
 }
 
 impl<I: Iterator<Item = u8>> Parser<I> {
-    pub fn new(source: SourceRef, bytes: I) -> Parser<I> {
+    pub fn new(source: ModuleRef, bytes: I) -> Parser<I> {
         Parser {
             lex: Lexer::new(source, bytes).peekable(),
             errors: Vec::new(),
@@ -159,6 +271,9 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
     pub fn errors(&self) -> &[Error] {
         &self.errors
+    }
+    pub fn boxed_errors(self) -> Box<[Error]> {
+        self.errors.into()
     }
 
     fn peek_tok(&mut self) -> &Token {
@@ -198,15 +313,11 @@ impl<I: Iterator<Item = u8>> Parser<I> {
             self.skip_tok();
         }
 
-        Top {
-            uses,
-            defs,
-            script: if let Token(_, TokenKind::End) = self.peek_tok() {
-                None
-            } else {
-                Some(self.parse_script())
-            },
-        }
+        let script = (!matches!(self.peek_tok().1, TokenKind::End)).then(|| self.parse_script());
+        // TODO: catch suspicious use of an unknown token "_" and report with how it's not a type
+        // hole but any ident would be one idk
+
+        Top { uses, defs, script }
     }
 
     pub fn parse_uses(&mut self) -> Box<[Use]> {
@@ -230,18 +341,11 @@ impl<I: Iterator<Item = u8>> Parser<I> {
         } {
             let tok_use = self.next_tok();
 
-            let (loc_path, path, loc_name, name) = match (self.next_tok(), self.next_tok()) {
+            let (loc_path, path, loc_prefix, prefix) = match (self.next_tok(), self.next_tok()) {
                 (
                     Token(loc_path, TokenKind::Bytes(path)),
-                    Token(loc_name, TokenKind::Word(mut name)),
-                ) => {
-                    if "_" == name {
-                        name.clear();
-                    } else {
-                        name.push('-');
-                    }
-                    (loc_path, path, loc_name, name)
-                }
+                    Token(loc_prefix, TokenKind::Word(prefix)),
+                ) => (loc_path, path, loc_prefix, prefix),
                 (Token(loc_path, TokenKind::Bytes(path)), other) => {
                     self.errors.push(error::unexpected(
                         other.clone(),
@@ -253,7 +357,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     }
                     (loc_path, path, other.0.clone(), other.1.to_string())
                 }
-                (other, Token(loc_name, TokenKind::Word(name))) => {
+                (other, Token(loc_prefix, TokenKind::Word(prefix))) => {
                     let somewhat_loc_path = other.0.clone();
                     let not_path = other.1.to_string().as_bytes().into();
                     self.errors.push(error::unexpected(
@@ -261,7 +365,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                         "file path then identifier after 'use' keyword",
                         Some(tok_use.clone()),
                     ));
-                    (somewhat_loc_path, not_path, loc_name, name)
+                    (somewhat_loc_path, not_path, loc_prefix, prefix)
                 }
                 (other, Token(_, maybe_term)) => {
                     self.errors.push(error::unexpected(
@@ -294,8 +398,8 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                 loc_use: tok_use.0,
                 loc_path,
                 path,
-                loc_prefix: loc_name,
-                prefix: name,
+                loc_prefix,
+                prefix,
             });
         }
         r.into()
@@ -375,14 +479,6 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     )
                 }
             };
-
-            if "_" == name {
-                self.errors.push(error::unexpected(
-                    Token(loc_name.clone(), TokenKind::Word(name.clone())),
-                    "name ('_' cannot be used here)",
-                    Some(tok_def.clone()),
-                ))
-            }
 
             let to = self.parse_apply();
 
@@ -817,11 +913,11 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
 #[test]
 fn test() {
-    use crate::scope::SourceRegistry;
+    use crate::scope::ModuleRegistry;
     use insta::assert_debug_snapshot;
 
     fn t(script: &[u8]) -> (Top, Box<[Error]>) {
-        let mut registry = SourceRegistry::default();
+        let mut registry = ModuleRegistry::default();
         let source = registry.add_bytes("<test>", script.iter().copied());
         let bytes = &registry.get(source).bytes;
         let mut parser = Parser::new(source, bytes.iter().copied());

@@ -5,28 +5,41 @@ mod format;
 mod check;
 mod fund;
 mod lex;
+mod module;
 mod parse;
-mod scope;
 mod types;
 
+//mod bidoof;
+
 use crate::check::Checker;
+use crate::module::ModuleRegistry;
+use crate::module::Scoping;
 use crate::parse::Parser;
-use crate::scope::Scoping;
-use crate::scope::SourceRegistry;
-use crate::types::TypeList;
 
 fn main() {
-    let mut registry = SourceRegistry::default();
+    let mut registry = ModuleRegistry::default();
 
     let text = std::env::args().skip(1).flat_map(|a| {
         let mut a = a.into_bytes();
         a.push(b' ');
         a
     });
-    let source = registry.add_bytes("<args>", text);
-    let bytes = &registry.get(source).bytes;
 
-    let mut parser = Parser::new(source, bytes.iter().copied());
+    let module = registry.load_bytes("<args>", text);
+    if !module.errors.is_empty() {
+        crate::error::report_many_stderr(&module.errors, &registry, &None, false);
+    }
+    eprintln!("CST: {module:#?}");
+
+    let function = module.retrieve(&mut registry).unwrap();
+    if !function.errors.is_empty() {
+        crate::error::report_many_stderr(&function.errors, &registry, &None, false);
+    }
+    eprintln!("AST: {function:#?}");
+
+    // ---
+
+    let mut parser = Parser::new(source, registry.borrow().get(source).bytes.iter().copied());
     let top = parser.parse_top();
     let errors = parser.errors();
 

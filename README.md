@@ -77,7 +77,7 @@ Special characters and keywords:
 - `def name :description: value` will define a new name
   that essentially replaces by value where it is used;
 - `use :some/file: f` will 'import' all the defined names
-  from the file as `f-<name>` (or as is if using `_`);
+  from the file as `f-<name>` (top level not evaluated);
 - `let pattern result fallback` will make a function of one
   argument that computes result if pattern matches, pattern
   can introduces names (eg `let {a, b,, rest} [add a b] 0`,
@@ -103,7 +103,7 @@ subscr ::= '[' <script> ']'
 list ::= '{' [<apply> {',' <apply>} [',' [',' <apply>]]] '}'
 pair ::= (<atom> | <subscr> | <list>) '=' <value>
 
-word ::= /[-a-z]+/ | '_'
+word ::= /[-a-z]+/
 bytes ::= /:([^:]|::)*:/
 number ::= /0b[01]+/ | /0o[0-7]+/ | /0x[0-9A-Fa-f]+/ | /[0-9]+(\.[0-9]+)?/
 

@@ -4,8 +4,8 @@ use std::collections::HashMap;
 
 use crate::error::{self, Error};
 use crate::fund::Fund;
+use crate::module::{Entry, Location, Module, ModuleRegistry, Scoping};
 use crate::parse::{Apply, ApplyBase, Pattern, Script, Value};
-use crate::scope::{Entry, Location, Scoping, SourceRef};
 use crate::types::{Type, TypeList, TypeRef};
 
 #[derive(Debug, Clone)]
@@ -29,7 +29,7 @@ pub enum TreeVal {
 #[derive(Debug, Clone)]
 pub enum Refers {
     Binding(Location), // from an enclosing let binding
-    File(SourceRef),   // from external (user) file
+    File(ModuleRef),   // from external (user) file
     Builtin(String),   // eg from prelude
     Fundamental,       // eg cons, panic, bytes...
     Missing,
@@ -42,7 +42,7 @@ pub struct Checker<'t, 's> {
 }
 
 impl<'t, 's> Checker<'t, 's> {
-    pub fn new(types: &'t mut TypeList, scope: &'s mut Scoping) -> Self {
+    pub fn new(module: &Module, registry: &ModuleRegistry) -> Self {
         Self {
             types,
             scope,
@@ -52,6 +52,10 @@ impl<'t, 's> Checker<'t, 's> {
 
     pub fn errors(&self) -> &[Error] {
         &self.errors
+    }
+
+    pub fn boxed_errors(self) -> Box<[Error]> {
+        self.errors.into()
     }
 
     fn apply(&mut self, func: Tree, arg: Tree) -> Tree {

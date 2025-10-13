@@ -2,8 +2,8 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::io::IsTerminal;
 
 use crate::lex::{Token, TokenKind};
+use crate::module::{Location, ModuleRegistry};
 use crate::parse::ApplyBase;
-use crate::scope::{Location, SourceRegistry};
 use crate::types::FrozenType;
 
 // error types {{{
@@ -88,7 +88,7 @@ pub struct Error(pub Location, pub ErrorKind);
 // }}}
 
 pub struct Report<'a> {
-    registry: &'a SourceRegistry,
+    registry: &'a ModuleRegistry,
     title: String,
     messages: Vec<(Location, String)>,
     use_colors: bool,
@@ -344,7 +344,7 @@ impl Error {
         report.messages.extend_from_slice(msgs);
     }
 
-    pub fn report<'a>(&self, registry: &'a SourceRegistry, use_colors: bool) -> Report<'a> {
+    pub fn report<'a>(&self, registry: &'a ModuleRegistry, use_colors: bool) -> Report<'a> {
         use ErrorKind::*;
 
         let loc = self.0.clone();
@@ -449,7 +449,7 @@ impl Error {
 
 pub fn report_many_stderr(
     errors: &[Error],
-    registry: &SourceRegistry,
+    registry: &ModuleRegistry,
     was_file: &Option<String>,
     used_file: bool,
 ) {
@@ -482,19 +482,16 @@ impl Display for Report<'_> {
         let cnum: &str = if self.use_colors { "\x1b[36m" } else { "" };
         let r: &str = if self.use_colors { "\x1b[m" } else { "" };
 
+        let reg = self.registry.borrow();
+
         let (Location(file, range), _) = &self.messages[0];
-        let source = self.registry.get(*file);
+        let source = reg.get(*file);
 
         let lnum = source.get_containing_lnum(range.start).unwrap();
-        writeln!(
-            f,
-            "{}:{lnum}: {ctop}{}{r}",
-            source.path.display(),
-            self.title
-        )?;
+        writeln!(f, "{}:{lnum}: {ctop}{}{r}", source.path, self.title)?;
 
         for (Location(file, range), msg) in &self.messages {
-            let source = &self.registry.get(*file);
+            let source = &reg.get(*file);
             let (first_lnum, lranges) = source.get_containing_lines(range).unwrap();
 
             if let [lrange, _, ..] = lranges {
