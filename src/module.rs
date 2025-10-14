@@ -2,24 +2,22 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::{Read, Result as IoResult};
-use std::ops::{Deref, DerefMut, Range};
-use std::path::{Path, PathBuf};
+use std::io::Result as IoResult;
+use std::ops::Range;
 use std::rc::Rc;
 
 use crate::check::{Checker, Tree};
 use crate::error::Error;
 use crate::fund::Fund;
-use crate::parse::{Def, Parser, Script, Top, Use};
-use crate::types::TypeRef;
+use crate::parse::{Parser, Top};
+use crate::types::Type;
 
 // scope {{{
 #[derive(Debug, Default)]
 pub struct Scoping {
     bindings: Vec<HashMap<String, Binding>>,
     defineds: HashMap<String, Defined>,
-    missings: HashMap<String, TypeRef>,
+    missings: HashMap<String, Rc<Type>>,
 }
 
 #[derive(Debug)]
@@ -33,18 +31,18 @@ pub enum Entry<'scope> {
 pub struct Binding {
     pub loc: Location,
     pub word: String,
-    pub ty: TypeRef,
+    pub ty: Rc<Type>,
 }
 
 #[derive(Debug)]
 pub struct Defined {
     pub loc: Location,
     pub desc: String,
-    pub ty: TypeRef,
+    pub ty: Rc<Type>,
 }
 
 impl Scoping {
-    pub fn push(&mut self, entries: HashMap<String, (Location, TypeRef)>) {
+    pub fn push(&mut self, entries: HashMap<String, (Location, Rc<Type>)>) {
         self.bindings.push(
             entries
                 .into_iter()
@@ -59,13 +57,13 @@ impl Scoping {
             .expect("unbalanced scoping pop with no push");
     }
 
-    pub fn define(&mut self, name: String, loc: Location, desc: String, ty: TypeRef) -> &Defined {
+    pub fn define(&mut self, name: String, loc: Location, desc: String, ty: Rc<Type>) -> &Defined {
         self.defineds
             .insert(name.clone(), Defined { loc, desc, ty });
         self.defineds.get(&name).unwrap()
     }
 
-    pub fn missing(&mut self, name: String, ty: TypeRef) {
+    pub fn missing(&mut self, name: String, ty: Rc<Type>) {
         assert!(
             self.missings.insert(name, ty).is_none(),
             "was not actually missing",
@@ -122,32 +120,39 @@ pub struct ModuleRegistry {
 }
 
 impl ModuleRegistry {
-    pub fn load_bytes(&mut self, path: &str, bytes: impl IntoIterator<Item = u8>) -> Rc<Module> {
+    // i dont like the use of 'load' with immut args, might rename to 'require' or idk but donnn
+    // mater much anyways
+
+    pub fn load_bytes(&self, path: &str, bytes: impl IntoIterator<Item = u8>) -> Rc<Module> {
         let bytes: Box<[u8]> = bytes.into_iter().collect();
-        let mut parser = Parser::new(path, bytes.iter().copied());
-        let path = path.to_string();
+        let line_map = Module::compute_line_map(&bytes);
+
+        let mut parser = Parser::new(&path, bytes.iter().copied());
+        let top = parser.parse_top();
+        let errors = parser.boxed_errors();
         let module = Module {
-            path,
+            path: path.into(),
             bytes,
-            line_map: Module::compute_line_map(&bytes),
-            top: parser.parse_top(),
-            errors: parser.boxed_errors(),
+            line_map,
+            top,
+            errors,
             functions: Default::default(),
         };
+
         self.modules
             .borrow_mut()
-            .entry(path.clone())
+            .entry(path.into())
             .insert_entry(module.into())
             .get()
             .clone()
     }
 
-    pub fn load(&mut self, path: &str) -> IoResult<Rc<Module>> {
+    pub fn load(&self, path: &str) -> IoResult<Rc<Module>> {
         let borrow = self.modules.borrow();
         Ok(match borrow.get(path).cloned() {
             Some(module) => module,
             None => {
-                drop(borrow); // idk y but this necessary here
+                drop(borrow); // idk y but explicit necessary here
                 self.load_bytes(path, std::fs::read(path)?)
             }
         })
@@ -169,12 +174,14 @@ impl Module {
         Some(match self.functions.borrow().get(name).cloned() {
             Some(function) => function,
             None => {
-                let apply = &self.top.defs.iter().find(|d| name == d.name)?.to;
+                let apply = &self.top.defs.iter().rev().find(|d| name == d.name)?.to;
+
                 let mut checker = Checker::new(self, registry);
                 let function = Function {
                     ast: checker.check_apply(apply),
                     errors: checker.boxed_errors(),
                 };
+
                 self.functions
                     .borrow_mut()
                     .entry(name.to_string())
@@ -183,6 +190,22 @@ impl Module {
                     .clone()
             }
         })
+    }
+
+    /// search in 'def's
+    pub fn retrieve_module(
+        &self,
+        prefix: &str,
+        registry: &ModuleRegistry,
+    ) -> Option<IoResult<Rc<Module>>> {
+        let path = &self
+            .top
+            .uses
+            .iter()
+            .rev()
+            .find(|u| prefix == u.prefix)?
+            .path;
+        Some(registry.load(path))
     }
 
     fn compute_line_map(bytes: &[u8]) -> Box<[Range<usize>]> {
@@ -215,38 +238,6 @@ impl Module {
         let eof = self.line_map.len() - start;
         let end = start + it.position(|r| k.end < r.start).unwrap_or(eof - 1);
         Some((start + 1, &self.line_map[start..=end]))
-    }
-
-    /// same but does not check parents (local uses)
-    fn get_if_has_locally(&mut self, local_name: &str) -> Option<()> {
-        if let Some(found) = self.top.defs.iter().rev().find(|it| local_name == it.name) {
-            return Some(todo!("{found:?}"));
-        }
-
-        None
-    }
-
-    pub fn get_if_has(&mut self, local_name: &str) -> Option<()> {
-        let locally = self.get_if_has_locally(local_name);
-        if locally.is_some() {
-            return locally;
-        }
-
-        for parent in self.top.uses.iter().rev() {
-            if let Some(parent_local_name) = local_name
-                .strip_prefix(&parent.prefix)
-                .and_then(|n| n.strip_prefix('_'))
-            {
-                let reg: &mut ModuleRegistry = self.registry.borrow_mut();
-                let source = reg
-                    .load(String::from_utf8(parent.path.to_vec()).expect("lskdjf"))
-                    .expect("report it only once");
-                let parent_locals = reg.get(source);
-                return parent_locals.get_if_has_locally(parent_local_name);
-            }
-        }
-
-        None
     }
 }
 // }}}

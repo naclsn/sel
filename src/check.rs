@@ -1,16 +1,17 @@
 //! checking and lowering into an AST
 
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use crate::error::{self, Error};
 use crate::fund::Fund;
 use crate::module::{Entry, Location, Module, ModuleRegistry, Scoping};
 use crate::parse::{Apply, ApplyBase, Pattern, Script, Value};
-use crate::types::{Type, TypeList, TypeRef};
+use crate::types::Type;
 
 #[derive(Debug, Clone)]
 pub struct Tree {
-    pub ty: TypeRef,
+    pub ty: Rc<Type>,
     pub val: TreeVal,
 }
 
@@ -29,23 +30,25 @@ pub enum TreeVal {
 #[derive(Debug, Clone)]
 pub enum Refers {
     Binding(Location), // from an enclosing let binding
-    File(ModuleRef),   // from external (user) file
+    File(Rc<Module>),  // from external (user) file
     Builtin(String),   // eg from prelude
     Fundamental,       // eg cons, panic, bytes...
     Missing,
 }
 
-pub struct Checker<'t, 's> {
-    types: &'t mut TypeList,
-    scope: &'s mut Scoping,
+pub struct Checker<'check> {
+    registry: &'check ModuleRegistry,
+    module: &'check Module,
+    scope: Scoping,
     errors: Vec<Error>,
 }
 
-impl<'t, 's> Checker<'t, 's> {
-    pub fn new(module: &Module, registry: &ModuleRegistry) -> Self {
+impl<'check> Checker<'check> {
+    pub fn new(module: &'check Module, registry: &'check ModuleRegistry) -> Self {
         Self {
-            types,
-            scope,
+            registry,
+            module,
+            scope: Default::default(),
             errors: Vec::new(),
         }
     }
@@ -59,7 +62,7 @@ impl<'t, 's> Checker<'t, 's> {
     }
 
     fn apply(&mut self, func: Tree, arg: Tree) -> Tree {
-        let ty = Type::applied(func.ty, arg.ty, &mut self.types).unwrap_or_else(|err| {
+        let ty = Type::applied(&func.ty, &arg.ty).unwrap_or_else(|err| {
             self.errors.push(Error(
                 todo!("loc for {err:?} (from apply not applying)"),
                 err,
@@ -116,8 +119,8 @@ impl<'t, 's> Checker<'t, 's> {
     fn check_pattern_type(
         &mut self,
         pat: &Pattern,
-        names: &mut HashMap<String, (Location, TypeRef)>,
-    ) -> TypeRef {
+        names: &mut HashMap<String, (Location, Rc<Type>)>,
+    ) -> Rc<Type> {
         match pat {
             Pattern::Number { .. } => self.types.number(),
 
@@ -191,7 +194,7 @@ impl<'t, 's> Checker<'t, 's> {
         pat: &Pattern,
         res: &Value,
         alt: Option<&Value>,
-    ) -> (TypeRef, Tree, Option<Tree>) {
+    ) -> (Rc<Type>, Tree, Option<Tree>) {
         let mut names = HashMap::new();
         let param = self.check_pattern_type(pat, &mut names);
         self.scope.push(names);
@@ -246,7 +249,7 @@ impl<'t, 's> Checker<'t, 's> {
 
     // not used, but kept for now because of the notes;
     // see in check_pattern_type's Pattern::List branch too
-    fn check_list_content(&mut self, items: impl IntoIterator<Item = TypeRef>) -> TypeRef {
+    fn check_list_content(&mut self, items: impl IntoIterator<Item = Rc<Type>>) -> Rc<Type> {
         let ty = self.types.named("item".into());
         for it in items {
             // so, unless I'm off, I think the way I did rest part for literal lists

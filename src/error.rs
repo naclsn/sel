@@ -1,3 +1,5 @@
+// TODO: rename to errors ig
+
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::io::IsTerminal;
 use std::rc::Rc;
@@ -14,35 +16,35 @@ pub enum ErrorContext {
         open_token: TokenKind,
     },
     CompleteType {
-        complete_type: FrozenType,
+        complete_type: Rc<Type>,
     },
     TypeListInferredItemType {
-        list_item_type: FrozenType,
+        list_item_type: Rc<Type>,
     },
     AsNthArgToNowTyped {
         nth_arg: usize,
         func: ApplyBase,
-        type_with_curr_args: FrozenType,
+        type_with_curr_args: Rc<Type>,
     },
     ChainedFromAsNthArgToNowTyped {
         comma_loc: Location,
         nth_arg: usize,
         func: ApplyBase,
-        type_with_curr_args: FrozenType,
+        type_with_curr_args: Rc<Type>,
     },
     ChainedFromToNotFunc {
         comma_loc: Location,
     },
     AutoCoercedVia {
         func_name: String,
-        func_type: FrozenType,
+        func_type: Rc<Type>,
     },
     DeclaredHereWithType {
-        with_type: FrozenType,
+        with_type: Rc<Type>,
     },
     LetFallbackTypeMismatch {
-        result_type: FrozenType,
-        fallback_type: FrozenType,
+        result_type: Rc<Type>,
+        fallback_type: Rc<Type>,
     },
     LetFallbackRequired,
 }
@@ -59,18 +61,18 @@ pub enum ErrorKind {
     },
     UnknownName {
         name: String,
-        expected_type: FrozenType,
+        expected_type: Rc<Type>,
     },
     NotFunc {
-        actual_type: FrozenType,
+        actual_type: Rc<Type>,
     },
     TooManyArgs {
         nth_arg: usize,
         func: ApplyBase,
     },
     ExpectedButGot {
-        expected: FrozenType,
-        actual: FrozenType,
+        expected: Rc<Type>,
+        actual: Rc<Type>,
     },
     InfWhereFinExpected,
     NameAlreadyDeclared {
@@ -80,7 +82,7 @@ pub enum ErrorKind {
         error: String,
     },
     InconsistentType {
-        types: Vec<(Location, FrozenType)>,
+        types: Vec<(Location, Rc<Type>)>,
     },
 }
 
@@ -155,7 +157,7 @@ pub fn context_auto_coerced(
     arg_loc: Location,
     err: ErrorKind,
     func_name: String,
-    func_type: FrozenType,
+    func_type: Rc<Type>,
 ) -> ErrorKind {
     ErrorKind::ContextCaused {
         error: Box::new(Error(arg_loc, err)),
@@ -262,8 +264,9 @@ pub fn already_declared(
 }
 */
 
-pub fn not_function(ty: &Type) -> ErrorKind {
-    Type::deep_clone(ty)
+pub fn not_function(ty: &Rc<Type>) -> ErrorKind {
+    Type::deep_clone(ty);
+    todo!()
 }
 
 pub fn type_mismatch(want: &Rc<Type>, give: &Rc<Type>) -> ErrorKind {
@@ -381,8 +384,7 @@ impl Error {
                 messages: vec![(
                     loc,
                     // TODO: (could) search in scope for similar names and for matching types
-                    if matches!(expected_type, FrozenType::Named(_named)) {
-                        //if name == named) {
+                    if matches!(expected_type.as_ref(), Type::Named(_, _)) {
                         format!("Unknown name '{name}' (may be of any type)")
                     } else {
                         format!("Unknown name '{name}', should be of type {expected_type}")
@@ -491,18 +493,27 @@ impl Display for Report<'_> {
         let cmsg: &str = if self.use_colors { "\x1b[34m" } else { "" };
         let carr: &str = if self.use_colors { "\x1b[35m" } else { "" };
         let cnum: &str = if self.use_colors { "\x1b[36m" } else { "" };
+        let cerr: &str = if self.use_colors { "\x1b[31m" } else { "" };
         let r: &str = if self.use_colors { "\x1b[m" } else { "" };
 
-        let reg = self.registry.borrow();
-
         let (Location(file, range), _) = &self.messages[0];
-        let source = reg.get(*file);
+        let source = match self.registry.load(file) {
+            Ok(module) => module,
+            Err(e) => return writeln!(f, "{cerr}cannot get source {file:?} anymore{r}:\n{e:?}"),
+        };
 
         let lnum = source.get_containing_lnum(range.start).unwrap();
         writeln!(f, "{}:{lnum}: {ctop}{}{r}", source.path, self.title)?;
 
         for (Location(file, range), msg) in &self.messages {
-            let source = &reg.get(*file);
+            let source = match self.registry.load(file) {
+                Ok(module) => module,
+                Err(e) => {
+                    writeln!(f, "{cerr}cannot get source {file:?} anymore{r}:\n{e:?}")?;
+                    continue;
+                }
+            };
+
             let (first_lnum, lranges) = source.get_containing_lines(range).unwrap();
 
             if let [lrange, _, ..] = lranges {

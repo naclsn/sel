@@ -55,29 +55,46 @@ impl Display for Type {
 }
 
 impl Type {
-    pub fn number() -> Type {
-        Type::Known(Number)
+    fn ref_if_named(&self, created_ty: &Weak<Type>) {
+        if let Type::Named(_, refs) = self {
+            refs.borrow_mut().push(created_ty.as_ptr() as *mut _);
+        }
     }
-    pub fn bytes(finite: bool) -> Type {
-        Type::Known(Bytes(finite))
+
+    pub fn number() -> Rc<Type> {
+        Type::Known(Number).into()
     }
-    pub fn list(finite: bool, item: Rc<Type>) -> Type {
-        Type::Known(List(finite, item))
+    pub fn bytes(finite: bool) -> Rc<Type> {
+        Type::Known(Bytes(finite)).into()
     }
-    pub fn func(par: Rc<Type>, ret: Rc<Type>) -> Type {
-        Type::Known(Func(par, ret))
+    pub fn list(finite: bool, item: Rc<Type>) -> Rc<Type> {
+        Rc::new_cyclic(|w| {
+            item.ref_if_named(w);
+            Type::Known(List(finite, item))
+        })
     }
-    pub fn pair(fst: Rc<Type>, snd: Rc<Type>) -> Type {
-        Type::Known(Pair(fst, snd))
+    pub fn func(par: Rc<Type>, ret: Rc<Type>) -> Rc<Type> {
+        Rc::new_cyclic(|w| {
+            par.ref_if_named(w);
+            ret.ref_if_named(w);
+            Type::Known(Func(par, ret))
+        })
     }
-    pub fn named<'a>(name: String, refs: impl IntoIterator<Item = &'a Weak<Type>>) -> Type {
+    pub fn pair(fst: Rc<Type>, snd: Rc<Type>) -> Rc<Type> {
+        Rc::new_cyclic(|w| {
+            fst.ref_if_named(w);
+            snd.ref_if_named(w);
+            Type::Known(Pair(fst, snd))
+        })
+    }
+    pub fn named<'a>(name: String, refs: impl IntoIterator<Item = &'a Weak<Type>>) -> Rc<Type> {
         Type::Named(
             name.to_string(),
             refs.into_iter()
                 .map(|w| w.as_ptr() as *mut _)
                 .collect::<Vec<_>>()
                 .into(),
-        )
+        ).into()
     }
 
     // (ofc does not support pseudo-notations)
@@ -119,7 +136,7 @@ impl Type {
                     .get(&name)
                     .map(|ty: &Rc<Type>| Tok::Name(ty.clone()))
                     .or_else(|| {
-                        let named: Rc<_> = Type::named(name.clone(), []).into();
+                        let named: Rc<Type> = Type::named(name.clone(), []).into();
                         nameds.insert(name, named.clone());
                         Some(Tok::Name(named))
                     })

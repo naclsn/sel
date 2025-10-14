@@ -1,20 +1,21 @@
 //! fundamental operations
 
 use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::rc::Rc;
 
-use crate::types::{Bound, TypeList, TypeRef};
+use crate::types::Type;
 
 // macro to generate the fn generating the type {{{
 #[macro_export]
 macro_rules! mkmktyty {
     ($st:ident, Num) => {
-        $st.types.number()
+        Type::number()
     };
 
     ($st:ident, Str+ $f:literal $(& $both:literal)? $(| $either:literal)?) => {
         {
             let f = mkmktyty!($st, + $f $(& $both)? $(| $either)?);
-            $st.types.bytes(f)
+            Type::bytes(f)
         }
     };
     ($st:ident, Str) => {
@@ -22,14 +23,14 @@ macro_rules! mkmktyty {
     };
 
     ($st:ident, $n:ident) => {
-        $st.$n
+        $st.$n.clone()
     };
 
     ($st:ident, [$($i:tt)+]+ $f:literal $(& $both:literal)? $(| $either:literal)?) => {
         {
             let f = mkmktyty!($st, + $f $(& $both)? $(| $either)?);
             let i = mkmktyty!($st, $($i)+);
-            $st.types.list(f, i)
+            Type::list(f, i)
         }
     };
     ($st:ident, [$($i:tt)+]) => {
@@ -40,7 +41,7 @@ macro_rules! mkmktyty {
         {
             let f = mkmktyty!($st, ($($a)+));
             let s = mkmktyty!($st, $($b)+);
-            $st.types.pair(f, s)
+            Type::pair(f, s)
         }
     };
     ($st:ident, ($a:tt, $($b:tt)+)) => {
@@ -58,7 +59,7 @@ macro_rules! mkmktyty {
         {
             let p = mkmktyty!($st, $p);
             let r = mkmktyty!($st, $($r)+);
-            $st.types.func(p, r)
+            Type::func(p, r)
         }
     };
     ($st:ident, $p:tt+ $f:literal $(& $both:literal)? $(| $either:literal)? -> $($r:tt)+) => {
@@ -66,13 +67,13 @@ macro_rules! mkmktyty {
     };
 
     ($st:ident, + $n:literal) => {
-        $st._fin[$n]
+        false //$st._fin[$n]
     };
     ($st:ident, + $l:literal&$r:literal) => {
-        $st.types.both($st._fin[$l], $st._fin[$r])
+        false //$st.types.both($st._fin[$l], $st._fin[$r])
     };
     ($st:ident, + $l:literal|$r:literal) => {
-        $st.types.either($st._fin[$l], $st._fin[$r])
+        false //$st.types.either($st._fin[$l], $st._fin[$r])
     };
 }
 
@@ -80,25 +81,23 @@ macro_rules! mkmktyty {
 #[macro_export]
 macro_rules! mkmkty {
     ($f:tt$(, $n:ident)*; $($ty:tt)+) => {
-        |types| {
-            struct State<'a> {
-                _fin: [Boundedness; $f+1],
-                $($n: TypeRef,)*
-                types: &'a mut TypeList,
+        || {
+            struct State {
+                //_fin: [Boundedness; $f+1],
+                $($n: Rc<Type>,)*
             }
-            let state = State {
-                _fin: mkmkty!(@ types $f),
-                $($n: types.named(stringify!($n).into()),)*
-                types,
+            let _state = State {
+                //_fin: mkmkty!(@ types $f),
+                $($n: Type::named(stringify!($n).into(), []),)*
             };
-            mkmktyty!(state, $($ty)+)
+            mkmktyty!(_state, $($ty)+)
         }
     };
 
-    (@ $types:ident 0) => { [$types.finite(true)] };
-    (@ $types:ident 1) => { [$types.finite(true), $types.finite(false)] };
-    (@ $types:ident 2) => { [$types.finite(true), $types.finite(false), $types.finite(false)] };
-    (@ $types:ident 3) => { [$types.finite(true), $types.finite(false), $types.finite(false), $types.finite(false)] };
+    //(@ $types:ident 0) => { [$types.finite(true)] };
+    //(@ $types:ident 1) => { [$types.finite(true), $types.finite(false)] };
+    //(@ $types:ident 2) => { [$types.finite(true), $types.finite(false), $types.finite(false)] };
+    //(@ $types:ident 3) => { [$types.finite(true), $types.finite(false), $types.finite(false), $types.finite(false)] };
 }
 
 macro_rules! make {
@@ -128,8 +127,8 @@ macro_rules! make {
                 match name { $($name => Some(Self::$var),)* _ => None }
             }
 
-            pub fn make_type(&self, types: &mut TypeList) -> TypeRef {
-                match self { $(Self::$var => ($mkty as fn(&mut TypeList) -> TypeRef)(types),)* }
+            pub fn make_type(&self) -> Rc<Type> {
+                match self { $(Self::$var => ($mkty as fn() -> Rc<Type>)(),)* }
             }
 
             pub fn desc(&self) -> &'static [&'static str] {

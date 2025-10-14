@@ -4,7 +4,7 @@ use std::iter::Peekable;
 
 use crate::error::{self, Error, ErrorKind};
 use crate::lex::{Lexer, Token, TokenKind};
-use crate::module::{Location, ModuleRef};
+use crate::module::Location;
 
 macro_rules! TermTokenNoEnd {
     () => {
@@ -29,7 +29,7 @@ pub struct Top {
 pub struct Use {
     pub loc_use: Location,
     pub loc_path: Location,
-    pub path: Box<[u8]>,
+    pub path: Box<str>,
     pub loc_prefix: Location,
     pub prefix: String,
 }
@@ -154,7 +154,7 @@ fn loc_span(start: &Location, end: &Location) -> Location {
         start.0, end.0,
         "loc_span crosses source boundary..? {start:?} - {end:?}",
     );
-    Location(start.0, start.1.start..end.1.end)
+    Location(start.0.clone(), start.1.start..end.1.end)
 }
 
 impl Located for Top {
@@ -170,7 +170,7 @@ impl Located for Top {
         match (start, end) {
             (Some(start), Some(end)) => loc_span(&start, &end),
             (Some(one), None) | (None, Some(one)) => one,
-            (None, None) => Location(0, 0..0),
+            (None, None) => unreachable!("ig idk, but empty file if so"),
         }
     }
 }
@@ -255,16 +255,16 @@ impl Located for Pattern {
 }
 // }}}
 
-pub struct Parser<I: Iterator<Item = u8>> {
-    lex: Peekable<Lexer<I>>,
+pub struct Parser<'parse, I: Iterator<Item = u8>> {
+    lex: Peekable<Lexer<'parse, I>>,
     //comments: Vec<..>,
     errors: Vec<Error>,
 }
 
-impl<I: Iterator<Item = u8>> Parser<I> {
-    pub fn new(source: ModuleRef, bytes: I) -> Parser<I> {
+impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
+    pub fn new(path: &'parse str, bytes: I) -> Self {
         Parser {
-            lex: Lexer::new(source, bytes).peekable(),
+            lex: Lexer::new(path, bytes).peekable(),
             errors: Vec::new(),
         }
     }
@@ -381,6 +381,13 @@ impl<I: Iterator<Item = u8>> Parser<I> {
                     continue;
                 }
             };
+
+            let path = String::from_utf8(path.to_vec())
+                .unwrap_or_else(|err| {
+                    todo!("error: {err:?}");
+                    String::from_utf8_lossy(&path).into_owned()
+                })
+                .into_boxed_str();
 
             match self.peek_tok() {
                 Token(_, TokenKind::Comma | TokenKind::End) => self.skip_tok(),
@@ -613,7 +620,7 @@ impl<I: Iterator<Item = u8>> Parser<I> {
 
         // logic below is too unreadable for the compiler to notice;
         // but loc_close could be left uninit and immute..
-        let mut loc_close = Location(0, 0..0);
+        let mut loc_close = Location(Default::default(), 0..0);
 
         while match self.peek_tok() {
             Token(_, TokenKind::CloseBrace) => {
