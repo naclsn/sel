@@ -12,7 +12,7 @@ expression: "t(b\"2 -\")"
                     base: Value(
                         Number {
                             loc: Location(
-                                0,
+                                "<test>",
                                 0..1,
                             ),
                             number: 2.0,
@@ -21,7 +21,7 @@ expression: "t(b\"2 -\")"
                     args: [
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 2..3,
                             ),
                             word: "-",

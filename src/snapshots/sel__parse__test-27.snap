@@ -7,39 +7,34 @@ expression: "t(b\"use :path: name]}] def name :desc: 12]}] 42\")"
         uses: [
             Use {
                 loc_use: Location(
-                    0,
+                    "<test>",
                     0..3,
                 ),
                 loc_path: Location(
-                    0,
+                    "<test>",
                     4..10,
                 ),
-                path: [
-                    112,
-                    97,
-                    116,
-                    104,
-                ],
+                path: "path",
                 loc_prefix: Location(
-                    0,
+                    "<test>",
                     11..15,
                 ),
-                prefix: "name-",
+                prefix: "name",
             },
         ],
         defs: [
             Def {
                 loc_def: Location(
-                    0,
+                    "<test>",
                     19..22,
                 ),
                 loc_name: Location(
-                    0,
+                    "<test>",
                     23..27,
                 ),
                 name: "name",
                 loc_desc: Location(
-                    0,
+                    "<test>",
                     28..34,
                 ),
                 desc: "desc",
@@ -47,7 +42,7 @@ expression: "t(b\"use :path: name]}] def name :desc: 12]}] 42\")"
                     base: Value(
                         Number {
                             loc: Location(
-                                0,
+                                "<test>",
                                 35..37,
                             ),
                             number: 12.0,
@@ -63,7 +58,7 @@ expression: "t(b\"use :path: name]}] def name :desc: 12]}] 42\")"
                     base: Value(
                         Number {
                             loc: Location(
-                                0,
+                                "<test>",
                                 41..43,
                             ),
                             number: 42.0,
@@ -78,13 +73,13 @@ expression: "t(b\"use :path: name]}] def name :desc: 12]}] 42\")"
     [
         Error(
             Location(
-                0,
+                "<test>",
                 0..3,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         15..16,
                     ),
                     Unexpected {
@@ -99,13 +94,13 @@ expression: "t(b\"use :path: name]}] def name :desc: 12]}] 42\")"
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 19..22,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         37..38,
                     ),
                     Unexpected {

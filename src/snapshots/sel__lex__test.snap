@@ -2,4 +2,4 @@
 source: src/lex.rs
 expression: "t(b\"\")"
 ---
-Token(Location(0, 0..0), End)
+Token(Location("<test>", 0..0), End)

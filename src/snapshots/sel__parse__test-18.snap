@@ -11,38 +11,38 @@ expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]
                 head: Apply {
                     base: Binding {
                         loc_let: Location(
-                            0,
+                            "<test>",
                             1..4,
                         ),
                         pat: Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 5..6,
                             ),
                             word: "a",
                         },
                         res: Subscr {
                             loc_open: Location(
-                                0,
+                                "<test>",
                                 11..12,
                             ),
                             subscr: Script {
                                 head: Apply {
                                     base: Binding {
                                         loc_let: Location(
-                                            0,
+                                            "<test>",
                                             12..15,
                                         ),
                                         pat: Word {
                                             loc: Location(
-                                                0,
+                                                "<test>",
                                                 16..17,
                                             ),
                                             word: "b",
                                         },
                                         res: Word {
                                             loc: Location(
-                                                0,
+                                                "<test>",
                                                 26..27,
                                             ),
                                             word: "a",
@@ -52,7 +52,7 @@ expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]
                                     args: [
                                         Subscr {
                                             loc_open: Location(
-                                                0,
+                                                "<test>",
                                                 36..37,
                                             ),
                                             subscr: Script {
@@ -60,7 +60,7 @@ expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]
                                                     base: Value(
                                                         Word {
                                                             loc: Location(
-                                                                0,
+                                                                "<test>",
                                                                 37..42,
                                                             ),
                                                             word: "panic",
@@ -69,7 +69,7 @@ expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]
                                                     args: [
                                                         Bytes {
                                                             loc: Location(
-                                                                0,
+                                                                "<test>",
                                                                 42..56,
                                                             ),
                                                             bytes: [
@@ -92,7 +92,7 @@ expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]
                                                 tail: [],
                                             },
                                             loc_close: Location(
-                                                0,
+                                                "<test>",
                                                 56..57,
                                             ),
                                         },
@@ -101,7 +101,7 @@ expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]
                                 tail: [],
                             },
                             loc_close: Location(
-                                0,
+                                "<test>",
                                 57..58,
                             ),
                         },
@@ -110,7 +110,7 @@ expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]
                     args: [
                         Subscr {
                             loc_open: Location(
-                                0,
+                                "<test>",
                                 63..64,
                             ),
                             subscr: Script {
@@ -118,7 +118,7 @@ expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]
                                     base: Value(
                                         Word {
                                             loc: Location(
-                                                0,
+                                                "<test>",
                                                 64..69,
                                             ),
                                             word: "panic",
@@ -127,7 +127,7 @@ expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]
                                     args: [
                                         Bytes {
                                             loc: Location(
-                                                0,
+                                                "<test>",
                                                 69..83,
                                             ),
                                             bytes: [
@@ -150,7 +150,7 @@ expression: "t(b\"\nlet a\n    [let b\n        a\n        [panic: unreachable:]]
                                 tail: [],
                             },
                             loc_close: Location(
-                                0,
+                                "<test>",
                                 83..84,
                             ),
                         },

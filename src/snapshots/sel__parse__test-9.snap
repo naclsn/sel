@@ -12,7 +12,7 @@ expression: "t(b\"{repeat 1,, {}}\")"
                     base: Value(
                         List {
                             loc_open: Location(
-                                0,
+                                "<test>",
                                 0..1,
                             ),
                             items: [
@@ -20,7 +20,7 @@ expression: "t(b\"{repeat 1,, {}}\")"
                                     base: Value(
                                         Word {
                                             loc: Location(
-                                                0,
+                                                "<test>",
                                                 1..7,
                                             ),
                                             word: "repeat",
@@ -29,7 +29,7 @@ expression: "t(b\"{repeat 1,, {}}\")"
                                     args: [
                                         Number {
                                             loc: Location(
-                                                0,
+                                                "<test>",
                                                 8..9,
                                             ),
                                             number: 1.0,
@@ -40,20 +40,20 @@ expression: "t(b\"{repeat 1,, {}}\")"
                             rest: Some(
                                 (
                                     Location(
-                                        0,
+                                        "<test>",
                                         10..11,
                                     ),
                                     Apply {
                                         base: Value(
                                             List {
                                                 loc_open: Location(
-                                                    0,
+                                                    "<test>",
                                                     12..13,
                                                 ),
                                                 items: [],
                                                 rest: None,
                                                 loc_close: Location(
-                                                    0,
+                                                    "<test>",
                                                     13..14,
                                                 ),
                                             },
@@ -63,7 +63,7 @@ expression: "t(b\"{repeat 1,, {}}\")"
                                 ),
                             ),
                             loc_close: Location(
-                                0,
+                                "<test>",
                                 14..15,
                             ),
                         },

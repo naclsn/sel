@@ -249,7 +249,7 @@ fn test() {
 
     fn t(script: &[u8]) -> String {
         let mut end = true;
-        Lexer::new("t", script.iter().copied())
+        Lexer::new("<test>", script.iter().copied())
             .take_while(|t| {
                 if !end {
                     false

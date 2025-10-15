@@ -12,7 +12,7 @@ expression: "t(b\"-, split:-:, map[tonum, add1, tostr], join:+:\")"
                     base: Value(
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 0..1,
                             ),
                             word: "-",
@@ -23,14 +23,14 @@ expression: "t(b\"-, split:-:, map[tonum, add1, tostr], join:+:\")"
                 tail: [
                     (
                         Location(
-                            0,
+                            "<test>",
                             1..2,
                         ),
                         Apply {
                             base: Value(
                                 Word {
                                     loc: Location(
-                                        0,
+                                        "<test>",
                                         3..8,
                                     ),
                                     word: "split",
@@ -39,7 +39,7 @@ expression: "t(b\"-, split:-:, map[tonum, add1, tostr], join:+:\")"
                             args: [
                                 Bytes {
                                     loc: Location(
-                                        0,
+                                        "<test>",
                                         8..11,
                                     ),
                                     bytes: [
@@ -51,14 +51,14 @@ expression: "t(b\"-, split:-:, map[tonum, add1, tostr], join:+:\")"
                     ),
                     (
                         Location(
-                            0,
+                            "<test>",
                             11..12,
                         ),
                         Apply {
                             base: Value(
                                 Word {
                                     loc: Location(
-                                        0,
+                                        "<test>",
                                         13..16,
                                     ),
                                     word: "map",
@@ -67,7 +67,7 @@ expression: "t(b\"-, split:-:, map[tonum, add1, tostr], join:+:\")"
                             args: [
                                 Subscr {
                                     loc_open: Location(
-                                        0,
+                                        "<test>",
                                         16..17,
                                     ),
                                     subscr: Script {
@@ -75,7 +75,7 @@ expression: "t(b\"-, split:-:, map[tonum, add1, tostr], join:+:\")"
                                             base: Value(
                                                 Word {
                                                     loc: Location(
-                                                        0,
+                                                        "<test>",
                                                         17..22,
                                                     ),
                                                     word: "tonum",
@@ -86,14 +86,14 @@ expression: "t(b\"-, split:-:, map[tonum, add1, tostr], join:+:\")"
                                         tail: [
                                             (
                                                 Location(
-                                                    0,
+                                                    "<test>",
                                                     22..23,
                                                 ),
                                                 Apply {
                                                     base: Value(
                                                         Word {
                                                             loc: Location(
-                                                                0,
+                                                                "<test>",
                                                                 24..27,
                                                             ),
                                                             word: "add",
@@ -102,7 +102,7 @@ expression: "t(b\"-, split:-:, map[tonum, add1, tostr], join:+:\")"
                                                     args: [
                                                         Number {
                                                             loc: Location(
-                                                                0,
+                                                                "<test>",
                                                                 27..28,
                                                             ),
                                                             number: 1.0,
@@ -112,14 +112,14 @@ expression: "t(b\"-, split:-:, map[tonum, add1, tostr], join:+:\")"
                                             ),
                                             (
                                                 Location(
-                                                    0,
+                                                    "<test>",
                                                     28..29,
                                                 ),
                                                 Apply {
                                                     base: Value(
                                                         Word {
                                                             loc: Location(
-                                                                0,
+                                                                "<test>",
                                                                 30..35,
                                                             ),
                                                             word: "tostr",
@@ -131,7 +131,7 @@ expression: "t(b\"-, split:-:, map[tonum, add1, tostr], join:+:\")"
                                         ],
                                     },
                                     loc_close: Location(
-                                        0,
+                                        "<test>",
                                         35..36,
                                     ),
                                 },
@@ -140,14 +140,14 @@ expression: "t(b\"-, split:-:, map[tonum, add1, tostr], join:+:\")"
                     ),
                     (
                         Location(
-                            0,
+                            "<test>",
                             36..37,
                         ),
                         Apply {
                             base: Value(
                                 Word {
                                     loc: Location(
-                                        0,
+                                        "<test>",
                                         38..42,
                                     ),
                                     word: "join",
@@ -156,7 +156,7 @@ expression: "t(b\"-, split:-:, map[tonum, add1, tostr], join:+:\")"
                             args: [
                                 Bytes {
                                     loc: Location(
-                                        0,
+                                        "<test>",
                                         42..45,
                                     ),
                                     bytes: [

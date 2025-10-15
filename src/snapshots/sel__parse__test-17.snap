@@ -11,24 +11,24 @@ expression: "t(b\"let 0=a a :ok:\")"
                 head: Apply {
                     base: Binding {
                         loc_let: Location(
-                            0,
+                            "<test>",
                             0..3,
                         ),
                         pat: Pair {
                             fst: Number {
                                 loc: Location(
-                                    0,
+                                    "<test>",
                                     4..5,
                                 ),
                                 number: 0.0,
                             },
                             loc_equal: Location(
-                                0,
+                                "<test>",
                                 5..6,
                             ),
                             snd: Word {
                                 loc: Location(
-                                    0,
+                                    "<test>",
                                     6..7,
                                 ),
                                 word: "a",
@@ -36,7 +36,7 @@ expression: "t(b\"let 0=a a :ok:\")"
                         },
                         res: Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 8..9,
                             ),
                             word: "a",
@@ -44,7 +44,7 @@ expression: "t(b\"let 0=a a :ok:\")"
                         alt: Some(
                             Bytes {
                                 loc: Location(
-                                    0,
+                                    "<test>",
                                     10..14,
                                 ),
                                 bytes: [

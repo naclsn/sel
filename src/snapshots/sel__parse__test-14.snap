@@ -13,7 +13,7 @@ expression: "t(b\"[a=b]=c\")"
                         Pair {
                             fst: Subscr {
                                 loc_open: Location(
-                                    0,
+                                    "<test>",
                                     0..1,
                                 ),
                                 subscr: Script {
@@ -22,18 +22,18 @@ expression: "t(b\"[a=b]=c\")"
                                             Pair {
                                                 fst: Word {
                                                     loc: Location(
-                                                        0,
+                                                        "<test>",
                                                         1..2,
                                                     ),
                                                     word: "a",
                                                 },
                                                 loc_equal: Location(
-                                                    0,
+                                                    "<test>",
                                                     2..3,
                                                 ),
                                                 snd: Word {
                                                     loc: Location(
-                                                        0,
+                                                        "<test>",
                                                         3..4,
                                                     ),
                                                     word: "b",
@@ -45,17 +45,17 @@ expression: "t(b\"[a=b]=c\")"
                                     tail: [],
                                 },
                                 loc_close: Location(
-                                    0,
+                                    "<test>",
                                     4..5,
                                 ),
                             },
                             loc_equal: Location(
-                                0,
+                                "<test>",
                                 5..6,
                             ),
                             snd: Word {
                                 loc: Location(
-                                    0,
+                                    "<test>",
                                     6..7,
                                 ),
                                 word: "c",

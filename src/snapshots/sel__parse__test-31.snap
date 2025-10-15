@@ -12,7 +12,7 @@ expression: "t(b\"[subscr without closing\")"
                     base: Value(
                         Subscr {
                             loc_open: Location(
-                                0,
+                                "<test>",
                                 0..1,
                             ),
                             subscr: Script {
@@ -20,7 +20,7 @@ expression: "t(b\"[subscr without closing\")"
                                     base: Value(
                                         Word {
                                             loc: Location(
-                                                0,
+                                                "<test>",
                                                 1..7,
                                             ),
                                             word: "subscr",
@@ -29,14 +29,14 @@ expression: "t(b\"[subscr without closing\")"
                                     args: [
                                         Word {
                                             loc: Location(
-                                                0,
+                                                "<test>",
                                                 8..15,
                                             ),
                                             word: "without",
                                         },
                                         Word {
                                             loc: Location(
-                                                0,
+                                                "<test>",
                                                 16..23,
                                             ),
                                             word: "closing",
@@ -46,7 +46,7 @@ expression: "t(b\"[subscr without closing\")"
                                 tail: [],
                             },
                             loc_close: Location(
-                                0,
+                                "<test>",
                                 23..23,
                             ),
                         },
@@ -60,13 +60,13 @@ expression: "t(b\"[subscr without closing\")"
     [
         Error(
             Location(
-                0,
+                "<test>",
                 0..1,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         23..23,
                     ),
                     Unexpected {

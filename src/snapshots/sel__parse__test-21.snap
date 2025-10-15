@@ -8,16 +8,16 @@ expression: "t(b\"def succ: y, maths ppl, just y?: add 1,\")"
         defs: [
             Def {
                 loc_def: Location(
-                    0,
+                    "<test>",
                     0..3,
                 ),
                 loc_name: Location(
-                    0,
+                    "<test>",
                     4..8,
                 ),
                 name: "succ",
                 loc_desc: Location(
-                    0,
+                    "<test>",
                     8..32,
                 ),
                 desc: "y, maths ppl, just y?",
@@ -25,7 +25,7 @@ expression: "t(b\"def succ: y, maths ppl, just y?: add 1,\")"
                     base: Value(
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 33..36,
                             ),
                             word: "add",
@@ -34,7 +34,7 @@ expression: "t(b\"def succ: y, maths ppl, just y?: add 1,\")"
                     args: [
                         Number {
                             loc: Location(
-                                0,
+                                "<test>",
                                 37..38,
                             ),
                             number: 1.0,

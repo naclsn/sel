@@ -12,7 +12,7 @@ expression: "t(b\"-\")"
                     base: Value(
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 0..1,
                             ),
                             word: "-",

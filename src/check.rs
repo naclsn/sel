@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::error::{self, Error};
+use crate::error::{self, Error, ErrorKind};
 use crate::fund::Fund;
 use crate::module::{Function, Location, Module, ModuleRegistry};
 use crate::parse::{Apply, ApplyBase, Pattern, Script, Value};
@@ -208,25 +208,24 @@ impl<'check> Checker<'check> {
                     .map(|it| self.check_pattern_type(it, names))
                     .collect();
 
-                todo!("ty of Pattern::List\nitem types: {items:?}");
                 // i kept the commented code below that refers to check_list_content;
                 // i just rewrote Value::List handling in check_value in a way
                 // that's more regular: it's always checked as if {...,, {}} ie it
                 // always relies on `cons` which will dictate the behavior uniformly
                 // however i'm left with that one now which idk how to then
 
-                let ty: Rc<Type> = unreachable!();
+                let ty: Rc<Type> = todo!("ty of Pattern::List\nitem types: {items:?}");
                 //let has = self.check_list_content(items);
                 //let fin = self.types.finite(rest.is_none());
                 //let ty = self.types.list(fin, has);
 
-                if let Some((loc_comma, loc, word)) = rest {
+                if let Some((_loc_comma, loc, word)) = rest {
                     if let Some((loc_already, ty)) = names.get(word) {
                         self.errors.push(todo!(
                             "already declared in pattern at {loc_already:?} with :: &{ty}"
                         ));
                     } else {
-                        names.insert(word.clone(), (todo!("loc"), ty));
+                        names.insert(word.clone(), (loc.clone(), ty));
                     }
                 }
                 ty
@@ -259,7 +258,7 @@ impl<'check> Checker<'check> {
         let alt = alt.map(|alt| {
             assert!(pat.is_refutable());
             let alt = self.check_value(alt);
-            if let Err(err) = Type::harmonize(res.ty, alt.ty) {
+            if let Result::<(), ErrorKind>::Err(err) = todo!("Type::harmonize(res.ty, alt.ty)") {
                 self.errors.push(Error(
                     todo!("loc for {err:?} (from harmonize res&alt)"),
                     err,
@@ -276,7 +275,7 @@ impl<'check> Checker<'check> {
         });
 
         self.scopes.pop();
-        (Type::func(param, res.ty), res, alt)
+        (Type::func(param, res.ty.clone()), res, alt)
     }
 
     pub fn check_apply(&mut self, apply: &Apply) -> Tree {
@@ -318,10 +317,10 @@ impl<'check> Checker<'check> {
             // but does that makes sens? isn't that annoying that it won't be possible to eg
             //      {:hello:, -}, unwords
             // but say in this specific case, maybe the miss is to say literal bytes is inf..?
-            if let Err(err) = Type::harmonize(ty, it) {
-                self.errors
-                    .push(todo!("error::list_type_mismatch(..) for {err:?}"));
-            }
+            //if let Err(err) = Type::harmonize(ty, it) {
+            //    self.errors
+            //        .push(todo!("error::list_type_mismatch(..) for {err:?}"));
+            //}
             // constructing always with `cons` seems like the least sane but most regular approach
             // (insane because that' a de-optimisation which will /have/ to be corrected further down the line)
             //

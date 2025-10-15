@@ -12,7 +12,7 @@ expression: "t(b\"x {, let {,}} y\")"
                     base: Value(
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 0..1,
                             ),
                             word: "x",
@@ -21,7 +21,7 @@ expression: "t(b\"x {, let {,}} y\")"
                     args: [
                         List {
                             loc_open: Location(
-                                0,
+                                "<test>",
                                 2..3,
                             ),
                             items: [
@@ -29,7 +29,7 @@ expression: "t(b\"x {, let {,}} y\")"
                                     base: Value(
                                         Word {
                                             loc: Location(
-                                                0,
+                                                "<test>",
                                                 3..4,
                                             ),
                                             word: "?",
@@ -40,18 +40,18 @@ expression: "t(b\"x {, let {,}} y\")"
                                 Apply {
                                     base: Binding {
                                         loc_let: Location(
-                                            0,
+                                            "<test>",
                                             5..8,
                                         ),
                                         pat: List {
                                             loc_open: Location(
-                                                0,
+                                                "<test>",
                                                 9..10,
                                             ),
                                             items: [
                                                 Word {
                                                     loc: Location(
-                                                        0,
+                                                        "<test>",
                                                         10..11,
                                                     ),
                                                     word: "?",
@@ -59,13 +59,13 @@ expression: "t(b\"x {, let {,}} y\")"
                                             ],
                                             rest: None,
                                             loc_close: Location(
-                                                0,
+                                                "<test>",
                                                 11..12,
                                             ),
                                         },
                                         res: Word {
                                             loc: Location(
-                                                0,
+                                                "<test>",
                                                 12..13,
                                             ),
                                             word: "?",
@@ -73,7 +73,7 @@ expression: "t(b\"x {, let {,}} y\")"
                                         alt: Some(
                                             Word {
                                                 loc: Location(
-                                                    0,
+                                                    "<test>",
                                                     12..13,
                                                 ),
                                                 word: "?",
@@ -85,13 +85,13 @@ expression: "t(b\"x {, let {,}} y\")"
                             ],
                             rest: None,
                             loc_close: Location(
-                                0,
+                                "<test>",
                                 12..13,
                             ),
                         },
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 14..15,
                             ),
                             word: "y",
@@ -105,13 +105,13 @@ expression: "t(b\"x {, let {,}} y\")"
     [
         Error(
             Location(
-                0,
+                "<test>",
                 2..3,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         3..4,
                     ),
                     Unexpected {
@@ -126,7 +126,7 @@ expression: "t(b\"x {, let {,}} y\")"
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 3..4,
             ),
             Unexpected {
@@ -136,13 +136,13 @@ expression: "t(b\"x {, let {,}} y\")"
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 9..10,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         10..11,
                     ),
                     Unexpected {
@@ -157,7 +157,7 @@ expression: "t(b\"x {, let {,}} y\")"
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 10..11,
             ),
             Unexpected {
@@ -167,7 +167,7 @@ expression: "t(b\"x {, let {,}} y\")"
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 12..13,
             ),
             Unexpected {
@@ -177,13 +177,13 @@ expression: "t(b\"x {, let {,}} y\")"
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 9..12,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         12..13,
                     ),
                     Unexpected {

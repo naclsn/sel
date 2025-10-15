@@ -12,7 +12,7 @@ expression: "t(b\"x [  {  ] [  let { ] y\")"
                     base: Value(
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 0..1,
                             ),
                             word: "x",
@@ -21,7 +21,7 @@ expression: "t(b\"x [  {  ] [  let { ] y\")"
                     args: [
                         Subscr {
                             loc_open: Location(
-                                0,
+                                "<test>",
                                 2..3,
                             ),
                             subscr: Script {
@@ -29,13 +29,13 @@ expression: "t(b\"x [  {  ] [  let { ] y\")"
                                     base: Value(
                                         List {
                                             loc_open: Location(
-                                                0,
+                                                "<test>",
                                                 5..6,
                                             ),
                                             items: [],
                                             rest: None,
                                             loc_close: Location(
-                                                0,
+                                                "<test>",
                                                 8..9,
                                             ),
                                         },
@@ -45,37 +45,37 @@ expression: "t(b\"x [  {  ] [  let { ] y\")"
                                 tail: [],
                             },
                             loc_close: Location(
-                                0,
+                                "<test>",
                                 8..9,
                             ),
                         },
                         Subscr {
                             loc_open: Location(
-                                0,
+                                "<test>",
                                 10..11,
                             ),
                             subscr: Script {
                                 head: Apply {
                                     base: Binding {
                                         loc_let: Location(
-                                            0,
+                                            "<test>",
                                             13..16,
                                         ),
                                         pat: List {
                                             loc_open: Location(
-                                                0,
+                                                "<test>",
                                                 17..18,
                                             ),
                                             items: [],
                                             rest: None,
                                             loc_close: Location(
-                                                0,
+                                                "<test>",
                                                 19..20,
                                             ),
                                         },
                                         res: Word {
                                             loc: Location(
-                                                0,
+                                                "<test>",
                                                 19..20,
                                             ),
                                             word: "?",
@@ -83,7 +83,7 @@ expression: "t(b\"x [  {  ] [  let { ] y\")"
                                         alt: Some(
                                             Word {
                                                 loc: Location(
-                                                    0,
+                                                    "<test>",
                                                     19..20,
                                                 ),
                                                 word: "?",
@@ -95,13 +95,13 @@ expression: "t(b\"x [  {  ] [  let { ] y\")"
                                 tail: [],
                             },
                             loc_close: Location(
-                                0,
+                                "<test>",
                                 19..20,
                             ),
                         },
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 21..22,
                             ),
                             word: "y",
@@ -115,13 +115,13 @@ expression: "t(b\"x [  {  ] [  let { ] y\")"
     [
         Error(
             Location(
-                0,
+                "<test>",
                 5..6,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         8..9,
                     ),
                     Unexpected {
@@ -136,13 +136,13 @@ expression: "t(b\"x [  {  ] [  let { ] y\")"
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 17..18,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         19..20,
                     ),
                     Unexpected {
@@ -157,7 +157,7 @@ expression: "t(b\"x [  {  ] [  let { ] y\")"
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 19..20,
             ),
             Unexpected {
@@ -167,13 +167,13 @@ expression: "t(b\"x [  {  ] [  let { ] y\")"
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 17..20,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         19..20,
                     ),
                     Unexpected {

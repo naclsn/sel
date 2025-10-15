@@ -13,18 +13,18 @@ expression: "t(b\"a=b\")"
                         Pair {
                             fst: Word {
                                 loc: Location(
-                                    0,
+                                    "<test>",
                                     0..1,
                                 ),
                                 word: "a",
                             },
                             loc_equal: Location(
-                                0,
+                                "<test>",
                                 1..2,
                             ),
                             snd: Word {
                                 loc: Location(
-                                    0,
+                                    "<test>",
                                     2..3,
                                 ),
                                 word: "b",

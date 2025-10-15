@@ -11,32 +11,32 @@ expression: "t(b\"let {a b, c} 0\")"
                 head: Apply {
                     base: Binding {
                         loc_let: Location(
-                            0,
+                            "<test>",
                             0..3,
                         ),
                         pat: List {
                             loc_open: Location(
-                                0,
+                                "<test>",
                                 4..5,
                             ),
                             items: [
                                 Word {
                                     loc: Location(
-                                        0,
+                                        "<test>",
                                         5..6,
                                     ),
                                     word: "a",
                                 },
                                 Word {
                                     loc: Location(
-                                        0,
+                                        "<test>",
                                         7..8,
                                     ),
                                     word: "b",
                                 },
                                 Word {
                                     loc: Location(
-                                        0,
+                                        "<test>",
                                         10..11,
                                     ),
                                     word: "c",
@@ -44,13 +44,13 @@ expression: "t(b\"let {a b, c} 0\")"
                             ],
                             rest: None,
                             loc_close: Location(
-                                0,
+                                "<test>",
                                 11..12,
                             ),
                         },
                         res: Number {
                             loc: Location(
-                                0,
+                                "<test>",
                                 13..14,
                             ),
                             number: 0.0,
@@ -58,7 +58,7 @@ expression: "t(b\"let {a b, c} 0\")"
                         alt: Some(
                             Word {
                                 loc: Location(
-                                    0,
+                                    "<test>",
                                     14..14,
                                 ),
                                 word: "?",
@@ -74,13 +74,13 @@ expression: "t(b\"let {a b, c} 0\")"
     [
         Error(
             Location(
-                0,
+                "<test>",
                 4..5,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         7..8,
                     ),
                     Unexpected {
@@ -97,13 +97,13 @@ expression: "t(b\"let {a b, c} 0\")"
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 4..12,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         14..14,
                     ),
                     Unexpected {

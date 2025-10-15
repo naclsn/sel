@@ -7,124 +7,80 @@ expression: "t(b\"\nuse :path/a: a,, # extra comma\nuse :path/b: b # missing com
         uses: [
             Use {
                 loc_use: Location(
-                    0,
+                    "<test>",
                     1..4,
                 ),
                 loc_path: Location(
-                    0,
+                    "<test>",
                     5..13,
                 ),
-                path: [
-                    112,
-                    97,
-                    116,
-                    104,
-                    47,
-                    97,
-                ],
+                path: "path/a",
                 loc_prefix: Location(
-                    0,
+                    "<test>",
                     14..15,
                 ),
-                prefix: "a-",
+                prefix: "a",
             },
             Use {
                 loc_use: Location(
-                    0,
+                    "<test>",
                     32..35,
                 ),
                 loc_path: Location(
-                    0,
+                    "<test>",
                     36..44,
                 ),
-                path: [
-                    112,
-                    97,
-                    116,
-                    104,
-                    47,
-                    98,
-                ],
+                path: "path/b",
                 loc_prefix: Location(
-                    0,
+                    "<test>",
                     45..46,
                 ),
-                prefix: "b-",
+                prefix: "b",
             },
             Use {
                 loc_use: Location(
-                    0,
+                    "<test>",
                     63..66,
                 ),
                 loc_path: Location(
-                    0,
+                    "<test>",
                     67..75,
                 ),
-                path: [
-                    112,
-                    97,
-                    116,
-                    104,
-                    47,
-                    99,
-                ],
+                path: "path/c",
                 loc_prefix: Location(
-                    0,
+                    "<test>",
                     76..77,
                 ),
-                prefix: "",
+                prefix: "token '_'",
             },
             Use {
                 loc_use: Location(
-                    0,
+                    "<test>",
                     79..82,
                 ),
                 loc_path: Location(
-                    0,
+                    "<test>",
                     83..87,
                 ),
-                path: [
-                    119,
-                    111,
-                    114,
-                    100,
-                    32,
-                    39,
-                    112,
-                    97,
-                    116,
-                    104,
-                    39,
-                ],
+                path: "word 'path'",
                 loc_prefix: Location(
-                    0,
+                    "<test>",
                     88..92,
                 ),
                 prefix: "name",
             },
             Use {
                 loc_use: Location(
-                    0,
+                    "<test>",
                     135..138,
                 ),
                 loc_path: Location(
-                    0,
+                    "<test>",
                     139..151,
                 ),
-                path: [
-                    97,
-                    103,
-                    97,
-                    105,
-                    110,
-                    32,
-                    112,
-                    97,
-                    116,
-                    104,
-                ],
+                path: "again path",
                 loc_prefix: Location(
-                    0,
+                    "<test>",
                     152..154,
                 ),
                 prefix: "number '42'",
@@ -136,7 +92,7 @@ expression: "t(b\"\nuse :path/a: a,, # extra comma\nuse :path/b: b # missing com
     [
         Error(
             Location(
-                0,
+                "<test>",
                 16..17,
             ),
             Unexpected {
@@ -146,13 +102,13 @@ expression: "t(b\"\nuse :path/a: a,, # extra comma\nuse :path/b: b # missing com
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 32..35,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         63..66,
                     ),
                     Unexpected {
@@ -167,13 +123,36 @@ expression: "t(b\"\nuse :path/a: a,, # extra comma\nuse :path/b: b # missing com
         ),
         Error(
             Location(
-                0,
+                "<test>",
+                63..66,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        "<test>",
+                        76..77,
+                    ),
+                    Unexpected {
+                        token: Unknown(
+                            "_",
+                        ),
+                        expected: "file path then identifier after 'use' keyword",
+                    },
+                ),
+                because: Unmatched {
+                    open_token: Use,
+                },
+            },
+        ),
+        Error(
+            Location(
+                "<test>",
                 79..82,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         83..87,
                     ),
                     Unexpected {
@@ -190,13 +169,13 @@ expression: "t(b\"\nuse :path/a: a,, # extra comma\nuse :path/b: b # missing com
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 94..97,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         111..112,
                     ),
                     Unexpected {
@@ -211,13 +190,13 @@ expression: "t(b\"\nuse :path/a: a,, # extra comma\nuse :path/b: b # missing com
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 135..138,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         152..154,
                     ),
                     Unexpected {
@@ -234,13 +213,13 @@ expression: "t(b\"\nuse :path/a: a,, # extra comma\nuse :path/b: b # missing com
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 185..188,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         189..198,
                     ),
                     Unexpected {
@@ -257,13 +236,13 @@ expression: "t(b\"\nuse :path/a: a,, # extra comma\nuse :path/b: b # missing com
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 222..225,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         226..235,
                     ),
                     Unexpected {

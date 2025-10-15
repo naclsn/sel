@@ -11,19 +11,19 @@ expression: "t(b\"let a let b a b a # note: is syntax error\")"
                 head: Apply {
                     base: Binding {
                         loc_let: Location(
-                            0,
+                            "<test>",
                             0..3,
                         ),
                         pat: Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 4..5,
                             ),
                             word: "a",
                         },
                         res: Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 6..9,
                             ),
                             word: "keyword 'let'",
@@ -33,28 +33,28 @@ expression: "t(b\"let a let b a b a # note: is syntax error\")"
                     args: [
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 10..11,
                             ),
                             word: "b",
                         },
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 12..13,
                             ),
                             word: "a",
                         },
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 14..15,
                             ),
                             word: "b",
                         },
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 16..17,
                             ),
                             word: "a",
@@ -68,7 +68,7 @@ expression: "t(b\"let a let b a b a # note: is syntax error\")"
     [
         Error(
             Location(
-                0,
+                "<test>",
                 6..9,
             ),
             Unexpected {

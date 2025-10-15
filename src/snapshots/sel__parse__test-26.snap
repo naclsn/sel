@@ -8,16 +8,16 @@ expression: "t(b\"def name :desc: 12]}] 42\")"
         defs: [
             Def {
                 loc_def: Location(
-                    0,
+                    "<test>",
                     0..3,
                 ),
                 loc_name: Location(
-                    0,
+                    "<test>",
                     4..8,
                 ),
                 name: "name",
                 loc_desc: Location(
-                    0,
+                    "<test>",
                     9..15,
                 ),
                 desc: "desc",
@@ -25,7 +25,7 @@ expression: "t(b\"def name :desc: 12]}] 42\")"
                     base: Value(
                         Number {
                             loc: Location(
-                                0,
+                                "<test>",
                                 16..18,
                             ),
                             number: 12.0,
@@ -41,7 +41,7 @@ expression: "t(b\"def name :desc: 12]}] 42\")"
                     base: Value(
                         Number {
                             loc: Location(
-                                0,
+                                "<test>",
                                 22..24,
                             ),
                             number: 42.0,
@@ -56,13 +56,13 @@ expression: "t(b\"def name :desc: 12]}] 42\")"
     [
         Error(
             Location(
-                0,
+                "<test>",
                 0..3,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         18..19,
                     ),
                     Unexpected {

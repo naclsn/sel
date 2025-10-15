@@ -8,16 +8,16 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
         defs: [
             Def {
                 loc_def: Location(
-                    0,
+                    "<test>",
                     1..4,
                 ),
                 loc_name: Location(
-                    0,
+                    "<test>",
                     5..6,
                 ),
                 name: "a",
                 loc_desc: Location(
-                    0,
+                    "<test>",
                     7..9,
                 ),
                 desc: "",
@@ -25,7 +25,7 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
                     base: Value(
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 10..11,
                             ),
                             word: "b",
@@ -36,16 +36,16 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
             },
             Def {
                 loc_def: Location(
-                    0,
+                    "<test>",
                     28..31,
                 ),
                 loc_name: Location(
-                    0,
+                    "<test>",
                     32..33,
                 ),
                 name: "b",
                 loc_desc: Location(
-                    0,
+                    "<test>",
                     34..36,
                 ),
                 desc: "",
@@ -53,7 +53,7 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
                     base: Value(
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 37..38,
                             ),
                             word: "a",
@@ -64,16 +64,16 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
             },
             Def {
                 loc_def: Location(
-                    0,
+                    "<test>",
                     55..58,
                 ),
                 loc_name: Location(
-                    0,
+                    "<test>",
                     59..60,
                 ),
                 name: "x",
                 loc_desc: Location(
-                    0,
+                    "<test>",
                     61..62,
                 ),
                 desc: "word 'y'",
@@ -81,7 +81,7 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
                     base: Value(
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 63..64,
                             ),
                             word: "z",
@@ -92,16 +92,16 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
             },
             Def {
                 loc_def: Location(
-                    0,
+                    "<test>",
                     66..69,
                 ),
                 loc_name: Location(
-                    0,
+                    "<test>",
                     70..72,
                 ),
                 name: "number '42'",
                 loc_desc: Location(
-                    0,
+                    "<test>",
                     73..75,
                 ),
                 desc: "",
@@ -109,7 +109,7 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
                     base: Value(
                         Number {
                             loc: Location(
-                                0,
+                                "<test>",
                                 76..78,
                             ),
                             number: 42.0,
@@ -120,16 +120,16 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
             },
             Def {
                 loc_def: Location(
-                    0,
+                    "<test>",
                     80..83,
                 ),
                 loc_name: Location(
-                    0,
+                    "<test>",
                     84..91,
                 ),
                 name: "string ':wrong:'",
                 loc_desc: Location(
-                    0,
+                    "<test>",
                     92..95,
                 ),
                 desc: "word 'way'",
@@ -137,49 +137,13 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
                     base: Value(
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 96..102,
                             ),
                             word: "around",
                         },
                     ),
                     args: [],
-                },
-            },
-            Def {
-                loc_def: Location(
-                    0,
-                    104..107,
-                ),
-                loc_name: Location(
-                    0,
-                    108..109,
-                ),
-                name: "_",
-                loc_desc: Location(
-                    0,
-                    109..114,
-                ),
-                desc: "token 'XOPEN'",
-                to: Apply {
-                    base: Value(
-                        Word {
-                            loc: Location(
-                                0,
-                                114..115,
-                            ),
-                            word: "_",
-                        },
-                    ),
-                    args: [
-                        Word {
-                            loc: Location(
-                                0,
-                                115..121,
-                            ),
-                            word: "token 'SOURCE'",
-                        },
-                    ],
                 },
             },
         ],
@@ -189,7 +153,7 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
                     base: Value(
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 278..283,
                             ),
                             word: "hello",
@@ -204,7 +168,7 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
     [
         Error(
             Location(
-                0,
+                "<test>",
                 12..13,
             ),
             Unexpected {
@@ -214,13 +178,13 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 28..31,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         55..58,
                     ),
                     Unexpected {
@@ -235,13 +199,13 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 55..58,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         61..62,
                     ),
                     Unexpected {
@@ -258,13 +222,13 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 66..69,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         70..72,
                     ),
                     Unexpected {
@@ -281,13 +245,13 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 80..83,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         84..91,
                     ),
                     Unexpected {
@@ -310,18 +274,18 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 104..107,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
-                        109..114,
+                        "<test>",
+                        108..121,
                     ),
                     Unexpected {
                         token: Unknown(
-                            "XOPEN",
+                            "_XOPEN_SOURCE",
                         ),
                         expected: "name then description after 'def' keyword",
                     },
@@ -333,48 +297,13 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
         ),
         Error(
             Location(
-                0,
-                104..107,
-            ),
-            ContextCaused {
-                error: Error(
-                    Location(
-                        0,
-                        108..109,
-                    ),
-                    Unexpected {
-                        token: Word(
-                            "_",
-                        ),
-                        expected: "name ('_' cannot be used here)",
-                    },
-                ),
-                because: Unmatched {
-                    open_token: Def,
-                },
-            },
-        ),
-        Error(
-            Location(
-                0,
-                115..121,
-            ),
-            Unexpected {
-                token: Unknown(
-                    "SOURCE",
-                ),
-                expected: "a value",
-            },
-        ),
-        Error(
-            Location(
-                0,
+                "<test>",
                 164..167,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         168..169,
                     ),
                     Unexpected {
@@ -391,13 +320,13 @@ expression: "t(b\"\ndef a :: b,, # extra comma\ndef b :: a # missing comma\ndef 
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 221..224,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         226..227,
                     ),
                     Unexpected {

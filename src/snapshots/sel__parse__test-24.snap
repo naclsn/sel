@@ -12,7 +12,7 @@ expression: "t(b\"]}] 42\")"
                     base: Value(
                         Number {
                             loc: Location(
-                                0,
+                                "<test>",
                                 4..6,
                             ),
                             number: 42.0,
@@ -27,7 +27,7 @@ expression: "t(b\"]}] 42\")"
     [
         Error(
             Location(
-                0,
+                "<test>",
                 0..1,
             ),
             Unexpected {

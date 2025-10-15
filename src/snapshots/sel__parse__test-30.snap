@@ -11,30 +11,30 @@ expression: "t(b\"let let={:let:,,LET} 3 3\")"
                 head: Apply {
                     base: Binding {
                         loc_let: Location(
-                            0,
+                            "<test>",
                             0..3,
                         ),
                         pat: Pair {
                             fst: Word {
                                 loc: Location(
-                                    0,
+                                    "<test>",
                                     4..7,
                                 ),
                                 word: "keyword 'let'",
                             },
                             loc_equal: Location(
-                                0,
+                                "<test>",
                                 7..8,
                             ),
                             snd: List {
                                 loc_open: Location(
-                                    0,
+                                    "<test>",
                                     8..9,
                                 ),
                                 items: [
                                     Bytes {
                                         loc: Location(
-                                            0,
+                                            "<test>",
                                             9..14,
                                         ),
                                         bytes: [
@@ -47,25 +47,25 @@ expression: "t(b\"let let={:let:,,LET} 3 3\")"
                                 rest: Some(
                                     (
                                         Location(
-                                            0,
+                                            "<test>",
                                             15..16,
                                         ),
                                         Location(
-                                            0,
+                                            "<test>",
                                             16..19,
                                         ),
                                         "token 'LET'",
                                     ),
                                 ),
                                 loc_close: Location(
-                                    0,
+                                    "<test>",
                                     19..20,
                                 ),
                             },
                         },
                         res: Number {
                             loc: Location(
-                                0,
+                                "<test>",
                                 21..22,
                             ),
                             number: 3.0,
@@ -73,7 +73,7 @@ expression: "t(b\"let let={:let:,,LET} 3 3\")"
                         alt: Some(
                             Number {
                                 loc: Location(
-                                    0,
+                                    "<test>",
                                     23..24,
                                 ),
                                 number: 3.0,
@@ -89,7 +89,7 @@ expression: "t(b\"let let={:let:,,LET} 3 3\")"
     [
         Error(
             Location(
-                0,
+                "<test>",
                 4..7,
             ),
             Unexpected {
@@ -99,13 +99,13 @@ expression: "t(b\"let let={:let:,,LET} 3 3\")"
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 8..9,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         16..19,
                     ),
                     Unexpected {

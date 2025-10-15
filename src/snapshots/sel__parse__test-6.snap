@@ -12,7 +12,7 @@ expression: "t(b\"tonum, add234121, tostr, ln\")"
                     base: Value(
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 0..5,
                             ),
                             word: "tonum",
@@ -23,14 +23,14 @@ expression: "t(b\"tonum, add234121, tostr, ln\")"
                 tail: [
                     (
                         Location(
-                            0,
+                            "<test>",
                             5..6,
                         ),
                         Apply {
                             base: Value(
                                 Word {
                                     loc: Location(
-                                        0,
+                                        "<test>",
                                         7..10,
                                     ),
                                     word: "add",
@@ -39,7 +39,7 @@ expression: "t(b\"tonum, add234121, tostr, ln\")"
                             args: [
                                 Number {
                                     loc: Location(
-                                        0,
+                                        "<test>",
                                         10..16,
                                     ),
                                     number: 234121.0,
@@ -49,14 +49,14 @@ expression: "t(b\"tonum, add234121, tostr, ln\")"
                     ),
                     (
                         Location(
-                            0,
+                            "<test>",
                             16..17,
                         ),
                         Apply {
                             base: Value(
                                 Word {
                                     loc: Location(
-                                        0,
+                                        "<test>",
                                         18..23,
                                     ),
                                     word: "tostr",
@@ -67,14 +67,14 @@ expression: "t(b\"tonum, add234121, tostr, ln\")"
                     ),
                     (
                         Location(
-                            0,
+                            "<test>",
                             23..24,
                         ),
                         Apply {
                             base: Value(
                                 Word {
                                     loc: Location(
-                                        0,
+                                        "<test>",
                                         25..27,
                                     ),
                                     word: "ln",

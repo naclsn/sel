@@ -7,36 +7,34 @@ expression: "t(b\"use :a: a, def b:: b, use :c: c, d\")"
         uses: [
             Use {
                 loc_use: Location(
-                    0,
+                    "<test>",
                     0..3,
                 ),
                 loc_path: Location(
-                    0,
+                    "<test>",
                     4..7,
                 ),
-                path: [
-                    97,
-                ],
+                path: "a",
                 loc_prefix: Location(
-                    0,
+                    "<test>",
                     8..9,
                 ),
-                prefix: "a-",
+                prefix: "a",
             },
         ],
         defs: [
             Def {
                 loc_def: Location(
-                    0,
+                    "<test>",
                     11..14,
                 ),
                 loc_name: Location(
-                    0,
+                    "<test>",
                     15..16,
                 ),
                 name: "b",
                 loc_desc: Location(
-                    0,
+                    "<test>",
                     16..18,
                 ),
                 desc: "",
@@ -44,7 +42,7 @@ expression: "t(b\"use :a: a, def b:: b, use :c: c, d\")"
                     base: Value(
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 19..20,
                             ),
                             word: "b",
@@ -60,7 +58,7 @@ expression: "t(b\"use :a: a, def b:: b, use :c: c, d\")"
                     base: Value(
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 22..25,
                             ),
                             word: "keyword 'use'",
@@ -69,7 +67,7 @@ expression: "t(b\"use :a: a, def b:: b, use :c: c, d\")"
                     args: [
                         Bytes {
                             loc: Location(
-                                0,
+                                "<test>",
                                 26..29,
                             ),
                             bytes: [
@@ -78,7 +76,7 @@ expression: "t(b\"use :a: a, def b:: b, use :c: c, d\")"
                         },
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 30..31,
                             ),
                             word: "c",
@@ -88,14 +86,14 @@ expression: "t(b\"use :a: a, def b:: b, use :c: c, d\")"
                 tail: [
                     (
                         Location(
-                            0,
+                            "<test>",
                             31..32,
                         ),
                         Apply {
                             base: Value(
                                 Word {
                                     loc: Location(
-                                        0,
+                                        "<test>",
                                         33..34,
                                     ),
                                     word: "d",
@@ -111,7 +109,7 @@ expression: "t(b\"use :a: a, def b:: b, use :c: c, d\")"
     [
         Error(
             Location(
-                0,
+                "<test>",
                 22..25,
             ),
             Unexpected {
@@ -121,7 +119,7 @@ expression: "t(b\"use :a: a, def b:: b, use :c: c, d\")"
         ),
         Error(
             Location(
-                0,
+                "<test>",
                 22..25,
             ),
             Unexpected {

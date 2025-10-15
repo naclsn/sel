@@ -920,14 +920,10 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
 
 #[test]
 fn test() {
-    use crate::scope::ModuleRegistry;
     use insta::assert_debug_snapshot;
 
     fn t(script: &[u8]) -> (Top, Box<[Error]>) {
-        let mut registry = ModuleRegistry::default();
-        let source = registry.add_bytes("<test>", script.iter().copied());
-        let bytes = &registry.get(source).bytes;
-        let mut parser = Parser::new(source, bytes.iter().copied());
+        let mut parser = Parser::new("<test>", script.iter().copied());
         (parser.parse_top(), parser.errors.into())
     }
 

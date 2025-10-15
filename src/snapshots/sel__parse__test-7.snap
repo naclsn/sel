@@ -12,7 +12,7 @@ expression: "t(b\"[tonum, add234121, tostr] :13242:\")"
                     base: Value(
                         Subscr {
                             loc_open: Location(
-                                0,
+                                "<test>",
                                 0..1,
                             ),
                             subscr: Script {
@@ -20,7 +20,7 @@ expression: "t(b\"[tonum, add234121, tostr] :13242:\")"
                                     base: Value(
                                         Word {
                                             loc: Location(
-                                                0,
+                                                "<test>",
                                                 1..6,
                                             ),
                                             word: "tonum",
@@ -31,14 +31,14 @@ expression: "t(b\"[tonum, add234121, tostr] :13242:\")"
                                 tail: [
                                     (
                                         Location(
-                                            0,
+                                            "<test>",
                                             6..7,
                                         ),
                                         Apply {
                                             base: Value(
                                                 Word {
                                                     loc: Location(
-                                                        0,
+                                                        "<test>",
                                                         8..11,
                                                     ),
                                                     word: "add",
@@ -47,7 +47,7 @@ expression: "t(b\"[tonum, add234121, tostr] :13242:\")"
                                             args: [
                                                 Number {
                                                     loc: Location(
-                                                        0,
+                                                        "<test>",
                                                         11..17,
                                                     ),
                                                     number: 234121.0,
@@ -57,14 +57,14 @@ expression: "t(b\"[tonum, add234121, tostr] :13242:\")"
                                     ),
                                     (
                                         Location(
-                                            0,
+                                            "<test>",
                                             17..18,
                                         ),
                                         Apply {
                                             base: Value(
                                                 Word {
                                                     loc: Location(
-                                                        0,
+                                                        "<test>",
                                                         19..24,
                                                     ),
                                                     word: "tostr",
@@ -76,7 +76,7 @@ expression: "t(b\"[tonum, add234121, tostr] :13242:\")"
                                 ],
                             },
                             loc_close: Location(
-                                0,
+                                "<test>",
                                 24..25,
                             ),
                         },
@@ -84,7 +84,7 @@ expression: "t(b\"[tonum, add234121, tostr] :13242:\")"
                     args: [
                         Bytes {
                             loc: Location(
-                                0,
+                                "<test>",
                                 26..33,
                             ),
                             bytes: [

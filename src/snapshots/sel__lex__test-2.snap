@@ -2,5 +2,5 @@
 source: src/lex.rs
 expression: "t(b\"coucou\")"
 ---
-Token(Location(0, 0..6), Word("coucou"))
-Token(Location(0, 6..6), End)
+Token(Location("<test>", 0..6), Word("coucou"))
+Token(Location("<test>", 6..6), End)

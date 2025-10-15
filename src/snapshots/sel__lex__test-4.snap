@@ -2,10 +2,10 @@
 source: src/lex.rs
 expression: "t(b\":hay: :hey:: not hay: ::_:::: fin\")"
 ---
-Token(Location(0, 0..5), Bytes([104, 97, 121]))
-Token(Location(0, 6..21), Bytes([104, 101, 121, 58, 32, 110, 111, 116, 32, 104, 97, 121]))
-Token(Location(0, 22..24), Bytes([]))
-Token(Location(0, 24..25), Word("_"))
-Token(Location(0, 25..29), Bytes([58]))
-Token(Location(0, 30..33), Word("fin"))
-Token(Location(0, 33..33), End)
+Token(Location("<test>", 0..5), Bytes([104, 97, 121]))
+Token(Location("<test>", 6..21), Bytes([104, 101, 121, 58, 32, 110, 111, 116, 32, 104, 97, 121]))
+Token(Location("<test>", 22..24), Bytes([]))
+Token(Location("<test>", 24..25), Unknown("_"))
+Token(Location("<test>", 25..29), Bytes([58]))
+Token(Location("<test>", 30..33), Word("fin"))
+Token(Location("<test>", 33..33), End)

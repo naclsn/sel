@@ -12,7 +12,7 @@ expression: "t(b\"x[x {a b,, c d, y]y\")"
                     base: Value(
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 0..1,
                             ),
                             word: "x",
@@ -21,7 +21,7 @@ expression: "t(b\"x[x {a b,, c d, y]y\")"
                     args: [
                         Subscr {
                             loc_open: Location(
-                                0,
+                                "<test>",
                                 1..2,
                             ),
                             subscr: Script {
@@ -29,7 +29,7 @@ expression: "t(b\"x[x {a b,, c d, y]y\")"
                                     base: Value(
                                         Word {
                                             loc: Location(
-                                                0,
+                                                "<test>",
                                                 2..3,
                                             ),
                                             word: "x",
@@ -38,7 +38,7 @@ expression: "t(b\"x[x {a b,, c d, y]y\")"
                                     args: [
                                         List {
                                             loc_open: Location(
-                                                0,
+                                                "<test>",
                                                 4..5,
                                             ),
                                             items: [
@@ -46,7 +46,7 @@ expression: "t(b\"x[x {a b,, c d, y]y\")"
                                                     base: Value(
                                                         Word {
                                                             loc: Location(
-                                                                0,
+                                                                "<test>",
                                                                 5..6,
                                                             ),
                                                             word: "a",
@@ -55,7 +55,7 @@ expression: "t(b\"x[x {a b,, c d, y]y\")"
                                                     args: [
                                                         Word {
                                                             loc: Location(
-                                                                0,
+                                                                "<test>",
                                                                 7..8,
                                                             ),
                                                             word: "b",
@@ -66,14 +66,14 @@ expression: "t(b\"x[x {a b,, c d, y]y\")"
                                             rest: Some(
                                                 (
                                                     Location(
-                                                        0,
+                                                        "<test>",
                                                         9..10,
                                                     ),
                                                     Apply {
                                                         base: Value(
                                                             Word {
                                                                 loc: Location(
-                                                                    0,
+                                                                    "<test>",
                                                                     11..12,
                                                                 ),
                                                                 word: "c",
@@ -82,7 +82,7 @@ expression: "t(b\"x[x {a b,, c d, y]y\")"
                                                         args: [
                                                             Word {
                                                                 loc: Location(
-                                                                    0,
+                                                                    "<test>",
                                                                     13..14,
                                                                 ),
                                                                 word: "d",
@@ -92,7 +92,7 @@ expression: "t(b\"x[x {a b,, c d, y]y\")"
                                                 ),
                                             ),
                                             loc_close: Location(
-                                                0,
+                                                "<test>",
                                                 14..15,
                                             ),
                                         },
@@ -101,14 +101,14 @@ expression: "t(b\"x[x {a b,, c d, y]y\")"
                                 tail: [
                                     (
                                         Location(
-                                            0,
+                                            "<test>",
                                             14..15,
                                         ),
                                         Apply {
                                             base: Value(
                                                 Word {
                                                     loc: Location(
-                                                        0,
+                                                        "<test>",
                                                         16..17,
                                                     ),
                                                     word: "y",
@@ -120,13 +120,13 @@ expression: "t(b\"x[x {a b,, c d, y]y\")"
                                 ],
                             },
                             loc_close: Location(
-                                0,
+                                "<test>",
                                 17..18,
                             ),
                         },
                         Word {
                             loc: Location(
-                                0,
+                                "<test>",
                                 18..19,
                             ),
                             word: "y",
@@ -140,13 +140,13 @@ expression: "t(b\"x[x {a b,, c d, y]y\")"
     [
         Error(
             Location(
-                0,
+                "<test>",
                 4..5,
             ),
             ContextCaused {
                 error: Error(
                     Location(
-                        0,
+                        "<test>",
                         14..15,
                     ),
                     Unexpected {
