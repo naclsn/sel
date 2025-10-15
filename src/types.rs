@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::iter::{self, Peekable};
 use std::rc::{Rc, Weak};
@@ -9,11 +9,11 @@ use crate::error::{self, ErrorKind};
 #[derive(Debug)]
 pub enum Type {
     Known(Known),
-    Named(String, RefCell<Vec<*mut Rc<Type>>>),
+    Named(String, RefCell<HashSet<*mut Rc<Type>>>),
 }
 
 #[derive(Debug)]
-enum Known {
+pub enum Known {
     Number,
     Bytes(bool),          // XXX: boundedness!
     List(bool, Rc<Type>), // XXX: boundedness!
@@ -57,7 +57,7 @@ impl Display for Type {
 impl Type {
     fn ref_if_named(&self, created_ty: &Weak<Type>) {
         if let Type::Named(_, refs) = self {
-            refs.borrow_mut().push(created_ty.as_ptr() as *mut _);
+            refs.borrow_mut().insert(created_ty.as_ptr() as *mut _);
         }
     }
 
@@ -88,13 +88,8 @@ impl Type {
         })
     }
     pub fn named<'a>(name: String, refs: impl IntoIterator<Item = &'a Weak<Type>>) -> Rc<Type> {
-        Type::Named(
-            name.to_string(),
-            refs.into_iter()
-                .map(|w| w.as_ptr() as *mut _)
-                .collect::<Vec<_>>()
-                .into(),
-        ).into()
+        let refs = RefCell::new(refs.into_iter().map(|w| w.as_ptr() as *mut _).collect());
+        Type::Named(name.to_string(), refs).into()
     }
 
     // (ofc does not support pseudo-notations)
@@ -195,14 +190,14 @@ impl Type {
             already_done: &mut HashMap<*const Type, Rc<Type>>,
         ) -> Rc<Type> {
             if let Some(done) = already_done.get(&Rc::as_ptr(ty)) {
-                if let Type::Named(_, refs) = done.as_ref() {
+                if let Type::Named(_, refs) = &**done {
                     assert!(!as_part_of.is_null());
-                    refs.borrow_mut().push(as_part_of);
+                    refs.borrow_mut().insert(as_part_of);
                 }
                 return done.clone();
             }
 
-            let r = match ty.as_ref() {
+            let r = match &**ty {
                 Type::Known(known) => Rc::new_cyclic(|w| {
                     let mut f = |t| _inner(t, w.as_ptr() as *mut _, already_done);
                     Type::Known(match known {
@@ -214,7 +209,7 @@ impl Type {
                     })
                 }),
 
-                Type::Named(n, _) => Type::Named(n.clone(), vec![].into()).into(),
+                Type::Named(n, _) => Type::named(n.clone(), []).into(),
             };
 
             already_done.insert(Rc::as_ptr(ty), r.clone());
@@ -222,22 +217,14 @@ impl Type {
         }
 
         // handle this case here so that within `_inner` we always have a `as_part_of` for this
-        if let Type::Named(n, _) = this.as_ref() {
-            Type::Named(n.clone(), vec![].into()).into()
+        if let Type::Named(n, _) = &**this {
+            Type::named(n.clone(), []).into()
         } else {
             _inner(
                 this,
                 std::ptr::null::<Rc<Type>>() as *mut _,
                 &mut Default::default(),
             )
-        }
-    }
-
-    /// `func give` so return type of `func` (if checks out).
-    pub(crate) fn applied(func: &Rc<Type>, give: &Rc<Type>) -> Result<Rc<Type>, ErrorKind> {
-        match func.as_ref() {
-            Type::Known(Func(want, ret)) => Type::concretize(want, give).map(|()| ret.clone()),
-            _ => Err(error::not_function(func)),
         }
     }
 
@@ -250,8 +237,8 @@ impl Type {
     /// Both types may be modified (due to contravariance of func in parameter type).
     /// This uses the fact that inf types and unk named types are
     /// only depended on by the functions that introduced them.
-    fn concretize(want: &Rc<Type>, give: &Rc<Type>) -> Result<(), ErrorKind> {
-        match (want.as_ref(), give.as_ref()) {
+    pub fn concretize(want: &Rc<Type>, give: &Rc<Type>) -> Result<(), ErrorKind> {
+        match (&**want, &**give) {
             (Type::Known(Number), Type::Known(Number)) => Ok(()),
 
             // XXX: boundedness

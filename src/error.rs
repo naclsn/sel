@@ -384,7 +384,7 @@ impl Error {
                 messages: vec![(
                     loc,
                     // TODO: (could) search in scope for similar names and for matching types
-                    if matches!(expected_type.as_ref(), Type::Named(_, _)) {
+                    if matches!(**expected_type, Type::Named(_, _)) {
                         format!("Unknown name '{name}' (may be of any type)")
                     } else {
                         format!("Unknown name '{name}', should be of type {expected_type}")

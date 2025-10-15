@@ -99,8 +99,8 @@ impl Scoping {
 pub struct Location(pub String, pub Range<usize>);
 
 #[derive(Debug)]
-struct Function {
-    ast: Tree,
+pub struct Function {
+    pub ast: Tree,
     pub errors: Box<[Error]>,
 }
 
@@ -123,6 +123,12 @@ impl ModuleRegistry {
     // i dont like the use of 'load' with immut args, might rename to 'require' or idk but donnn
     // mater much anyways
 
+    /// load `bytes` as a module's source and associate them with `path`
+    ///
+    /// `path` isn't altered/normalized in any way
+    ///
+    /// parsing in and by itself is not recursive, this does not hold on to a borrow
+    /// during parsing (until insertion into the hash map)
     pub fn load_bytes(&self, path: &str, bytes: impl IntoIterator<Item = u8>) -> Rc<Module> {
         let bytes: Box<[u8]> = bytes.into_iter().collect();
         let line_map = Module::compute_line_map(&bytes);
@@ -147,15 +153,19 @@ impl ModuleRegistry {
             .clone()
     }
 
+    /// try to load a module from `path` (ie fs as of now)
+    ///
+    /// `path` may be altered/normalized
+    ///
+    /// parsing in and by itself is not recursive, this does not hold on to a borrow
+    /// even if it hadn't been parsed yet (until insertion into the hash map)
     pub fn load(&self, path: &str) -> IoResult<Rc<Module>> {
-        let borrow = self.modules.borrow();
-        Ok(match borrow.get(path).cloned() {
-            Some(module) => module,
-            None => {
-                drop(borrow); // idk y but explicit necessary here
-                self.load_bytes(path, std::fs::read(path)?)
-            }
-        })
+        let has = self.modules.borrow().get(path).cloned();
+        if let Some(found) = has {
+            return Ok(found);
+        }
+
+        Ok(self.load_bytes(path, std::fs::read(path)?))
     }
 }
 
@@ -170,29 +180,36 @@ impl Module {
     }
 
     /// search in 'use's
+    ///
+    /// functions are checked lazily, however this does not hold on to a borrow
+    /// even if it hadn't been checked yet (until insertion into the hash map)
     pub fn retrieve_function(&self, name: &str, registry: &ModuleRegistry) -> Option<Rc<Function>> {
-        Some(match self.functions.borrow().get(name).cloned() {
-            Some(function) => function,
-            None => {
-                let apply = &self.top.defs.iter().rev().find(|d| name == d.name)?.to;
+        let has = self.functions.borrow().get(name).cloned();
+        if has.is_some() {
+            return has;
+        }
 
-                let mut checker = Checker::new(self, registry);
-                let function = Function {
-                    ast: checker.check_apply(apply),
-                    errors: checker.boxed_errors(),
-                };
+        let apply = &self.top.defs.iter().rev().find(|d| name == d.name)?.to;
+        let mut checker = Checker::new(self, registry);
+        let function = Function {
+            ast: checker.check_apply(apply),
+            errors: checker.boxed_errors(),
+        };
 
-                self.functions
-                    .borrow_mut()
-                    .entry(name.to_string())
-                    .insert_entry(function.into())
-                    .get()
-                    .clone()
-            }
-        })
+        let r = self
+            .functions
+            .borrow_mut()
+            .entry(name.to_string())
+            .insert_entry(function.into())
+            .get()
+            .clone();
+        Some(r)
     }
 
     /// search in 'def's
+    ///
+    /// if `prefix` is found among the module's 'def's,
+    /// this uses the registry to try to loading
     pub fn retrieve_module(
         &self,
         prefix: &str,
