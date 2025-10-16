@@ -9,7 +9,7 @@ use crate::error::{self, ErrorKind};
 #[derive(Debug)]
 pub enum Type {
     Known(Known),
-    Named(String, RefCell<HashSet<*mut Rc<Type>>>),
+    Named(String, RefCell<HashSet<*const Type>>), // const but rly not; see `relink_ref`, bite me
 }
 
 #[derive(Debug)]
@@ -61,6 +61,52 @@ impl Type {
         }
     }
 
+    /// when a named type (`was_to_named_ty`) gets matched agains a known type
+    /// (or whever `now_to_other_ty`): it finds itself through the child types
+    /// (ie refs are all ptrs to list/func/pair) and overwrite the rc to itself
+    /// with that other now type; if any of that makes sense then yey past me
+    fn relink_ref(
+        refs: HashSet<*const Type>,
+        was_to_named_ty: &Rc<Type>,
+        now_to_other_ty: &Rc<Type>,
+    ) {
+        debug_assert!(matches!(&**was_to_named_ty, Type::Named(_, _)));
+
+        use std::ptr::eq;
+        let ptr = Rc::as_ptr(was_to_named_ty);
+
+        for r in refs {
+            match unsafe { &mut *(r as *mut _) } {
+                Type::Known(List(_, has)) => {
+                    debug_assert!(eq(Rc::as_ptr(has), ptr));
+                    *has = now_to_other_ty.clone();
+                }
+
+                Type::Known(Func(par, ret)) => {
+                    debug_assert!(eq(Rc::as_ptr(par), ptr) || eq(Rc::as_ptr(ret), ptr));
+                    if eq(Rc::as_ptr(par), ptr) {
+                        *par = now_to_other_ty.clone();
+                    }
+                    if eq(Rc::as_ptr(ret), ptr) {
+                        *ret = now_to_other_ty.clone();
+                    }
+                }
+
+                Type::Known(Pair(fst, snd)) => {
+                    debug_assert!(eq(Rc::as_ptr(fst), ptr) || eq(Rc::as_ptr(snd), ptr));
+                    if eq(Rc::as_ptr(fst), ptr) {
+                        *fst = now_to_other_ty.clone();
+                    }
+                    if eq(Rc::as_ptr(snd), ptr) {
+                        *snd = now_to_other_ty.clone();
+                    }
+                }
+
+                _ => unreachable!(),
+            }
+        }
+    }
+
     pub fn number() -> Rc<Type> {
         Type::Known(Number).into()
     }
@@ -88,7 +134,7 @@ impl Type {
         })
     }
     pub fn named<'a>(name: String, refs: impl IntoIterator<Item = &'a Weak<Type>>) -> Rc<Type> {
-        let refs = RefCell::new(refs.into_iter().map(|w| w.as_ptr() as *mut _).collect());
+        let refs = RefCell::new(refs.into_iter().map(|w| w.as_ptr() as *const _).collect());
         Type::Named(name.to_string(), refs).into()
     }
 
@@ -186,7 +232,7 @@ impl Type {
     pub fn deep_clone(this: &Rc<Type>) -> Rc<Type> {
         fn _inner(
             ty: &Rc<Type>,
-            as_part_of: *mut Rc<Type>,
+            as_part_of: *const Type,
             already_done: &mut HashMap<*const Type, Rc<Type>>,
         ) -> Rc<Type> {
             if let Some(done) = already_done.get(&Rc::as_ptr(ty)) {
@@ -271,8 +317,8 @@ impl Type {
                 // when we have ptr equality, we know we are talking twice about
                 // the exact same named, in which case nothing needs to be done
                 if !std::ptr::eq(w, g) {
-                    let mut all = w_refs.take();
-                    all.extend(g_refs.take());
+                    let w_refs = w_refs.take();
+                    let g_refs = g_refs.take();
 
                     let niw = Rc::new(Type::Named(
                         if w == g {
@@ -280,33 +326,26 @@ impl Type {
                         } else {
                             format!("{w}={g}")
                         },
-                        all.clone().into(),
+                        {
+                            let mut all = w_refs.clone();
+                            all.extend(g_refs.iter());
+                            all.into()
+                        },
                     ));
 
-                    for r in all {
-                        *(unsafe { &mut *r }) = niw.clone();
-                    }
+                    Type::relink_ref(w_refs, want, &niw);
+                    Type::relink_ref(g_refs, give, &niw);
                 }
                 Ok(())
             }
             (_known, Type::Named(_, refs)) => {
-                for r in refs.take() {
-                    *(unsafe { &mut *r }) = want.clone();
-                }
+                // all that was referring to 'give' now should refer to 'want'
+                Type::relink_ref(refs.take(), give, want);
                 Ok(())
             }
             (Type::Named(_, refs), _known) => {
                 // all that was referring to 'want' now should refer to 'give'
-                for r in refs.take() {
-                    //unsafe {
-                    //    Rc::decrement_strong_count(Rc::into_raw(*r));
-                    //    *r = known.clone();
-                    //}
-                    // i *think* this should do the same
-                    // cvt to a normal managed ref will have it behave regularly and decrement rc
-                    *(unsafe { &mut *r }) = give.clone();
-                }
-                // rc should have hit 0 for 'want' (not sure how to check)
+                Type::relink_ref(refs.take(), want, give);
                 Ok(())
             }
 

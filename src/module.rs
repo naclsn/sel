@@ -171,6 +171,10 @@ impl ModuleRegistry {
 
 impl Module {
     /// the top level
+    ///
+    /// checking may be recursive if the function refers to 'def's
+    /// within this module or a 'use'd module; registry's load may
+    /// be invoked as needed
     pub fn retrieve(&self, registry: &ModuleRegistry) -> Option<Function> {
         let mut checker = Checker::new(self, registry);
         Some(Function {

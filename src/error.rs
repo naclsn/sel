@@ -266,13 +266,13 @@ pub fn already_declared(
 
 pub fn not_function(ty: &Rc<Type>) -> ErrorKind {
     Type::deep_clone(ty);
-    todo!()
+    todo!("not function")
 }
 
 pub fn type_mismatch(want: &Rc<Type>, give: &Rc<Type>) -> ErrorKind {
     Type::deep_clone(want);
     Type::deep_clone(give);
-    todo!()
+    todo!("type mismatch")
 }
 // }}}
 

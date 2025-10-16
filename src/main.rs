@@ -24,4 +24,6 @@ fn main() {
         crate::error::report_many_stderr(&function.errors, &registry, &None, false);
     }
     eprintln!("AST: {function:#?}");
+
+    eprintln!("ty: {}", function.ast.ty);
 }
