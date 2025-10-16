@@ -5,8 +5,7 @@ use std::rc::Rc;
 
 use crate::types::Type;
 
-// macro to generate the fn generating the type {{{
-#[macro_export]
+/// macro to generate the fn generating the type, internal to `mkmkty!`
 macro_rules! mkmktyty {
     ($st:ident, Num) => {
         Type::number()
@@ -77,8 +76,7 @@ macro_rules! mkmktyty {
     };
 }
 
-// (nb_infinites, names; type)
-#[macro_export]
+/// macro to generate the fn generating the type: (nb_infinites, names; type)
 macro_rules! mkmkty {
     ($f:tt$(, $n:ident)*; $($ty:tt)+) => {
         || {
@@ -121,8 +119,6 @@ macro_rules! make {
         }
 
         impl Fund {
-            const NAMES: &[&str] = &[$($name,)*];
-
             pub fn try_from_name(name: &str) -> Option<Self> {
                 match name { $($name => Some(Self::$var),)* _ => None }
             }
@@ -137,7 +133,6 @@ macro_rules! make {
         }
     };
 }
-// }}}
 
 make! {
     /// the input

@@ -1,0 +1,125 @@
+---
+source: src/check.rs
+expression: "t(b\"{1, 2, 3}\")"
+---
+(
+    Tree {
+        ty: List(
+            false,
+            Number,
+        ),
+        val: Apply(
+            Tree {
+                ty: Func(
+                    Number,
+                    Func(
+                        List(
+                            false,
+                            Number,
+                        ),
+                        List(
+                            false,
+                            Number,
+                        ),
+                    ),
+                ),
+                val: Word(
+                    "cons",
+                    Fundamental(
+                        Cons,
+                    ),
+                ),
+            },
+            [
+                Tree {
+                    ty: Number,
+                    val: Number(
+                        1.0,
+                    ),
+                },
+                Tree {
+                    ty: List(
+                        false,
+                        Number,
+                    ),
+                    val: Apply(
+                        Tree {
+                            ty: Func(
+                                Number,
+                                Func(
+                                    List(
+                                        false,
+                                        Number,
+                                    ),
+                                    List(
+                                        false,
+                                        Number,
+                                    ),
+                                ),
+                            ),
+                            val: Word(
+                                "cons",
+                                Fundamental(
+                                    Cons,
+                                ),
+                            ),
+                        },
+                        [
+                            Tree {
+                                ty: Number,
+                                val: Number(
+                                    2.0,
+                                ),
+                            },
+                            Tree {
+                                ty: List(
+                                    false,
+                                    Number,
+                                ),
+                                val: Apply(
+                                    Tree {
+                                        ty: Func(
+                                            Number,
+                                            Func(
+                                                List(
+                                                    false,
+                                                    Number,
+                                                ),
+                                                List(
+                                                    false,
+                                                    Number,
+                                                ),
+                                            ),
+                                        ),
+                                        val: Word(
+                                            "cons",
+                                            Fundamental(
+                                                Cons,
+                                            ),
+                                        ),
+                                    },
+                                    [
+                                        Tree {
+                                            ty: Number,
+                                            val: Number(
+                                                3.0,
+                                            ),
+                                        },
+                                        Tree {
+                                            ty: List(
+                                                true,
+                                                Number,
+                                            ),
+                                            val: List,
+                                        },
+                                    ],
+                                ),
+                            },
+                        ],
+                    ),
+                },
+            ],
+        ),
+    },
+    [],
+)

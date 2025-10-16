@@ -8,93 +8,8 @@ use std::rc::Rc;
 
 use crate::check::{Checker, Tree};
 use crate::error::Error;
-use crate::fund::Fund;
 use crate::parse::{Parser, Top};
-use crate::types::Type;
 
-// scope {{{
-#[derive(Debug, Default)]
-pub struct Scoping {
-    bindings: Vec<HashMap<String, Binding>>,
-    defineds: HashMap<String, Defined>,
-    missings: HashMap<String, Rc<Type>>,
-}
-
-#[derive(Debug)]
-pub enum Entry<'scope> {
-    Binding(&'scope Binding),
-    Defined(&'scope Defined),
-    Fundamental(Fund),
-}
-
-#[derive(Debug)]
-pub struct Binding {
-    pub loc: Location,
-    pub word: String,
-    pub ty: Rc<Type>,
-}
-
-#[derive(Debug)]
-pub struct Defined {
-    pub loc: Location,
-    pub desc: String,
-    pub ty: Rc<Type>,
-}
-
-impl Scoping {
-    pub fn push(&mut self, entries: HashMap<String, (Location, Rc<Type>)>) {
-        self.bindings.push(
-            entries
-                .into_iter()
-                .map(|(word, (loc, ty))| (word.clone(), Binding { loc, word, ty }))
-                .collect(),
-        );
-    }
-
-    pub fn pop(&mut self) {
-        self.bindings
-            .pop()
-            .expect("unbalanced scoping pop with no push");
-    }
-
-    pub fn define(&mut self, name: String, loc: Location, desc: String, ty: Rc<Type>) -> &Defined {
-        self.defineds
-            .insert(name.clone(), Defined { loc, desc, ty });
-        self.defineds.get(&name).unwrap()
-    }
-
-    pub fn missing(&mut self, name: String, ty: Rc<Type>) {
-        assert!(
-            self.missings.insert(name, ty).is_none(),
-            "was not actually missing",
-        );
-    }
-
-    /// lookup order is always:
-    /// - fundamentals
-    /// - bindings (closest to furthest)
-    /// - defineds (latest to earliest in file)
-    /// - uses (same order)
-    /// - missing
-    ///
-    /// when None, likely want to call `missing()`
-    /// when ToBeDefined, likely want to call `define()`
-    pub fn lookup(&mut self, name: &str) -> Option<Entry> {
-        if let Some(found) = Fund::try_from_name(name) {
-            return Some(Entry::Fundamental(found));
-        }
-        if let Some(found) = self.bindings.iter().rev().find_map(|it| it.get(name)) {
-            return Some(Entry::Binding(found));
-        }
-        if let Some(found) = self.defineds.get(name) {
-            return Some(Entry::Defined(found));
-        }
-        None
-    }
-}
-// }}}
-
-// source registry {{{
 #[derive(PartialEq, Debug, Clone)]
 pub struct Location(pub String, pub Range<usize>);
 
@@ -261,4 +176,3 @@ impl Module {
         Some((start + 1, &self.line_map[start..=end]))
     }
 }
-// }}}

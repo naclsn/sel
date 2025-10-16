@@ -98,6 +98,10 @@ pub struct Report<'a> {
 }
 
 // error reportig helpers {{{
+pub fn broken_utf8(loc: Location, text: Box<[u8]>, err: std::str::Utf8Error) -> Error {
+    todo!()
+}
+
 pub fn unexpected(token: Token, expected: &'static str, unmatched: Option<Token>) -> Error {
     let Token(here, token) = token;
     let mut err = Error(here, ErrorKind::Unexpected { token, expected });

@@ -7,7 +7,7 @@ use crate::error::{self, Error, ErrorKind};
 use crate::fund::Fund;
 use crate::module::{Function, Location, Module, ModuleRegistry};
 use crate::parse::{Apply, ApplyBase, Pattern, Script, Value};
-use crate::types::{Known, Type};
+use crate::types::Type;
 
 #[derive(Debug, Clone)]
 pub struct Tree {
@@ -114,7 +114,7 @@ impl<'check> Checker<'check> {
 
     fn apply(&mut self, func: Tree, arg: Tree) -> Tree {
         let ty = match &*func.ty {
-            Type::Known(Known::Func(par, ret)) => {
+            Type::Func(par, ret) => {
                 if let Err(err) = Type::concretize(par, &arg.ty) {
                     self.errors.push(Error(
                         todo!("loc for {err:?} (from apply not applying)"),
@@ -151,7 +151,7 @@ impl<'check> Checker<'check> {
     pub fn check_script(&mut self, script: &Script) -> Tree {
         let val = self.check_apply(&script.head);
 
-        if matches!(*val.ty, Type::Known(Known::Func(_, _))) {
+        if matches!(*val.ty, Type::Func(_, _)) {
             // [f, g, h] -> [pipe f g, h] -> pipe [pipe f g] h
             script.tail.iter().fold(val, |acc, (loc_comma, cur)| {
                 let then = self.check_apply(cur);
@@ -405,4 +405,20 @@ impl<'check> Checker<'check> {
             }
         }
     }
+}
+
+#[test]
+fn test() {
+    use insta::assert_debug_snapshot;
+
+    fn t(script: &[u8]) -> (Tree, Box<[Error]>) {
+        let registry = ModuleRegistry::default();
+        let module = registry.load_bytes("<test>", script.iter().copied());
+        let function = module.retrieve(&registry).unwrap();
+        (function.ast, function.errors)
+    }
+
+    assert_debug_snapshot!(t(b"add 1 2"));
+    assert_debug_snapshot!(t(b"{1, 2, 3}"));
+    assert_debug_snapshot!(t(b"{1, 2, 3, :soleil:}"));
 }

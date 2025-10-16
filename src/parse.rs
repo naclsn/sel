@@ -382,12 +382,15 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                 }
             };
 
-            let path = String::from_utf8(path.to_vec())
-                .unwrap_or_else(|err| {
-                    todo!("error: {err:?}");
-                    String::from_utf8_lossy(&path).into_owned()
-                })
-                .into_boxed_str();
+            let path: Box<str> = match str::from_utf8(&path) {
+                Ok(_) => unsafe { std::str::from_boxed_utf8_unchecked(path) },
+                Err(err) => {
+                    let lossy = String::from_utf8_lossy(&path).into_owned();
+                    self.errors
+                        .push(error::broken_utf8(loc_path.clone(), path, err));
+                    lossy.into_boxed_str()
+                }
+            };
 
             match self.peek_tok() {
                 Token(_, TokenKind::Comma | TokenKind::End) => self.skip_tok(),

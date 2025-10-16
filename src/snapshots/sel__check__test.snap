@@ -1,0 +1,41 @@
+---
+source: src/check.rs
+expression: "t(b\"add 1 2\")"
+---
+(
+    Tree {
+        ty: Number,
+        val: Apply(
+            Tree {
+                ty: Func(
+                    Number,
+                    Func(
+                        Number,
+                        Number,
+                    ),
+                ),
+                val: Word(
+                    "add",
+                    Fundamental(
+                        Add,
+                    ),
+                ),
+            },
+            [
+                Tree {
+                    ty: Number,
+                    val: Number(
+                        1.0,
+                    ),
+                },
+                Tree {
+                    ty: Number,
+                    val: Number(
+                        2.0,
+                    ),
+                },
+            ],
+        ),
+    },
+    [],
+)

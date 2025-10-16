@@ -8,34 +8,29 @@ use crate::error::{self, ErrorKind};
 
 #[derive(Debug)]
 pub enum Type {
-    Known(Known),
-    Named(String, RefCell<HashSet<*const Type>>), // const but rly not; see `relink_ref`, bite me
-}
-
-#[derive(Debug)]
-pub enum Known {
     Number,
     Bytes(bool),          // XXX: boundedness!
     List(bool, Rc<Type>), // XXX: boundedness!
     Func(Rc<Type>, Rc<Type>),
     Pair(Rc<Type>, Rc<Type>),
+    Named(String, RefCell<HashSet<*const Type>>), // const but rly not; see `relink_ref`, bite me
 }
 
-use Known::*;
+use Type::*;
 
 impl Display for Type {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            Type::Known(Number) => write!(f, "Num"),
+            Number => write!(f, "Num"),
 
-            Type::Known(Bytes(true)) => write!(f, "Str"),
-            Type::Known(Bytes(false)) => write!(f, "Str+"),
+            Bytes(true) => write!(f, "Str"),
+            Bytes(false) => write!(f, "Str+"),
 
-            Type::Known(List(true, has)) => write!(f, "[{has}]"),
-            Type::Known(List(false, has)) => write!(f, "[{has}]+"),
+            List(true, has) => write!(f, "[{has}]"),
+            List(false, has) => write!(f, "[{has}]+"),
 
-            Type::Known(Func(par, ret)) => {
-                let funcarg = matches!(**par, Type::Known(Func(_, _)));
+            Func(par, ret) => {
+                let funcarg = matches!(**par, Func(_, _));
                 if funcarg {
                     write!(f, "(")?;
                 }
@@ -47,16 +42,16 @@ impl Display for Type {
                 write!(f, "{ret}")
             }
 
-            Type::Known(Pair(fst, snd)) => write!(f, "({fst}, {snd})"),
+            Pair(fst, snd) => write!(f, "({fst}, {snd})"),
 
-            Type::Named(name, _) => write!(f, "{name}"),
+            Named(name, _) => write!(f, "{name}"),
         }
     }
 }
 
 impl Type {
     fn ref_if_named(&self, created_ty: &Weak<Type>) {
-        if let Type::Named(_, refs) = self {
+        if let Named(_, refs) = self {
             refs.borrow_mut().insert(created_ty.as_ptr() as *mut _);
         }
     }
@@ -70,19 +65,19 @@ impl Type {
         was_to_named_ty: &Rc<Type>,
         now_to_other_ty: &Rc<Type>,
     ) {
-        debug_assert!(matches!(&**was_to_named_ty, Type::Named(_, _)));
+        debug_assert!(matches!(&**was_to_named_ty, Named(_, _)));
 
         use std::ptr::eq;
         let ptr = Rc::as_ptr(was_to_named_ty);
 
         for r in refs {
             match unsafe { &mut *(r as *mut _) } {
-                Type::Known(List(_, has)) => {
+                List(_, has) => {
                     debug_assert!(eq(Rc::as_ptr(has), ptr));
                     *has = now_to_other_ty.clone();
                 }
 
-                Type::Known(Func(par, ret)) => {
+                Func(par, ret) => {
                     debug_assert!(eq(Rc::as_ptr(par), ptr) || eq(Rc::as_ptr(ret), ptr));
                     if eq(Rc::as_ptr(par), ptr) {
                         *par = now_to_other_ty.clone();
@@ -92,7 +87,7 @@ impl Type {
                     }
                 }
 
-                Type::Known(Pair(fst, snd)) => {
+                Pair(fst, snd) => {
                     debug_assert!(eq(Rc::as_ptr(fst), ptr) || eq(Rc::as_ptr(snd), ptr));
                     if eq(Rc::as_ptr(fst), ptr) {
                         *fst = now_to_other_ty.clone();
@@ -108,34 +103,34 @@ impl Type {
     }
 
     pub fn number() -> Rc<Type> {
-        Type::Known(Number).into()
+        Number.into()
     }
     pub fn bytes(finite: bool) -> Rc<Type> {
-        Type::Known(Bytes(finite)).into()
+        Bytes(finite).into()
     }
     pub fn list(finite: bool, item: Rc<Type>) -> Rc<Type> {
         Rc::new_cyclic(|w| {
             item.ref_if_named(w);
-            Type::Known(List(finite, item))
+            List(finite, item)
         })
     }
     pub fn func(par: Rc<Type>, ret: Rc<Type>) -> Rc<Type> {
         Rc::new_cyclic(|w| {
             par.ref_if_named(w);
             ret.ref_if_named(w);
-            Type::Known(Func(par, ret))
+            Func(par, ret)
         })
     }
     pub fn pair(fst: Rc<Type>, snd: Rc<Type>) -> Rc<Type> {
         Rc::new_cyclic(|w| {
             fst.ref_if_named(w);
             snd.ref_if_named(w);
-            Type::Known(Pair(fst, snd))
+            Pair(fst, snd)
         })
     }
     pub fn named<'a>(name: String, refs: impl IntoIterator<Item = &'a Weak<Type>>) -> Rc<Type> {
         let refs = RefCell::new(refs.into_iter().map(|w| w.as_ptr() as *const _).collect());
-        Type::Named(name.to_string(), refs).into()
+        Named(name.to_string(), refs).into()
     }
 
     // (ofc does not support pseudo-notations)
@@ -236,39 +231,36 @@ impl Type {
             already_done: &mut HashMap<*const Type, Rc<Type>>,
         ) -> Rc<Type> {
             if let Some(done) = already_done.get(&Rc::as_ptr(ty)) {
-                if let Type::Named(_, refs) = &**done {
+                if let Named(_, refs) = &**done {
                     assert!(!as_part_of.is_null());
                     refs.borrow_mut().insert(as_part_of);
                 }
                 return done.clone();
             }
 
-            let r = match &**ty {
-                Type::Known(known) => Rc::new_cyclic(|w| {
-                    let mut f = |t| _inner(t, w.as_ptr() as *mut _, already_done);
-                    Type::Known(match known {
-                        Number => Number,
-                        Bytes(fin) => Bytes(*fin),
-                        List(fin, it) => List(*fin, f(it)),
-                        Func(par, ret) => Func(f(par), f(ret)),
-                        Pair(fst, snd) => Pair(f(fst), f(snd)),
-                    })
-                }),
-
-                Type::Named(n, _) => Type::named(n.clone(), []).into(),
-            };
+            let r = Rc::new_cyclic(|w| {
+                let mut f = |t| _inner(t, w.as_ptr() as *const _, already_done);
+                match &**ty {
+                    Number => Number,
+                    Bytes(fin) => Bytes(*fin),
+                    List(fin, it) => List(*fin, f(it)),
+                    Func(par, ret) => Func(f(par), f(ret)),
+                    Pair(fst, snd) => Pair(f(fst), f(snd)),
+                    Named(n, _) => Named(n.clone(), Default::default()),
+                }
+            });
 
             already_done.insert(Rc::as_ptr(ty), r.clone());
             return r;
         }
 
         // handle this case here so that within `_inner` we always have a `as_part_of` for this
-        if let Type::Named(n, _) = &**this {
+        if let Named(n, _) = &**this {
             Type::named(n.clone(), []).into()
         } else {
             _inner(
                 this,
-                std::ptr::null::<Rc<Type>>() as *mut _,
+                std::ptr::null::<Rc<Type>>() as *const _,
                 &mut Default::default(),
             )
         }
@@ -285,17 +277,15 @@ impl Type {
     /// only depended on by the functions that introduced them.
     pub fn concretize(want: &Rc<Type>, give: &Rc<Type>) -> Result<(), ErrorKind> {
         match (&**want, &**give) {
-            (Type::Known(Number), Type::Known(Number)) => Ok(()),
+            (Number, Number) => Ok(()),
 
             // XXX: boundedness
-            (Type::Known(Bytes(_)), Type::Known(Bytes(_))) => Ok(()),
+            (Bytes(_), Bytes(_)) => Ok(()),
 
             // XXX: boundedness
-            (Type::Known(List(_, l_ty)), Type::Known(List(_, r_ty))) => {
-                Type::concretize(l_ty, r_ty)
-            }
+            (List(_, l_ty), List(_, r_ty)) => Type::concretize(l_ty, r_ty),
 
-            (Type::Known(Func(l_par, l_ret)), Type::Known(Func(r_par, r_ret))) => {
+            (Func(l_par, l_ret), Func(r_par, r_ret)) => {
                 // (a -> b) <- (Str -> Num)
                 // parameter compare contravariantly:
                 // (Str -> c) <- (Str+ -> Str+)
@@ -308,19 +298,19 @@ impl Type {
                 Ok(())
             }
 
-            (Type::Known(Pair(l_fst, l_snd)), Type::Known(Pair(r_fst, r_snd))) => {
+            (Pair(l_fst, l_snd), Pair(r_fst, r_snd)) => {
                 Type::concretize(l_fst, r_fst)?;
                 Type::concretize(l_snd, r_snd)
             }
 
-            (Type::Named(w, w_refs), Type::Named(g, g_refs)) => {
+            (Named(w, w_refs), Named(g, g_refs)) => {
                 // when we have ptr equality, we know we are talking twice about
                 // the exact same named, in which case nothing needs to be done
                 if !std::ptr::eq(w, g) {
                     let w_refs = w_refs.take();
                     let g_refs = g_refs.take();
 
-                    let niw = Rc::new(Type::Named(
+                    let niw = Rc::new(Named(
                         if w == g {
                             w.clone()
                         } else {
@@ -338,12 +328,12 @@ impl Type {
                 }
                 Ok(())
             }
-            (_known, Type::Named(_, refs)) => {
+            (_known, Named(_, refs)) => {
                 // all that was referring to 'give' now should refer to 'want'
                 Type::relink_ref(refs.take(), give, want);
                 Ok(())
             }
-            (Type::Named(_, refs), _known) => {
+            (Named(_, refs), _known) => {
                 // all that was referring to 'want' now should refer to 'give'
                 Type::relink_ref(refs.take(), want, give);
                 Ok(())
