@@ -178,7 +178,7 @@ expression: "t(b\"x [  {  ] [  let { ] y\")"
                     ),
                     Unexpected {
                         token: CloseBracket,
-                        expected: "a value",
+                        expected: "a fallback value",
                     },
                 ),
                 because: LetFallbackRequired,

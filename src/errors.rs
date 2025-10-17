@@ -1,4 +1,4 @@
-// TODO: rename to errors ig
+//! error structs, helpers and reporting
 
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::io::IsTerminal;
@@ -87,7 +87,7 @@ pub enum ErrorKind {
 }
 
 #[derive(Debug)]
-pub struct Error(pub Location, pub ErrorKind);
+pub struct Error(Location, ErrorKind);
 // }}}
 
 pub struct Report<'a> {
@@ -135,6 +135,22 @@ pub fn context_fallback_required(loc_pat: Location, err: Error) -> Error {
             because: ErrorContext::LetFallbackRequired,
         },
     )
+}
+
+pub fn not_function(loc_sad: Location, ty: &Type) -> Error {
+    ty.deep_clone();
+    todo!("not function")
+}
+
+pub fn type_mismatch(
+    loc_func: Location,
+    want: &Type,
+    loc_arg: Location,
+    give: &Type,
+) -> Error {
+    want.deep_clone();
+    give.deep_clone();
+    todo!("type mismatch")
 }
 
 /*
@@ -267,17 +283,6 @@ pub fn already_declared(
     )
 }
 */
-
-pub fn not_function(ty: &Rc<Type>) -> ErrorKind {
-    Type::deep_clone(ty);
-    todo!("not function")
-}
-
-pub fn type_mismatch(want: &Rc<Type>, give: &Rc<Type>) -> ErrorKind {
-    Type::deep_clone(want);
-    Type::deep_clone(give);
-    todo!("type mismatch")
-}
 // }}}
 
 // generate report {{{

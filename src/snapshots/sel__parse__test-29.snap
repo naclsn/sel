@@ -206,7 +206,7 @@ expression: "t(b\"\nuse :p: n,\ndef f: d: v,\n[let a={h,, t] 1 0\n\")"
                     ),
                     Unexpected {
                         token: CloseBracket,
-                        expected: "a value",
+                        expected: "a fallback value",
                     },
                 ),
                 because: LetFallbackRequired,

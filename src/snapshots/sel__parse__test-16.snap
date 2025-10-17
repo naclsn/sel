@@ -108,7 +108,7 @@ expression: "t(b\"let {a b, c} 0\")"
                     ),
                     Unexpected {
                         token: End,
-                        expected: "a value",
+                        expected: "a fallback value",
                     },
                 ),
                 because: LetFallbackRequired,

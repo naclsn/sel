@@ -3,10 +3,10 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::error::{self, Error, ErrorKind};
+use crate::errors::{self, Error, ErrorKind};
 use crate::fund::Fund;
 use crate::module::{Function, Location, Module, ModuleRegistry};
-use crate::parse::{Apply, ApplyBase, Pattern, Script, Value};
+use crate::parse::{Apply, ApplyBase, Located, Pattern, Script, Value};
 use crate::types::Type;
 
 #[derive(Debug, Clone)]
@@ -102,7 +102,7 @@ impl<'check> Checker<'check> {
         }
 
         self.errors
-            .push(error::unknown_name(loc.clone(), name.into()));
+            .push(errors::unknown_name(loc.clone(), name.into()));
         let ty = Type::named(name.into(), []);
         self.scopes
             .last_mut()
@@ -112,22 +112,16 @@ impl<'check> Checker<'check> {
         (ty, Refers::Missing)
     }
 
-    fn apply(&mut self, func: Tree, arg: Tree) -> Tree {
+    fn apply(&mut self, loc_func: Location, func: Tree, loc_arg: Location, arg: Tree) -> Tree {
         let ty = match &*func.ty {
             Type::Func(par, ret) => {
-                if let Err(err) = Type::concretize(par, &arg.ty) {
-                    self.errors.push(Error(
-                        todo!("loc for {err:?} (from apply not applying)"),
-                        err,
-                    ));
+                if let Err(err) = Type::concretize(loc_func, par, loc_arg, &arg.ty) {
+                    self.errors.push(err);
                 }
                 ret.clone()
             }
             sad => {
-                self.errors.push(Error(
-                    todo!("loc for {sad:?} (not a function)"),
-                    error::not_function(&func.ty),
-                ));
+                self.errors.push(errors::not_function(loc_func, sad));
                 Type::named(format!("ret"), [])
             }
         };
@@ -150,24 +144,36 @@ impl<'check> Checker<'check> {
 
     pub fn check_script(&mut self, script: &Script) -> Tree {
         let val = self.check_apply(&script.head);
+        let loc = script.head.loc();
 
         if matches!(*val.ty, Type::Func(_, _)) {
             // [f, g, h] -> [pipe f g, h] -> pipe [pipe f g] h
-            script.tail.iter().fold(val, |acc, (loc_comma, cur)| {
-                let then = self.check_apply(cur);
-                let pipe = Tree {
-                    ty: Fund::Pipe.make_type(),
-                    val: TreeVal::Word(Fund::Pipe.to_string(), Refers::Fundamental(Fund::Pipe)),
-                };
-                let part = self.apply(pipe, acc);
-                self.apply(part, then)
-            })
+            script
+                .tail
+                .iter()
+                .fold((loc, val), |(loc_prev, acc), (loc_comma, cur)| {
+                    let then = self.check_apply(cur);
+                    let loc_cur = cur.loc();
+                    let pipe = Tree {
+                        ty: Fund::Pipe.make_type(),
+                        val: TreeVal::Word(Fund::Pipe.to_string(), Refers::Fundamental(Fund::Pipe)),
+                    };
+                    let part = self.apply(loc_comma.clone(), pipe, loc_prev, acc);
+                    let res = self.apply(loc_comma.clone(), part, loc_cur.clone(), then);
+                    (loc_cur, res)
+                })
+                .1
         } else {
             // [x, f, g, h] -> h [g [f x]]
-            script.tail.iter().fold(val, |acc, (loc_comma, cur)| {
-                let func = self.check_apply(cur);
-                self.apply(func, acc)
-            })
+            script
+                .tail
+                .iter()
+                .fold((loc, val), |(loc_prev, acc), (_loc_comma, cur)| {
+                    let func = self.check_apply(cur);
+                    let loc_cur = cur.loc();
+                    (loc_cur.clone(), self.apply(loc_cur, func, loc_prev, acc))
+                })
+                .1
         }
     }
 
@@ -259,17 +265,17 @@ impl<'check> Checker<'check> {
             assert!(pat.is_refutable());
             let alt = self.check_value(alt);
             if let Result::<(), ErrorKind>::Err(err) = todo!("Type::harmonize(res.ty, alt.ty)") {
-                self.errors.push(Error(
-                    todo!("loc for {err:?} (from harmonize res&alt)"),
-                    err,
-                    //ErrorKind::ContextCaused {
-                    //    error: Box::new(Error(result.loc.clone(), e)),
-                    //    because: ErrorContext::LetFallbackTypeMismatch {
-                    //        result_type: snapshot.frozen(res_ty),
-                    //        fallback_type: snapshot.frozen(fallback.ty),
-                    //    },
-                    //},
-                ));
+                //self.errors.push(Error(
+                //    todo!("loc for {err:?} (from harmonize res&alt)"),
+                //    err,
+                //    //ErrorKind::ContextCaused {
+                //    //    error: Box::new(Error(result.loc.clone(), e)),
+                //    //    because: ErrorContext::LetFallbackTypeMismatch {
+                //    //        result_type: snapshot.frozen(res_ty),
+                //    //        fallback_type: snapshot.frozen(fallback.ty),
+                //    //    },
+                //    //},
+                //));
             }
             alt
         });
@@ -287,17 +293,16 @@ impl<'check> Checker<'check> {
                 alt,
             } => {
                 let (ty, res, alt) = self.check_binding_br(pat, &res, alt.as_deref());
-                Tree {
-                    ty,
-                    val: TreeVal::Binding(pat.clone(), Box::new(res), alt.map(Box::new)),
-                }
+                let val = TreeVal::Binding(pat.clone(), Box::new(res), alt.map(Box::new));
+                Tree { ty, val }
             }
             ApplyBase::Value(val) => self.check_value(val),
         };
 
+        let loc_base = apply.loc();
         apply.args.iter().fold(base, |acc, cur| {
             let arg = self.check_value(cur);
-            self.apply(acc, arg)
+            self.apply(loc_base.clone(), acc, cur.loc(), arg)
         })
     }
 
@@ -367,7 +372,7 @@ impl<'check> Checker<'check> {
                 rest,
                 loc_close,
             } => {
-                let items: Vec<_> = items.iter().map(|it| self.check_apply(it)).collect();
+                let items: Vec<_> = items.iter().map(|it| (it, self.check_apply(it))).collect();
 
                 let rest = if let Some((loc_comma, rest)) = rest {
                     self.check_apply(rest)
@@ -381,13 +386,15 @@ impl<'check> Checker<'check> {
 
                 // cons(items[0], .... cons(items[n-1], cons(items[n], rest)) .... )
                 // note: reverse error order -- XXX: may not want that
-                items.into_iter().rfold(rest, |acc, cur| {
+                items.into_iter().rfold(rest, |acc, (cur, val)| {
                     let cons = Tree {
                         ty: Fund::Cons.make_type(),
                         val: TreeVal::Word(Fund::Cons.to_string(), Refers::Fundamental(Fund::Cons)),
                     };
-                    let part = self.apply(cons, cur);
-                    self.apply(part, acc)
+                    // this first apply cannot fail as cons :: a -> [a] -> [a]
+                    let loc_fake = Location(Default::default(), 0..0);
+                    let part = self.apply(loc_fake.clone(), cons, loc_fake, val);
+                    self.apply(loc_open.clone(), part, cur.loc(), acc)
                 })
             }
 

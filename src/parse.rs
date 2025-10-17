@@ -2,7 +2,7 @@
 
 use std::iter::Peekable;
 
-use crate::error::{self, Error, ErrorKind};
+use crate::errors::{self, Error};
 use crate::lex::{Lexer, Token, TokenKind};
 use crate::module::Location;
 
@@ -293,7 +293,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
         // right away, hence the skip loops after each (and also before while at it..)
         if matches!(self.peek_tok().1, TermTokenNoEnd!()) {
             let wrong = self.next_tok();
-            self.errors.push(error::unexpected(
+            self.errors.push(errors::unexpected(
                 wrong,
                 "'use', 'def' or something, but not that",
                 None,
@@ -326,7 +326,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
             Token(_, TokenKind::Use) => true,
             other @ Token(_, TokenKind::Comma) => {
                 let other = other.clone();
-                self.errors.push(error::unexpected(
+                self.errors.push(errors::unexpected(
                     other,
                     "a single ',' between 'use's",
                     None,
@@ -347,7 +347,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                     Token(loc_prefix, TokenKind::Word(prefix)),
                 ) => (loc_path, path, loc_prefix, prefix),
                 (Token(loc_path, TokenKind::Bytes(path)), other) => {
-                    self.errors.push(error::unexpected(
+                    self.errors.push(errors::unexpected(
                         other.clone(),
                         "file path then identifier after 'use' keyword",
                         Some(tok_use.clone()),
@@ -360,7 +360,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                 (other, Token(loc_prefix, TokenKind::Word(prefix))) => {
                     let somewhat_loc_path = other.0.clone();
                     let not_path = other.1.to_string().as_bytes().into();
-                    self.errors.push(error::unexpected(
+                    self.errors.push(errors::unexpected(
                         other,
                         "file path then identifier after 'use' keyword",
                         Some(tok_use.clone()),
@@ -368,7 +368,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                     (somewhat_loc_path, not_path, loc_prefix, prefix)
                 }
                 (other, Token(_, maybe_term)) => {
-                    self.errors.push(error::unexpected(
+                    self.errors.push(errors::unexpected(
                         other,
                         "file path then identifier after 'use' keyword",
                         Some(tok_use),
@@ -387,7 +387,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                 Err(err) => {
                     let lossy = String::from_utf8_lossy(&path).into_owned();
                     self.errors
-                        .push(error::broken_utf8(loc_path.clone(), path, err));
+                        .push(errors::broken_utf8(loc_path.clone(), path, err));
                     lossy.into_boxed_str()
                 }
             };
@@ -396,7 +396,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                 Token(_, TokenKind::Comma | TokenKind::End) => self.skip_tok(),
                 other => {
                     let other = other.clone();
-                    self.errors.push(error::unexpected(
+                    self.errors.push(errors::unexpected(
                         other,
                         "a ',' (because of prior 'use')",
                         Some(tok_use.clone()),
@@ -421,7 +421,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
             Token(_, TokenKind::Def) => true,
             other @ Token(_, TokenKind::Comma) => {
                 let other = other.clone();
-                self.errors.push(error::unexpected(
+                self.errors.push(errors::unexpected(
                     other,
                     "a single ',' between 'def's",
                     None,
@@ -435,7 +435,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
             }
             other @ Token(_, TokenKind::Use) => {
                 let other = other.clone();
-                self.errors.push(error::unexpected(
+                self.errors.push(errors::unexpected(
                     other,
                     "'use's to all be before the first 'def'",
                     None,
@@ -454,7 +454,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                 (Token(loc_name, TokenKind::Word(name)), other) => {
                     let somewhat_loc_desc = other.0.clone();
                     let not_desc = other.1.to_string().as_bytes().into();
-                    self.errors.push(error::unexpected(
+                    self.errors.push(errors::unexpected(
                         other.clone(),
                         "name then description after 'def' keyword",
                         Some(tok_def.clone()),
@@ -465,7 +465,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                     (loc_name, name, somewhat_loc_desc, not_desc)
                 }
                 (other, Token(loc_desc, TokenKind::Bytes(desc))) => {
-                    self.errors.push(error::unexpected(
+                    self.errors.push(errors::unexpected(
                         other.clone(),
                         "name then description after 'def' keyword",
                         Some(tok_def.clone()),
@@ -473,7 +473,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                     (other.0.clone(), other.1.to_string(), loc_desc, desc)
                 }
                 (other, other2) => {
-                    self.errors.push(error::unexpected(
+                    self.errors.push(errors::unexpected(
                         other.clone(),
                         "name then description after 'def' keyword",
                         Some(tok_def.clone()),
@@ -499,7 +499,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                 Token(_, TokenKind::Comma | TokenKind::End) => self.skip_tok(),
                 other => {
                     let other = other.clone();
-                    self.errors.push(error::unexpected(
+                    self.errors.push(errors::unexpected(
                         other,
                         "a ',' (because of prior 'def')",
                         Some(tok_def.clone()),
@@ -540,22 +540,23 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                 let pat = self.parse_pattern();
                 let res = Box::new(self.parse_value());
 
-                // if irrefutable, no fallback
+                // if refutable, fallback expected
                 let alt = pat.is_refutable().then(|| {
-                    let plen = self.errors.len();
-                    let value = self.parse_value();
-
-                    // try to catch and report a common mistake
-                    if plen + 1 == self.errors.len() {
-                        if let err @ Error(_, ErrorKind::Unexpected { .. }) =
-                            self.errors.pop().expect("len >0")
-                        {
-                            let err = error::context_fallback_required(pat.loc(), err);
-                            self.errors.push(err);
+                    // try to catch and report a common mistake: missing fallback
+                    Box::new(if let term @ Token(loc, TermToken!()) = self.peek_tok() {
+                        let loc = loc.clone();
+                        let err = errors::context_fallback_required(
+                            pat.loc(),
+                            errors::unexpected(term.clone(), "a fallback value", None),
+                        );
+                        self.errors.push(err);
+                        Value::Word {
+                            loc,
+                            word: "?".into(),
                         }
-                    }
-
-                    Box::new(value)
+                    } else {
+                        self.parse_value()
+                    })
                 });
 
                 ApplyBase::Binding {
@@ -594,7 +595,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
             }
             other @ Token(somewhat_loc_close, _) => {
                 let somewhat_loc_close = somewhat_loc_close.clone();
-                let err = error::unexpected(
+                let err = errors::unexpected(
                     other.clone(),
                     "next argument or closing ']'",
                     Some(tok_open.clone()),
@@ -632,7 +633,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
             }
 
             comma @ Token(_, TokenKind::Comma) => {
-                let err = error::unexpected(
+                let err = errors::unexpected(
                     comma.clone(),
                     "no extra comma at this point",
                     Some(tok_open.clone()),
@@ -644,7 +645,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
             #[allow(unreachable_patterns, reason = "because of 'Comma' and 'CloseBrace'")]
             term @ Token(somewhat_loc_close, TermToken!()) => {
                 loc_close = somewhat_loc_close.clone();
-                let err = error::unexpected(
+                let err = errors::unexpected(
                     term.clone(),
                     "next item or closing '}'",
                     Some(tok_open.clone()),
@@ -672,7 +673,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                         }
                         other @ Token(somewhat_loc_close, _) => {
                             loc_close = somewhat_loc_close.clone();
-                            let err = error::unexpected(
+                            let err = errors::unexpected(
                                 other.clone(),
                                 "closing '}' after ',,'",
                                 Some(tok_open.clone()),
@@ -713,7 +714,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                 }
 
                 comma @ Token(_, TokenKind::Comma) => {
-                    let err = error::unexpected(
+                    let err = errors::unexpected(
                         comma.clone(),
                         "no extra comma at this point",
                         Some(tok_open.clone()),
@@ -724,7 +725,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                 #[allow(unreachable_patterns, reason = "because of 'Comma' and 'CloseBrace'")]
                 term @ Token(somewhat_loc_close, TermToken!()) => {
                     loc_close = somewhat_loc_close.clone();
-                    let err = error::unexpected(
+                    let err = errors::unexpected(
                         term.clone(),
                         "next item or closing '}'",
                         Some(tok_open.clone()),
@@ -741,7 +742,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
             match self.peek_tok() {
                 Token(_, TokenKind::Comma | TokenKind::CloseBrace) => (),
                 other => {
-                    let err = error::unexpected(
+                    let err = errors::unexpected(
                         other.clone(),
                         "',' between items or closing '}'",
                         Some(tok_open.clone()),
@@ -762,7 +763,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                 rest = Some(match self.next_tok() {
                     Token(loc_rest, TokenKind::Word(w)) => (loc_comma, loc_rest, w),
                     other => {
-                        self.errors.push(error::unexpected(
+                        self.errors.push(errors::unexpected(
                             other.clone(),
                             "a word then closing '}' after ',,'",
                             Some(tok_open.clone()),
@@ -777,7 +778,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                     }
                     other @ Token(somewhat_loc_close, _) => {
                         loc_close = somewhat_loc_close.clone();
-                        let err = error::unexpected(
+                        let err = errors::unexpected(
                             other.clone(),
                             "closing '}' after ',,'",
                             Some(tok_open.clone()),
@@ -837,14 +838,14 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                 let other = self.next_tok();
                 let loc = other.0.clone();
                 let word = other.1.to_string();
-                self.errors.push(error::unexpected(other, "a value", None));
+                self.errors.push(errors::unexpected(other, "a value", None));
                 Value::Word { loc, word }
             }
 
             TermToken!() => {
                 let loc = first_tok.0.clone();
                 let word = "?".into();
-                let err = error::unexpected(first_tok.clone(), "a value", None);
+                let err = errors::unexpected(first_tok.clone(), "a value", None);
                 self.errors.push(err);
                 return Value::Word { loc, word };
             }
@@ -895,14 +896,14 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                 let loc = other.0.clone();
                 let word = other.1.to_string();
                 self.errors
-                    .push(error::unexpected(other.clone(), "a pattern", None));
+                    .push(errors::unexpected(other.clone(), "a pattern", None));
                 Pattern::Word { loc, word }
             }
 
             TokenKind::OpenBracket | TermToken!() => {
                 let loc = first_tok.0.clone();
                 let word = "?".into();
-                let err = error::unexpected(first_tok.clone(), "a pattern", None);
+                let err = errors::unexpected(first_tok.clone(), "a pattern", None);
                 self.errors.push(err);
                 return Pattern::Word { loc, word };
             }

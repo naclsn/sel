@@ -4,7 +4,8 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::iter::{self, Peekable};
 use std::rc::{Rc, Weak};
 
-use crate::error::{self, ErrorKind};
+use crate::errors::{self, Error};
+use crate::module::Location;
 
 #[derive(Debug)]
 pub enum Type {
@@ -224,45 +225,30 @@ impl Type {
         _impl(&mut tokens.into_iter().peekable())
     }
 
-    pub fn deep_clone(this: &Rc<Type>) -> Rc<Type> {
-        fn _inner(
-            ty: &Rc<Type>,
-            as_part_of: *const Type,
-            already_done: &mut HashMap<*const Type, Rc<Type>>,
-        ) -> Rc<Type> {
-            if let Some(done) = already_done.get(&Rc::as_ptr(ty)) {
-                if let Named(_, refs) = &**done {
-                    assert!(!as_part_of.is_null());
-                    refs.borrow_mut().insert(as_part_of);
-                }
-                return done.clone();
+    pub fn deep_clone(&self) -> Rc<Type> {
+        fn _inner(ty: &Type, already: &mut HashMap<*const Type, Rc<Type>>) -> Rc<Type> {
+            if let Some(r) = already.get(&(ty as *const _)) {
+                return r.clone();
             }
 
-            let r = Rc::new_cyclic(|w| {
-                let mut f = |t| _inner(t, w.as_ptr() as *const _, already_done);
-                match &**ty {
-                    Number => Number,
-                    Bytes(fin) => Bytes(*fin),
-                    List(fin, it) => List(*fin, f(it)),
-                    Func(par, ret) => Func(f(par), f(ret)),
-                    Pair(fst, snd) => Pair(f(fst), f(snd)),
-                    Named(n, _) => Named(n.clone(), Default::default()),
-                }
-            });
+            let r = match ty {
+                Number => Type::number(),
+                Bytes(fin) => Type::bytes(*fin),
+                List(fin, it) => Type::list(*fin, _inner(it, already)),
+                Func(par, ret) => Type::func(_inner(par, already), _inner(ret, already)),
+                Pair(fst, snd) => Type::pair(_inner(fst, already), _inner(snd, already)),
+                Named(n, _) => Type::named(n.clone(), []),
+            };
 
-            already_done.insert(Rc::as_ptr(ty), r.clone());
+            already.insert(ty as *const _, r.clone());
             return r;
         }
 
         // handle this case here so that within `_inner` we always have a `as_part_of` for this
-        if let Named(n, _) = &**this {
+        if let Named(n, _) = self {
             Type::named(n.clone(), []).into()
         } else {
-            _inner(
-                this,
-                std::ptr::null::<Rc<Type>>() as *const _,
-                &mut Default::default(),
-            )
+            _inner(self, &mut Default::default())
         }
     }
 
@@ -275,7 +261,12 @@ impl Type {
     /// Both types may be modified (due to contravariance of func in parameter type).
     /// This uses the fact that inf types and unk named types are
     /// only depended on by the functions that introduced them.
-    pub fn concretize(want: &Rc<Type>, give: &Rc<Type>) -> Result<(), ErrorKind> {
+    pub fn concretize(
+        loc_func: Location,
+        want: &Rc<Type>,
+        loc_arg: Location,
+        give: &Rc<Type>,
+    ) -> Result<(), Error> {
         match (&**want, &**give) {
             (Number, Number) => Ok(()),
 
@@ -283,15 +274,15 @@ impl Type {
             (Bytes(_), Bytes(_)) => Ok(()),
 
             // XXX: boundedness
-            (List(_, l_ty), List(_, r_ty)) => Type::concretize(l_ty, r_ty),
+            (List(_, l_ty), List(_, r_ty)) => Type::concretize(loc_func, l_ty, loc_arg, r_ty),
 
             (Func(l_par, l_ret), Func(r_par, r_ret)) => {
                 // (a -> b) <- (Str -> Num)
                 // parameter compare contravariantly:
                 // (Str -> c) <- (Str+ -> Str+)
                 // (a -> b) <- (c -> c)
-                Type::concretize(l_ret, r_ret)?;
-                Type::concretize(r_par, l_par)?;
+                Type::concretize(loc_func.clone(), l_ret, loc_arg.clone(), r_ret)?;
+                Type::concretize(loc_func, r_par, loc_arg, l_par)?;
                 // needs to propagate back again any change by 2nd concretize
                 // XXX: rly? i think but idk
                 //Type::concretize(l_ret, r_ret)
@@ -299,8 +290,8 @@ impl Type {
             }
 
             (Pair(l_fst, l_snd), Pair(r_fst, r_snd)) => {
-                Type::concretize(l_fst, r_fst)?;
-                Type::concretize(l_snd, r_snd)
+                Type::concretize(loc_func.clone(), l_fst, loc_arg.clone(), r_fst)?;
+                Type::concretize(loc_func, l_snd, loc_arg, r_snd)
             }
 
             (Named(w, w_refs), Named(g, g_refs)) => {
@@ -339,7 +330,12 @@ impl Type {
                 Ok(())
             }
 
-            _ => Err(error::type_mismatch(want, give)),
+            _ => Err(errors::type_mismatch(loc_func, want, loc_arg, give)),
         }
     }
+}
+
+#[test]
+fn test() {
+    todo!("test deep_clone, concretize, .. idk");
 }

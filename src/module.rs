@@ -7,7 +7,7 @@ use std::ops::Range;
 use std::rc::Rc;
 
 use crate::check::{Checker, Tree};
-use crate::error::Error;
+use crate::errors::Error;
 use crate::parse::{Parser, Top};
 
 #[derive(PartialEq, Debug, Clone)]
