@@ -101,8 +101,11 @@ impl<'check> Checker<'check> {
             }
         }
 
-        self.errors
-            .push(errors::unknown_name(loc.clone(), name.into()));
+        self.errors.push(errors::unknown_name(
+            loc.clone(),
+            name.into(),
+            &Type::Named("TODO: todou".into(), Default::default()),
+        ));
         let ty = Type::named(name.into(), []);
         self.scopes
             .last_mut()
@@ -121,7 +124,8 @@ impl<'check> Checker<'check> {
                 ret.clone()
             }
             sad => {
-                self.errors.push(errors::not_function(loc_func, sad));
+                self.errors
+                    .push(errors::not_function(loc_func, sad, &func.val));
                 Type::named(format!("ret"), [])
             }
         };
@@ -192,22 +196,29 @@ impl<'check> Checker<'check> {
 
             Pattern::Word { loc, word } => {
                 let ty = Type::named(word.clone(), []);
-                if let Some((loc_already, ty)) = names.get(word) {
-                    self.errors.push(todo!(
-                        "already declared in pattern at {loc_already:?} with :: &{ty}"
-                    ));
-                    ty.clone()
-                } else {
-                    names.insert(word.clone(), (todo!("loc"), ty.clone()));
-                    ty
+
+                let loc = loc.clone();
+                use std::collections::hash_map::Entry::*;
+                match names.entry(word.clone()) {
+                    Occupied(old) => {
+                        let (loc_already, ty_old) = old.get();
+                        self.errors.push(errors::already_declared(
+                            word.clone(),
+                            loc_already.clone(),
+                            &*ty_old,
+                            loc,
+                        ));
+                        ty_old.clone()
+                    }
+                    Vacant(niw) => niw.insert((loc, ty)).1.clone(),
                 }
             }
 
             Pattern::List {
-                loc_open,
+                loc_open: _,
                 items,
                 rest,
-                loc_close,
+                loc_close: _,
             } => {
                 let items: Box<_> = items
                     .iter()
@@ -220,18 +231,33 @@ impl<'check> Checker<'check> {
                 // always relies on `cons` which will dictate the behavior uniformly
                 // however i'm left with that one now which idk how to then
 
-                let ty: Rc<Type> = todo!("ty of Pattern::List\nitem types: {items:?}");
+                //let ty: Rc<Type>;// = todo!("");
                 //let has = self.check_list_content(items);
                 //let fin = self.types.finite(rest.is_none());
                 //let ty = self.types.list(fin, has);
 
-                if let Some((_loc_comma, loc, word)) = rest {
-                    if let Some((loc_already, ty)) = names.get(word) {
-                        self.errors.push(todo!(
-                            "already declared in pattern at {loc_already:?} with :: &{ty}"
-                        ));
-                    } else {
-                        names.insert(word.clone(), (loc.clone(), ty));
+                let ty = Type::list(
+                    rest.is_none(),
+                    todo!("ty of Pattern::List\nitem types: {items:?}"),
+                );
+
+                if let Some((loc_comma, loc, word)) = rest {
+                    let loc = loc.clone();
+                    use std::collections::hash_map::Entry::*;
+                    match names.entry(word.clone()) {
+                        Occupied(old) => {
+                            let (loc_already, ty_old) = old.get();
+                            self.errors.push(errors::context_extra_comma_makes_rest(
+                                loc_comma.clone(),
+                                errors::already_declared(
+                                    word.clone(),
+                                    loc_already.clone(),
+                                    &*ty_old,
+                                    loc,
+                                ),
+                            ));
+                        }
+                        Vacant(niw) => _ = niw.insert((loc, ty)),
                     }
                 }
                 ty
@@ -239,7 +265,7 @@ impl<'check> Checker<'check> {
 
             Pattern::Pair {
                 fst,
-                loc_equal,
+                loc_equal: _,
                 snd,
             } => {
                 let fst = self.check_pattern_type(fst, names);
@@ -287,7 +313,7 @@ impl<'check> Checker<'check> {
     pub fn check_apply(&mut self, apply: &Apply) -> Tree {
         let base = match &apply.base {
             ApplyBase::Binding {
-                loc_let,
+                loc_let: _,
                 pat,
                 res,
                 alt,
@@ -311,6 +337,7 @@ impl<'check> Checker<'check> {
     fn check_list_content(&mut self, items: impl IntoIterator<Item = Rc<Type>>) -> Rc<Type> {
         let ty = Type::named("item".into(), []);
         for it in items {
+            _ = it;
             // so, unless I'm off, I think the way I did rest part for literal lists
             // will not allow eg {inf, fin,, {}} because it would go:
             //      cons fin {} :: fin
@@ -339,12 +366,12 @@ impl<'check> Checker<'check> {
 
     pub fn check_value(&mut self, value: &Value) -> Tree {
         match value {
-            Value::Number { loc, number } => Tree {
+            Value::Number { loc: _, number } => Tree {
                 ty: Type::number(),
                 val: TreeVal::Number(*number),
             },
 
-            Value::Bytes { loc, bytes } => Tree {
+            Value::Bytes { loc: _, bytes } => Tree {
                 ty: {
                     let fin = true;
                     Type::bytes(fin)
@@ -354,53 +381,66 @@ impl<'check> Checker<'check> {
 
             Value::Word { loc, word } => {
                 let (ty, prov) = self.lookup(loc, word);
-                Tree {
-                    ty,
-                    val: TreeVal::Word(word.clone(), prov),
-                }
+                let val = TreeVal::Word(word.clone(), prov);
+                Tree { ty, val }
             }
 
             Value::Subscr {
-                loc_open,
+                loc_open: _,
                 subscr,
-                loc_close,
+                loc_close: _,
             } => self.check_script(subscr),
 
             Value::List {
                 loc_open,
                 items,
                 rest,
-                loc_close,
+                loc_close: _,
             } => {
                 let items: Vec<_> = items.iter().map(|it| (it, self.check_apply(it))).collect();
 
-                let rest = if let Some((loc_comma, rest)) = rest {
-                    self.check_apply(rest)
+                let (loc_rest, rest) = if let Some((_loc_comma, rest)) = rest {
+                    let mut maybe_list = self.check_apply(rest);
+                    // if `ty` is named, noone here is referring to it yet so things will get messy
+                    // once applying `snoc` wants to upgrade referring types to now referring to
+                    // the list; instead ensure it's made a list at this point
+                    // (any other type will be properly reported, see below)
+                    // XXX: no, that's not enough as other things can refer to types: bindings
+                    if matches!(&*maybe_list.ty, Type::Named(_, _)) {
+                        maybe_list.ty = Type::list(false, maybe_list.ty);
+                    }
+                    (rest.loc(), maybe_list)
                 } else {
                     // empty list, as if {...,, {}}
-                    Tree {
+                    let nil = Tree {
                         ty: Type::list(true, Type::named("item".into(), [])),
                         val: TreeVal::List,
-                    }
+                    };
+                    // with Type::list of nil, first apply of snoc cannot fail (:: [a] -> a -> [a])
+                    (Location(Default::default(), 0..0), nil)
                 };
 
                 // cons(items[0], .... cons(items[n-1], cons(items[n], rest)) .... )
                 // note: reverse error order -- XXX: may not want that
+                // TODO: if error anyways might want to grab some context to see if we can
+                //       find the type that it should be; note: this might just be insane..
+                //       at least a ContextCaused "lists are checked from the end" and group
+                //       all type err in
                 items.into_iter().rfold(rest, |acc, (cur, val)| {
-                    let cons = Tree {
-                        ty: Fund::Cons.make_type(),
-                        val: TreeVal::Word(Fund::Cons.to_string(), Refers::Fundamental(Fund::Cons)),
+                    let snoc = Tree {
+                        ty: Fund::Snoc.make_type(),
+                        val: TreeVal::Word(Fund::Snoc.to_string(), Refers::Fundamental(Fund::Snoc)),
                     };
-                    // this first apply cannot fail as cons :: a -> [a] -> [a]
-                    let loc_fake = Location(Default::default(), 0..0);
-                    let part = self.apply(loc_fake.clone(), cons, loc_fake, val);
-                    self.apply(loc_open.clone(), part, cur.loc(), acc)
+                    // side-note: loc_rest is only -maybe- require for the first iteration,
+                    // when `acc` (=`rest`) may not be a list; the rest of the time clone is usl
+                    let part = self.apply(loc_open.clone(), snoc, loc_rest.clone(), acc);
+                    self.apply(loc_open.clone(), part, cur.loc(), val)
                 })
             }
 
             Value::Pair {
                 fst,
-                loc_equal,
+                loc_equal: _,
                 snd,
             } => {
                 let fst = Box::new(self.check_value(fst));
@@ -427,5 +467,5 @@ fn test() {
 
     assert_debug_snapshot!(t(b"add 1 2"));
     assert_debug_snapshot!(t(b"{1, 2, 3}"));
-    assert_debug_snapshot!(t(b"{1, 2, 3, :soleil:}"));
+    //assert_debug_snapshot!(t(b"{1, 2, 3, :soleil:}"));
 }

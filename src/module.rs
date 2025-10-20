@@ -15,6 +15,7 @@ pub struct Location(pub String, pub Range<usize>);
 
 #[derive(Debug)]
 pub struct Function {
+    pub loc: Location, // the location of the name, except for top-level where it's file:1:1
     pub ast: Tree,
     pub errors: Box<[Error]>,
 }
@@ -92,8 +93,10 @@ impl Module {
     /// be invoked as needed
     pub fn retrieve(&self, registry: &ModuleRegistry) -> Option<Function> {
         let mut checker = Checker::new(self, registry);
+        let script = self.top.script.as_ref()?;
         Some(Function {
-            ast: checker.check_script(self.top.script.as_ref()?),
+            loc: Location(self.path.clone(), 0..1),
+            ast: checker.check_script(script),
             errors: checker.boxed_errors(),
         })
     }
@@ -108,10 +111,11 @@ impl Module {
             return has;
         }
 
-        let apply = &self.top.defs.iter().rev().find(|d| name == d.name)?.to;
+        let def = self.top.defs.iter().rev().find(|d| name == d.name)?;
         let mut checker = Checker::new(self, registry);
         let function = Function {
-            ast: checker.check_apply(apply),
+            loc: def.loc_name.clone(),
+            ast: checker.check_apply(&def.to),
             errors: checker.boxed_errors(),
         };
 

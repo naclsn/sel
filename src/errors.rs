@@ -4,27 +4,23 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::io::IsTerminal;
 use std::rc::Rc;
 
+use crate::check::{Refers, TreeVal};
 use crate::lex::{Token, TokenKind};
 use crate::module::{Location, ModuleRegistry};
-use crate::parse::ApplyBase;
+use crate::parse::{ApplyBase, Located};
 use crate::types::Type;
 
 // error types {{{
 #[derive(Debug)]
 pub enum ErrorContext {
-    Unmatched {
-        open_token: TokenKind,
-    },
-    CompleteType {
-        complete_type: Rc<Type>,
-    },
-    TypeListInferredItemType {
-        list_item_type: Rc<Type>,
-    },
     AsNthArgToNowTyped {
         nth_arg: usize,
         func: ApplyBase,
         type_with_curr_args: Rc<Type>,
+    },
+    AutoCoercedVia {
+        func_name: String,
+        func_type: Rc<Type>,
     },
     ChainedFromAsNthArgToNowTyped {
         comma_loc: Location,
@@ -35,18 +31,31 @@ pub enum ErrorContext {
     ChainedFromToNotFunc {
         comma_loc: Location,
     },
-    AutoCoercedVia {
-        func_name: String,
-        func_type: Rc<Type>,
+    CompleteType {
+        complete_type: Rc<Type>,
     },
     DeclaredHereWithType {
         with_type: Rc<Type>,
     },
+    FuncTooManyArgs {
+        nth_arg: usize,
+        func: String,
+    },
+    LetAlreadyApplied {
+        loc_pattern: Location,
+    },
+    LetFallbackRequired,
     LetFallbackTypeMismatch {
         result_type: Rc<Type>,
         fallback_type: Rc<Type>,
     },
-    LetFallbackRequired,
+    ListExtraCommaMakesRest,
+    ListTypeInferredItemType {
+        list_item_type: Rc<Type>,
+    },
+    Unmatched {
+        open_token: TokenKind,
+    },
 }
 
 #[derive(Debug)]
@@ -54,6 +63,23 @@ pub enum ErrorKind {
     ContextCaused {
         error: Box<Error>,
         because: ErrorContext,
+    },
+    CouldNotReadFile {
+        error: String,
+    },
+    ExpectedButGot {
+        expected: Rc<Type>,
+        actual: Rc<Type>,
+    },
+    InconsistentType {
+        types: Vec<(Location, Rc<Type>)>,
+    },
+    InfWhereFinExpected,
+    NameAlreadyDeclared {
+        name: String,
+    },
+    NotFunc {
+        actual_type: Rc<Type>,
     },
     Unexpected {
         token: TokenKind,
@@ -63,28 +89,14 @@ pub enum ErrorKind {
         name: String,
         expected_type: Rc<Type>,
     },
-    NotFunc {
-        actual_type: Rc<Type>,
-    },
-    TooManyArgs {
-        nth_arg: usize,
-        func: ApplyBase,
-    },
-    ExpectedButGot {
-        expected: Rc<Type>,
-        actual: Rc<Type>,
-    },
-    InfWhereFinExpected,
-    NameAlreadyDeclared {
-        name: String,
-    },
-    CouldNotReadFile {
-        error: String,
-    },
-    InconsistentType {
-        types: Vec<(Location, Rc<Type>)>,
+    Utf8Error {
+        text: Box<[u8]>,
+        error: std::str::Utf8Error,
     },
 }
+
+use ErrorContext::*;
+use ErrorKind::*;
 
 #[derive(Debug)]
 pub struct Error(Location, ErrorKind);
@@ -94,35 +106,111 @@ pub struct Report<'a> {
     registry: &'a ModuleRegistry,
     title: String,
     messages: Vec<(Location, String)>,
-    use_colors: bool,
 }
 
 // error reportig helpers {{{
-pub fn broken_utf8(loc: Location, text: Box<[u8]>, err: std::str::Utf8Error) -> Error {
-    todo!()
+pub fn broken_utf8(loc: Location, text: Box<[u8]>, error: std::str::Utf8Error) -> Error {
+    Error(loc, Utf8Error { text, error })
 }
 
 pub fn unexpected(token: Token, expected: &'static str, unmatched: Option<Token>) -> Error {
     let Token(here, token) = token;
-    let mut err = Error(here, ErrorKind::Unexpected { token, expected });
+    let err = Error(here, Unexpected { token, expected });
     if let Some(Token(from, open_token)) = unmatched {
-        err = Error(
+        Error(
             from,
-            ErrorKind::ContextCaused {
+            ContextCaused {
                 error: Box::new(err),
-                because: ErrorContext::Unmatched { open_token },
+                because: Unmatched { open_token },
             },
-        );
+        )
+    } else {
+        err
     }
-    err
 }
 
-pub fn unknown_name(loc: Location, name: String) -> Error {
+pub fn unknown_name(loc: Location, name: String, ty: &Type) -> Error {
+    // TODO: these will have to be done at very last, and thus lose order
     Error(
         loc,
-        ErrorKind::UnknownName {
+        UnknownName {
             name,
-            expected_type: todo!("expected_type for unknown name"),
+            expected_type: ty.deep_clone(),
+        },
+    )
+}
+
+pub fn not_function(
+    loc_sad: Location,
+    ty: &Type,
+    maybe_func_with_too_many_args: &TreeVal,
+) -> Error {
+    let err = Error(
+        loc_sad,
+        NotFunc {
+            actual_type: ty.deep_clone(),
+        },
+    );
+
+    match maybe_func_with_too_many_args {
+        TreeVal::Apply(base, args) => match &base.val {
+            TreeVal::Word(name, prov) => Error(
+                match prov {
+                    Refers::Fundamental(_fund) => err.0.clone(),
+                    Refers::Binding(loc) => loc.clone(),
+                    Refers::Defined(func) => func.loc.clone(),
+                    Refers::File(_module, func) => func.loc.clone(),
+                    Refers::Missing => return err,
+                },
+                ContextCaused {
+                    error: err.into(),
+                    because: FuncTooManyArgs {
+                        nth_arg: args.len() + 1,
+                        func: name.clone(),
+                    },
+                },
+            ),
+
+            TreeVal::Binding(pat, _, _) => Error(
+                pat.loc(),
+                ContextCaused {
+                    error: err.into(),
+                    because: LetAlreadyApplied {
+                        loc_pattern: pat.loc(),
+                    },
+                },
+            ),
+
+            _ => err,
+        },
+        _ => err,
+    }
+}
+
+pub fn type_mismatch(loc_func: Location, want: &Type, loc_arg: Location, give: &Type) -> Error {
+    // TODO: pass enough context to have AsNthArgToNowTyped/LetAlreadyApplied
+    Error(
+        loc_arg,
+        ExpectedButGot {
+            expected: want.deep_clone(),
+            actual: give.deep_clone(),
+        },
+    )
+}
+
+pub fn already_declared(
+    name: String,
+    loc_old: Location,
+    type_old: &Type,
+    loc_new: Location,
+) -> Error {
+    Error(
+        loc_old,
+        ContextCaused {
+            error: Box::new(Error(loc_new, NameAlreadyDeclared { name })),
+            because: DeclaredHereWithType {
+                with_type: type_old.deep_clone(),
+            },
         },
     )
 }
@@ -130,27 +218,21 @@ pub fn unknown_name(loc: Location, name: String) -> Error {
 pub fn context_fallback_required(loc_pat: Location, err: Error) -> Error {
     Error(
         loc_pat,
-        ErrorKind::ContextCaused {
-            error: Box::new(err),
-            because: ErrorContext::LetFallbackRequired,
+        ContextCaused {
+            error: err.into(),
+            because: LetFallbackRequired,
         },
     )
 }
 
-pub fn not_function(loc_sad: Location, ty: &Type) -> Error {
-    ty.deep_clone();
-    todo!("not function")
-}
-
-pub fn type_mismatch(
-    loc_func: Location,
-    want: &Type,
-    loc_arg: Location,
-    give: &Type,
-) -> Error {
-    want.deep_clone();
-    give.deep_clone();
-    todo!("type mismatch")
+pub fn context_extra_comma_makes_rest(loc_comma: Location, err: Error) -> Error {
+    Error(
+        loc_comma,
+        ContextCaused {
+            error: err.into(),
+            because: ListExtraCommaMakesRest,
+        },
+    )
 }
 
 /*
@@ -162,12 +244,12 @@ pub fn context_complete_type(
 ) -> ErrorKind {
     let complete_type = types.frozen(ty);
     match &err {
-        ErrorKind::ExpectedButGot {
+        ExpectedButGot {
             expected: _,
             actual,
-        } if complete_type != *actual => ErrorKind::ContextCaused {
+        } if complete_type != *actual => ContextCaused {
             error: Box::new(Error(loc, err)),
-            because: ErrorContext::CompleteType { complete_type },
+            because: CompleteType { complete_type },
         },
         _ => err,
     }
@@ -179,9 +261,9 @@ pub fn context_auto_coerced(
     func_name: String,
     func_type: Rc<Type>,
 ) -> ErrorKind {
-    ErrorKind::ContextCaused {
+    ContextCaused {
         error: Box::new(Error(arg_loc, err)),
-        because: ErrorContext::AutoCoercedVia {
+        because: AutoCoercedVia {
             func_name,
             func_type,
         },
@@ -196,7 +278,7 @@ pub fn context_as_nth_arg(
     func: &Tree,
 ) -> ErrorKind {
     let type_with_curr_args = types.frozen(func.ty);
-    ErrorKind::ContextCaused {
+    ContextCaused {
         error: Box::new(Error(arg_loc, err)),
         because: {
             // unreachable: func is a function, see `err_context_as_nth_arg` call sites
@@ -205,30 +287,18 @@ pub fn context_as_nth_arg(
                 _ => unreachable!(),
             };
             match comma_loc {
-                Some(comma_loc) => ErrorContext::ChainedFromAsNthArgToNowTyped {
+                Some(comma_loc) => ChainedFromAsNthArgToNowTyped {
                     comma_loc,
                     nth_arg,
                     func,
                     type_with_curr_args,
                 },
-                None => ErrorContext::AsNthArgToNowTyped {
+                None => AsNthArgToNowTyped {
                     nth_arg,
                     func,
                     type_with_curr_args,
                 },
             }
-        },
-    }
-}
-
-pub fn not_func(types: &TypeList, func: &Tree) -> ErrorKind {
-    match &func.value {
-        TreeKind::Apply(name, args) => ErrorKind::TooManyArgs {
-            nth_arg: args.len() + 1,
-            func: name.clone(),
-        },
-        _ => ErrorKind::NotFunc {
-            actual_type: types.frozen(func.ty),
         },
     }
 }
@@ -243,146 +313,92 @@ pub fn list_type_mismatch(
 ) -> Error {
     Error(
         open_loc,
-        ErrorKind::ContextCaused {
+        ContextCaused {
             error: Box::new(Error(
                 item_loc.clone(),
                 context_complete_type(types, item_loc, err, item_type),
             )),
-            because: ErrorContext::TypeListInferredItemType {
+            because: TypeListInferredItemType {
                 list_item_type: types.frozen(list_item_type),
             },
         },
     )
 }
 
-pub fn already_declared(
-    types: &TypeList,
-    name: String,
-    new_loc: Location,
-    previous: &ScopeItem,
-) -> Error {
-    Error(
-        previous
-            .get_loc()
-            .cloned()
-            .unwrap_or_else(|| new_loc.clone()),
-        ErrorKind::ContextCaused {
-            error: Box::new(Error(new_loc, ErrorKind::NameAlreadyDeclared { name })),
-            because: ErrorContext::DeclaredHereWithType {
-                with_type: match previous {
-                    ScopeItem::Builtin(mkty, _) => {
-                        let mut types = TypeList::default();
-                        let ty = mkty(&mut types);
-                        types.frozen(ty)
-                    }
-                    ScopeItem::Defined(val, _) => types.frozen(val.ty),
-                    ScopeItem::Binding(_, ty) => types.frozen(*ty),
-                },
-            },
-        },
-    )
-}
 */
 // }}}
 
 // generate report {{{
 impl Error {
     fn ctx_messages(loc: Location, because: &ErrorContext, report: &mut Report) {
-        use ErrorContext::*;
-
         let msgs: &[_] = match because {
-            Unmatched { open_token } => &[(loc, format!("{open_token} here"))],
+            AsNthArgToNowTyped { nth_arg, func, type_with_curr_args, } => &[( loc, format!( "see parameter in {type_with_curr_args} (overall {nth_arg}{} argument to {})", match nth_arg { 1 => "st", 2 => "nd", 3 => "rd", _ => "th", }, todo!(),),)],
+            AutoCoercedVia { func_name, func_type, } => &[( loc, format!("coerced via '{func_name}' (which has type {func_type})"),)],
+            ChainedFromAsNthArgToNowTyped { comma_loc, nth_arg, func, type_with_curr_args, } => &[ ( loc, format!( "see parameter in {type_with_curr_args} (overall {nth_arg}{} argument to {})", match nth_arg { 1 => "st", 2 => "nd", 3 => "rd", _ => "th", }, todo!(),),), (comma_loc.clone(), "chained through here".into()), ],
+            ChainedFromToNotFunc { comma_loc } => &[ (loc, "Not a function".into()), (comma_loc.clone(), "chained through here".into()), ],
             CompleteType { complete_type } => &[(loc, format!("complete type: {complete_type}"))],
-            TypeListInferredItemType { list_item_type } => &[(
-                loc,
-                format!("list type was inferred to be [{list_item_type}]"),
-            )],
-            AsNthArgToNowTyped {
-                nth_arg,
-                func,
-                type_with_curr_args,
-            } => &[(
-                loc,
-                format!(
-                    "see parameter in {type_with_curr_args} (overall {nth_arg}{} argument to {})",
-                    match nth_arg {
-                        1 => "st",
-                        2 => "nd",
-                        3 => "rd",
-                        _ => "th",
-                    },
-                    todo!(),
-                    //match func {
-                    //    ApplyBase::Binding { .. } => "let binding",
-                    //    ApplyBase::Value(name) => name,
-                    //},
-                ),
-            )],
-            ChainedFromAsNthArgToNowTyped {
-                comma_loc,
-                nth_arg,
-                func,
-                type_with_curr_args,
-            } => &[
-                (
-                    loc,
-                    format!(
-                        "see parameter in {type_with_curr_args} (overall {nth_arg}{} argument to {})",
-                        match nth_arg {
-                            1 => "st",
-                            2 => "nd",
-                            3 => "rd",
-                            _ => "th",
-                        },
-                        todo!(),
-                        //match func {
-                        //    Applicable::Name(name) => name,
-                        //    Applicable::Bind(_, _, _) => "let binding",
-                        //},
-                    ),
-                ),
-                (comma_loc.clone(), "chained through here".into()),
-            ],
-            ChainedFromToNotFunc { comma_loc } => &[
-                (loc, "Not a function".into()),
-                (comma_loc.clone(), "chained through here".into()),
-            ],
-            AutoCoercedVia {
-                func_name,
-                func_type,
-            } => &[(
-                loc,
-                format!("coerced via '{func_name}' (which has type {func_type})"),
-            )],
             DeclaredHereWithType { with_type } => &[(loc, format!("declared here with type {with_type}"))],
-            LetFallbackTypeMismatch {
-                result_type,
-                fallback_type,
-            } => &[(
-                loc,
-                format!("fallback of type {fallback_type} doesn't match result type {result_type}"),
-            )],
+            FuncTooManyArgs { nth_arg, func } => &[( loc, format!( "Too many argument to {}, expected only {}", todo!(), nth_arg - 1),)],
+            LetAlreadyApplied { loc_pattern } => &[(loc, format!("this binding is already applied an argument"))],
             LetFallbackRequired => &[(loc, "pattern is refutable so a fallback is required".to_string())],
+            LetFallbackTypeMismatch { result_type, fallback_type, } => &[( loc, format!("fallback of type {fallback_type} doesn't match result type {result_type}"),)],
+            ListExtraCommaMakesRest => &[(loc, format!("this extra comma makes the last item a list"))],
+            ListTypeInferredItemType { list_item_type } => &[( loc, format!("list type was inferred to be [{list_item_type}]"),)],
+            Unmatched { open_token } => &[(loc, format!("{open_token} here"))],
         };
         report.messages.extend_from_slice(msgs);
     }
 
-    pub fn report<'a>(&self, registry: &'a ModuleRegistry, use_colors: bool) -> Report<'a> {
-        use ErrorKind::*;
-
+    pub fn report<'a>(&self, registry: &'a ModuleRegistry) -> Report<'a> {
         let loc = self.0.clone();
-
         match &self.1 {
             ContextCaused { error, because } => {
-                let mut r = error.report(registry, use_colors);
+                let mut r = error.report(registry);
                 Error::ctx_messages(loc, because, &mut r);
                 r
             }
+            CouldNotReadFile { error } => Report {
+                registry,
+                title: "Could not read file".into(),
+                messages: vec![(loc, format!("{error}"))],
+            },
+            ExpectedButGot { expected, actual } => Report {
+                registry,
+                title: "Type mismatch".into(),
+                // TODO: (could) if expression of type `actual` is a name, search in scope,
+                //               otherwise search for function like `actual -> expected`
+                messages: vec![(loc, format!("Expected type {expected}, but got {actual}"))],
+            },
+            InconsistentType { types } => Report {
+                registry,
+                title: "Inconsistent type from usage".into(),
+                messages: types
+                    .iter()
+                    .map(|(loc, ty)| (loc.clone(), format!("Use here with type {ty}")))
+                    .collect(),
+            },
+            InfWhereFinExpected => Report {
+                registry,
+                title: "Wrong boundedness".into(),
+                messages: vec![(loc, "Expected finite type, but got infinite type".into())],
+            },
+            NameAlreadyDeclared { name } => Report {
+                registry,
+                title: "Name used twice".into(),
+                messages: vec![(loc, format!("Name {name} was already declared"))],
+            },
+            NotFunc { actual_type } => Report {
+                registry,
+                title: "Not a function".into(),
+                messages: vec![(
+                    loc,
+                    format!("Expected a function type, but got {actual_type}"),
+                )],
+            },
             Unexpected { token, expected } => Report {
                 registry,
                 title: "Unexpected token".into(),
                 messages: vec![(loc, format!("Unexpected {token}, expected {expected}"))],
-                use_colors,
             },
             UnknownName {
                 name,
@@ -399,71 +415,11 @@ impl Error {
                         format!("Unknown name '{name}', should be of type {expected_type}")
                     },
                 )],
-                use_colors,
             },
-            NotFunc { actual_type } => Report {
+            Utf8Error { text: _, error } => Report {
                 registry,
-                title: "Not a function".into(),
-                messages: vec![(
-                    loc,
-                    format!("Expected a function type, but got {actual_type}"),
-                )],
-                use_colors,
-            },
-            TooManyArgs { nth_arg, func } => Report {
-                registry,
-                title: "Too many argument".into(),
-                messages: vec![(
-                    loc,
-                    format!(
-                        "Too many argument to {}, expected only {}",
-                        todo!(),
-                        //match func {
-                        //    Applicable::Name(name) => name,
-                        //    Applicable::Bind(_, _, _) => "let binding",
-                        //},
-                        nth_arg - 1
-                    ),
-                )],
-                use_colors,
-            },
-            ExpectedButGot { expected, actual } => Report {
-                registry,
-                title: "Type mismatch".into(),
-                // TODO: (could) if expression of type `actual` is a name, search in scope,
-                //               otherwise search for function like `actual -> expected`
-                messages: vec![(loc, format!("Expected type {expected}, but got {actual}"))],
-                use_colors,
-            },
-            InfWhereFinExpected => Report {
-                registry,
-                title: "Wrong boundedness".into(),
-                // TODO: (could) recommend eg `take` if applicable? -> note: this goes toward
-                // making recommendations based on actually written vs guessed intent; there is
-                // a whole thing to studdy here which would sit in between parser and error
-                messages: vec![(loc, "Expected finite type, but got infinite type".into())],
-                use_colors,
-            },
-            NameAlreadyDeclared { name } => Report {
-                registry,
-                title: "Name used twice".into(),
-                messages: vec![(loc, format!("Name {name} was already declared"))],
-                use_colors,
-            },
-            CouldNotReadFile { error } => Report {
-                registry,
-                title: "Could not read file".into(),
-                messages: vec![(loc, format!("<< {error} >>"))],
-                use_colors,
-            },
-            InconsistentType { types } => Report {
-                registry,
-                title: "Inconsistent type from usage".into(),
-                messages: types
-                    .iter()
-                    .map(|(loc, ty)| (loc.clone(), format!("Use here with type {ty}")))
-                    .collect(),
-                use_colors,
+                title: "Utf8 error while decoding".into(),
+                messages: vec![(loc, format!("{error}"))],
             },
         }
     }
@@ -476,8 +432,14 @@ pub fn report_many_stderr(
     used_file: bool,
 ) {
     let use_colors = std::io::stderr().is_terminal();
-    for e in errors {
-        eprintln!("{}", e.report(&registry, use_colors));
+    if use_colors {
+        for e in errors {
+            eprintln!("{:#}", e.report(&registry));
+        }
+    } else {
+        for e in errors {
+            eprintln!("{}", e.report(&registry));
+        }
     }
     eprintln!(
         "({} error{})",
@@ -498,12 +460,13 @@ pub fn report_many_stderr(
 // display report {{{
 impl Display for Report<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let ctop: &str = if self.use_colors { "\x1b[33m" } else { "" };
-        let cmsg: &str = if self.use_colors { "\x1b[34m" } else { "" };
-        let carr: &str = if self.use_colors { "\x1b[35m" } else { "" };
-        let cnum: &str = if self.use_colors { "\x1b[36m" } else { "" };
-        let cerr: &str = if self.use_colors { "\x1b[31m" } else { "" };
-        let r: &str = if self.use_colors { "\x1b[m" } else { "" };
+        let use_colors = f.alternate();
+        let ctop: &str = if use_colors { "\x1b[33m" } else { "" };
+        let cmsg: &str = if use_colors { "\x1b[34m" } else { "" };
+        let carr: &str = if use_colors { "\x1b[35m" } else { "" };
+        let cnum: &str = if use_colors { "\x1b[36m" } else { "" };
+        let cerr: &str = if use_colors { "\x1b[31m" } else { "" };
+        let r: &str = if use_colors { "\x1b[m" } else { "" };
 
         let (Location(file, range), _) = &self.messages[0];
         let source = match self.registry.load(file) {

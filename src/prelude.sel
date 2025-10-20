@@ -49,10 +49,11 @@ def uncons::
         h=t
         [panic: empty list:] ],
 
-def snoc: [a] -> a -> [a]:
-    [ let {h,, t}
-        [let z {h,, snoc z t}]
-        singleton ],
+#def snoc: [a] -> a -> [a]:
+#    [ let {h,, t}
+#        [let z {h,, snoc z t}]
+#        singleton ],
+def cons: a -> [a] -> [a]: let h [let t {h,, t}],
 def prepend:: flip cons,
 def append:: snoc,
 

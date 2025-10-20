@@ -17,13 +17,13 @@ fn main() {
     if !module.errors.is_empty() {
         crate::errors::report_many_stderr(&module.errors, &registry, &None, false);
     }
-    eprintln!("CST: {module:#?}");
+    //eprintln!("CST: {module:#?}");
 
     let function = module.retrieve(&mut registry).unwrap();
     if !function.errors.is_empty() {
         crate::errors::report_many_stderr(&function.errors, &registry, &None, false);
     }
-    eprintln!("AST: {function:#?}");
+    //eprintln!("AST: {function:#?}");
 
     eprintln!("ty: {}", function.ast.ty);
 }

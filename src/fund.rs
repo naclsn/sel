@@ -137,9 +137,12 @@ macro_rules! make {
 make! {
     /// the input
     Stream("-")                  :: mkmkty!(1          ; Str+1                   ),
+    /// the type-restricting function
+    Astypeof("astypeof")         :: mkmkty!(0, a       ; a -> a -> a             ),
     /// make a list with the head element first, then the rest as tail;
-    /// 'cons val lst' is equivalent to the syntax '{val,, lst}'
-    Cons("cons")                 :: mkmkty!(1, a       ; a -> [a]+1 -> [a]+1     ),
+    /// 'snoc lst val' is equivalent to the syntax '{val,, lst}'
+    // we use snoc and not cons as it makes better error messages (because it binds the list first)
+    Snoc("snoc")                 :: mkmkty!(1, a       ; [a]+1 -> a -> [a]+1     ),
     /// panics (runtime abort with message)
     Panic("panic")               :: mkmkty!(0, a       ; Str -> a                ),
     /// pipe two functions;

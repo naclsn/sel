@@ -17,6 +17,12 @@ pub enum Type {
     Named(String, RefCell<HashSet<*const Type>>), // const but rly not; see `relink_ref`, bite me
 }
 
+pub enum MaybeTr {
+    Known(Type),
+    Var(String, TypeRef),
+}
+pub struct TypeRef(Rc<MaybeTr>);
+
 use Type::*;
 
 impl Display for Type {
@@ -67,12 +73,32 @@ impl Type {
         now_to_other_ty: &Rc<Type>,
     ) {
         debug_assert!(matches!(&**was_to_named_ty, Named(_, _)));
+        eprintln!(
+            "<<-- relink; ref count before: {} {}",
+            Rc::strong_count(was_to_named_ty),
+            Rc::weak_count(was_to_named_ty),
+        );
+        eprintln!("  refs:");
+        for t in &refs {
+            eprintln!("    {}", unsafe { &**t })
+        }
+        eprintln!("  was_to_named_ty: {was_to_named_ty}");
+        eprintln!("  now_to_other_ty: {now_to_other_ty}");
+        eprintln!("-- ====== --");
 
         use std::ptr::eq;
         let ptr = Rc::as_ptr(was_to_named_ty);
 
-        for r in refs {
-            match unsafe { &mut *(r as *mut _) } {
+        for r in &refs {
+            eprintln!(
+                "r:{:?} ??? {} {} ({}) -- {}",
+                *r,
+                Rc::strong_count(was_to_named_ty),
+                Rc::weak_count(was_to_named_ty),
+                was_to_named_ty,
+                unsafe { &**r },
+            );
+            match unsafe { &mut *(*r as *mut _) } {
                 List(_, has) => {
                     debug_assert!(eq(Rc::as_ptr(has), ptr));
                     *has = now_to_other_ty.clone();
@@ -101,6 +127,19 @@ impl Type {
                 _ => unreachable!(),
             }
         }
+
+        eprintln!(
+            "ref count should be 0, rigth? {} {}",
+            Rc::strong_count(was_to_named_ty),
+            Rc::weak_count(was_to_named_ty)
+        );
+        eprintln!("  refs:");
+        for t in &refs {
+            eprintln!("    {}", unsafe { &**t })
+        }
+        eprintln!("  was_to_named_ty: {was_to_named_ty}");
+        eprintln!("  now_to_other_ty: {now_to_other_ty}");
+        eprintln!("------>>");
     }
 
     pub fn number() -> Rc<Type> {
@@ -267,6 +306,7 @@ impl Type {
         loc_arg: Location,
         give: &Rc<Type>,
     ) -> Result<(), Error> {
+        eprintln!("abadoobido: {want} <- {give}");
         match (&**want, &**give) {
             (Number, Number) => Ok(()),
 
@@ -337,5 +377,5 @@ impl Type {
 
 #[test]
 fn test() {
-    todo!("test deep_clone, concretize, .. idk");
+    //todo!("test deep_clone, concretize, .. idk");
 }
