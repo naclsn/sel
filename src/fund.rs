@@ -86,7 +86,7 @@ macro_rules! mkmkty {
             }
             let _state = State {
                 //_fin: mkmkty!(@ types $f),
-                $($n: Type::named(stringify!($n).into(), []),)*
+                $($n: Type::named(stringify!($n).into()),)*
             };
             mkmktyty!(_state, $($ty)+)
         }

@@ -14,16 +14,24 @@ pub enum Type {
     List(bool, Rc<Type>), // XXX: boundedness!
     Func(Rc<Type>, Rc<Type>),
     Pair(Rc<Type>, Rc<Type>),
-    Named(String, RefCell<HashSet<*const Type>>), // const but rly not; see `relink_ref`, bite me
+    Named(String, RefCell<Option<Rc<Type>>>),
 }
-
-pub enum MaybeTr {
-    Known(Type),
-    Var(String, TypeRef),
-}
-pub struct TypeRef(Rc<MaybeTr>);
 
 use Type::*;
+
+//#[derive(Debug)]
+//pub struct Rc<Type>(Rc<Type>);
+//
+//impl Deref for Rc<Type> {
+//    type Target = Type;
+//
+//    fn deref(&self) -> &Self::Target {
+//        match &*self.0 {
+//            Named(_, Some(ty)) => ty.borrow().deref(),
+//            ty => ty,
+//        }
+//    }
+//}
 
 impl Display for Type {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
@@ -51,97 +59,18 @@ impl Display for Type {
 
             Pair(fst, snd) => write!(f, "({fst}, {snd})"),
 
-            Named(name, _) => write!(f, "{name}"),
+            Named(name, tr) => {
+                if let Some(ty) = &*tr.borrow() {
+                    write!(f, "{}", ty)
+                } else {
+                    write!(f, "{name}")
+                }
+            }
         }
     }
 }
 
 impl Type {
-    fn ref_if_named(&self, created_ty: &Weak<Type>) {
-        if let Named(_, refs) = self {
-            refs.borrow_mut().insert(created_ty.as_ptr() as *mut _);
-        }
-    }
-
-    /// when a named type (`was_to_named_ty`) gets matched agains a known type
-    /// (or whever `now_to_other_ty`): it finds itself through the child types
-    /// (ie refs are all ptrs to list/func/pair) and overwrite the rc to itself
-    /// with that other now type; if any of that makes sense then yey past me
-    fn relink_ref(
-        refs: HashSet<*const Type>,
-        was_to_named_ty: &Rc<Type>,
-        now_to_other_ty: &Rc<Type>,
-    ) {
-        debug_assert!(matches!(&**was_to_named_ty, Named(_, _)));
-        eprintln!(
-            "<<-- relink; ref count before: {} {}",
-            Rc::strong_count(was_to_named_ty),
-            Rc::weak_count(was_to_named_ty),
-        );
-        eprintln!("  refs:");
-        for t in &refs {
-            eprintln!("    {}", unsafe { &**t })
-        }
-        eprintln!("  was_to_named_ty: {was_to_named_ty}");
-        eprintln!("  now_to_other_ty: {now_to_other_ty}");
-        eprintln!("-- ====== --");
-
-        use std::ptr::eq;
-        let ptr = Rc::as_ptr(was_to_named_ty);
-
-        for r in &refs {
-            eprintln!(
-                "r:{:?} ??? {} {} ({}) -- {}",
-                *r,
-                Rc::strong_count(was_to_named_ty),
-                Rc::weak_count(was_to_named_ty),
-                was_to_named_ty,
-                unsafe { &**r },
-            );
-            match unsafe { &mut *(*r as *mut _) } {
-                List(_, has) => {
-                    debug_assert!(eq(Rc::as_ptr(has), ptr));
-                    *has = now_to_other_ty.clone();
-                }
-
-                Func(par, ret) => {
-                    debug_assert!(eq(Rc::as_ptr(par), ptr) || eq(Rc::as_ptr(ret), ptr));
-                    if eq(Rc::as_ptr(par), ptr) {
-                        *par = now_to_other_ty.clone();
-                    }
-                    if eq(Rc::as_ptr(ret), ptr) {
-                        *ret = now_to_other_ty.clone();
-                    }
-                }
-
-                Pair(fst, snd) => {
-                    debug_assert!(eq(Rc::as_ptr(fst), ptr) || eq(Rc::as_ptr(snd), ptr));
-                    if eq(Rc::as_ptr(fst), ptr) {
-                        *fst = now_to_other_ty.clone();
-                    }
-                    if eq(Rc::as_ptr(snd), ptr) {
-                        *snd = now_to_other_ty.clone();
-                    }
-                }
-
-                _ => unreachable!(),
-            }
-        }
-
-        eprintln!(
-            "ref count should be 0, rigth? {} {}",
-            Rc::strong_count(was_to_named_ty),
-            Rc::weak_count(was_to_named_ty)
-        );
-        eprintln!("  refs:");
-        for t in &refs {
-            eprintln!("    {}", unsafe { &**t })
-        }
-        eprintln!("  was_to_named_ty: {was_to_named_ty}");
-        eprintln!("  now_to_other_ty: {now_to_other_ty}");
-        eprintln!("------>>");
-    }
-
     pub fn number() -> Rc<Type> {
         Number.into()
     }
@@ -149,28 +78,19 @@ impl Type {
         Bytes(finite).into()
     }
     pub fn list(finite: bool, item: Rc<Type>) -> Rc<Type> {
-        Rc::new_cyclic(|w| {
-            item.ref_if_named(w);
-            List(finite, item)
-        })
+        List(finite, item).into()
     }
     pub fn func(par: Rc<Type>, ret: Rc<Type>) -> Rc<Type> {
-        Rc::new_cyclic(|w| {
-            par.ref_if_named(w);
-            ret.ref_if_named(w);
-            Func(par, ret)
-        })
+        Func(par, ret).into()
     }
     pub fn pair(fst: Rc<Type>, snd: Rc<Type>) -> Rc<Type> {
-        Rc::new_cyclic(|w| {
-            fst.ref_if_named(w);
-            snd.ref_if_named(w);
-            Pair(fst, snd)
-        })
+        Pair(fst, snd).into()
     }
-    pub fn named<'a>(name: String, refs: impl IntoIterator<Item = &'a Weak<Type>>) -> Rc<Type> {
-        let refs = RefCell::new(refs.into_iter().map(|w| w.as_ptr() as *const _).collect());
-        Named(name.to_string(), refs).into()
+    pub fn named(name: String) -> Rc<Type> {
+        Named(name, None.into()).into()
+    }
+    pub fn named_to(name: String, tr: Rc<Type>) -> Rc<Type> {
+        Named(name, Some(tr).into()).into()
     }
 
     // (ofc does not support pseudo-notations)
@@ -212,7 +132,7 @@ impl Type {
                     .get(&name)
                     .map(|ty: &Rc<Type>| Tok::Name(ty.clone()))
                     .or_else(|| {
-                        let named: Rc<Type> = Type::named(name.clone(), []).into();
+                        let named: Rc<Type> = Type::named(name.clone()).into();
                         nameds.insert(name, named.clone());
                         Some(Tok::Name(named))
                     })
@@ -276,19 +196,22 @@ impl Type {
                 List(fin, it) => Type::list(*fin, _inner(it, already)),
                 Func(par, ret) => Type::func(_inner(par, already), _inner(ret, already)),
                 Pair(fst, snd) => Type::pair(_inner(fst, already), _inner(snd, already)),
-                Named(n, _) => Type::named(n.clone(), []),
+                Named(n, tr) => {
+                    if let Some(ty) = &*tr.borrow() {
+                        // XXX: for now keeping the tr (caries the names),
+                        //      otherwise should just be the `_inner..` bit
+                        Type::named_to(n.clone(), _inner(ty, already))
+                    } else {
+                        Type::named(n.clone())
+                    }
+                }
             };
 
             already.insert(ty as *const _, r.clone());
             return r;
         }
 
-        // handle this case here so that within `_inner` we always have a `as_part_of` for this
-        if let Named(n, _) = self {
-            Type::named(n.clone(), []).into()
-        } else {
-            _inner(self, &mut Default::default())
-        }
+        _inner(self, &mut Default::default())
     }
 
     /// Concretizes boundedness and unknown named types:
@@ -306,7 +229,6 @@ impl Type {
         loc_arg: Location,
         give: &Rc<Type>,
     ) -> Result<(), Error> {
-        eprintln!("abadoobido: {want} <- {give}");
         match (&**want, &**give) {
             (Number, Number) => Ok(()),
 
@@ -334,40 +256,61 @@ impl Type {
                 Type::concretize(loc_func, l_snd, loc_arg, r_snd)
             }
 
-            (Named(w, w_refs), Named(g, g_refs)) => {
+            (Named(w, w_tr), Named(g, g_tr)) => {
                 // when we have ptr equality, we know we are talking twice about
                 // the exact same named, in which case nothing needs to be done
-                if !std::ptr::eq(w, g) {
-                    let w_refs = w_refs.take();
-                    let g_refs = g_refs.take();
-
-                    let niw = Rc::new(Named(
-                        if w == g {
-                            w.clone()
-                        } else {
-                            format!("{w}={g}")
-                        },
-                        {
-                            let mut all = w_refs.clone();
-                            all.extend(g_refs.iter());
-                            all.into()
-                        },
-                    ));
-
-                    Type::relink_ref(w_refs, want, &niw);
-                    Type::relink_ref(g_refs, give, &niw);
+                if std::ptr::eq(w, g) {
+                    Ok(())
+                } else {
+                    let w_borrow = w_tr.borrow();
+                    let g_borrow = g_tr.borrow();
+                    match (&*w_borrow, &*g_borrow) {
+                        (None, None) => {
+                            drop(w_borrow);
+                            drop(g_borrow);
+                            // XXX: should just point on to the other,
+                            //      for now keeping this for the names (a, b and a=b)
+                            let niw = Type::named(if w == g {
+                                w.clone()
+                            } else {
+                                format!("{w}={g}")
+                            });
+                            *w_tr.borrow_mut() = Some(niw.clone());
+                            *g_tr.borrow_mut() = Some(niw);
+                            Ok(())
+                        }
+                        (None, Some(give)) => {
+                            drop(w_borrow);
+                            Type::concretize(loc_func, want, loc_arg, give)
+                        }
+                        (Some(want), None) => {
+                            drop(g_borrow);
+                            Type::concretize(loc_func, want, loc_arg, give)
+                        }
+                        (Some(want), Some(give)) => Type::concretize(loc_func, want, loc_arg, give),
+                    }
                 }
-                Ok(())
             }
-            (_known, Named(_, refs)) => {
-                // all that was referring to 'give' now should refer to 'want'
-                Type::relink_ref(refs.take(), give, want);
-                Ok(())
+
+            (_known, Named(_, g_tr)) => {
+                let g_borrow = g_tr.borrow();
+                if let Some(give) = &*g_borrow {
+                    Type::concretize(loc_func, want, loc_arg, give)
+                } else {
+                    drop(g_borrow);
+                    *g_tr.borrow_mut() = Some(want.clone());
+                    Ok(())
+                }
             }
-            (Named(_, refs), _known) => {
-                // all that was referring to 'want' now should refer to 'give'
-                Type::relink_ref(refs.take(), want, give);
-                Ok(())
+            (Named(_, w_tr), _known) => {
+                let w_borrow = w_tr.borrow();
+                if let Some(want) = &*w_borrow {
+                    Type::concretize(loc_func, want, loc_arg, give)
+                } else {
+                    drop(w_borrow);
+                    *w_tr.borrow_mut() = Some(give.clone());
+                    Ok(())
+                }
             }
 
             _ => Err(errors::type_mismatch(loc_func, want, loc_arg, give)),

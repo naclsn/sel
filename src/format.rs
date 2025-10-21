@@ -1,4 +1,6 @@
-use std::fmt::{Formatter, Result as FmtResult};
+use std::fmt::{Display, Formatter, Result as FmtResult};
+
+use crate::check::{Tree, TreeVal};
 
 pub fn display_bytes(f: &mut Formatter, bytes: &[u8]) -> FmtResult {
     write!(f, ":")?;
@@ -8,6 +10,53 @@ pub fn display_bytes(f: &mut Formatter, bytes: &[u8]) -> FmtResult {
         h = &h[c..];
     }
     write!(f, "{}:", String::from_utf8_lossy(h))
+}
+
+pub struct DumbFormatAst<'a>(pub &'a Tree);
+
+impl Display for DumbFormatAst<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let i = f.width().unwrap_or(0);
+        match &self.0.val {
+            TreeVal::Number(num) => write!(f, "{num}"),
+            TreeVal::Bytes(bytes) => display_bytes(f, bytes),
+            TreeVal::Word(name, _) => write!(f, "{name}"),
+            TreeVal::List => write!(f, "{{}}"),
+            TreeVal::Pair(fst, snd) => {
+                let istr = " ".repeat(i);
+                writeln!(f, "[{:indent$}", DumbFormatAst(fst), indent = i + 2)?;
+                writeln!(f, "{istr} ={:indent$}", DumbFormatAst(snd), indent = i + 1)?;
+                write!(f, "{istr} ]")
+            }
+            TreeVal::Apply(base, args) => {
+                let istr = " ".repeat(i);
+                writeln!(f, "[{}", DumbFormatAst(base))?;
+                for it in args {
+                    writeln!(f, "{istr}    {:indent$}", DumbFormatAst(it), indent = i + 4)?;
+                }
+                write!(f, "{istr}    ]")
+            }
+            TreeVal::Binding(pat, res, alt) => {
+                let istr = " ".repeat(i);
+                writeln!(f, "[let {pat:?}")?;
+                writeln!(
+                    f,
+                    "{istr}    {:indent$}",
+                    DumbFormatAst(res),
+                    indent = i + 4,
+                )?;
+                if let Some(alt) = alt {
+                    writeln!(
+                        f,
+                        "{istr}    {:indent$}",
+                        DumbFormatAst(alt),
+                        indent = i + 4,
+                    )?;
+                }
+                write!(f, "{istr}    ]")
+            }
+        }
+    }
 }
 
 /*

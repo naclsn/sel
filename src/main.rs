@@ -25,5 +25,6 @@ fn main() {
     }
     //eprintln!("AST: {function:#?}");
 
+    eprintln!("{}", format::DumbFormatAst(&function.ast));
     eprintln!("ty: {}", function.ast.ty);
 }

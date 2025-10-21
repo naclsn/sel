@@ -104,9 +104,9 @@ impl<'check> Checker<'check> {
         self.errors.push(errors::unknown_name(
             loc.clone(),
             name.into(),
-            &Type::Named("TODO: todou".into(), Default::default()),
+            &Type::named("TODO: todou (unkown_name type after evrtynthsgslkfdjs)".into()),
         ));
-        let ty = Type::named(name.into(), []);
+        let ty = Type::named(name.into());
         self.scopes
             .last_mut()
             .expect("should always have at least top-level fallback scope")
@@ -126,7 +126,7 @@ impl<'check> Checker<'check> {
             sad => {
                 self.errors
                     .push(errors::not_function(loc_func, sad, &func.val));
-                Type::named(format!("ret"), [])
+                Type::named(format!("ret"))
             }
         };
 
@@ -195,7 +195,7 @@ impl<'check> Checker<'check> {
             }
 
             Pattern::Word { loc, word } => {
-                let ty = Type::named(word.clone(), []);
+                let ty = Type::named(word.clone());
 
                 let loc = loc.clone();
                 use std::collections::hash_map::Entry::*;
@@ -335,7 +335,7 @@ impl<'check> Checker<'check> {
     // not used, but kept for now because of the notes;
     // see in check_pattern_type's Pattern::List branch too
     fn check_list_content(&mut self, items: impl IntoIterator<Item = Rc<Type>>) -> Rc<Type> {
-        let ty = Type::named("item".into(), []);
+        let ty = Type::named("item".into());
         for it in items {
             _ = it;
             // so, unless I'm off, I think the way I did rest part for literal lists
@@ -413,7 +413,7 @@ impl<'check> Checker<'check> {
                 } else {
                     // empty list, as if {...,, {}}
                     let nil = Tree {
-                        ty: Type::list(true, Type::named("item".into(), [])),
+                        ty: Type::list(true, Type::named("item".into())),
                         val: TreeVal::List,
                     };
                     // with Type::list of nil, first apply of snoc cannot fail (:: [a] -> a -> [a])

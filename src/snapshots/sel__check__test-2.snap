@@ -6,116 +6,242 @@ expression: "t(b\"{1, 2, 3}\")"
     Tree {
         ty: List(
             false,
-            Number,
+            Named(
+                "a",
+                RefCell {
+                    value: Some(
+                        Number,
+                    ),
+                },
+            ),
         ),
         val: Apply(
             Tree {
                 ty: Func(
-                    Number,
+                    List(
+                        false,
+                        Named(
+                            "a",
+                            RefCell {
+                                value: Some(
+                                    Number,
+                                ),
+                            },
+                        ),
+                    ),
                     Func(
-                        List(
-                            false,
-                            Number,
+                        Named(
+                            "a",
+                            RefCell {
+                                value: Some(
+                                    Number,
+                                ),
+                            },
                         ),
                         List(
                             false,
-                            Number,
+                            Named(
+                                "a",
+                                RefCell {
+                                    value: Some(
+                                        Number,
+                                    ),
+                                },
+                            ),
                         ),
                     ),
                 ),
                 val: Word(
-                    "cons",
+                    "snoc",
                     Fundamental(
-                        Cons,
+                        Snoc,
                     ),
                 ),
             },
             [
                 Tree {
-                    ty: Number,
-                    val: Number(
-                        1.0,
-                    ),
-                },
-                Tree {
                     ty: List(
                         false,
-                        Number,
+                        Named(
+                            "a",
+                            RefCell {
+                                value: Some(
+                                    Number,
+                                ),
+                            },
+                        ),
                     ),
                     val: Apply(
                         Tree {
                             ty: Func(
-                                Number,
+                                List(
+                                    false,
+                                    Named(
+                                        "a",
+                                        RefCell {
+                                            value: Some(
+                                                Number,
+                                            ),
+                                        },
+                                    ),
+                                ),
                                 Func(
-                                    List(
-                                        false,
-                                        Number,
+                                    Named(
+                                        "a",
+                                        RefCell {
+                                            value: Some(
+                                                Number,
+                                            ),
+                                        },
                                     ),
                                     List(
                                         false,
-                                        Number,
+                                        Named(
+                                            "a",
+                                            RefCell {
+                                                value: Some(
+                                                    Number,
+                                                ),
+                                            },
+                                        ),
                                     ),
                                 ),
                             ),
                             val: Word(
-                                "cons",
+                                "snoc",
                                 Fundamental(
-                                    Cons,
+                                    Snoc,
                                 ),
                             ),
                         },
                         [
                             Tree {
-                                ty: Number,
-                                val: Number(
-                                    2.0,
-                                ),
-                            },
-                            Tree {
                                 ty: List(
                                     false,
-                                    Number,
+                                    Named(
+                                        "a",
+                                        RefCell {
+                                            value: Some(
+                                                Named(
+                                                    "a=item",
+                                                    RefCell {
+                                                        value: Some(
+                                                            Number,
+                                                        ),
+                                                    },
+                                                ),
+                                            ),
+                                        },
+                                    ),
                                 ),
                                 val: Apply(
                                     Tree {
                                         ty: Func(
-                                            Number,
+                                            List(
+                                                false,
+                                                Named(
+                                                    "a",
+                                                    RefCell {
+                                                        value: Some(
+                                                            Named(
+                                                                "a=item",
+                                                                RefCell {
+                                                                    value: Some(
+                                                                        Number,
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        ),
+                                                    },
+                                                ),
+                                            ),
                                             Func(
-                                                List(
-                                                    false,
-                                                    Number,
+                                                Named(
+                                                    "a",
+                                                    RefCell {
+                                                        value: Some(
+                                                            Named(
+                                                                "a=item",
+                                                                RefCell {
+                                                                    value: Some(
+                                                                        Number,
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        ),
+                                                    },
                                                 ),
                                                 List(
                                                     false,
-                                                    Number,
+                                                    Named(
+                                                        "a",
+                                                        RefCell {
+                                                            value: Some(
+                                                                Named(
+                                                                    "a=item",
+                                                                    RefCell {
+                                                                        value: Some(
+                                                                            Number,
+                                                                        ),
+                                                                    },
+                                                                ),
+                                                            ),
+                                                        },
+                                                    ),
                                                 ),
                                             ),
                                         ),
                                         val: Word(
-                                            "cons",
+                                            "snoc",
                                             Fundamental(
-                                                Cons,
+                                                Snoc,
                                             ),
                                         ),
                                     },
                                     [
+                                        Tree {
+                                            ty: List(
+                                                true,
+                                                Named(
+                                                    "item",
+                                                    RefCell {
+                                                        value: Some(
+                                                            Named(
+                                                                "a=item",
+                                                                RefCell {
+                                                                    value: Some(
+                                                                        Number,
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        ),
+                                                    },
+                                                ),
+                                            ),
+                                            val: List,
+                                        },
                                         Tree {
                                             ty: Number,
                                             val: Number(
                                                 3.0,
                                             ),
                                         },
-                                        Tree {
-                                            ty: List(
-                                                true,
-                                                Number,
-                                            ),
-                                            val: List,
-                                        },
                                     ],
                                 ),
                             },
+                            Tree {
+                                ty: Number,
+                                val: Number(
+                                    2.0,
+                                ),
+                            },
                         ],
+                    ),
+                },
+                Tree {
+                    ty: Number,
+                    val: Number(
+                        1.0,
                     ),
                 },
             ],
