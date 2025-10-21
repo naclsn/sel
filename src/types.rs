@@ -1,8 +1,8 @@
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::iter::{self, Peekable};
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
 use crate::errors::{self, Error};
 use crate::module::Location;

@@ -41,9 +41,7 @@ pub enum ErrorContext {
         nth_arg: usize,
         func: String,
     },
-    LetAlreadyApplied {
-        loc_pattern: Location,
-    },
+    LetAlreadyApplied,
     LetFallbackRequired,
     LetFallbackTypeMismatch {
         result_type: Rc<Type>,
@@ -175,9 +173,7 @@ pub fn not_function(
                 pat.loc(),
                 ContextCaused {
                     error: err.into(),
-                    because: LetAlreadyApplied {
-                        loc_pattern: pat.loc(),
-                    },
+                    because: LetAlreadyApplied,
                 },
             ),
 
@@ -187,7 +183,7 @@ pub fn not_function(
     }
 }
 
-pub fn type_mismatch(loc_func: Location, want: &Type, loc_arg: Location, give: &Type) -> Error {
+pub fn type_mismatch(_loc_func: Location, want: &Type, loc_arg: Location, give: &Type) -> Error {
     // TODO: pass enough context to have AsNthArgToNowTyped/LetAlreadyApplied
     Error(
         loc_arg,
@@ -221,6 +217,19 @@ pub fn context_fallback_required(loc_pat: Location, err: Error) -> Error {
         ContextCaused {
             error: err.into(),
             because: LetFallbackRequired,
+        },
+    )
+}
+
+pub fn context_fallback_mismatch(loc_idk: Location, err: Error, res: &Type, alt: &Type) -> Error {
+    Error(
+        loc_idk,
+        ContextCaused {
+            error: err.into(),
+            because: LetFallbackTypeMismatch {
+                result_type: res.deep_clone(),
+                fallback_type: alt.deep_clone(),
+            },
         },
     )
 }
@@ -329,21 +338,90 @@ pub fn list_type_mismatch(
 // }}}
 
 // generate report {{{
+fn nth(n: usize) -> String {
+    format!(
+        "{n}{}",
+        match n {
+            1 => "st",
+            2 => "nd",
+            3 => "rd",
+            _ => "th",
+        }
+    )
+}
 impl Error {
     fn ctx_messages(loc: Location, because: &ErrorContext, report: &mut Report) {
         let msgs: &[_] = match because {
-            AsNthArgToNowTyped { nth_arg, func, type_with_curr_args, } => &[( loc, format!( "see parameter in {type_with_curr_args} (overall {nth_arg}{} argument to {})", match nth_arg { 1 => "st", 2 => "nd", 3 => "rd", _ => "th", }, todo!(),),)],
-            AutoCoercedVia { func_name, func_type, } => &[( loc, format!("coerced via '{func_name}' (which has type {func_type})"),)],
-            ChainedFromAsNthArgToNowTyped { comma_loc, nth_arg, func, type_with_curr_args, } => &[ ( loc, format!( "see parameter in {type_with_curr_args} (overall {nth_arg}{} argument to {})", match nth_arg { 1 => "st", 2 => "nd", 3 => "rd", _ => "th", }, todo!(),),), (comma_loc.clone(), "chained through here".into()), ],
-            ChainedFromToNotFunc { comma_loc } => &[ (loc, "Not a function".into()), (comma_loc.clone(), "chained through here".into()), ],
+            AsNthArgToNowTyped {
+                nth_arg,
+                func,
+                type_with_curr_args,
+            } => &[(
+                loc,
+                format!(
+                    "see parameter in {type_with_curr_args} (overall {} argument to {:?})",
+                    nth(*nth_arg),
+                    func
+                ),
+            )],
+            AutoCoercedVia {
+                func_name,
+                func_type,
+            } => &[(
+                loc,
+                format!("coerced via '{func_name}' (which has type {func_type})"),
+            )],
+            ChainedFromAsNthArgToNowTyped {
+                comma_loc,
+                nth_arg,
+                func,
+                type_with_curr_args,
+            } => &[
+                (
+                    loc,
+                    format!(
+                        "see parameter in {type_with_curr_args} (overall {} argument to {:?})",
+                        nth(*nth_arg),
+                        func
+                    ),
+                ),
+                (comma_loc.clone(), "chained through here".into()),
+            ],
+            ChainedFromToNotFunc { comma_loc } => &[
+                (loc, "Not a function".into()),
+                (comma_loc.clone(), "chained through here".into()),
+            ],
             CompleteType { complete_type } => &[(loc, format!("complete type: {complete_type}"))],
-            DeclaredHereWithType { with_type } => &[(loc, format!("declared here with type {with_type}"))],
-            FuncTooManyArgs { nth_arg, func } => &[( loc, format!( "Too many argument to {}, expected only {}", todo!(), nth_arg - 1),)],
-            LetAlreadyApplied { loc_pattern } => &[(loc, format!("this binding is already applied an argument"))],
-            LetFallbackRequired => &[(loc, "pattern is refutable so a fallback is required".to_string())],
-            LetFallbackTypeMismatch { result_type, fallback_type, } => &[( loc, format!("fallback of type {fallback_type} doesn't match result type {result_type}"),)],
-            ListExtraCommaMakesRest => &[(loc, format!("this extra comma makes the last item a list"))],
-            ListTypeInferredItemType { list_item_type } => &[( loc, format!("list type was inferred to be [{list_item_type}]"),)],
+            DeclaredHereWithType { with_type } => {
+                &[(loc, format!("declared here with type {with_type}"))]
+            }
+            FuncTooManyArgs { nth_arg, func } => &[(
+                loc,
+                format!(
+                    "Too many argument to {:?}, expected only {}",
+                    func,
+                    nth_arg - 1
+                ),
+            )],
+            LetAlreadyApplied => &[(loc, format!("this binding is already applied an argument"))],
+            LetFallbackRequired => &[(
+                loc,
+                "pattern is refutable so a fallback is required".to_string(),
+            )],
+            LetFallbackTypeMismatch {
+                result_type,
+                fallback_type,
+            } => &[(
+                loc,
+                format!("fallback of type {fallback_type} doesn't match result type {result_type}"),
+            )],
+            ListExtraCommaMakesRest => {
+                &[(loc, format!("this extra comma makes the last item a list"))]
+            }
+            ListTypeInferredItemType { list_item_type } => &[(
+                loc,
+                format!("list type was inferred to be [{list_item_type}]"),
+            )],
             Unmatched { open_token } => &[(loc, format!("{open_token} here"))],
         };
         report.messages.extend_from_slice(msgs);
@@ -425,27 +503,26 @@ impl Error {
     }
 }
 
-pub fn report_many_stderr(
-    errors: &[Error],
+pub fn report_many_stderr<'a>(
+    errors: impl IntoIterator<Item = &'a Error>,
     registry: &ModuleRegistry,
     was_file: &Option<String>,
     used_file: bool,
 ) {
+    let mut count = 0;
     let use_colors = std::io::stderr().is_terminal();
     if use_colors {
         for e in errors {
+            count += 1;
             eprintln!("{:#}", e.report(&registry));
         }
     } else {
         for e in errors {
+            count += 1;
             eprintln!("{}", e.report(&registry));
         }
     }
-    eprintln!(
-        "({} error{})",
-        errors.len(),
-        if 1 == errors.len() { "" } else { "s" },
-    );
+    eprintln!("({} error{})", count, if 1 == count { "" } else { "s" });
 
     if let Some(name) = was_file {
         if used_file {

@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::errors::{self, Error, ErrorKind};
+use crate::errors::{self, Error};
 use crate::fund::Fund;
 use crate::module::{Function, Location, Module, ModuleRegistry};
 use crate::parse::{Apply, ApplyBase, Located, Pattern, Script, Value};
@@ -55,10 +55,11 @@ impl<'check> Checker<'check> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn errors(&self) -> &[Error] {
         &self.errors
     }
-
+    #[allow(dead_code)]
     pub fn boxed_errors(self) -> Box<[Error]> {
         self.errors.into()
     }
@@ -236,7 +237,7 @@ impl<'check> Checker<'check> {
                 //let fin = self.types.finite(rest.is_none());
                 //let ty = self.types.list(fin, has);
 
-                let ty = Type::list(
+                let _ty = Type::list(
                     rest.is_none(),
                     todo!("ty of Pattern::List\nitem types: {items:?}"),
                 );
@@ -257,10 +258,10 @@ impl<'check> Checker<'check> {
                                 ),
                             ));
                         }
-                        Vacant(niw) => _ = niw.insert((loc, ty)),
+                        Vacant(niw) => _ = niw.insert((loc, _ty)),
                     }
                 }
-                ty
+                _ty
             }
 
             Pattern::Pair {
@@ -277,6 +278,7 @@ impl<'check> Checker<'check> {
 
     fn check_binding_br(
         &mut self,
+        loc_let: &Location,
         pat: &Pattern,
         res: &Value,
         alt: Option<&Value>,
@@ -285,40 +287,34 @@ impl<'check> Checker<'check> {
         let param = self.check_pattern_type(pat, &mut names);
         self.scopes.push(names);
 
-        let res = self.check_value(res);
-
-        let alt = alt.map(|alt| {
-            assert!(pat.is_refutable());
-            let alt = self.check_value(alt);
-            if let Result::<(), ErrorKind>::Err(err) = todo!("Type::harmonize(res.ty, alt.ty)") {
-                //self.errors.push(Error(
-                //    todo!("loc for {err:?} (from harmonize res&alt)"),
-                //    err,
-                //    //ErrorKind::ContextCaused {
-                //    //    error: Box::new(Error(result.loc.clone(), e)),
-                //    //    because: ErrorContext::LetFallbackTypeMismatch {
-                //    //        result_type: snapshot.frozen(res_ty),
-                //    //        fallback_type: snapshot.frozen(fallback.ty),
-                //    //    },
-                //    //},
-                //));
+        let ress = self.check_value(res);
+        let altt = alt.map(|alt| {
+            debug_assert!(pat.is_refutable());
+            let altt = self.check_value(alt);
+            if let Err(err) = Type::concretize(loc_let.clone(), &ress.ty, alt.loc(), &altt.ty) {
+                self.errors.push(errors::context_fallback_mismatch(
+                    res.loc(),
+                    err,
+                    &ress.ty,
+                    &altt.ty,
+                ));
             }
-            alt
+            altt
         });
 
         self.scopes.pop();
-        (Type::func(param, res.ty.clone()), res, alt)
+        (Type::func(param, ress.ty.clone()), ress, altt)
     }
 
     pub fn check_apply(&mut self, apply: &Apply) -> Tree {
         let base = match &apply.base {
             ApplyBase::Binding {
-                loc_let: _,
+                loc_let,
                 pat,
                 res,
                 alt,
             } => {
-                let (ty, res, alt) = self.check_binding_br(pat, &res, alt.as_deref());
+                let (ty, res, alt) = self.check_binding_br(loc_let, pat, &res, alt.as_deref());
                 let val = TreeVal::Binding(pat.clone(), Box::new(res), alt.map(Box::new));
                 Tree { ty, val }
             }

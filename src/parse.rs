@@ -269,9 +269,11 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn errors(&self) -> &[Error] {
         &self.errors
     }
+    #[allow(dead_code)]
     pub fn boxed_errors(self) -> Box<[Error]> {
         self.errors.into()
     }
