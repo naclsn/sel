@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::errors::{self, Error};
+use crate::errors::{self, Error, MismatchAs};
 use crate::fund::Fund;
 use crate::module::{Function, Location, Module, ModuleRegistry};
 use crate::parse::{Apply, ApplyBase, Located, Pattern, Script, Value};
@@ -116,18 +116,26 @@ impl<'check> Checker<'check> {
         (ty, Refers::Missing)
     }
 
-    fn apply(&mut self, loc_func: Location, func: Tree, loc_arg: Location, arg: Tree) -> Tree {
-        let ty = match &*func.ty {
+    fn apply(
+        &mut self,
+        loc_func: Location,
+        loc_arg: Location,
+        func: Tree,
+        arg: Tree,
+    ) -> (Tree, Option<Error>) {
+        let (ty, err) = match &*func.ty {
             Type::Func(par, ret) => {
-                if let Err(err) = Type::concretize(loc_func, par, loc_arg, &arg.ty) {
-                    self.errors.push(err);
-                }
-                ret.clone()
+                let err = Type::concretize(par, &arg.ty)
+                    .err()
+                    .map(|(want, give, mut as_of)| {
+                        as_of.push(MismatchAs::Wanted(par.deep_clone()));
+                        errors::type_mismatch(loc_func, loc_arg, &want, &give, as_of)
+                    });
+                (ret.clone(), err)
             }
             sad => {
-                self.errors
-                    .push(errors::not_function(loc_func, sad, &func.val));
-                Type::named(format!("ret"))
+                let err = Some(errors::not_function(loc_func, sad, &func.val));
+                (Type::named(format!("ret")), err)
             }
         };
 
@@ -144,7 +152,7 @@ impl<'check> Checker<'check> {
             }
         };
 
-        Tree { ty, val }
+        (Tree { ty, val }, err)
     }
 
     pub fn check_script(&mut self, script: &Script) -> Tree {
@@ -163,8 +171,10 @@ impl<'check> Checker<'check> {
                         ty: Fund::Pipe.make_type(),
                         val: TreeVal::Word(Fund::Pipe.to_string(), Refers::Fundamental(Fund::Pipe)),
                     };
-                    let part = self.apply(loc_comma.clone(), pipe, loc_prev, acc);
-                    let res = self.apply(loc_comma.clone(), part, loc_cur.clone(), then);
+                    let (part, err) = self.apply(loc_comma.clone(), loc_prev, pipe, acc);
+                    self.errors.extend(err);
+                    let (res, err) = self.apply(loc_comma.clone(), loc_cur.clone(), part, then);
+                    self.errors.extend(err);
                     (loc_cur, res)
                 })
                 .1
@@ -176,7 +186,9 @@ impl<'check> Checker<'check> {
                 .fold((loc, val), |(loc_prev, acc), (_loc_comma, cur)| {
                     let func = self.check_apply(cur);
                     let loc_cur = cur.loc();
-                    (loc_cur.clone(), self.apply(loc_cur, func, loc_prev, acc))
+                    let (r, err) = self.apply(loc_cur.clone(), loc_prev, func, acc);
+                    self.errors.extend(err);
+                    (loc_cur, r)
                 })
                 .1
         }
@@ -216,30 +228,33 @@ impl<'check> Checker<'check> {
             }
 
             Pattern::List {
-                loc_open: _,
+                loc_open,
                 items,
                 rest,
                 loc_close: _,
             } => {
-                let items: Box<_> = items
-                    .iter()
-                    .map(|it| self.check_pattern_type(it, names))
-                    .collect();
-
-                // i kept the commented code below that refers to check_list_content;
-                // i just rewrote Value::List handling in check_value in a way
-                // that's more regular: it's always checked as if {...,, {}} ie it
-                // always relies on `cons` which will dictate the behavior uniformly
-                // however i'm left with that one now which idk how to then
-
-                //let ty: Rc<Type>;// = todo!("");
-                //let has = self.check_list_content(items);
-                //let fin = self.types.finite(rest.is_none());
-                //let ty = self.types.list(fin, has);
-
-                let _ty = Type::list(
+                let ty = Type::list(
                     rest.is_none(),
-                    todo!("ty of Pattern::List\nitem types: {items:?}"),
+                    items
+                        .iter()
+                        .map(|it| (it.loc(), self.check_pattern_type(it, names)))
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        // mby we wanna rfold for consistency, idc
+                        .fold(Type::named("item".into()), |acc, (loc, cur)| {
+                            if let Err((want, give, mut as_of)) = Type::concretize(&acc, &cur) {
+                                as_of.push(MismatchAs::Wanted(acc.clone()));
+                                // meh i dont think this an adapted err
+                                self.errors.push(errors::type_mismatch(
+                                    loc_open.clone(),
+                                    loc,
+                                    &want,
+                                    &give,
+                                    as_of,
+                                ));
+                            }
+                            acc
+                        }),
                 );
 
                 if let Some((loc_comma, loc, word)) = rest {
@@ -258,10 +273,10 @@ impl<'check> Checker<'check> {
                                 ),
                             ));
                         }
-                        Vacant(niw) => _ = niw.insert((loc, _ty)),
+                        Vacant(niw) => _ = niw.insert((loc, ty.clone())),
                     }
                 }
-                _ty
+                ty
             }
 
             Pattern::Pair {
@@ -291,10 +306,10 @@ impl<'check> Checker<'check> {
         let altt = alt.map(|alt| {
             debug_assert!(pat.is_refutable());
             let altt = self.check_value(alt);
-            if let Err(err) = Type::concretize(loc_let.clone(), &ress.ty, alt.loc(), &altt.ty) {
+            if let Err((want, give, as_of)) = Type::concretize(&ress.ty, &altt.ty) {
                 self.errors.push(errors::context_fallback_mismatch(
                     res.loc(),
-                    err,
+                    errors::type_mismatch(loc_let.clone(), alt.loc(), &want, &give, as_of),
                     &ress.ty,
                     &altt.ty,
                 ));
@@ -324,40 +339,10 @@ impl<'check> Checker<'check> {
         let loc_base = apply.loc();
         apply.args.iter().fold(base, |acc, cur| {
             let arg = self.check_value(cur);
-            self.apply(loc_base.clone(), acc, cur.loc(), arg)
+            let (r, err) = self.apply(loc_base.clone(), cur.loc(), acc, arg);
+            self.errors.extend(err);
+            r
         })
-    }
-
-    // not used, but kept for now because of the notes;
-    // see in check_pattern_type's Pattern::List branch too
-    fn check_list_content(&mut self, items: impl IntoIterator<Item = Rc<Type>>) -> Rc<Type> {
-        let ty = Type::named("item".into());
-        for it in items {
-            _ = it;
-            // so, unless I'm off, I think the way I did rest part for literal lists
-            // will not allow eg {inf, fin,, {}} because it would go:
-            //      cons fin {} :: fin
-            //      cons inf fin :: type error!
-            // looking again, I think that was already the case in previous implementation,
-            // so now I'm wondering if I should also disallow when no rest for both
-            // consistency and removing hunks from `types` (and almost idealy whole `types.rs`)
-            //
-            // but does that makes sens? isn't that annoying that it won't be possible to eg
-            //      {:hello:, -}, unwords
-            // but say in this specific case, maybe the miss is to say literal bytes is inf..?
-            //if let Err(err) = Type::harmonize(ty, it) {
-            //    self.errors
-            //        .push(todo!("error::list_type_mismatch(..) for {err:?}"));
-            //}
-            // constructing always with `cons` seems like the least sane but most regular approach
-            // (insane because that' a de-optimisation which will /have/ to be corrected further down the line)
-            //
-            // cons <fin> [<fin>] :: [<fin>] -- free
-            // cons <inf> [<inf>] :: [<inf>] -- free
-            // cons <fin> [<inf>] :: [<inf>] -- can never work through type sys only
-            // cons <inf> [<fin>] :: [<inf>] -- works if (no-op) coersion [<fin>] -> [<inf>]
-        }
-        ty
     }
 
     pub fn check_value(&mut self, value: &Value) -> Tree {
@@ -395,17 +380,8 @@ impl<'check> Checker<'check> {
             } => {
                 let items: Vec<_> = items.iter().map(|it| (it, self.check_apply(it))).collect();
 
-                let (loc_rest, rest) = if let Some((_loc_comma, rest)) = rest {
-                    let mut maybe_list = self.check_apply(rest);
-                    // if `ty` is named, noone here is referring to it yet so things will get messy
-                    // once applying `snoc` wants to upgrade referring types to now referring to
-                    // the list; instead ensure it's made a list at this point
-                    // (any other type will be properly reported, see below)
-                    // XXX: no, that's not enough as other things can refer to types: bindings
-                    if matches!(&*maybe_list.ty, Type::Named(_, _)) {
-                        maybe_list.ty = Type::list(false, maybe_list.ty);
-                    }
-                    (rest.loc(), maybe_list)
+                let (loc_comma, loc_rest, rest) = if let Some((loc_comma, rest)) = rest {
+                    (Some(loc_comma), rest.loc(), self.check_apply(rest))
                 } else {
                     // empty list, as if {...,, {}}
                     let nil = Tree {
@@ -413,25 +389,45 @@ impl<'check> Checker<'check> {
                         val: TreeVal::List,
                     };
                     // with Type::list of nil, first apply of snoc cannot fail (:: [a] -> a -> [a])
-                    (Location(Default::default(), 0..0), nil)
+                    // so use this fake location (ever so slightly cheaper idk)
+                    let loc_fake = Location(Default::default(), 0..0);
+                    (None, loc_fake, nil)
                 };
 
                 // cons(items[0], .... cons(items[n-1], cons(items[n], rest)) .... )
+                // snoc(.... snoc(snoc(rest, items[n]), items[n-1]) .... , items[0])
                 // note: reverse error order -- XXX: may not want that
-                // TODO: if error anyways might want to grab some context to see if we can
-                //       find the type that it should be; note: this might just be insane..
-                //       at least a ContextCaused "lists are checked from the end" and group
-                //       all type err in
-                items.into_iter().rfold(rest, |acc, (cur, val)| {
-                    let snoc = Tree {
-                        ty: Fund::Snoc.make_type(),
-                        val: TreeVal::Word(Fund::Snoc.to_string(), Refers::Fundamental(Fund::Snoc)),
-                    };
-                    // side-note: loc_rest is only -maybe- require for the first iteration,
-                    // when `acc` (=`rest`) may not be a list; the rest of the time clone is usl
-                    let part = self.apply(loc_open.clone(), snoc, loc_rest.clone(), acc);
-                    self.apply(loc_open.clone(), part, cur.loc(), val)
-                })
+                // TODO: if error anyways might want to grab some context to see if we can find the
+                //       type that it should be; note: this might just be insane.. at least a
+                //       ContextCaused "lists are checked from the end" and group all type err in
+                let first = items.len() - 1; // (Rfold, so last is first!)
+                items
+                    .into_iter()
+                    .enumerate()
+                    .rfold(rest, |acc, (k, (cur, val))| {
+                        let snoc = Tree {
+                            ty: Fund::Snoc.make_type(),
+                            val: TreeVal::Word(
+                                Fund::Snoc.to_string(),
+                                Refers::Fundamental(Fund::Snoc),
+                            ),
+                        };
+                        let (part, err) = self.apply(loc_open.clone(), loc_rest.clone(), snoc, acc);
+                        // the first apply can only fail on the first iteration when `acc` (=`rest`) may not be a list
+                        if first == k {
+                            if let Some(err) = err {
+                                self.errors.push(errors::context_extra_comma_makes_rest(
+                                    loc_comma.unwrap().clone(),
+                                    err,
+                                ));
+                            }
+                        } else {
+                            debug_assert!(err.is_none());
+                        }
+                        let (r, err) = self.apply(loc_open.clone(), cur.loc(), part, val);
+                        self.errors.extend(err);
+                        r
+                    })
             }
 
             Value::Pair {

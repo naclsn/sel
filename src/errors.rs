@@ -12,6 +12,29 @@ use crate::types::Type;
 
 // error types {{{
 #[derive(Debug)]
+pub enum MismatchAs {
+    ItemOf,
+    RetOf,
+    ParOf,
+    FstOf,
+    SndOf,
+    Wanted(Rc<Type>), // `deep_clone`'d
+}
+
+impl Display for MismatchAs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            MismatchAs::ItemOf => write!(f, "item of"),
+            MismatchAs::RetOf => write!(f, "return of"),
+            MismatchAs::ParOf => write!(f, "parameter of"),
+            MismatchAs::FstOf => write!(f, "first of"),
+            MismatchAs::SndOf => write!(f, "second of"),
+            MismatchAs::Wanted(ty) => write!(f, "{ty}"),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum ErrorContext {
     AsNthArgToNowTyped {
         nth_arg: usize,
@@ -68,6 +91,7 @@ pub enum ErrorKind {
     ExpectedButGot {
         expected: Rc<Type>,
         actual: Rc<Type>,
+        as_of: Vec<MismatchAs>, // expected to always be a sequence of [frag]Of with a final Wanted
     },
     InconsistentType {
         types: Vec<(Location, Rc<Type>)>,
@@ -183,13 +207,20 @@ pub fn not_function(
     }
 }
 
-pub fn type_mismatch(_loc_func: Location, want: &Type, loc_arg: Location, give: &Type) -> Error {
+pub fn type_mismatch(
+    _loc_func: Location,
+    loc_arg: Location,
+    want: &Type,
+    give: &Type,
+    as_of: Vec<MismatchAs>,
+) -> Error {
     // TODO: pass enough context to have AsNthArgToNowTyped/LetAlreadyApplied
     Error(
         loc_arg,
         ExpectedButGot {
             expected: want.deep_clone(),
             actual: give.deep_clone(),
+            as_of,
         },
     )
 }
@@ -440,12 +471,33 @@ impl Error {
                 title: "Could not read file".into(),
                 messages: vec![(loc, format!("{error}"))],
             },
-            ExpectedButGot { expected, actual } => Report {
+            ExpectedButGot {
+                expected,
+                actual,
+                as_of,
+            } => Report {
                 registry,
                 title: "Type mismatch".into(),
                 // TODO: (could) if expression of type `actual` is a name, search in scope,
                 //               otherwise search for function like `actual -> expected`
-                messages: vec![(loc, format!("Expected type {expected}, but got {actual}"))],
+                messages: vec![(
+                    loc,
+                    format!(
+                        "Expected type {expected}, but got {actual}{}",
+                        if as_of.len() < 2 {
+                            "".to_string()
+                        } else {
+                            format!(
+                                " ({})",
+                                as_of
+                                    .iter()
+                                    .map(ToString::to_string)
+                                    .collect::<Vec<_>>()
+                                    .join(" "),
+                            )
+                        },
+                    ),
+                )],
             },
             InconsistentType { types } => Report {
                 registry,

@@ -4,8 +4,7 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::iter::{self, Peekable};
 use std::rc::Rc;
 
-use crate::errors::{self, Error};
-use crate::module::Location;
+use crate::errors::MismatchAs;
 
 #[derive(Debug)]
 pub enum Type {
@@ -70,6 +69,8 @@ impl Display for Type {
     }
 }
 
+type TypeMismatch = (Rc<Type>, Rc<Type>, Vec<MismatchAs>);
+
 impl Type {
     pub fn number() -> Rc<Type> {
         Number.into()
@@ -95,8 +96,6 @@ impl Type {
 
     // (ofc does not support pseudo-notations)
     // TODO: could be made into supporting +1, +2.. notation
-    // XXX: this is all p bad
-    // FIXME: does it even actively handles pairs?
     pub fn parse_str(&mut self, s: &str) -> Option<Rc<Type>> {
         enum Tok {
             Arrow, // "->"
@@ -108,7 +107,7 @@ impl Type {
 
         let mut nameds = HashMap::new();
         let mut s = s.bytes().peekable();
-        let tokens: Vec<_> = iter::from_fn(|| match s.find(|c: &u8| !c.is_ascii_whitespace())? {
+        let tokens = iter::from_fn(|| match s.find(|c: &u8| !c.is_ascii_whitespace())? {
             b'-' => s.next().filter(|c| b'>' == *c).map(|_| Tok::Arrow),
 
             b'N' => s
@@ -139,8 +138,7 @@ impl Type {
             }
 
             _ => None,
-        })
-        .collect();
+        });
 
         fn _impl(tokens: &mut Peekable<impl Iterator<Item = Tok>>) -> Option<Rc<Type>> {
             let ty: Rc<_> = match tokens.next()? {
@@ -181,7 +179,7 @@ impl Type {
             })
         }
 
-        _impl(&mut tokens.into_iter().peekable())
+        _impl(&mut tokens.peekable())
     }
 
     pub fn deep_clone(&self) -> Rc<Type> {
@@ -223,12 +221,15 @@ impl Type {
     /// Both types may be modified (due to contravariance of func in parameter type).
     /// This uses the fact that inf types and unk named types are
     /// only depended on by the functions that introduced them.
-    pub fn concretize(
-        loc_func: Location,
-        want: &Rc<Type>,
-        loc_arg: Location,
-        give: &Rc<Type>,
-    ) -> Result<(), Error> {
+    pub fn concretize(want: &Rc<Type>, give: &Rc<Type>) -> Result<(), TypeMismatch> {
+        const fn frag(frag: MismatchAs) -> impl FnOnce(TypeMismatch) -> TypeMismatch {
+            |(w, g, mut as_of)| {
+                as_of.push(frag);
+                (w, g, as_of)
+            }
+        }
+        use MismatchAs::*;
+
         match (&**want, &**give) {
             (Number, Number) => Ok(()),
 
@@ -236,24 +237,24 @@ impl Type {
             (Bytes(_), Bytes(_)) => Ok(()),
 
             // XXX: boundedness
-            (List(_, l_ty), List(_, r_ty)) => Type::concretize(loc_func, l_ty, loc_arg, r_ty),
+            (List(_, w_ty), List(_, g_ty)) => Type::concretize(w_ty, g_ty).map_err(frag(ItemOf)),
 
-            (Func(l_par, l_ret), Func(r_par, r_ret)) => {
+            (Func(w_par, w_ret), Func(g_par, g_ret)) => {
                 // (a -> b) <- (Str -> Num)
                 // parameter compare contravariantly:
                 // (Str -> c) <- (Str+ -> Str+)
                 // (a -> b) <- (c -> c)
-                Type::concretize(loc_func.clone(), l_ret, loc_arg.clone(), r_ret)?;
-                Type::concretize(loc_func, r_par, loc_arg, l_par)?;
+                Type::concretize(w_ret, g_ret).map_err(frag(RetOf))?;
+                Type::concretize(g_par, w_par).map_err(frag(ParOf))?;
                 // needs to propagate back again any change by 2nd concretize
                 // XXX: rly? i think but idk
-                //Type::concretize(l_ret, r_ret)
+                //Type::concretize(w_ret, g_ret)
                 Ok(())
             }
 
-            (Pair(l_fst, l_snd), Pair(r_fst, r_snd)) => {
-                Type::concretize(loc_func.clone(), l_fst, loc_arg.clone(), r_fst)?;
-                Type::concretize(loc_func, l_snd, loc_arg, r_snd)
+            (Pair(w_fst, w_snd), Pair(g_fst, g_snd)) => {
+                Type::concretize(w_fst, g_fst).map_err(frag(FstOf))?;
+                Type::concretize(w_snd, g_snd).map_err(frag(SndOf))
             }
 
             (Named(w, w_tr), Named(g, g_tr)) => {
@@ -281,13 +282,13 @@ impl Type {
                         }
                         (None, Some(give)) => {
                             drop(w_borrow);
-                            Type::concretize(loc_func, want, loc_arg, give)
+                            Type::concretize(want, give)
                         }
                         (Some(want), None) => {
                             drop(g_borrow);
-                            Type::concretize(loc_func, want, loc_arg, give)
+                            Type::concretize(want, give)
                         }
-                        (Some(want), Some(give)) => Type::concretize(loc_func, want, loc_arg, give),
+                        (Some(want), Some(give)) => Type::concretize(want, give),
                     }
                 }
             }
@@ -295,7 +296,7 @@ impl Type {
             (_known, Named(_, g_tr)) => {
                 let g_borrow = g_tr.borrow();
                 if let Some(give) = &*g_borrow {
-                    Type::concretize(loc_func, want, loc_arg, give)
+                    Type::concretize(want, give)
                 } else {
                     drop(g_borrow);
                     *g_tr.borrow_mut() = Some(want.clone());
@@ -305,7 +306,7 @@ impl Type {
             (Named(_, w_tr), _known) => {
                 let w_borrow = w_tr.borrow();
                 if let Some(want) = &*w_borrow {
-                    Type::concretize(loc_func, want, loc_arg, give)
+                    Type::concretize(want, give)
                 } else {
                     drop(w_borrow);
                     *w_tr.borrow_mut() = Some(give.clone());
@@ -313,7 +314,7 @@ impl Type {
                 }
             }
 
-            _ => Err(errors::type_mismatch(loc_func, want, loc_arg, give)),
+            _ => Err((want.clone(), give.clone(), vec![])),
         }
     }
 }

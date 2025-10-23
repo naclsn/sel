@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
 use crate::check::{Tree, TreeVal};
+use crate::parse::Pattern;
 
 pub fn display_bytes(f: &mut Formatter, bytes: &[u8]) -> FmtResult {
     write!(f, ":")?;
@@ -16,6 +17,30 @@ pub struct DumbFormatAst<'a>(pub &'a Tree);
 
 impl Display for DumbFormatAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        fn fmt_pat(pat: &Pattern, f: &mut Formatter<'_>) -> FmtResult {
+            match pat {
+                Pattern::Number { number, .. } => write!(f, "{number}"),
+                Pattern::Bytes { bytes, .. } => display_bytes(f, bytes),
+                Pattern::Word { word, .. } => write!(f, "{word}"),
+                Pattern::List { items, rest, .. } => {
+                    write!(f, "{{")?;
+                    items.iter().try_for_each(|it| {
+                        fmt_pat(it, f)?;
+                        write!(f, ",")
+                    })?;
+                    rest.as_ref()
+                        .map(|(_, _, w)| write!(f, ", {w}"))
+                        .unwrap_or(Ok(()))?;
+                    write!(f, "}}")
+                }
+                Pattern::Pair { fst, snd, .. } => {
+                    fmt_pat(fst, f)?;
+                    write!(f, "=")?;
+                    fmt_pat(snd, f)
+                }
+            }
+        }
+
         let i = f.width().unwrap_or(0);
         match &self.0.val {
             TreeVal::Number(num) => write!(f, "{num}"),
@@ -38,7 +63,9 @@ impl Display for DumbFormatAst<'_> {
             }
             TreeVal::Binding(pat, res, alt) => {
                 let istr = " ".repeat(i);
-                writeln!(f, "[let {pat:?}")?;
+                write!(f, "[let ")?;
+                fmt_pat(pat, f)?;
+                writeln!(f)?;
                 writeln!(
                     f,
                     "{istr}    {:indent$}",
