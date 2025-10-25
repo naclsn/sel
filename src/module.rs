@@ -8,7 +8,7 @@ use std::rc::Rc;
 
 use crate::check::{Checker, Tree};
 use crate::errors::Error;
-use crate::parse::{Parser, Top};
+use crate::parse::{Def, Parser, Top, Use};
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Location(pub String, pub Range<usize>);
@@ -86,6 +86,13 @@ impl ModuleRegistry {
 }
 
 impl Module {
+    pub fn uses(&self) -> &[Use] {
+        &self.top.uses
+    }
+    pub fn defs(&self) -> &[Def] {
+        &self.top.defs
+    }
+
     /// the top level
     ///
     /// checking may be recursive if the function refers to 'def's

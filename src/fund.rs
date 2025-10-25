@@ -119,6 +119,8 @@ macro_rules! make {
         }
 
         impl Fund {
+            pub const NAMES: &[&str] = &[$($name,)*];
+
             pub fn try_from_name(name: &str) -> Option<Self> {
                 match name { $($name => Some(Self::$var),)* _ => None }
             }

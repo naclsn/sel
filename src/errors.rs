@@ -110,6 +110,7 @@ pub enum ErrorKind {
     UnknownName {
         name: String,
         expected_type: Rc<Type>,
+        available: Box<[String]>,
     },
     Utf8Error {
         text: Box<[u8]>,
@@ -151,13 +152,19 @@ pub fn unexpected(token: Token, expected: &'static str, unmatched: Option<Token>
     }
 }
 
-pub fn unknown_name(loc: Location, name: String, ty: &Type) -> Error {
-    // TODO: these will have to be done at very last, and thus lose order
+pub fn unknown_name<'a>(
+    loc: Location,
+    name: String,
+    ty: Rc<Type>,
+    avail: impl IntoIterator<Item = &'a str>,
+) -> Error {
     Error(
         loc,
         UnknownName {
             name,
-            expected_type: ty.deep_clone(),
+            expected_type: ty,
+            // TODO: filter for similar names (and for matching types..? maybe don have the ty yet)
+            available: avail.into_iter().map(|s| s.into()).collect(),
         },
     )
 }
@@ -533,16 +540,16 @@ impl Error {
             UnknownName {
                 name,
                 expected_type,
+                available,
             } => Report {
                 registry,
                 title: "Unknown name".into(),
                 messages: vec![(
                     loc,
-                    // TODO: (could) search in scope for similar names and for matching types
-                    if matches!(**expected_type, Type::Named(_, _)) {
-                        format!("Unknown name '{name}' (may be of any type)")
+                    if matches!(&**expected_type, Type::Named(_, tr) if tr.borrow().is_none()) {
+                        format!("Unknown name '{name}' (may be of any type) {available:?}")
                     } else {
-                        format!("Unknown name '{name}', should be of type {expected_type}")
+                        format!("Unknown name '{name}', should be of type {expected_type} {available:?}")
                     },
                 )],
             },

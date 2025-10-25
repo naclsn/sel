@@ -102,12 +102,23 @@ impl<'check> Checker<'check> {
             }
         }
 
+        let ty = Type::named(name.into());
         self.errors.push(errors::unknown_name(
             loc.clone(),
             name.into(),
-            &Type::named("TODO: todou (unkown_name type after evrtynthsgslkfdjs)".into()),
+            ty.clone(),
+            Fund::NAMES
+                .iter()
+                .copied()
+                .chain(
+                    self.scopes
+                        .iter()
+                        .rev()
+                        .flat_map(|it| it.keys().map(|s| s.as_str())),
+                )
+                .chain(self.module.defs().iter().map(|d| d.name.as_str()))
+                .chain(self.module.uses().iter().map(|u| u.prefix.as_str())),
         ));
-        let ty = Type::named(name.into());
         self.scopes
             .last_mut()
             .expect("should always have at least top-level fallback scope")

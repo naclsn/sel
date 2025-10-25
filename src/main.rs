@@ -20,7 +20,7 @@ fn main() {
     }
     //eprintln!("CST: {module:#?}");
 
-    let function = module.retrieve(&mut registry).unwrap();
+    let function = module.retrieve(&mut registry).expect("nothing to do");
     if !function.errors.is_empty() {
         errors::report_many_stderr(&function.errors, &registry, &None, false);
     }
