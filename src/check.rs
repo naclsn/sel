@@ -129,10 +129,11 @@ impl<'check> Checker<'check> {
 
     fn apply(
         &mut self,
-        loc_func: Location,
-        loc_arg: Location,
         func: Tree,
         arg: Tree,
+        loc_basemost: Location,
+        loc_func: Location,
+        loc_arg: Location,
     ) -> (Tree, Option<Error>) {
         let (ty, err) = match &*func.ty {
             Type::Func(par, ret) => {
@@ -140,12 +141,20 @@ impl<'check> Checker<'check> {
                     .err()
                     .map(|(want, give, mut as_of)| {
                         as_of.push(MismatchAs::Wanted(par.deep_clone()));
-                        errors::type_mismatch(loc_func, loc_arg, &want, &give, as_of)
+                        errors::type_mismatch(
+                            loc_basemost,
+                            loc_func,
+                            loc_arg,
+                            &want,
+                            &give,
+                            as_of,
+                            Some(&func),
+                        )
                     });
                 (ret.clone(), err)
             }
             sad => {
-                let err = Some(errors::not_function(loc_func, sad, &func.val));
+                let err = Some(errors::not_function(loc_func, loc_basemost, sad, &func));
                 (Type::named(format!("ret")), err)
             }
         };
@@ -182,9 +191,21 @@ impl<'check> Checker<'check> {
                         ty: Fund::Pipe.make_type(),
                         val: TreeVal::Word(Fund::Pipe.to_string(), Refers::Fundamental(Fund::Pipe)),
                     };
-                    let (part, err) = self.apply(loc_comma.clone(), loc_prev, pipe, acc);
+                    let (part, err) = self.apply(
+                        pipe,
+                        acc,
+                        Location("TODO".into(), 0..0),
+                        loc_comma.clone(),
+                        loc_prev,
+                    );
                     self.errors.extend(err);
-                    let (res, err) = self.apply(loc_comma.clone(), loc_cur.clone(), part, then);
+                    let (res, err) = self.apply(
+                        part,
+                        then,
+                        Location("TODO".into(), 0..0),
+                        loc_comma.clone(),
+                        loc_cur.clone(),
+                    );
                     self.errors.extend(err);
                     (loc_cur, res)
                 })
@@ -197,7 +218,13 @@ impl<'check> Checker<'check> {
                 .fold((loc, val), |(loc_prev, acc), (_loc_comma, cur)| {
                     let func = self.check_apply(cur);
                     let loc_cur = cur.loc();
-                    let (r, err) = self.apply(loc_cur.clone(), loc_prev, func, acc);
+                    let (r, err) = self.apply(
+                        func,
+                        acc,
+                        Location("TODO".into(), 0..0),
+                        loc_cur.clone(),
+                        loc_prev,
+                    );
                     self.errors.extend(err);
                     (loc_cur, r)
                 })
@@ -257,11 +284,13 @@ impl<'check> Checker<'check> {
                                 as_of.push(MismatchAs::Wanted(acc.clone()));
                                 // meh i dont think this an adapted err
                                 self.errors.push(errors::type_mismatch(
+                                    Location("TODO".into(), 0..0),
                                     loc_open.clone(),
                                     loc,
                                     &want,
                                     &give,
                                     as_of,
+                                    None,
                                 ));
                             }
                             acc
@@ -320,7 +349,15 @@ impl<'check> Checker<'check> {
             if let Err((want, give, as_of)) = Type::concretize(&ress.ty, &altt.ty) {
                 self.errors.push(errors::context_fallback_mismatch(
                     res.loc(),
-                    errors::type_mismatch(loc_let.clone(), alt.loc(), &want, &give, as_of),
+                    errors::type_mismatch(
+                        Location("TODO".into(), 0..0),
+                        loc_let.clone(),
+                        alt.loc(),
+                        &want,
+                        &give,
+                        as_of,
+                        None,
+                    ),
                     &ress.ty,
                     &altt.ty,
                 ));
@@ -347,13 +384,19 @@ impl<'check> Checker<'check> {
             ApplyBase::Value(val) => self.check_value(val),
         };
 
-        let loc_base = apply.loc();
-        apply.args.iter().fold(base, |acc, cur| {
-            let arg = self.check_value(cur);
-            let (r, err) = self.apply(loc_base.clone(), cur.loc(), acc, arg);
-            self.errors.extend(err);
-            r
-        })
+        let loc_base = apply.base.loc();
+        apply
+            .args
+            .iter()
+            .fold((loc_base.clone(), base), |(loc_acc, acc), cur| {
+                let loc_cur = cur.loc();
+                let arg = self.check_value(cur);
+                let (r, err) =
+                    self.apply(acc, arg, loc_base.clone(), loc_acc.clone(), loc_cur.clone());
+                self.errors.extend(err);
+                (Location(loc_cur.0, loc_acc.1.start..loc_cur.1.end), r)
+            })
+            .1
     }
 
     pub fn check_value(&mut self, value: &Value) -> Tree {
@@ -423,7 +466,13 @@ impl<'check> Checker<'check> {
                                 Refers::Fundamental(Fund::Snoc),
                             ),
                         };
-                        let (part, err) = self.apply(loc_open.clone(), loc_rest.clone(), snoc, acc);
+                        let (part, err) = self.apply(
+                            snoc,
+                            acc,
+                            Location("TODO".into(), 0..0),
+                            loc_open.clone(),
+                            loc_rest.clone(),
+                        );
                         // the first apply can only fail on the first iteration when `acc` (=`rest`) may not be a list
                         if first == k {
                             if let Some(err) = err {
@@ -435,7 +484,13 @@ impl<'check> Checker<'check> {
                         } else {
                             debug_assert!(err.is_none());
                         }
-                        let (r, err) = self.apply(loc_open.clone(), cur.loc(), part, val);
+                        let (r, err) = self.apply(
+                            part,
+                            val,
+                            Location("TODO".into(), 0..0),
+                            loc_open.clone(),
+                            cur.loc(),
+                        );
                         self.errors.extend(err);
                         r
                     })
@@ -470,5 +525,13 @@ fn test() {
 
     assert_debug_snapshot!(t(b"add 1 2"));
     assert_debug_snapshot!(t(b"{1, 2, 3}"));
-    //assert_debug_snapshot!(t(b"{1, 2, 3, :soleil:}"));
+    assert_debug_snapshot!(t(b"{1, 2, 3, :soleil:}"));
+    assert_debug_snapshot!(t(b"{1, 2, 3,, r}"));
+    assert_debug_snapshot!(t(b"{tostr, tonum}"));
+    assert_debug_snapshot!(t(b"{{tostr}, {tonum}}"));
+    assert_debug_snapshot!(t(b"let {a, b, c,, {0}} 1 2"));
+    assert_debug_snapshot!(t(b"add 3 2 1"));
+    assert_debug_snapshot!(t(b"let a 1 2 3"));
+    assert_debug_snapshot!(t(b"add :dda:"));
+    assert_debug_snapshot!(t(b"add 1 :dda:"));
 }

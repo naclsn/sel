@@ -4,10 +4,10 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::io::IsTerminal;
 use std::rc::Rc;
 
-use crate::check::{Refers, TreeVal};
+use crate::check::{Refers, Tree, TreeVal};
 use crate::lex::{Token, TokenKind};
 use crate::module::{Location, ModuleRegistry};
-use crate::parse::{ApplyBase, Located};
+use crate::parse::Located;
 use crate::types::Type;
 
 // error types {{{
@@ -38,7 +38,6 @@ impl Display for MismatchAs {
 pub enum ErrorContext {
     AsNthArgToNowTyped {
         nth_arg: usize,
-        func: ApplyBase,
         type_with_curr_args: Rc<Type>,
     },
     AutoCoercedVia {
@@ -48,7 +47,6 @@ pub enum ErrorContext {
     ChainedFromAsNthArgToNowTyped {
         comma_loc: Location,
         nth_arg: usize,
-        func: ApplyBase,
         type_with_curr_args: Rc<Type>,
     },
     ChainedFromToNotFunc {
@@ -171,8 +169,9 @@ pub fn unknown_name<'a>(
 
 pub fn not_function(
     loc_sad: Location,
+    loc_basemost: Location,
     ty: &Type,
-    maybe_func_with_too_many_args: &TreeVal,
+    maybe_func_with_too_many_args: &Tree,
 ) -> Error {
     let err = Error(
         loc_sad,
@@ -181,16 +180,17 @@ pub fn not_function(
         },
     );
 
-    match maybe_func_with_too_many_args {
+    match &maybe_func_with_too_many_args.val {
         TreeVal::Apply(base, args) => match &base.val {
             TreeVal::Word(name, prov) => Error(
-                match prov {
-                    Refers::Fundamental(_fund) => err.0.clone(),
-                    Refers::Binding(loc) => loc.clone(),
-                    Refers::Defined(func) => func.loc.clone(),
-                    Refers::File(_module, func) => func.loc.clone(),
-                    Refers::Missing => return err,
-                },
+                //match prov {
+                //    Refers::Fundamental(_fund) => err.0.clone(),
+                //    Refers::Binding(loc) => loc.clone(),
+                //    Refers::Defined(func) => func.loc.clone(),
+                //    Refers::File(_module, func) => func.loc.clone(),
+                //    Refers::Missing => return err,
+                //},
+                loc_basemost,
                 ContextCaused {
                     error: err.into(),
                     because: FuncTooManyArgs {
@@ -201,7 +201,8 @@ pub fn not_function(
             ),
 
             TreeVal::Binding(pat, _, _) => Error(
-                pat.loc(),
+                //pat.loc(),
+                loc_basemost,
                 ContextCaused {
                     error: err.into(),
                     because: LetAlreadyApplied,
@@ -215,21 +216,52 @@ pub fn not_function(
 }
 
 pub fn type_mismatch(
-    _loc_func: Location,
+    loc_basemost: Location,
+    loc_func: Location,
     loc_arg: Location,
     want: &Type,
     give: &Type,
     as_of: Vec<MismatchAs>,
+    maybe_func_with_other_param: Option<&Tree>,
 ) -> Error {
-    // TODO: pass enough context to have AsNthArgToNowTyped/LetAlreadyApplied
-    Error(
+    let err = Error(
         loc_arg,
         ExpectedButGot {
             expected: want.deep_clone(),
             actual: give.deep_clone(),
             as_of,
         },
-    )
+    );
+
+    if let Some(maybe_func_with_other_param) = maybe_func_with_other_param {
+        match &maybe_func_with_other_param.val {
+            TreeVal::Word(_, _) => Error(
+                loc_basemost,
+                ContextCaused {
+                    error: err.into(),
+                    because: AsNthArgToNowTyped {
+                        nth_arg: 1,
+                        type_with_curr_args: maybe_func_with_other_param.ty.deep_clone(),
+                    },
+                },
+            ),
+
+            TreeVal::Apply(base, args) => Error(
+                loc_basemost,
+                ContextCaused {
+                    error: err.into(),
+                    because: AsNthArgToNowTyped {
+                        nth_arg: args.len() + 1,
+                        type_with_curr_args: base.ty.deep_clone(),
+                    },
+                },
+            ),
+
+            _ => err,
+        }
+    } else {
+        err
+    }
 }
 
 pub fn already_declared(
@@ -392,14 +424,12 @@ impl Error {
         let msgs: &[_] = match because {
             AsNthArgToNowTyped {
                 nth_arg,
-                func,
                 type_with_curr_args,
             } => &[(
                 loc,
                 format!(
-                    "see parameter in {type_with_curr_args} (overall {} argument to {:?})",
+                    "see parameter in {type_with_curr_args} (overall {} argument)",
                     nth(*nth_arg),
-                    func
                 ),
             )],
             AutoCoercedVia {
@@ -412,15 +442,13 @@ impl Error {
             ChainedFromAsNthArgToNowTyped {
                 comma_loc,
                 nth_arg,
-                func,
                 type_with_curr_args,
             } => &[
                 (
                     loc,
                     format!(
-                        "see parameter in {type_with_curr_args} (overall {} argument to {:?})",
+                        "see parameter in {type_with_curr_args} (overall {} argument to)",
                         nth(*nth_arg),
-                        func
                     ),
                 ),
                 (comma_loc.clone(), "chained through here".into()),

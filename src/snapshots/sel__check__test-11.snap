@@ -1,0 +1,83 @@
+---
+source: src/check.rs
+expression: "t(b\"add 1 :dda:\")"
+---
+(
+    Tree {
+        ty: Number,
+        val: Apply(
+            Tree {
+                ty: Func(
+                    Number,
+                    Func(
+                        Number,
+                        Number,
+                    ),
+                ),
+                val: Word(
+                    "add",
+                    Fundamental(
+                        Add,
+                    ),
+                ),
+            },
+            [
+                Tree {
+                    ty: Number,
+                    val: Number(
+                        1.0,
+                    ),
+                },
+                Tree {
+                    ty: Bytes(
+                        true,
+                    ),
+                    val: Bytes(
+                        [
+                            100,
+                            100,
+                            97,
+                        ],
+                    ),
+                },
+            ],
+        ),
+    },
+    [
+        Error(
+            Location(
+                "<test>",
+                0..3,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        "<test>",
+                        6..11,
+                    ),
+                    ExpectedButGot {
+                        expected: Number,
+                        actual: Bytes(
+                            true,
+                        ),
+                        as_of: [
+                            Wanted(
+                                Number,
+                            ),
+                        ],
+                    },
+                ),
+                because: AsNthArgToNowTyped {
+                    nth_arg: 2,
+                    type_with_curr_args: Func(
+                        Number,
+                        Func(
+                            Number,
+                            Number,
+                        ),
+                    ),
+                },
+            },
+        ),
+    ],
+)

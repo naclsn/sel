@@ -1,0 +1,279 @@
+---
+source: src/check.rs
+expression: "t(b\"{1, 2, 3,, r}\")"
+---
+(
+    Tree {
+        ty: List(
+            false,
+            Named(
+                "a",
+                RefCell {
+                    value: Some(
+                        Number,
+                    ),
+                },
+            ),
+        ),
+        val: Apply(
+            Tree {
+                ty: Func(
+                    List(
+                        false,
+                        Named(
+                            "a",
+                            RefCell {
+                                value: Some(
+                                    Number,
+                                ),
+                            },
+                        ),
+                    ),
+                    Func(
+                        Named(
+                            "a",
+                            RefCell {
+                                value: Some(
+                                    Number,
+                                ),
+                            },
+                        ),
+                        List(
+                            false,
+                            Named(
+                                "a",
+                                RefCell {
+                                    value: Some(
+                                        Number,
+                                    ),
+                                },
+                            ),
+                        ),
+                    ),
+                ),
+                val: Word(
+                    "snoc",
+                    Fundamental(
+                        Snoc,
+                    ),
+                ),
+            },
+            [
+                Tree {
+                    ty: List(
+                        false,
+                        Named(
+                            "a",
+                            RefCell {
+                                value: Some(
+                                    Number,
+                                ),
+                            },
+                        ),
+                    ),
+                    val: Apply(
+                        Tree {
+                            ty: Func(
+                                List(
+                                    false,
+                                    Named(
+                                        "a",
+                                        RefCell {
+                                            value: Some(
+                                                Number,
+                                            ),
+                                        },
+                                    ),
+                                ),
+                                Func(
+                                    Named(
+                                        "a",
+                                        RefCell {
+                                            value: Some(
+                                                Number,
+                                            ),
+                                        },
+                                    ),
+                                    List(
+                                        false,
+                                        Named(
+                                            "a",
+                                            RefCell {
+                                                value: Some(
+                                                    Number,
+                                                ),
+                                            },
+                                        ),
+                                    ),
+                                ),
+                            ),
+                            val: Word(
+                                "snoc",
+                                Fundamental(
+                                    Snoc,
+                                ),
+                            ),
+                        },
+                        [
+                            Tree {
+                                ty: List(
+                                    false,
+                                    Named(
+                                        "a",
+                                        RefCell {
+                                            value: Some(
+                                                Number,
+                                            ),
+                                        },
+                                    ),
+                                ),
+                                val: Apply(
+                                    Tree {
+                                        ty: Func(
+                                            List(
+                                                false,
+                                                Named(
+                                                    "a",
+                                                    RefCell {
+                                                        value: Some(
+                                                            Number,
+                                                        ),
+                                                    },
+                                                ),
+                                            ),
+                                            Func(
+                                                Named(
+                                                    "a",
+                                                    RefCell {
+                                                        value: Some(
+                                                            Number,
+                                                        ),
+                                                    },
+                                                ),
+                                                List(
+                                                    false,
+                                                    Named(
+                                                        "a",
+                                                        RefCell {
+                                                            value: Some(
+                                                                Number,
+                                                            ),
+                                                        },
+                                                    ),
+                                                ),
+                                            ),
+                                        ),
+                                        val: Word(
+                                            "snoc",
+                                            Fundamental(
+                                                Snoc,
+                                            ),
+                                        ),
+                                    },
+                                    [
+                                        Tree {
+                                            ty: Named(
+                                                "r",
+                                                RefCell {
+                                                    value: Some(
+                                                        List(
+                                                            false,
+                                                            Named(
+                                                                "a",
+                                                                RefCell {
+                                                                    value: Some(
+                                                                        Number,
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        ),
+                                                    ),
+                                                },
+                                            ),
+                                            val: Word(
+                                                "r",
+                                                Missing,
+                                            ),
+                                        },
+                                        Tree {
+                                            ty: Number,
+                                            val: Number(
+                                                3.0,
+                                            ),
+                                        },
+                                    ],
+                                ),
+                            },
+                            Tree {
+                                ty: Number,
+                                val: Number(
+                                    2.0,
+                                ),
+                            },
+                        ],
+                    ),
+                },
+                Tree {
+                    ty: Number,
+                    val: Number(
+                        1.0,
+                    ),
+                },
+            ],
+        ),
+    },
+    [
+        Error(
+            Location(
+                "<test>",
+                11..12,
+            ),
+            UnknownName {
+                name: "r",
+                expected_type: Named(
+                    "r",
+                    RefCell {
+                        value: Some(
+                            List(
+                                false,
+                                Named(
+                                    "a",
+                                    RefCell {
+                                        value: Some(
+                                            Number,
+                                        ),
+                                    },
+                                ),
+                            ),
+                        ),
+                    },
+                ),
+                available: [
+                    "-",
+                    "astypeof",
+                    "snoc",
+                    "panic",
+                    "pipe",
+                    "tonum",
+                    "tostr",
+                    "bytes",
+                    "codepoints",
+                    "graphemes",
+                    "unbytes",
+                    "uncodepoints",
+                    "ungraphemes",
+                    "add",
+                    "invert",
+                    "mul",
+                    "negate",
+                    "signum",
+                    "trunc",
+                    "asin",
+                    "exp",
+                    "log",
+                    "sin",
+                ],
+            },
+        ),
+    ],
+)

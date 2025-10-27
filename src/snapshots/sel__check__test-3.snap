@@ -1,0 +1,591 @@
+---
+source: src/check.rs
+expression: "t(b\"{1, 2, 3, :soleil:}\")"
+---
+(
+    Tree {
+        ty: List(
+            false,
+            Named(
+                "a",
+                RefCell {
+                    value: Some(
+                        Bytes(
+                            true,
+                        ),
+                    ),
+                },
+            ),
+        ),
+        val: Apply(
+            Tree {
+                ty: Func(
+                    List(
+                        false,
+                        Named(
+                            "a",
+                            RefCell {
+                                value: Some(
+                                    Bytes(
+                                        true,
+                                    ),
+                                ),
+                            },
+                        ),
+                    ),
+                    Func(
+                        Named(
+                            "a",
+                            RefCell {
+                                value: Some(
+                                    Bytes(
+                                        true,
+                                    ),
+                                ),
+                            },
+                        ),
+                        List(
+                            false,
+                            Named(
+                                "a",
+                                RefCell {
+                                    value: Some(
+                                        Bytes(
+                                            true,
+                                        ),
+                                    ),
+                                },
+                            ),
+                        ),
+                    ),
+                ),
+                val: Word(
+                    "snoc",
+                    Fundamental(
+                        Snoc,
+                    ),
+                ),
+            },
+            [
+                Tree {
+                    ty: List(
+                        false,
+                        Named(
+                            "a",
+                            RefCell {
+                                value: Some(
+                                    Bytes(
+                                        true,
+                                    ),
+                                ),
+                            },
+                        ),
+                    ),
+                    val: Apply(
+                        Tree {
+                            ty: Func(
+                                List(
+                                    false,
+                                    Named(
+                                        "a",
+                                        RefCell {
+                                            value: Some(
+                                                Bytes(
+                                                    true,
+                                                ),
+                                            ),
+                                        },
+                                    ),
+                                ),
+                                Func(
+                                    Named(
+                                        "a",
+                                        RefCell {
+                                            value: Some(
+                                                Bytes(
+                                                    true,
+                                                ),
+                                            ),
+                                        },
+                                    ),
+                                    List(
+                                        false,
+                                        Named(
+                                            "a",
+                                            RefCell {
+                                                value: Some(
+                                                    Bytes(
+                                                        true,
+                                                    ),
+                                                ),
+                                            },
+                                        ),
+                                    ),
+                                ),
+                            ),
+                            val: Word(
+                                "snoc",
+                                Fundamental(
+                                    Snoc,
+                                ),
+                            ),
+                        },
+                        [
+                            Tree {
+                                ty: List(
+                                    false,
+                                    Named(
+                                        "a",
+                                        RefCell {
+                                            value: Some(
+                                                Bytes(
+                                                    true,
+                                                ),
+                                            ),
+                                        },
+                                    ),
+                                ),
+                                val: Apply(
+                                    Tree {
+                                        ty: Func(
+                                            List(
+                                                false,
+                                                Named(
+                                                    "a",
+                                                    RefCell {
+                                                        value: Some(
+                                                            Bytes(
+                                                                true,
+                                                            ),
+                                                        ),
+                                                    },
+                                                ),
+                                            ),
+                                            Func(
+                                                Named(
+                                                    "a",
+                                                    RefCell {
+                                                        value: Some(
+                                                            Bytes(
+                                                                true,
+                                                            ),
+                                                        ),
+                                                    },
+                                                ),
+                                                List(
+                                                    false,
+                                                    Named(
+                                                        "a",
+                                                        RefCell {
+                                                            value: Some(
+                                                                Bytes(
+                                                                    true,
+                                                                ),
+                                                            ),
+                                                        },
+                                                    ),
+                                                ),
+                                            ),
+                                        ),
+                                        val: Word(
+                                            "snoc",
+                                            Fundamental(
+                                                Snoc,
+                                            ),
+                                        ),
+                                    },
+                                    [
+                                        Tree {
+                                            ty: List(
+                                                false,
+                                                Named(
+                                                    "a",
+                                                    RefCell {
+                                                        value: Some(
+                                                            Named(
+                                                                "a=item",
+                                                                RefCell {
+                                                                    value: Some(
+                                                                        Bytes(
+                                                                            true,
+                                                                        ),
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        ),
+                                                    },
+                                                ),
+                                            ),
+                                            val: Apply(
+                                                Tree {
+                                                    ty: Func(
+                                                        List(
+                                                            false,
+                                                            Named(
+                                                                "a",
+                                                                RefCell {
+                                                                    value: Some(
+                                                                        Named(
+                                                                            "a=item",
+                                                                            RefCell {
+                                                                                value: Some(
+                                                                                    Bytes(
+                                                                                        true,
+                                                                                    ),
+                                                                                ),
+                                                                            },
+                                                                        ),
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        ),
+                                                        Func(
+                                                            Named(
+                                                                "a",
+                                                                RefCell {
+                                                                    value: Some(
+                                                                        Named(
+                                                                            "a=item",
+                                                                            RefCell {
+                                                                                value: Some(
+                                                                                    Bytes(
+                                                                                        true,
+                                                                                    ),
+                                                                                ),
+                                                                            },
+                                                                        ),
+                                                                    ),
+                                                                },
+                                                            ),
+                                                            List(
+                                                                false,
+                                                                Named(
+                                                                    "a",
+                                                                    RefCell {
+                                                                        value: Some(
+                                                                            Named(
+                                                                                "a=item",
+                                                                                RefCell {
+                                                                                    value: Some(
+                                                                                        Bytes(
+                                                                                            true,
+                                                                                        ),
+                                                                                    ),
+                                                                                },
+                                                                            ),
+                                                                        ),
+                                                                    },
+                                                                ),
+                                                            ),
+                                                        ),
+                                                    ),
+                                                    val: Word(
+                                                        "snoc",
+                                                        Fundamental(
+                                                            Snoc,
+                                                        ),
+                                                    ),
+                                                },
+                                                [
+                                                    Tree {
+                                                        ty: List(
+                                                            true,
+                                                            Named(
+                                                                "item",
+                                                                RefCell {
+                                                                    value: Some(
+                                                                        Named(
+                                                                            "a=item",
+                                                                            RefCell {
+                                                                                value: Some(
+                                                                                    Bytes(
+                                                                                        true,
+                                                                                    ),
+                                                                                ),
+                                                                            },
+                                                                        ),
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        ),
+                                                        val: List,
+                                                    },
+                                                    Tree {
+                                                        ty: Bytes(
+                                                            true,
+                                                        ),
+                                                        val: Bytes(
+                                                            [
+                                                                115,
+                                                                111,
+                                                                108,
+                                                                101,
+                                                                105,
+                                                                108,
+                                                            ],
+                                                        ),
+                                                    },
+                                                ],
+                                            ),
+                                        },
+                                        Tree {
+                                            ty: Number,
+                                            val: Number(
+                                                3.0,
+                                            ),
+                                        },
+                                    ],
+                                ),
+                            },
+                            Tree {
+                                ty: Number,
+                                val: Number(
+                                    2.0,
+                                ),
+                            },
+                        ],
+                    ),
+                },
+                Tree {
+                    ty: Number,
+                    val: Number(
+                        1.0,
+                    ),
+                },
+            ],
+        ),
+    },
+    [
+        Error(
+            Location(
+                "TODO",
+                0..0,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        "<test>",
+                        7..8,
+                    ),
+                    ExpectedButGot {
+                        expected: Bytes(
+                            true,
+                        ),
+                        actual: Number,
+                        as_of: [
+                            Wanted(
+                                Named(
+                                    "a",
+                                    RefCell {
+                                        value: Some(
+                                            Bytes(
+                                                true,
+                                            ),
+                                        ),
+                                    },
+                                ),
+                            ),
+                        ],
+                    },
+                ),
+                because: AsNthArgToNowTyped {
+                    nth_arg: 2,
+                    type_with_curr_args: Func(
+                        List(
+                            false,
+                            Named(
+                                "a",
+                                RefCell {
+                                    value: Some(
+                                        Bytes(
+                                            true,
+                                        ),
+                                    ),
+                                },
+                            ),
+                        ),
+                        Func(
+                            Named(
+                                "a",
+                                RefCell {
+                                    value: Some(
+                                        Bytes(
+                                            true,
+                                        ),
+                                    ),
+                                },
+                            ),
+                            List(
+                                false,
+                                Named(
+                                    "a",
+                                    RefCell {
+                                        value: Some(
+                                            Bytes(
+                                                true,
+                                            ),
+                                        ),
+                                    },
+                                ),
+                            ),
+                        ),
+                    ),
+                },
+            },
+        ),
+        Error(
+            Location(
+                "TODO",
+                0..0,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        "<test>",
+                        4..5,
+                    ),
+                    ExpectedButGot {
+                        expected: Bytes(
+                            true,
+                        ),
+                        actual: Number,
+                        as_of: [
+                            Wanted(
+                                Named(
+                                    "a",
+                                    RefCell {
+                                        value: Some(
+                                            Bytes(
+                                                true,
+                                            ),
+                                        ),
+                                    },
+                                ),
+                            ),
+                        ],
+                    },
+                ),
+                because: AsNthArgToNowTyped {
+                    nth_arg: 2,
+                    type_with_curr_args: Func(
+                        List(
+                            false,
+                            Named(
+                                "a",
+                                RefCell {
+                                    value: Some(
+                                        Bytes(
+                                            true,
+                                        ),
+                                    ),
+                                },
+                            ),
+                        ),
+                        Func(
+                            Named(
+                                "a",
+                                RefCell {
+                                    value: Some(
+                                        Bytes(
+                                            true,
+                                        ),
+                                    ),
+                                },
+                            ),
+                            List(
+                                false,
+                                Named(
+                                    "a",
+                                    RefCell {
+                                        value: Some(
+                                            Bytes(
+                                                true,
+                                            ),
+                                        ),
+                                    },
+                                ),
+                            ),
+                        ),
+                    ),
+                },
+            },
+        ),
+        Error(
+            Location(
+                "TODO",
+                0..0,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        "<test>",
+                        1..2,
+                    ),
+                    ExpectedButGot {
+                        expected: Bytes(
+                            true,
+                        ),
+                        actual: Number,
+                        as_of: [
+                            Wanted(
+                                Named(
+                                    "a",
+                                    RefCell {
+                                        value: Some(
+                                            Bytes(
+                                                true,
+                                            ),
+                                        ),
+                                    },
+                                ),
+                            ),
+                        ],
+                    },
+                ),
+                because: AsNthArgToNowTyped {
+                    nth_arg: 2,
+                    type_with_curr_args: Func(
+                        List(
+                            false,
+                            Named(
+                                "a",
+                                RefCell {
+                                    value: Some(
+                                        Bytes(
+                                            true,
+                                        ),
+                                    ),
+                                },
+                            ),
+                        ),
+                        Func(
+                            Named(
+                                "a",
+                                RefCell {
+                                    value: Some(
+                                        Bytes(
+                                            true,
+                                        ),
+                                    ),
+                                },
+                            ),
+                            List(
+                                false,
+                                Named(
+                                    "a",
+                                    RefCell {
+                                        value: Some(
+                                            Bytes(
+                                                true,
+                                            ),
+                                        ),
+                                    },
+                                ),
+                            ),
+                        ),
+                    ),
+                },
+            },
+        ),
+    ],
+)

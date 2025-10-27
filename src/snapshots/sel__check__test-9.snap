@@ -1,0 +1,79 @@
+---
+source: src/check.rs
+expression: "t(b\"let a 1 2 3\")"
+---
+(
+    Tree {
+        ty: Named(
+            "ret",
+            RefCell {
+                value: None,
+            },
+        ),
+        val: Apply(
+            Tree {
+                ty: Func(
+                    Named(
+                        "a",
+                        RefCell {
+                            value: Some(
+                                Number,
+                            ),
+                        },
+                    ),
+                    Number,
+                ),
+                val: Binding(
+                    Word {
+                        loc: Location(
+                            "<test>",
+                            4..5,
+                        ),
+                        word: "a",
+                    },
+                    Tree {
+                        ty: Number,
+                        val: Number(
+                            1.0,
+                        ),
+                    },
+                    None,
+                ),
+            },
+            [
+                Tree {
+                    ty: Number,
+                    val: Number(
+                        2.0,
+                    ),
+                },
+                Tree {
+                    ty: Number,
+                    val: Number(
+                        3.0,
+                    ),
+                },
+            ],
+        ),
+    },
+    [
+        Error(
+            Location(
+                "<test>",
+                0..7,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        "<test>",
+                        0..9,
+                    ),
+                    NotFunc {
+                        actual_type: Number,
+                    },
+                ),
+                because: LetAlreadyApplied,
+            },
+        ),
+    ],
+)

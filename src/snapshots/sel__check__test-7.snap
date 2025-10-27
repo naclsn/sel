@@ -1,0 +1,159 @@
+---
+source: src/check.rs
+expression: "t(b\"let {a, b, c,, {0}} 1 2\")"
+---
+(
+    Tree {
+        ty: Func(
+            List(
+                false,
+                Named(
+                    "item",
+                    RefCell {
+                        value: Some(
+                            Named(
+                                "item=a",
+                                RefCell {
+                                    value: Some(
+                                        Named(
+                                            "item=a=b",
+                                            RefCell {
+                                                value: Some(
+                                                    Named(
+                                                        "item=a=b=c",
+                                                        RefCell {
+                                                            value: None,
+                                                        },
+                                                    ),
+                                                ),
+                                            },
+                                        ),
+                                    ),
+                                },
+                            ),
+                        ),
+                    },
+                ),
+            ),
+            Number,
+        ),
+        val: Binding(
+            List {
+                loc_open: Location(
+                    "<test>",
+                    4..5,
+                ),
+                items: [
+                    Word {
+                        loc: Location(
+                            "<test>",
+                            5..6,
+                        ),
+                        word: "a",
+                    },
+                    Word {
+                        loc: Location(
+                            "<test>",
+                            8..9,
+                        ),
+                        word: "b",
+                    },
+                    Word {
+                        loc: Location(
+                            "<test>",
+                            11..12,
+                        ),
+                        word: "c",
+                    },
+                ],
+                rest: Some(
+                    (
+                        Location(
+                            "<test>",
+                            13..14,
+                        ),
+                        Location(
+                            "<test>",
+                            15..16,
+                        ),
+                        "open '{'",
+                    ),
+                ),
+                loc_close: Location(
+                    "<test>",
+                    16..17,
+                ),
+            },
+            Tree {
+                ty: Number,
+                val: Number(
+                    0.0,
+                ),
+            },
+            Some(
+                Tree {
+                    ty: Named(
+                        "?",
+                        RefCell {
+                            value: Some(
+                                Number,
+                            ),
+                        },
+                    ),
+                    val: Word(
+                        "?",
+                        Missing,
+                    ),
+                },
+            ),
+        ),
+    },
+    [
+        Error(
+            Location(
+                "<test>",
+                17..18,
+            ),
+            UnknownName {
+                name: "?",
+                expected_type: Named(
+                    "?",
+                    RefCell {
+                        value: Some(
+                            Number,
+                        ),
+                    },
+                ),
+                available: [
+                    "-",
+                    "astypeof",
+                    "snoc",
+                    "panic",
+                    "pipe",
+                    "tonum",
+                    "tostr",
+                    "bytes",
+                    "codepoints",
+                    "graphemes",
+                    "unbytes",
+                    "uncodepoints",
+                    "ungraphemes",
+                    "add",
+                    "invert",
+                    "mul",
+                    "negate",
+                    "signum",
+                    "trunc",
+                    "asin",
+                    "exp",
+                    "log",
+                    "sin",
+                    "c",
+                    "a",
+                    "open '{'",
+                    "b",
+                ],
+            },
+        ),
+    ],
+)

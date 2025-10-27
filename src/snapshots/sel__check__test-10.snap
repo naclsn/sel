@@ -1,0 +1,80 @@
+---
+source: src/check.rs
+expression: "t(b\"add :dda:\")"
+---
+(
+    Tree {
+        ty: Func(
+            Number,
+            Number,
+        ),
+        val: Apply(
+            Tree {
+                ty: Func(
+                    Number,
+                    Func(
+                        Number,
+                        Number,
+                    ),
+                ),
+                val: Word(
+                    "add",
+                    Fundamental(
+                        Add,
+                    ),
+                ),
+            },
+            [
+                Tree {
+                    ty: Bytes(
+                        true,
+                    ),
+                    val: Bytes(
+                        [
+                            100,
+                            100,
+                            97,
+                        ],
+                    ),
+                },
+            ],
+        ),
+    },
+    [
+        Error(
+            Location(
+                "<test>",
+                0..3,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        "<test>",
+                        4..9,
+                    ),
+                    ExpectedButGot {
+                        expected: Number,
+                        actual: Bytes(
+                            true,
+                        ),
+                        as_of: [
+                            Wanted(
+                                Number,
+                            ),
+                        ],
+                    },
+                ),
+                because: AsNthArgToNowTyped {
+                    nth_arg: 1,
+                    type_with_curr_args: Func(
+                        Number,
+                        Func(
+                            Number,
+                            Number,
+                        ),
+                    ),
+                },
+            },
+        ),
+    ],
+)
