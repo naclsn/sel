@@ -86,24 +86,30 @@ impl<'check> Checker<'check> {
             return (Type::deep_clone(&def.ast.ty), Refers::Defined(def));
         }
 
+        let mut use_prefix_name = None;
+        let mut found_use = None;
+        let mut io_err = None;
+        let mut not_in_mod = false;
         if let Some((prefix, name)) = name.split_once('-') {
+            use_prefix_name = Some((prefix, name));
             match self.module.retrieve_module(prefix, self.registry) {
-                None => {
-                    todo!("specialize error: rather than just 'missing', have 'no use :: {prefix}'")
+                None => {}
+                Some((loc_use, Err(err))) => {
+                    found_use = Some(loc_use);
+                    io_err = Some(err)
                 }
-                Some(Err(err)) => todo!("cannot load {prefix}: {err:?}"),
-                Some(Ok(module)) => {
+                Some((loc_use, Ok(module))) => {
                     if let Some(def) = module.retrieve_function(name, self.registry) {
                         return (Type::deep_clone(&def.ast.ty), Refers::File(module, def));
-                    } else {
-                        todo!("specialize error: rather than just 'missing', have 'no {name} in {prefix}'");
                     }
+                    found_use = Some(loc_use);
+                    not_in_mod = true;
                 }
             }
         }
 
         let ty = Type::named(name.into());
-        self.errors.push(errors::unknown_name(
+        let err = errors::unknown_name(
             loc.clone(),
             name.into(),
             ty.clone(),
@@ -118,12 +124,25 @@ impl<'check> Checker<'check> {
                 )
                 .chain(self.module.defs().iter().map(|d| d.name.as_str()))
                 .chain(self.module.uses().iter().map(|u| u.prefix.as_str())),
-        ));
+        );
+        self.errors
+            .push(match (use_prefix_name, found_use, io_err, not_in_mod) {
+                (Some((prefix, _)), None, _, _) => {
+                    errors::context_no_use_for_prefix(prefix.into(), err)
+                }
+                (Some((prefix, _)), Some(loc_use), Some(io_err), _) => {
+                    errors::context_cannot_load(prefix.into(), loc_use.clone(), io_err, err)
+                }
+                (Some((prefix, name)), Some(loc_use), _, true) => {
+                    errors::context_not_in_module(prefix.into(), loc_use.clone(), name.into(), err)
+                }
+                _ => err,
+            });
+
         self.scopes
             .last_mut()
             .expect("should always have at least top-level fallback scope")
             .insert(name.into(), (loc.clone(), ty.clone()));
-        // TODO push something in scope, so we dont get here again from this case
         (ty, Refers::Missing)
     }
 
@@ -155,7 +174,7 @@ impl<'check> Checker<'check> {
             }
             sad => {
                 let err = Some(errors::not_function(loc_func, loc_basemost, sad, &func));
-                (Type::named(format!("ret")), err)
+                (Type::named("ret".into()), err)
             }
         };
 
@@ -256,7 +275,7 @@ impl<'check> Checker<'check> {
                         self.errors.push(errors::already_declared(
                             word.clone(),
                             loc_already.clone(),
-                            &*ty_old,
+                            ty_old,
                             loc,
                         ));
                         ty_old.clone()
@@ -308,7 +327,7 @@ impl<'check> Checker<'check> {
                                 errors::already_declared(
                                     word.clone(),
                                     loc_already.clone(),
-                                    &*ty_old,
+                                    ty_old,
                                     loc,
                                 ),
                             ));
@@ -377,7 +396,7 @@ impl<'check> Checker<'check> {
                 res,
                 alt,
             } => {
-                let (ty, res, alt) = self.check_binding_br(loc_let, pat, &res, alt.as_deref());
+                let (ty, res, alt) = self.check_binding_br(loc_let, pat, res, alt.as_deref());
                 let val = TreeVal::Binding(pat.clone(), Box::new(res), alt.map(Box::new));
                 Tree { ty, val }
             }
@@ -534,4 +553,6 @@ fn test() {
     assert_debug_snapshot!(t(b"let a 1 2 3"));
     assert_debug_snapshot!(t(b"add :dda:"));
     assert_debug_snapshot!(t(b"add 1 :dda:"));
+    assert_debug_snapshot!(t(b"let {1, r} [r 1] 2"));
+    assert_debug_snapshot!(t(b"    prefix-name"));
 }

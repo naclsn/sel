@@ -49,7 +49,7 @@ impl ModuleRegistry {
         let bytes: Box<[u8]> = bytes.into_iter().collect();
         let line_map = Module::compute_line_map(&bytes);
 
-        let mut parser = Parser::new(&path, bytes.iter().copied());
+        let mut parser = Parser::new(path, bytes.iter().copied());
         let top = parser.parse_top();
         let errors = parser.boxed_errors();
         let module = Module {
@@ -144,15 +144,9 @@ impl Module {
         &self,
         prefix: &str,
         registry: &ModuleRegistry,
-    ) -> Option<IoResult<Rc<Module>>> {
-        let path = &self
-            .top
-            .uses
-            .iter()
-            .rev()
-            .find(|u| prefix == u.prefix)?
-            .path;
-        Some(registry.load(path))
+    ) -> Option<(&Location, IoResult<Rc<Module>>)> {
+        let u = &self.top.uses.iter().rev().find(|u| prefix == u.prefix)?;
+        Some((&u.loc_path, registry.load(&u.path)))
     }
 
     fn compute_line_map(bytes: &[u8]) -> Box<[Range<usize>]> {

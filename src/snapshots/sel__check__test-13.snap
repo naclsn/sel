@@ -1,0 +1,47 @@
+---
+source: src/check.rs
+expression: "t(b\"    prefix-name\")"
+---
+(
+    Tree {
+        ty: Named(
+            "prefix-name",
+            RefCell {
+                value: None,
+            },
+        ),
+        val: Word(
+            "prefix-name",
+            Missing,
+        ),
+    },
+    [
+        Error(
+            Location(
+                "<test>",
+                0..1,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        "<test>",
+                        4..15,
+                    ),
+                    UnknownName {
+                        name: "prefix-name",
+                        expected_type: Named(
+                            "prefix-name",
+                            RefCell {
+                                value: None,
+                            },
+                        ),
+                        available: [],
+                    },
+                ),
+                because: UseNotAtTopForPrefix {
+                    prefix: "prefix",
+                },
+            },
+        ),
+    ],
+)

@@ -1,0 +1,141 @@
+---
+source: src/check.rs
+expression: "t(b\"let {1, r} [r 1] 2\")"
+---
+(
+    Tree {
+        ty: Func(
+            List(
+                true,
+                Named(
+                    "item",
+                    RefCell {
+                        value: Some(
+                            Number,
+                        ),
+                    },
+                ),
+            ),
+            Named(
+                "ret",
+                RefCell {
+                    value: Some(
+                        Number,
+                    ),
+                },
+            ),
+        ),
+        val: Binding(
+            List {
+                loc_open: Location(
+                    "<test>",
+                    4..5,
+                ),
+                items: [
+                    Number {
+                        loc: Location(
+                            "<test>",
+                            5..6,
+                        ),
+                        number: 1.0,
+                    },
+                    Word {
+                        loc: Location(
+                            "<test>",
+                            8..9,
+                        ),
+                        word: "r",
+                    },
+                ],
+                rest: None,
+                loc_close: Location(
+                    "<test>",
+                    9..10,
+                ),
+            },
+            Tree {
+                ty: Named(
+                    "ret",
+                    RefCell {
+                        value: Some(
+                            Number,
+                        ),
+                    },
+                ),
+                val: Apply(
+                    Tree {
+                        ty: Named(
+                            "r",
+                            RefCell {
+                                value: Some(
+                                    Number,
+                                ),
+                            },
+                        ),
+                        val: Word(
+                            "r",
+                            Binding(
+                                Location(
+                                    "<test>",
+                                    8..9,
+                                ),
+                            ),
+                        ),
+                    },
+                    [
+                        Tree {
+                            ty: Number,
+                            val: Number(
+                                1.0,
+                            ),
+                        },
+                    ],
+                ),
+            },
+            Some(
+                Tree {
+                    ty: Number,
+                    val: Number(
+                        2.0,
+                    ),
+                },
+            ),
+        ),
+    },
+    [
+        Error(
+            Location(
+                "<test>",
+                8..9,
+            ),
+            ContextCaused {
+                error: Error(
+                    Location(
+                        "<test>",
+                        12..13,
+                    ),
+                    NotFunc {
+                        actual_type: Named(
+                            "r",
+                            RefCell {
+                                value: Some(
+                                    Number,
+                                ),
+                            },
+                        ),
+                    },
+                ),
+                because: DeclaredHereWithType {
+                    with_type: Named(
+                        "r",
+                        RefCell {
+                            value: Some(
+                                Number,
+                            ),
+                        },
+                    ),
+                },
+            },
+        ),
+    ],
+)

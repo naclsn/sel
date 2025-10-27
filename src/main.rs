@@ -8,7 +8,7 @@ mod parse;
 mod types;
 
 fn main() {
-    let mut registry = module::ModuleRegistry::default();
+    let registry = module::ModuleRegistry::default();
     let text = std::env::args()
         .skip(1)
         .flat_map(|a| (a + " ").into_bytes());
@@ -20,7 +20,7 @@ fn main() {
     }
     //eprintln!("CST: {module:#?}");
 
-    let function = module.retrieve(&mut registry).expect("nothing to do");
+    let function = module.retrieve(&registry).expect("nothing to do");
     if !function.errors.is_empty() {
         errors::report_many_stderr(&function.errors, &registry, &None, false);
     }

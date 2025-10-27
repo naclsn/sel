@@ -1,4 +1,8 @@
 //! parsing into a CST
+#![allow(
+    unused,
+    reason = "multiple fields are not used yet and may not before long (eg. until formatting)"
+)]
 
 use std::iter::Peekable;
 

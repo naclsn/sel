@@ -1,13 +1,12 @@
 //! error structs, helpers and reporting
 
 use std::fmt::{Display, Formatter, Result as FmtResult};
-use std::io::IsTerminal;
+use std::io::{Error as IoError, IsTerminal};
 use std::rc::Rc;
 
 use crate::check::{Refers, Tree, TreeVal};
 use crate::lex::{Token, TokenKind};
 use crate::module::{Location, ModuleRegistry};
-use crate::parse::Located;
 use crate::types::Type;
 
 // error types {{{
@@ -40,10 +39,12 @@ pub enum ErrorContext {
         nth_arg: usize,
         type_with_curr_args: Rc<Type>,
     },
+    /*
     AutoCoercedVia {
         func_name: String,
         func_type: Rc<Type>,
     },
+    */
     ChainedFromAsNthArgToNowTyped {
         comma_loc: Location,
         nth_arg: usize,
@@ -51,9 +52,6 @@ pub enum ErrorContext {
     },
     ChainedFromToNotFunc {
         comma_loc: Location,
-    },
-    CompleteType {
-        complete_type: Rc<Type>,
     },
     DeclaredHereWithType {
         with_type: Rc<Type>,
@@ -75,6 +73,18 @@ pub enum ErrorContext {
     Unmatched {
         open_token: TokenKind,
     },
+    UseCannotLoad {
+        #[allow(unused)]
+        prefix: String,
+        error: IoError,
+    },
+    UseNotAtTopForPrefix {
+        prefix: String,
+    },
+    UseModuleDoesNotHave {
+        prefix: String,
+        name: String,
+    },
 }
 
 #[derive(Debug)]
@@ -82,9 +92,6 @@ pub enum ErrorKind {
     ContextCaused {
         error: Box<Error>,
         because: ErrorContext,
-    },
-    CouldNotReadFile {
-        error: String,
     },
     ExpectedButGot {
         expected: Rc<Type>,
@@ -111,6 +118,7 @@ pub enum ErrorKind {
         available: Box<[String]>,
     },
     Utf8Error {
+        #[allow(unused)]
         text: Box<[u8]>,
         error: std::str::Utf8Error,
     },
@@ -162,7 +170,7 @@ pub fn unknown_name<'a>(
             name,
             expected_type: ty,
             // TODO: filter for similar names (and for matching types..? maybe don have the ty yet)
-            available: avail.into_iter().map(|s| s.into()).collect(),
+            available: [].into(), //avail.into_iter().map(|s| s.into()).collect(),
         },
     )
 }
@@ -181,27 +189,25 @@ pub fn not_function(
     );
 
     match &maybe_func_with_too_many_args.val {
+        TreeVal::Word(_, prov) => context_declared_here(ty, prov, err),
+
         TreeVal::Apply(base, args) => match &base.val {
-            TreeVal::Word(name, prov) => Error(
-                //match prov {
-                //    Refers::Fundamental(_fund) => err.0.clone(),
-                //    Refers::Binding(loc) => loc.clone(),
-                //    Refers::Defined(func) => func.loc.clone(),
-                //    Refers::File(_module, func) => func.loc.clone(),
-                //    Refers::Missing => return err,
-                //},
-                loc_basemost,
-                ContextCaused {
-                    error: err.into(),
-                    because: FuncTooManyArgs {
-                        nth_arg: args.len() + 1,
-                        func: name.clone(),
+            TreeVal::Word(name, prov) => context_declared_here(
+                ty,
+                prov,
+                Error(
+                    loc_basemost,
+                    ContextCaused {
+                        error: err.into(),
+                        because: FuncTooManyArgs {
+                            nth_arg: args.len() + 1,
+                            func: name.clone(),
+                        },
                     },
-                },
+                ),
             ),
 
-            TreeVal::Binding(pat, _, _) => Error(
-                //pat.loc(),
+            TreeVal::Binding(_, _, _) => Error(
                 loc_basemost,
                 ContextCaused {
                     error: err.into(),
@@ -211,13 +217,14 @@ pub fn not_function(
 
             _ => err,
         },
+
         _ => err,
     }
 }
 
 pub fn type_mismatch(
     loc_basemost: Location,
-    loc_func: Location,
+    _loc_func: Location,
     loc_arg: Location,
     want: &Type,
     give: &Type,
@@ -281,6 +288,24 @@ pub fn already_declared(
     )
 }
 
+pub fn context_declared_here(ty: &Type, prov: &Refers, err: Error) -> Error {
+    let loc_decl = match prov {
+        Refers::Binding(loc) => loc.clone(),
+        Refers::Defined(func) => func.loc.clone(),
+        Refers::File(_module, func) => func.loc.clone(),
+        _ => return err,
+    };
+    Error(
+        loc_decl,
+        ContextCaused {
+            error: err.into(),
+            because: DeclaredHereWithType {
+                with_type: ty.deep_clone(),
+            },
+        },
+    )
+}
+
 pub fn context_fallback_required(loc_pat: Location, err: Error) -> Error {
     Error(
         loc_pat,
@@ -314,26 +339,45 @@ pub fn context_extra_comma_makes_rest(loc_comma: Location, err: Error) -> Error 
     )
 }
 
-/*
-pub fn context_complete_type(
-    types: &TypeList,
-    loc: Location,
-    err: ErrorKind,
-    ty: TypeRef,
-) -> ErrorKind {
-    let complete_type = types.frozen(ty);
-    match &err {
-        ExpectedButGot {
-            expected: _,
-            actual,
-        } if complete_type != *actual => ContextCaused {
-            error: Box::new(Error(loc, err)),
-            because: CompleteType { complete_type },
+pub fn context_cannot_load(
+    prefix: String,
+    loc_use: Location,
+    io_err: IoError,
+    err: Error,
+) -> Error {
+    Error(
+        loc_use,
+        ContextCaused {
+            error: err.into(),
+            because: UseCannotLoad {
+                prefix,
+                error: io_err,
+            },
         },
-        _ => err,
-    }
+    )
 }
 
+pub fn context_no_use_for_prefix(prefix: String, err: Error) -> Error {
+    Error(
+        Location(err.0 .0.clone(), 0..1),
+        ContextCaused {
+            error: err.into(),
+            because: UseNotAtTopForPrefix { prefix },
+        },
+    )
+}
+
+pub fn context_not_in_module(prefix: String, loc_use: Location, name: String, err: Error) -> Error {
+    Error(
+        loc_use,
+        ContextCaused {
+            error: err.into(),
+            because: UseModuleDoesNotHave { prefix, name },
+        },
+    )
+}
+
+/*
 pub fn context_auto_coerced(
     arg_loc: Location,
     err: ErrorKind,
@@ -348,62 +392,6 @@ pub fn context_auto_coerced(
         },
     }
 }
-
-pub fn context_as_nth_arg(
-    types: &TypeList,
-    arg_loc: Location,
-    err: ErrorKind,
-    comma_loc: Option<Location>, // if some, ChainedFrom..
-    func: &Tree,
-) -> ErrorKind {
-    let type_with_curr_args = types.frozen(func.ty);
-    ContextCaused {
-        error: Box::new(Error(arg_loc, err)),
-        because: {
-            // unreachable: func is a function, see `err_context_as_nth_arg` call sites
-            let (nth_arg, func) = match &func.value {
-                TreeKind::Apply(app, args) => (args.len() + 1, app.clone()),
-                _ => unreachable!(),
-            };
-            match comma_loc {
-                Some(comma_loc) => ChainedFromAsNthArgToNowTyped {
-                    comma_loc,
-                    nth_arg,
-                    func,
-                    type_with_curr_args,
-                },
-                None => AsNthArgToNowTyped {
-                    nth_arg,
-                    func,
-                    type_with_curr_args,
-                },
-            }
-        },
-    }
-}
-
-pub fn list_type_mismatch(
-    types: &TypeList,
-    item_loc: Location,
-    err: ErrorKind,
-    item_type: TypeRef,
-    open_loc: Location,
-    list_item_type: TypeRef,
-) -> Error {
-    Error(
-        open_loc,
-        ContextCaused {
-            error: Box::new(Error(
-                item_loc.clone(),
-                context_complete_type(types, item_loc, err, item_type),
-            )),
-            because: TypeListInferredItemType {
-                list_item_type: types.frozen(list_item_type),
-            },
-        },
-    )
-}
-
 */
 // }}}
 
@@ -432,6 +420,7 @@ impl Error {
                     nth(*nth_arg),
                 ),
             )],
+            /*
             AutoCoercedVia {
                 func_name,
                 func_type,
@@ -439,6 +428,7 @@ impl Error {
                 loc,
                 format!("coerced via '{func_name}' (which has type {func_type})"),
             )],
+            */
             ChainedFromAsNthArgToNowTyped {
                 comma_loc,
                 nth_arg,
@@ -457,7 +447,6 @@ impl Error {
                 (loc, "Not a function".into()),
                 (comma_loc.clone(), "chained through here".into()),
             ],
-            CompleteType { complete_type } => &[(loc, format!("complete type: {complete_type}"))],
             DeclaredHereWithType { with_type } => {
                 &[(loc, format!("declared here with type {with_type}"))]
             }
@@ -469,7 +458,7 @@ impl Error {
                     nth_arg - 1
                 ),
             )],
-            LetAlreadyApplied => &[(loc, format!("this binding is already applied an argument"))],
+            LetAlreadyApplied => &[(loc, "this binding is already applied an argument".into())],
             LetFallbackRequired => &[(
                 loc,
                 "pattern is refutable so a fallback is required".to_string(),
@@ -482,13 +471,22 @@ impl Error {
                 format!("fallback of type {fallback_type} doesn't match result type {result_type}"),
             )],
             ListExtraCommaMakesRest => {
-                &[(loc, format!("this extra comma makes the last item a list"))]
+                &[(loc, "this extra comma makes the last item a list".into())]
             }
             ListTypeInferredItemType { list_item_type } => &[(
                 loc,
                 format!("list type was inferred to be [{list_item_type}]"),
             )],
             Unmatched { open_token } => &[(loc, format!("{open_token} here"))],
+            UseCannotLoad { prefix: _, error } => &[(loc, format!("cannot load module: {error}"))],
+            UseNotAtTopForPrefix { prefix } => &[(
+                loc,
+                format!("no 'use' declaring the prefix '{prefix}' in this module"),
+            )],
+            UseModuleDoesNotHave { prefix, name } => &[(
+                loc,
+                format!("no such name in this module: '{name}' ('{prefix}' was the prefix)"),
+            )],
         };
         report.messages.extend_from_slice(msgs);
     }
@@ -501,11 +499,6 @@ impl Error {
                 Error::ctx_messages(loc, because, &mut r);
                 r
             }
-            CouldNotReadFile { error } => Report {
-                registry,
-                title: "Could not read file".into(),
-                messages: vec![(loc, format!("{error}"))],
-            },
             ExpectedButGot {
                 expected,
                 actual,
@@ -601,12 +594,12 @@ pub fn report_many_stderr<'a>(
     if use_colors {
         for e in errors {
             count += 1;
-            eprintln!("{:#}", e.report(&registry));
+            eprintln!("{:#}", e.report(registry));
         }
     } else {
         for e in errors {
             count += 1;
-            eprintln!("{}", e.report(&registry));
+            eprintln!("{}", e.report(registry));
         }
     }
     eprintln!("({} error{})", count, if 1 == count { "" } else { "s" });

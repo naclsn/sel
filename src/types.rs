@@ -131,7 +131,7 @@ impl Type {
                     .get(&name)
                     .map(|ty: &Rc<Type>| Tok::Name(ty.clone()))
                     .or_else(|| {
-                        let named: Rc<Type> = Type::named(name.clone()).into();
+                        let named = Type::named(name.clone());
                         nameds.insert(name, named.clone());
                         Some(Tok::Name(named))
                     })
@@ -142,24 +142,24 @@ impl Type {
 
         fn _impl(tokens: &mut Peekable<impl Iterator<Item = Tok>>) -> Option<Rc<Type>> {
             let ty: Rc<_> = match tokens.next()? {
-                Tok::Num => Type::number().into(),
+                Tok::Num => Type::number(),
                 Tok::Str => {
                     let fin = tokens.next_if(|t| matches!(t, Tok::Punct(b'+'))).is_none();
-                    Type::bytes(fin).into()
+                    Type::bytes(fin)
                 }
 
                 Tok::Punct(b'[') => {
                     let item = _impl(tokens)?;
                     tokens.next_if(|t| matches!(t, Tok::Punct(b']')))?;
                     let fin = tokens.next_if(|t| matches!(t, Tok::Punct(b'+'))).is_none();
-                    Type::list(fin, item).into()
+                    Type::list(fin, item)
                 }
 
                 Tok::Punct(b'(') => {
                     let fst = _impl(tokens)?;
                     let r = if tokens.next_if(|t| matches!(t, Tok::Punct(b','))).is_some() {
                         let snd = _impl(tokens)?;
-                        Type::pair(fst, snd).into()
+                        Type::pair(fst, snd)
                     } else {
                         fst
                     };
@@ -173,7 +173,7 @@ impl Type {
             };
 
             Some(if tokens.next_if(|t| matches!(t, Tok::Arrow)).is_some() {
-                Type::func(ty, _impl(tokens)?).into()
+                Type::func(ty, _impl(tokens)?)
             } else {
                 ty
             })
@@ -206,7 +206,7 @@ impl Type {
             };
 
             already.insert(ty as *const _, r.clone());
-            return r;
+            r
         }
 
         _inner(self, &mut Default::default())
