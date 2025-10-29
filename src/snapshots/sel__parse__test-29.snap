@@ -95,17 +95,17 @@ expression: "t(b\"\nuse :p: n,\ndef f: d: v,\n[let a={h,, t] 1 0\n\")"
                                                     },
                                                 ],
                                                 rest: Some(
-                                                    (
-                                                        Location(
+                                                    PatListRest {
+                                                        loc_comma: Location(
                                                             "<test>",
                                                             35..36,
                                                         ),
-                                                        Location(
+                                                        loc_name: Location(
                                                             "<test>",
                                                             37..38,
                                                         ),
-                                                        "t",
-                                                    ),
+                                                        name: "t",
+                                                    },
                                                 ),
                                                 loc_close: Location(
                                                     "<test>",

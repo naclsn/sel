@@ -316,16 +316,16 @@ impl<'check> Checker<'check> {
                         }),
                 );
 
-                if let Some((loc_comma, loc, word)) = rest {
-                    let loc = loc.clone();
+                if let Some(rest) = rest {
+                    let loc = rest.loc_name.clone();
                     use std::collections::hash_map::Entry::*;
-                    match names.entry(word.clone()) {
+                    match names.entry(rest.name.clone()) {
                         Occupied(old) => {
                             let (loc_already, ty_old) = old.get();
                             self.errors.push(errors::context_extra_comma_makes_rest(
-                                loc_comma.clone(),
+                                rest.loc_comma.clone(),
                                 errors::already_declared(
-                                    word.clone(),
+                                    rest.name.clone(),
                                     loc_already.clone(),
                                     ty_old,
                                     loc,
@@ -453,8 +453,9 @@ impl<'check> Checker<'check> {
             } => {
                 let items: Vec<_> = items.iter().map(|it| (it, self.check_apply(it))).collect();
 
-                let (loc_comma, loc_rest, rest) = if let Some((loc_comma, rest)) = rest {
-                    (Some(loc_comma), rest.loc(), self.check_apply(rest))
+                let (loc_comma, loc_rest, rest) = if let Some(rest) = rest {
+                    let restt = self.check_apply(&rest.apply);
+                    (Some(&rest.loc_comma), rest.apply.loc(), restt)
                 } else {
                     // empty list, as if {...,, {}}
                     let nil = Tree {

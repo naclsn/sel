@@ -67,17 +67,17 @@ expression: "t(b\"let {a, b, c,, {0}} 1 2\")"
                     },
                 ],
                 rest: Some(
-                    (
-                        Location(
+                    PatListRest {
+                        loc_comma: Location(
                             "<test>",
                             13..14,
                         ),
-                        Location(
+                        loc_name: Location(
                             "<test>",
                             15..16,
                         ),
-                        "open '{'",
-                    ),
+                        name: "open '{'",
+                    },
                 ),
                 loc_close: Location(
                     "<test>",

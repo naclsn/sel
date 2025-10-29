@@ -64,12 +64,12 @@ expression: "t(b\"x[x {a b,, c d, y]y\")"
                                                 },
                                             ],
                                             rest: Some(
-                                                (
-                                                    Location(
+                                                ListRest {
+                                                    loc_comma: Location(
                                                         "<test>",
                                                         9..10,
                                                     ),
-                                                    Apply {
+                                                    apply: Apply {
                                                         base: Value(
                                                             Word {
                                                                 loc: Location(
@@ -89,7 +89,7 @@ expression: "t(b\"x[x {a b,, c d, y]y\")"
                                                             },
                                                         ],
                                                     },
-                                                ),
+                                                },
                                             ),
                                             loc_close: Location(
                                                 "<test>",

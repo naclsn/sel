@@ -97,7 +97,7 @@ pub enum Value {
     List {
         loc_open: Location,
         items: Box<[Apply]>,
-        rest: Option<(Location, Box<Apply>)>, // with location of the extra ','
+        rest: Option<Box<ListRest>>,
         loc_close: Location,
     },
     /// `pair ::= (<atom> | <subscr> | <list>) '=' <value>`
@@ -106,6 +106,11 @@ pub enum Value {
         loc_equal: Location,
         snd: Box<Value>,
     },
+}
+#[derive(Debug, Clone)]
+pub struct ListRest {
+    pub loc_comma: Location,
+    pub apply: Apply,
 }
 
 /// `irrefut ::= <word> | <irrefut> '=' <irrefut>`
@@ -126,7 +131,7 @@ pub enum Pattern {
     List {
         loc_open: Location,
         items: Box<[Pattern]>,
-        rest: Option<(Location, Location, String)>, // with location of the extra ',' and word
+        rest: Option<Box<PatListRest>>,
         loc_close: Location,
     },
     /// `patpair ::= (<atom> | <patlist>) '=' <pattern>`
@@ -135,6 +140,12 @@ pub enum Pattern {
         loc_equal: Location,
         snd: Box<Pattern>,
     },
+}
+#[derive(Debug, Clone)]
+pub struct PatListRest {
+    pub loc_comma: Location,
+    pub loc_name: Location,
+    pub name: String,
 }
 
 impl Pattern {
@@ -614,15 +625,8 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
         (loc_open, subscr, loc_close)
     }
 
-    fn parse_list_content(
-        &mut self,
-        tok_open: &Token,
-    ) -> (
-        Location,
-        Box<[Apply]>,
-        Option<(Location, Box<Apply>)>,
-        Location,
-    ) {
+    /// always a value::List
+    fn parse_list_content(&mut self, tok_open: &Token) -> Value {
         let loc_open = tok_open.0.clone();
 
         let mut items = Vec::new();
@@ -670,7 +674,10 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                 // { ... ,,
                 if matches!(self.peek_tok(), Token(_, TokenKind::Comma)) {
                     let loc_comma = self.next_tok().0;
-                    rest = Some((loc_comma, Box::new(self.parse_apply())));
+                    rest = Some(Box::new(ListRest {
+                        loc_comma,
+                        apply: self.parse_apply(),
+                    }));
                     // parse_apply ends on a TermToken
 
                     match self.peek_tok() {
@@ -693,18 +700,16 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
             } // if ','
         } // while
 
-        (loc_open, items.into(), rest, loc_close)
+        Value::List {
+            loc_open,
+            items: items.into(),
+            rest,
+            loc_close,
+        }
     }
 
-    fn parse_patlist_content(
-        &mut self,
-        tok_open: &Token,
-    ) -> (
-        Location,
-        Box<[Pattern]>,
-        Option<(Location, Location, String)>,
-        Location,
-    ) {
+    /// always Pattern::List
+    fn parse_patlist_content(&mut self, tok_open: &Token) -> Pattern {
         let loc_open = tok_open.0.clone();
 
         let mut items = Vec::new();
@@ -766,17 +771,25 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
                 let loc_comma = self.next_tok().0;
                 // { ... ,,
 
-                rest = Some(match self.next_tok() {
-                    Token(loc_rest, TokenKind::Word(w)) => (loc_comma, loc_rest, w),
+                rest = Some(Box::new(match self.next_tok() {
+                    Token(loc_rest, TokenKind::Word(name)) => PatListRest {
+                        loc_comma,
+                        loc_name: loc_rest,
+                        name,
+                    },
                     other => {
                         self.errors.push(errors::unexpected(
                             other.clone(),
                             "a word then closing '}' after ',,'",
                             Some(tok_open.clone()),
                         ));
-                        (loc_comma, other.0, other.1.to_string())
+                        PatListRest {
+                            loc_comma,
+                            loc_name: other.0,
+                            name: other.1.to_string(),
+                        }
                     }
-                });
+                }));
 
                 match self.peek_tok() {
                     Token(_, TokenKind::CloseBrace) => {
@@ -799,7 +812,12 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
             } // if ',', then !!','
         } // loop
 
-        (loc_open, items.into(), rest, loc_close)
+        Pattern::List {
+            loc_open,
+            items: items.into(),
+            rest,
+            loc_close,
+        }
     }
 
     pub fn parse_value(&mut self) -> Value {
@@ -818,13 +836,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
 
             TokenKind::OpenBrace => {
                 let open = self.next_tok();
-                let (loc_open, items, rest, loc_close) = self.parse_list_content(&open);
-                Value::List {
-                    loc_open,
-                    items,
-                    rest,
-                    loc_close,
-                }
+                self.parse_list_content(&open)
             }
 
             TokenKind::Number(n) => Value::Number {
@@ -875,13 +887,7 @@ impl<'parse, I: Iterator<Item = u8>> Parser<'parse, I> {
         let pattern = match &first_tok.1 {
             TokenKind::OpenBrace => {
                 let open = self.next_tok();
-                let (loc_open, items, rest, loc_close) = self.parse_patlist_content(&open);
-                Pattern::List {
-                    loc_open,
-                    items,
-                    rest,
-                    loc_close,
-                }
+                self.parse_patlist_content(&open)
             }
 
             TokenKind::Number(n) => Pattern::Number {

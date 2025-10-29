@@ -98,10 +98,6 @@ pub enum ErrorKind {
         actual: Rc<Type>,
         as_of: Vec<MismatchAs>, // expected to always be a sequence of [frag]Of with a final Wanted
     },
-    InconsistentType {
-        types: Vec<(Location, Rc<Type>)>,
-    },
-    InfWhereFinExpected,
     NameAlreadyDeclared {
         name: String,
     },
@@ -526,19 +522,6 @@ impl Error {
                         },
                     ),
                 )],
-            },
-            InconsistentType { types } => Report {
-                registry,
-                title: "Inconsistent type from usage".into(),
-                messages: types
-                    .iter()
-                    .map(|(loc, ty)| (loc.clone(), format!("Use here with type {ty}")))
-                    .collect(),
-            },
-            InfWhereFinExpected => Report {
-                registry,
-                title: "Wrong boundedness".into(),
-                messages: vec![(loc, "Expected finite type, but got infinite type".into())],
             },
             NameAlreadyDeclared { name } => Report {
                 registry,

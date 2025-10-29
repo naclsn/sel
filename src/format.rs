@@ -29,7 +29,7 @@ impl Display for DumbFormatAst<'_> {
                         write!(f, ",")
                     })?;
                     rest.as_ref()
-                        .map(|(_, _, w)| write!(f, ", {w}"))
+                        .map(|rest| write!(f, ", {}", rest.name))
                         .unwrap_or(Ok(()))?;
                     write!(f, "}}")
                 }

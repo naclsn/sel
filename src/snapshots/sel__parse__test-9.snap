@@ -38,12 +38,12 @@ expression: "t(b\"{repeat 1,, {}}\")"
                                 },
                             ],
                             rest: Some(
-                                (
-                                    Location(
+                                ListRest {
+                                    loc_comma: Location(
                                         "<test>",
                                         10..11,
                                     ),
-                                    Apply {
+                                    apply: Apply {
                                         base: Value(
                                             List {
                                                 loc_open: Location(
@@ -60,7 +60,7 @@ expression: "t(b\"{repeat 1,, {}}\")"
                                         ),
                                         args: [],
                                     },
-                                ),
+                                },
                             ),
                             loc_close: Location(
                                 "<test>",

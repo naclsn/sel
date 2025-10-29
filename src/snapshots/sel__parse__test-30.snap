@@ -45,17 +45,17 @@ expression: "t(b\"let let={:let:,,LET} 3 3\")"
                                     },
                                 ],
                                 rest: Some(
-                                    (
-                                        Location(
+                                    PatListRest {
+                                        loc_comma: Location(
                                             "<test>",
                                             15..16,
                                         ),
-                                        Location(
+                                        loc_name: Location(
                                             "<test>",
                                             16..19,
                                         ),
-                                        "token 'LET'",
-                                    ),
+                                        name: "token 'LET'",
+                                    },
                                 ),
                                 loc_close: Location(
                                     "<test>",
